@@ -64,8 +64,15 @@ for slice in range(nslice):
             dists.append(dist)
             if dist>11.9:
                 #print 'slice ',slice,' missing ',newdot[iid]
+                for olderdot in data[prevprev]:
+                    newdist = (newdot[ix]-olderdot[ix])**2 + (newdot[iy]-olderdot[iy])**2
+                    if newdist < dist:
+                        dist = newdist 
+                        newsid = olderdot[isid]
+                        data[newdot[iid]-1,isid] = newsid #must do this; previous line doesn't work
+            if dist>11.9:
                 newsid=0
-                data[newdot[iid]-1,isid] = newsid
+            data[newdot[iid]-1,isid] = newsid
             #sqdisp = (newdot[ix] - olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
             #print newsid
             sqdisp = (newdot[ix] - data[np.nonzero(data[:,iid]==newsid),ix])**2 \
