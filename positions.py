@@ -31,6 +31,33 @@ idisp = 6   # particle displacement from initial position
 #
 #dots = [ [ dotline for dotline in data[i*ndots:(i+1)*ndots] ] for i in range(nimgs) ]
 
+def find_closest(thisdot,slice,n=1,maxdist=12.):
+    #print slice, thisdot[iid], n
+    if (slice>1) &(slice - n < 1):
+        print "back to beginning, something's wrong"
+        print '\t', slice, n, slice-n
+        newsid = 0
+        return newsid
+    oldframe = data[np.nonzero(data[:,islice]==slice-n+1)]
+    dist = maxdist
+    for olddot in oldframe:
+        newdist = (newdot[ix]-olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
+        #print '\t', newdist, '\t', dist
+        if newdist < dist:
+            dist = newdist
+            newsid = olddot[isid]
+    if ((slice - n > 0) & (n <= 500) ) & (dist >= maxdist):
+        #print "recursing!\n\tslice =", slice, ", n =", n
+        #print (slice-n > 0),'and',(dist >= maxdist)
+        #print dist, '>=', maxdist, '? ', (dist >= maxdist)
+        newsid = find_closest(thisdot,slice,n=n+1,maxdist=maxdist)
+    if n > 500:
+        print "recursed 500 times, giving up. slice =", slice
+        newsid = 0.0
+    data[thisdot[iid]-1,isid] = newsid
+    #print np.shape(data)
+    return newsid
+
 
 nslice = int(data[len(data)-1][islice])
 msqdisp = np.zeros(nslice)
@@ -49,30 +76,31 @@ for slice in range(nslice):
         inity = data[firs,iy]
     else:
         for newdot in data[curr]:
-            dist=12.
-            for olddot in data[prev]:
-                newdist = (newdot[ix]-olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
-                if newdist < dist:
-                    dist = newdist 
-                    #print "Closer"
-                    #print "new",newdot," old",olddot
-                    #newdot[isid] = olddot[isid] ### why doesn't this update data????
-                    newsid = olddot[isid]
-                    data[newdot[iid]-1,isid] = newsid #must do this; previous line doesn't work
-                    #print "Now:", newdot
-                    #print "data: ", data[curr]
-            dists.append(dist)
-            if dist>11.9:
-                #print 'slice ',slice,' missing ',newdot[iid]
-                for olderdot in data[prevprev]:
-                    newdist = (newdot[ix]-olderdot[ix])**2 + (newdot[iy]-olderdot[iy])**2
-                    if newdist < dist:
-                        dist = newdist 
-                        newsid = olderdot[isid]
-                        data[newdot[iid]-1,isid] = newsid #must do this; previous line doesn't work
-            if dist>11.9:
-                newsid=0
-            data[newdot[iid]-1,isid] = newsid
+            newsid = find_closest(newdot,slice)
+#            dist=12.
+#            for olddot in data[prev]:
+#                newdist = (newdot[ix]-olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
+#                if newdist < dist:
+#                    dist = newdist 
+#                    #print "Closer"
+#                    #print "new",newdot," old",olddot
+#                    #newdot[isid] = olddot[isid] ### why doesn't this update data????
+#                    newsid = olddot[isid]
+#                    data[newdot[iid]-1,isid] = newsid #must do this; previous line doesn't work
+#                    #print "Now:", newdot
+#                    #print "data: ", data[curr]
+#            dists.append(dist)
+#            if dist>11.9:
+#                #print 'slice ',slice,' missing ',newdot[iid]
+#                for olderdot in data[prevprev]:
+#                    newdist = (newdot[ix]-olderdot[ix])**2 + (newdot[iy]-olderdot[iy])**2
+#                    if newdist < dist:
+#                        dist = newdist 
+#                        newsid = olderdot[isid]
+#                        data[newdot[iid]-1,isid] = newsid #must do this; previous line doesn't work
+#            if dist>11.9:
+#                newsid=0
+#            data[newdot[iid]-1,isid] = newsid
             #sqdisp = (newdot[ix] - olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
             #print newsid
             sqdisp = (newdot[ix] - data[np.nonzero(data[:,iid]==newsid),ix])**2 \
