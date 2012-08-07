@@ -7,9 +7,10 @@ from PIL import Image as Im
 if True:#def get_fft(ifile)
     if True:
         ifile= "n20_bw_dots/n20_b_w_dots_0010.tif"
-        x = 424.66
-        y = 155.56
-        area = 125
+        x = 424.66; y = 155.56; area = 125
+        #x = 302.95; y = 221.87; area = 145
+        #x = 386.27; y = 263.62; area = 141
+        #x = 35.39; y = 305.92; area = 154
         location = x,y
     wdth = int(24 * np.sqrt(2))
     hght = wdth
@@ -19,11 +20,36 @@ if True:#def get_fft(ifile)
     i = i.crop(cropbox)
     i.show()
     a = np.asarray(i)
+    aa = np.gradient(a)
     b = np.fft.fft2(a)
     j = Im.fromarray(abs(b))
-    j.show()
+    ii = Im.fromarray(aa)
+    ii.show()
 
-#def get_orientation(j)
+if True:#def get_orientation(b)
+    p = []
+    for (mi,m) in enumerate(b):
+        for (ni, n) in enumerate(m):
+            ang = np.arctan2(mi - hght/2, ni - wdth/2)
+            p.append([ang,abs(n)])
+    p = np.asarray(p)
+    p[:,0] = p[:,0] + np.pi
+    slices = 45
+    slicewidth = 2*np.pi/slices
+    s = []
+    for sl in range(slices):
+        si = np.nonzero(abs(p[:,0] - sl*slicewidth) < slicewidth)
+        sm = np.average(p[si,1])
+        s.append([sl*slicewidth,sm])
+    s = np.asarray(s)
+    #return s, p
+    pl.figure()
+    #pl.plot(p[:,0],p[:,1],'.',label='p')
+    #pl.plot(s[:,0],s[:,1],'o',label='s')
+    pl.plot(p[:,0]%(np.pi/2),p[:,1],'.',label='p')
+    pl.plot(s[:,0]%(np.pi/2),s[:,1],'o',label='s')
+    pl.legend()
+    pl.show()
 
 
 

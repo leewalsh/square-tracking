@@ -2,9 +2,9 @@ import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
 from scipy.stats import nanmean
-from PIL import Image
+from PIL import Image as Im
 
-bgimage = Image.open('n20_bw_dots/n20_b_w_dots_0010.tif') # for bkground in plot
+bgimage = Im.open('n20_bw_dots/n20_b_w_dots_0010.tif') # for bkground in plot
 datapath = 'n20_bw_dots/Results-all.txt'
 
 data = [ line[:-1] for line in open(datapath)] # last char in each line is newline
