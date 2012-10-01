@@ -1,13 +1,20 @@
-//run("Clear Results");
-//open("/Users/leewalsh/Physics/Granular/Squares/tracking/n20_bw_dots/n20_b_w_dots_0010.tif");
+// find_brights.txt, Lee Walsh
+// thresholds, segments and finds locations of bright spots
 
-//run("Properties...", "channels=1 slices=573 frames=1 unit=pixel pixel_width=1 pixel_height=1 voxel_depth=1.0000000");
+// Before running, load all images as virtual stack:
+//     File > Import > Image sequence
+//         Be sure to:
+//             filter by '.tif'
+//             select "Virtual Stack"
+
+//run("Clear Results");
 
 run("Properties...", "unit=pixel pixel_width=1 pixel_height=1 voxel_depth=1.0000000");
 
-//makeOval(-6, 2, 603, 603);
 setBatchMode(true)
-makeOval(-2, 6, 597, 597);
+
+// select oval size (left, top, width, height)
+makeOval(5, 3, 597, 597);
 run("Clear Outside","stack");
 run("Median...", "radius=0");
 setForegroundColor(71, 71, 71);
@@ -15,10 +22,10 @@ floodFill(48, 39);
 floodFill(19, 520);
 //run("Bandpass Filter...", "filter_large=60 filter_small=2 suppress=None tolerance=5 autoscale saturate");
 
-setThreshold(207, 255);
-setOption("Stack Position",true)
-run("Set Measurements...", "area centroid stack redirect=None decimal=2");
-//run("Analyze Particles...", "size=50-300 circularity=0.75-1.00 show=Outlines display");
-run("Analyze Particles...", "size=50-300 circularity=0.75-1.00 display show=Nothing stack");
+setThreshold(180, 255);
+//setOption("Stack Position",true)
+run("Set Measurements...", "area shape centroid stack redirect=None decimal=2");
+run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Masks");
+//run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Nothing");
 //close();
 //run("Open Next");

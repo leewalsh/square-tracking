@@ -4,8 +4,12 @@ import numpy as np
 from scipy.stats import nanmean
 from PIL import Image as Im
 
-bgimage = Im.open('n20_bw_dots/n20_b_w_dots_0010.tif') # for bkground in plot
-datapath = 'n20_bw_dots/Results-all.txt'
+extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+prefix = 'n08'
+
+bgimage = Im.open(extdir+prefix+'/n8_0001.tif') # for bkground in plot
+datapath = locdir+prefix+'.txt'
 
 data = [ line[:-1] for line in open(datapath)] # last char in each line is newline
 datatypes = data[0].split()#('/t') # split with no arg figures it out
