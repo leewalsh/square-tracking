@@ -29,3 +29,7 @@ run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show
 //run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Nothing");
 //close();
 //run("Open Next");
+
+// Ran out of memory (1596 MB)
+// after 4550 slices (34825 particles)
+// that's 2.8 slices/MB :(

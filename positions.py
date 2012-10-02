@@ -3,13 +3,15 @@ import matplotlib.cm as cm
 import numpy as np
 from scipy.stats import nanmean
 from PIL import Image as Im
+import sys
 
-extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+
+#extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
 prefix = 'n08'
 
-bgimage = Im.open(extdir+prefix+'/n8_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'.txt'
+bgimage = Im.open(locdir+'/n8_0001.tif') # for bkground in plot
+datapath = locdir+prefix+'_4500.txt'
 
 ### Add 'ID' as label for first column in first line !!! ###
 
@@ -20,8 +22,6 @@ for dot in data:
     dot.append(0.0)
     dot.append(0.0)
 data = np.array(data).astype(float)
-
-
 
 # indices in file (number gives column)
 iid =    datatypes.index('ID')    # unique particle id
@@ -36,7 +36,8 @@ if (max(idisp,isid) + 1) > len(data[0]):
 
 # recursive function to find nearest dot in previous frame.
 # looks further back until it finds the nearest particle
-def find_closest(thisdot,slice,n=1,maxdist=12.):
+sys.setrecursionlimit(2000)
+def find_closest(thisdot,slice,n=1,maxdist=20.,giveup=1999):
     if (slice > 1) & (slice - n < 1):
         print "back to beginning, something's wrong"
         print '\tslice:', slice,'n:', n,'dot:', thisdot[iid]
@@ -49,10 +50,10 @@ def find_closest(thisdot,slice,n=1,maxdist=12.):
         if newdist < dist:
             dist = newdist
             newsid = olddot[isid]
-    if ((slice - n > 0) & (n <= 500) ) & (dist >= maxdist):
+    if ((slice > n) & (n < giveup) ) & (dist >= maxdist):
         newsid = find_closest(thisdot,slice,n=n+1,maxdist=maxdist)
-    if n > 500: # give up after 500 frames
-        print "recursed 500 times, giving up. slice =", slice
+    if n >= giveup: # give up after giveup frames
+        print "recursed", n, "times, giving up. slice =", slice
         newsid = 0.0
     data[thisdot[iid]-1,isid] = newsid
     return newsid
@@ -84,30 +85,36 @@ for slice in range(nslice):
 
 # Plotting:
 nparticles = int(prefix[1:]) if ('n' in prefix) else int(max(data[:,isid]))
+plotimage = True
+plotmsd   = True
 for part in range(nparticles):
     thispart = np.nonzero(data[:,isid]==part+1)
     c = cm.spectral(1-float(part)/nparticles) #rainbow colormap
 
     # Locations plotted over image:
-    pl.figure(1)
-    pl.plot(data[thispart,ix],600-data[thispart,iy],'o',color=c,label="isid="+str(part+1))
+    if plotimage:
+        pl.figure(1)
+        pl.plot(data[thispart,ix],600-data[thispart,iy],'o',color=c,label="isid="+str(part+1))
 
     # Mean Squared Displacement:
+    if plotmsd:
+        pl.figure(2)
+        #thispartxs = data[thispart,ix]
+        #thispartys = data[thispart,iy]
+        pl.loglog(data[np.nonzero(data[:,isid]==part+1)][:,idisp],color=c,label="isid = "+str(part+1))
+
+if plotimage:
+    pl.figure(1)
+    pl.imshow(bgimage,origin='lower')
+    pl.title(prefix)
+    pl.legend
+
+if plotmsd:
     pl.figure(2)
-    thispartxs = data[thispart,ix]
-    thispartys = data[thispart,iy]
-    pl.loglog(data[np.nonzero(data[:,isid]==part+1)][:,idisp],color=c,label="isid = "+str(part+1))
-
-pl.figure(1)
-pl.imshow(bgimage,origin='lower')
-pl.title(prefix)
-pl.legend
-
-pl.figure(2)
-pl.loglog(msqdisp,'ko') # mean
-pl.loglog(np.arange(nslice)+1,np.arange(nslice)+1,'k--') # slope = 1 for ref.
-pl.legend()
-pl.xlabel('Time (Image frames)')
-pl.ylabel('Squared Displacement'+r'$pixels^2$')
+    pl.loglog(msqdisp,'ko') # mean
+    pl.loglog(np.arange(nslice)+1,np.arange(nslice)+1,'k--') # slope = 1 for ref.
+    pl.legend()
+    pl.xlabel('Time (Image frames)')
+    pl.ylabel('Squared Displacement'+r'$pixels^2$')
 
 pl.show()
