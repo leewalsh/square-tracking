@@ -10,6 +10,9 @@ import sys
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
 prefix = 'n08'
 
+plottracks = True
+domsd   = False
+
 bgimage = Im.open(locdir+'/n8_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_4500.txt'
 
@@ -41,7 +44,8 @@ def find_closest(thisdot,slice,n=1,maxdist=20.,giveup=1999):
     if (slice > 1) & (slice - n < 1):
         print "back to beginning, something's wrong"
         print '\tslice:', slice,'n:', n,'dot:', thisdot[iid]
-        newsid = 0
+        newsid = max(data[:,isid]) + 1
+        print "created new static id:",newsid
         return newsid
     oldframe = data[np.nonzero(data[:,islice]==slice-n+1)]
     dist = maxdist
@@ -54,20 +58,22 @@ def find_closest(thisdot,slice,n=1,maxdist=20.,giveup=1999):
         newsid = find_closest(thisdot,slice,n=n+1,maxdist=maxdist)
     if n >= giveup: # give up after giveup frames
         print "recursed", n, "times, giving up. slice =", slice
-        newsid = 0.0
+        newsid = max(data[:,isid]) + 1
+        print "created new static id:",newsid
     data[thisdot[iid]-1,isid] = newsid
     return newsid
 
 
 nslice = int(data[len(data)-1][islice])
-msqdisp = np.zeros(nslice)
-dists = []
+if domsd:
+    msqdisp = np.zeros(nslice)
+    dists = []
 for slice in range(nslice):
     curr = np.nonzero(data[:,islice]==slice+1)
 
     # for first image, use original particle ID as statid ID
     # it is imperitive that all particles are found in first frame
-    if slice == 0:
+    if (slice == 0):
         firs = curr
         data[firs,isid] = data[firs,iid]
         #data[curr,idisp] = 0.0
@@ -77,39 +83,38 @@ for slice in range(nslice):
         for newdot in data[curr]:
             newsid = find_closest(newdot,slice)
             #sqdisp = (newdot[ix] - olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
-            sqdisp = (newdot[ix] - data[np.nonzero(data[:,iid]==newsid),ix])**2 \
-                    + (newdot[iy] - data[np.nonzero(data[:,iid]==newsid),iy])**2
-            data[newdot[iid]-1,idisp] = float(sqdisp) if bool(newsid) & (np.shape(sqdisp)==(1,1)) else None
-        msqdisp[slice] = nanmean(data[np.nonzero(data[:,islice]==slice+1),idisp][0])
+            if domsd:
+                sqdisp = (newdot[ix] - data[np.nonzero(data[:,iid]==newsid),ix])**2 \
+                        + (newdot[iy] - data[np.nonzero(data[:,iid]==newsid),iy])**2
+                data[newdot[iid]-1,idisp] = float(sqdisp) if bool(newsid) & (np.shape(sqdisp)==(1,1)) else None
+        if domsd:
+            msqdisp[slice] = nanmean(data[np.nonzero(data[:,islice]==slice+1),idisp][0])
 
 
 # Plotting:
-nparticles = int(prefix[1:]) if ('n' in prefix) else int(max(data[:,isid]))
-plotimage = True
-plotmsd   = True
-for part in range(nparticles):
-    thispart = np.nonzero(data[:,isid]==part+1)
-    c = cm.spectral(1-float(part)/nparticles) #rainbow colormap
+#nparticles = int(prefix[1:]) if ('n' in prefix) else int(max(data[:,isid]))
+ntracks = int(max(data[:,isid]))
+for trackn in range(ntracks):
+    trackparts = np.nonzero(data[:,isid]==trackn+1)[0] # makes a 1xN array without [0]
+    c = cm.spectral(1-float(trackn)/ntracks) #rainbow colormap
 
     # Locations plotted over image:
-    if plotimage:
+    if plottracks:
         pl.figure(1)
-        pl.plot(data[thispart,ix],600-data[thispart,iy],'o',color=c,label="isid="+str(part+1))
+        pl.plot(data[trackparts,ix],600-data[trackparts,iy],'.',color=c,label="isid="+str(trackn+1))
 
     # Mean Squared Displacement:
-    if plotmsd:
+    if domsd:
         pl.figure(2)
-        #thispartxs = data[thispart,ix]
-        #thispartys = data[thispart,iy]
-        pl.loglog(data[np.nonzero(data[:,isid]==part+1)][:,idisp],color=c,label="isid = "+str(part+1))
+        pl.loglog(data[np.nonzero(data[:,isid]==trackn+1)][:,idisp],color=c,label="isid = "+str(trackn+1))
 
-if plotimage:
+if plottracks:
     pl.figure(1)
-    pl.imshow(bgimage,origin='lower')
+    pl.imshow(bgimage,cmap=cm.Greys,origin='lower')
     pl.title(prefix)
-    pl.legend
+    pl.legend()
 
-if plotmsd:
+if domsd:
     pl.figure(2)
     pl.loglog(msqdisp,'ko') # mean
     pl.loglog(np.arange(nslice)+1,np.arange(nslice)+1,'k--') # slope = 1 for ref.
