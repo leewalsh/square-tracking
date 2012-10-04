@@ -96,7 +96,7 @@ for slice in range(nslice):
 ntracks = int(max(data[:,isid]))
 for trackn in range(ntracks):
     trackparts = np.nonzero(data[:,isid]==trackn+1)[0] # makes a 1xN array without [0]
-    c = cm.spectral(1-float(trackn)/ntracks) #rainbow colormap
+    c = cm.spectral(1-float(trackn)/ntracks) #spectral colormap, use prism for more colors
 
     # Locations plotted over image:
     if plottracks:
@@ -110,7 +110,7 @@ for trackn in range(ntracks):
 
 if plottracks:
     pl.figure(1)
-    pl.imshow(bgimage,cmap=cm.Greys,origin='lower')
+    pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
     pl.legend()
 
