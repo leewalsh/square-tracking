@@ -40,26 +40,28 @@ if (max(idisp,isid) + 1) > len(data[0]):
 # recursive function to find nearest dot in previous frame.
 # looks further back until it finds the nearest particle
 sys.setrecursionlimit(2000)
-def find_closest(thisdot,slice,n=1,maxdist=20.,giveup=1999):
-    if (slice > 1) & (slice - n < 1):
-        print "back to beginning, something's wrong"
+giveup=1999
+def find_closest(thisdot,slice,n=1,maxdist=20.,giveup=500):
+    if slice < n:  # back to the first frame
+        newsid = max(data[:,isid]) + 1
+        print "New track:",newsid
         print '\tslice:', slice,'n:', n,'dot:', thisdot[iid]
-        newsid = max(data[:,isid]) + 1
-        print "created new static id:",newsid
-        return newsid
-    oldframe = data[np.nonzero(data[:,islice]==slice-n+1)]
-    dist = maxdist
-    for olddot in oldframe:
-        newdist = (newdot[ix]-olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
-        if newdist < dist:
-            dist = newdist
-            newsid = olddot[isid]
-    if ((slice > n) & (n < giveup) ) & (dist >= maxdist):
-        newsid = find_closest(thisdot,slice,n=n+1,maxdist=maxdist)
-    if n >= giveup: # give up after giveup frames
-        print "recursed", n, "times, giving up. slice =", slice
-        newsid = max(data[:,isid]) + 1
-        print "created new static id:",newsid
+    else:
+        oldframe = data[np.nonzero(data[:,islice]==slice-n+1)]
+        dist = maxdist
+        for olddot in oldframe:
+            newdist = (newdot[ix]-olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
+            if newdist < dist:
+                dist = newdist
+                newsid = olddot[isid]
+                #print "found it! (",newsid,"slice:",slice,'; n:',n,')'
+        if (n < giveup) & (dist >= maxdist):
+            #print "still looking...",dist,'>',maxdist
+            newsid = find_closest(thisdot,slice,n=n+1,maxdist=maxdist,giveup=giveup)
+        if n >= giveup: # give up after giveup frames
+            print "recursed", n, "times, giving up. slice =", slice
+            newsid = max(data[:,isid]) + 1
+            print "created new static id:",newsid
     data[thisdot[iid]-1,isid] = newsid
     return newsid
 
@@ -72,8 +74,7 @@ for slice in range(nslice):
     curr = np.nonzero(data[:,islice]==slice+1)
 
     # for first image, use original particle ID as statid ID
-    # it is imperitive that all particles are found in first frame
-    if (slice == 0):
+    if 0:#(slice == 0):
         firs = curr
         data[firs,isid] = data[firs,iid]
         #data[curr,idisp] = 0.0
@@ -81,7 +82,7 @@ for slice in range(nslice):
         inity = data[firs,iy]
     else:
         for newdot in data[curr]:
-            newsid = find_closest(newdot,slice)
+            newsid = find_closest(newdot,slice,giveup=giveup)
             #sqdisp = (newdot[ix] - olddot[ix])**2 + (newdot[iy]-olddot[iy])**2
             if domsd:
                 sqdisp = (newdot[ix] - data[np.nonzero(data[:,iid]==newsid),ix])**2 \
@@ -95,18 +96,21 @@ for slice in range(nslice):
 #nparticles = int(prefix[1:]) if ('n' in prefix) else int(max(data[:,isid]))
 ntracks = int(max(data[:,isid]))
 for trackn in range(ntracks):
-    trackparts = np.nonzero(data[:,isid]==trackn+1)[0] # makes a 1xN array without [0]
+    # filter out all dots that belong to this track:
+    trackparts = np.nonzero(data[:,isid]==trackn+1)[0] # just want the column indices (not row)
     c = cm.spectral(1-float(trackn)/ntracks) #spectral colormap, use prism for more colors
 
     # Locations plotted over image:
     if plottracks:
         pl.figure(1)
-        pl.plot(data[trackparts,ix],600-data[trackparts,iy],'.',color=c,label="isid="+str(trackn+1))
+        bgheight = bgimage.size[1] # for flippin over y
+        pl.plot(data[trackparts,ix],bgheight-data[trackparts,iy],'.',color=c,label="track "+str(trackn+1))
 
     # Mean Squared Displacement:
     if domsd:
         pl.figure(2)
-        pl.loglog(data[np.nonzero(data[:,isid]==trackn+1)][:,idisp],color=c,label="isid = "+str(trackn+1))
+        #pl.loglog(data[np.nonzero(data[:,isid]==trackn+1)][:,idisp],color=c,label="track "+str(trackn+1))
+        pl.loglog(data[trackparts,idisp],color=c,label="track "+str(trackn+1))
 
 if plottracks:
     pl.figure(1)
