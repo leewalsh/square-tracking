@@ -20,7 +20,7 @@ datapath = locdir+prefix+'_4500.txt'
 
 data = [ line[:-1] for line in open(datapath)] # last char in each line is newline
 datatypes = data[0].split()#('/t') # split with no arg figures it out
-data = [ dataline.split() for dataline in data[1:1000] ] # remove first line, split each column
+data = [ dataline.split() for dataline in data[1:4000] ] # remove first line, split each column
 for dot in data:
     dot.append(0.0)
     dot.append(0.0)
@@ -82,22 +82,22 @@ for track in range(ntracks):
     trackdots = np.nonzero(data[:,isid]==track+1)[0] # just want the column indices (not row)
     print '\ttrack:',track
     print 'taus:',dtau*(1+np.arange(len(trackdots)/dtau))
-    for tau in dtau*(1+np.arange(len(trackdots)/dtau)):
+    for tau in dtau*(1+np.arange(len(trackdots)/dtau)):  # for tau in T, by dtau stepsize
         print "\t\ttau:",tau
         print 't0s:',dt0*np.arange((len(trackdots)-tau)/dt0)
         totsqdisp = 0.0
         nt0s = 0.0
-        for t0 in dt0*np.arange((len(trackdots)-tau-1)/dt0):
-            print "\t\t\tt0:",t0
+        for t0 in dt0*np.arange((len(trackdots)-tau-1)/dt0): # for t0 in T - tau - 1, by dt0 stepsize
+            #print "\t\t\tt0:",t0
             olddot = np.nonzero(data[trackdots,iframe]==t0+1)[0]
             newdot = np.nonzero(data[trackdots,iframe]==t0+tau+1)[0]
-            if not len(olddot)*len(newdot): print('not here');continue
+            if not len(olddot)*len(newdot): print('\t\t\tnot here');continue
             sqdisp  = (data[newdot,ix] - data[olddot,ix])**2 \
                     + (data[newdot,iy] - data[olddot,iy])**2
-            print '\t\t\t\tsqdisp:',sqdisp
+            #print '\t\t\tsqdisp:',sqdisp
             totsqdisp += sqdisp
             nt0s += 1.0
-        msqdisp[tau/dtau-1] = totsqdisp/nt0s if nt0s else 0.0
+        msqdisp[tau/dtau-1] = totsqdisp/nt0s if nt0s else None
     msqdisps.append(msqdisp)
 
 
