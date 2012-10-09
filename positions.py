@@ -95,7 +95,7 @@ def t0avg(trackdots,tracklen,tau):
         if len(olddot)*len(newdot) == 0: continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
-        if np.shape(totsqdisp)==np.shape(sqdisp):
+        if len(sqdisp)==1:#np.shape(totsqdisp)==np.shape(sqdisp):
             totsqdisp += sqdisp
         else:
             print "shape(totsqdisp)", np.shape(totsqdisp)
@@ -103,8 +103,8 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 100 # 1 for best statistics, more for faster calc
-dt0  = 100 # 1 for best statistics, more for faster calc
+dtau = 10 # 1 for best statistics, more for faster calc
+dt0  = 1 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
