@@ -55,18 +55,13 @@ def find_closest(thisdot,n=1,maxdist=20.,giveup=2000):
             return max(trackids) + 1
 
 # Tracking
-nframes = max(data['s'])
-print 'nframes:',nframes
-#for frame in range(nframes):
-    #for newdot in data[data['s']==frame+1]:
-        #find_closest(newdot,frame,giveup=giveup)
 for i in range(len(data)):
     trackids[i] = find_closest(data[i])
 
-print trackids
+#print trackids
 
 # Plotting tracks:
-ntracks = max(trackids)
+ntracks = max(trackids) + 1
 if plottracks:
     pl.figure(1)
 
@@ -81,16 +76,16 @@ if plottracks:
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
-# trackmsd finds the msd, as function of tau, averaged over t0, for one track (worldline)
+# trackmsd finds the track msd, as function of tau, averaged over t0, for one track (worldline)
 def trackmsd(track):
-    tmsd = []#np.zeros(nframes/dtau) # to be function of tau
+    tmsd = []
     trackdots = data[trackids==track]
     #print trackdots[:3],'...',trackdots[-3:]
-    tracklen = trackdots['s'][-1] - trackdots['s'][0]
+    tracklen = trackdots['s'][-1] - trackdots['s'][0] + 1
     for tau in xrange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
         avg = t0avg(trackdots,tracklen,tau)
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg]) 
+            tmsd.append([tau,avg[0]]) 
     #print 'tmsd:',tmsd
     return tmsd
 
@@ -112,28 +107,47 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 100 # 1 for best statistics, more for faster calc
+dtau = 10 # 1 for best statistics, more for faster calc
 dt0  = 1 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
     if tmsd:
-        print 'appending track',trackid
+        print 'appending msd for track',trackid
         msds.append(tmsd)
     else:
-        print 'no track',trackid
+        print 'no msd for track',trackid
 
 
 
 # Mean Squared Displacement:
 if plotmsd:
+    nframes = max(data['s'])
+    msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
+    msd = np.transpose(msd)
     pl.figure(2)
-    for msd in msds:
-        print 'plotting msd'#,msd
-        if msd:
-            pl.loglog(zip(*msd)[0],zip(*msd)[1],label='track ')
+    added = 0
+    for tmsd in msds:
+        if tmsd:
+            added += 1.0
+            pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1],label='track ')
+            if len(tmsd)==len(msd):
+                msd[:,1] += np.array(tmsd)[:,1]
+            else:
+                for tmsdrow in tmsd:
+                    print "we're all fucked"
+                    print tmsdrow
+                    print msd[(tmsdrow[0]==msd[:,0])[0],1]
+                    print tmsdrow[1]
+                    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
 
-    #pl.loglog( np.arange(nframes)+1, np.arange(nframes)+1, 'k--') # slope = 1 for ref.
+    msd[:,1] /= added
+    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean of all tracks")
+
+    pl.loglog(
+            np.arange(dtau,nframes,dtau),
+            msd[0,1]*np.arange(dtau,nframes,dtau)/dtau,
+            'k--',label="ref slope = 1")
     pl.legend(loc=4)
     pl.xlabel('Time (Image frames)')
     pl.ylabel('Squared Displacement'+r'$pixels^2$')
