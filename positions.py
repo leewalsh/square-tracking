@@ -8,15 +8,14 @@ import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-prefix = 'n08'
+prefix = 'n32'
 
 plottracks = True
 plotmsd   = True
 
-bgimage = Im.open(locdir+'/n8_0001.tif') # for bkground in plot
+bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_4500.txt'
 
-### Add 'ID' as label for first column in first line !!! ###
 data = np.genfromtxt(datapath,
         skip_header=1,
         usecols = [0,2,3,5],
@@ -29,9 +28,9 @@ trackids[:] = -1
 
 # recursive function to find nearest dot in previous frame.
 # looks further back until it finds the nearest particle
-giveup = 2000
-sys.setrecursionlimit(giveup+1)
-def find_closest(thisdot,n=1,maxdist=20.,giveup=2000):
+giveup = 1000
+sys.setrecursionlimit(2*giveup)
+def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
     frame = thisdot['s']
     if frame <= n:  # at (or recursed back to) the first frame
         newsid = max(trackids) + 1
@@ -51,7 +50,7 @@ def find_closest(thisdot,n=1,maxdist=20.,giveup=2000):
             return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
             print "recursed", n, "times, giving up. frame =", frame
-            print "created new static id:",newsid
+            print "created new static id:", max(trackids) + 1
             return max(trackids) + 1
 
 # Tracking
@@ -64,9 +63,8 @@ for i in range(len(data)):
 ntracks = max(trackids) + 1
 if plottracks:
     pl.figure(1)
-
     bgheight = bgimage.size[1] # for flippin over y
-    pl.scatter(data['x'], bgheight-data['y'], c=trackids, marker='.')
+    pl.scatter(data['x'], bgheight-data['y'], c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
     pl.legend()
@@ -80,35 +78,33 @@ if plottracks:
 def trackmsd(track):
     tmsd = []
     trackdots = data[trackids==track]
-    #print trackdots[:3],'...',trackdots[-3:]
     tracklen = trackdots['s'][-1] - trackdots['s'][0] + 1
     for tau in xrange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
         avg = t0avg(trackdots,tracklen,tau)
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
-    #print 'tmsd:',tmsd
     return tmsd
 
 # t0avg() averages over all t0, for given track, given tau
 def t0avg(trackdots,tracklen,tau):
-    #TODO: if tau not in data[trackdots,iframe]: continue
     totsqdisp = 0.0
     nt0s = 0.0
-    #print 'tau:',tau,dt0,'range',tracklen-tau
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in T - tau - 1, by dt0 stepsize
         olddot = trackdots[trackdots['s']==t0]
         newdot = trackdots[trackdots['s']==t0+tau]
-        if len(olddot)*len(newdot) == 0:
-            #print('\t\t\tnot here')
-            continue
+        if len(olddot)*len(newdot) == 0: continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
-        totsqdisp += sqdisp
+        if np.shape(totsqdisp)==np.shape(sqdisp):
+            totsqdisp += sqdisp
+        else:
+            print "shape(totsqdisp)", np.shape(totsqdisp)
+            print "shape(sqdisp)",    np.shape(sqdisp)
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # 1 for best statistics, more for faster calc
-dt0  = 1 # 1 for best statistics, more for faster calc
+dtau = 100 # 1 for best statistics, more for faster calc
+dt0  = 100 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
@@ -130,7 +126,7 @@ if plotmsd:
     for tmsd in msds:
         if tmsd:
             added += 1.0
-            pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1],label='track ')
+            pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1])
             if len(tmsd)==len(msd):
                 msd[:,1] += np.array(tmsd)[:,1]
             else:
@@ -149,7 +145,8 @@ if plotmsd:
             msd[0,1]*np.arange(dtau,nframes,dtau)/dtau,
             'k--',label="ref slope = 1")
     pl.legend(loc=4)
-    pl.xlabel('Time (Image frames)')
-    pl.ylabel('Squared Displacement'+r'$pixels^2$')
+    pl.title(prefix)
+    pl.xlabel('Time tau (Image frames)')
+    pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
 
 pl.show()
