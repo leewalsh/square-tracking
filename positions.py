@@ -76,7 +76,6 @@ if plottracks:
     pl.title(prefix)
     pl.legend()
     pl.show()
-    exit()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -85,13 +84,13 @@ if plottracks:
 # trackmsd finds the msd, as function of tau, averaged over t0, for one track (worldline)
 def trackmsd(track):
     tmsd = []#np.zeros(nframes/dtau) # to be function of tau
-    trackdots = np.nonzero(trackids==track+1)[0] # just want the column indices (not row)
+    trackdots = data[trackids==track]
     #print trackdots[:3],'...',trackdots[-3:]
-    tracklen = data[trackdots[-1]]['s'] - data[trackdots]['s'][0]
-    for tau in np.arange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
+    tracklen = trackdots['s'][-1] - trackdots['s'][0]
+    for tau in xrange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
         avg = t0avg(trackdots,tracklen,tau)
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]]) 
+            tmsd.append([tau,avg]) 
     #print 'tmsd:',tmsd
     return tmsd
 
@@ -102,27 +101,27 @@ def t0avg(trackdots,tracklen,tau):
     nt0s = 0.0
     #print 'tau:',tau,dt0,'range',tracklen-tau
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in T - tau - 1, by dt0 stepsize
-        olddot = np.nonzero(data[trackdots]['s']==t0)[0]
-        newdot = np.nonzero(data[trackdots]['s']==t0+tau)[0]
-        if not len(olddot)*len(newdot):
+        olddot = trackdots[trackdots['s']==t0]
+        newdot = trackdots[trackdots['s']==t0+tau]
+        if len(olddot)*len(newdot) == 0:
             #print('\t\t\tnot here')
             continue
-        sqdisp  = (data[newdot]['x'] - data[olddot]['x'])**2 \
-                + (data[newdot]['y'] - data[olddot]['y'])**2
+        sqdisp  = (newdot['x'] - olddot['x'])**2 \
+                + (newdot['y'] - olddot['y'])**2
         totsqdisp += sqdisp
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
 dtau = 100 # 1 for best statistics, more for faster calc
-dt0  = 1000 # 1 for best statistics, more for faster calc
+dt0  = 1 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
-    tmsd = trackmsd(track)
+    tmsd = trackmsd(trackid)
     if tmsd:
-        print 'appending track',track
+        print 'appending track',trackid
         msds.append(tmsd)
     else:
-        print 'no track',track
+        print 'no track',trackid
 
 
 
@@ -135,7 +134,7 @@ if plotmsd:
             pl.loglog(zip(*msd)[0],zip(*msd)[1],label='track ')
 
     #pl.loglog( np.arange(nframes)+1, np.arange(nframes)+1, 'k--') # slope = 1 for ref.
-    pl.legend()
+    pl.legend(loc=4)
     pl.xlabel('Time (Image frames)')
     pl.ylabel('Squared Displacement'+r'$pixels^2$')
 
