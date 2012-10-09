@@ -7,7 +7,8 @@ import sys
 
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
 prefix = 'n32'
 
 plottracks = True
