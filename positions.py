@@ -9,7 +9,7 @@ import sys
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
-prefix = 'n8'
+prefix = 'n320'
 
 plottracks = False
 plotmsd   = True
@@ -148,5 +148,6 @@ if plotmsd:
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
+    pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
 
     #pl.show()
