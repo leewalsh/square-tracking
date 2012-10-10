@@ -7,11 +7,11 @@ import sys
 
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-prefix = 'n32'
+#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+prefix = 'n8'
 
-plottracks = True
+plottracks = False
 plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
@@ -68,7 +68,6 @@ if plottracks:
     pl.scatter(data['x'], bgheight-data['y'], c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
-    pl.legend()
     pl.show()
 
 # Mean Squared Displacement
@@ -150,4 +149,4 @@ if plotmsd:
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
 
-pl.show()
+    #pl.show()
