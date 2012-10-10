@@ -7,14 +7,9 @@ import sys
 
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-<<<<<<< HEAD
 #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 prefix = 'n8'
-=======
-locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-prefix = 'n256'
->>>>>>> a2d5481e86d7240e510c298376fd461aa970d0ca
 
 plottracks = False
 plotmsd   = True
