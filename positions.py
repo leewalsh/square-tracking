@@ -7,15 +7,20 @@ import sys
 
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+<<<<<<< HEAD
 #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 prefix = 'n8'
+=======
+locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+prefix = 'n256'
+>>>>>>> a2d5481e86d7240e510c298376fd461aa970d0ca
 
 plottracks = False
 plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'_4500.txt'
+datapath = locdir+prefix+'_results.txt'
 
 data = np.genfromtxt(datapath,
         skip_header=1,
@@ -103,8 +108,8 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # 1 for best statistics, more for faster calc
-dt0  = 1 # 1 for best statistics, more for faster calc
+dtau = 20 # 1 for best statistics, more for faster calc
+dt0  = 50 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
