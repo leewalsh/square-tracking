@@ -92,7 +92,7 @@ def t0avg(trackdots,tracklen,tau):
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in T - tau - 1, by dt0 stepsize
         olddot = trackdots[trackdots['s']==t0]
         newdot = trackdots[trackdots['s']==t0+tau]
-        if len(olddot)*len(newdot) == 0: continue
+        if (len(olddot) != 1) or (len(newdot) != 1): continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
         if len(sqdisp)==1:#np.shape(totsqdisp)==np.shape(sqdisp):
