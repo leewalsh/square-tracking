@@ -8,13 +8,13 @@ import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-prefix = 'n32'
+prefix = 'n256'
 
 plottracks = True
 plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'_4500.txt'
+datapath = locdir+prefix+'_results.txt'
 
 data = np.genfromtxt(datapath,
         skip_header=1,
@@ -67,7 +67,6 @@ if plottracks:
     pl.scatter(data['x'], bgheight-data['y'], c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
-    pl.legend()
     pl.show()
 
 # Mean Squared Displacement
@@ -103,8 +102,8 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # 1 for best statistics, more for faster calc
-dt0  = 1 # 1 for best statistics, more for faster calc
+dtau = 20 # 1 for best statistics, more for faster calc
+dt0  = 50 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
