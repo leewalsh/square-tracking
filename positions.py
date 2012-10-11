@@ -1,5 +1,5 @@
-import matplotlib        #foppl
-matplotlib.use("agg")    #foppl
+#import matplotlib        #foppl
+#matplotlib.use("agg")    #foppl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
@@ -8,31 +8,22 @@ from PIL import Image as Im
 import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+#locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
 prefix = 'n192'
 
-plottracks = False
+findtracks = False
+plottracks = True
+findmsd   = True
 plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_results.txt'
 
-data = np.genfromtxt(datapath,
-        skip_header=1,
-        usecols = [0,2,3,5],
-        names="id,x,y,s",
-        dtype=[int,float,float,int])
-data['id'] -= 1
 
-trackids = np.empty_like(data,dtype=int)
-trackids[:] = -1
-
-# recursive function to find nearest dot in previous frame.
-# looks further back until it finds the nearest particle
-giveup = 1000
-sys.setrecursionlimit(2*giveup)
+    # recursive function to find nearest dot in previous frame.
+    # looks further back until it finds the nearest particle
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
     frame = thisdot['s']
     if frame <= n:  # at (or recursed back to) the first frame
@@ -46,10 +37,8 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
         closest = oldframes[np.argmin(dists)]
         sid = trackids[closest['id']]
         if min(dists) < maxdist:
-            #print thisdot, closest, 'newsid:',sid, min(dists)
             return sid
         elif n < giveup:
-            #print "still looking...",dist,'>',maxdist
             return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
             print "recursed", n, "times, giving up. frame =", frame
@@ -57,20 +46,43 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
             return max(trackids) + 1
 
 # Tracking
-for i in range(len(data)):
-    trackids[i] = find_closest(data[i])
+if findtracks:
+    data = np.genfromtxt(datapath,
+            skip_header = 1,
+            usecols = [0,2,3,5],
+            names   = "id,x,y,s",
+            dtype   = [int,float,float,int])
+    data['id'] -= 1 # data from imagej is 1-indexed
 
-np.savez(locdir+prefix+"_TRACKS",trackids=trackids,data=data)
-#print trackids
+    trackids = np.empty_like(data,dtype=int)
+    trackids[:] = -1
+    
+    giveup = 1000
+    sys.setrecursionlimit(2*giveup)
+    
+    for i in range(len(data)):
+        trackids[i] = find_closest(data[i])
+
+    # save the data record array and the trackids array
+    np.savez(locdir+prefix+"_TRACKS",
+            data=data,trackids=trackids)
+
+else:
+    tracknpz = np.load(locdir+prefix+"_TRACKS.npz")
+    data = tracknpz['data']
+    trackids = tracknpz['trackids']
 
 # Plotting tracks:
 ntracks = max(trackids) + 1
 if plottracks:
     pl.figure(1)
     bgheight = bgimage.size[1] # for flippin over y
-    pl.scatter(data['x'], bgheight-data['y'], c=np.array(trackids)%12, marker='o')
+    pl.scatter(
+            data['x'], bgheight-data['y'],
+            c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
+    pl.savefig(locdir+prefix+"_tracks.png")
     pl.show()
 
 # Mean Squared Displacement
@@ -92,32 +104,41 @@ def trackmsd(track):
 def t0avg(trackdots,tracklen,tau):
     totsqdisp = 0.0
     nt0s = 0.0
-    for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in T - tau - 1, by dt0 stepsize
+    for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         olddot = trackdots[trackdots['s']==t0]
         newdot = trackdots[trackdots['s']==t0+tau]
-        if (len(olddot) != 1) or (len(newdot) != 1): continue
+        if (len(olddot) != 1) or (len(newdot) != 1):
+            # sometimes olddot or newdot is a list
+            continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
-        if len(sqdisp)==1:#np.shape(totsqdisp)==np.shape(sqdisp):
+        if len(sqdisp) == 1:
             totsqdisp += sqdisp
-        else:
-            print "shape(totsqdisp)", np.shape(totsqdisp)
-            print "shape(sqdisp)",    np.shape(sqdisp)
+        elif len(sqdisp[0]) == 1:
+            totsqdisp += sqdisp[0]
+        else: continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # 1 for best statistics, more for faster calc
-dt0  = 10 # 1 for best statistics, more for faster calc
-msds = []#np.zeros(ntracks)
-for trackid in range(ntracks):
-    tmsd = trackmsd(trackid)
-    if tmsd:
-        print 'appending msd for track',trackid
-        msds.append(tmsd)
-    else:
-        print 'no msd for track',trackid
+dtau = 10 # small for better statistics, larger for faster calc
+dt0  = 10 # small for better statistics, larger for faster calc
+if findmsd:
+    msds = []
+    for trackid in range(ntracks):
+        tmsd = trackmsd(trackid)
+        if tmsd:
+            print 'appending msd for track',trackid
+            msds.append(tmsd)
+        else:
+            print 'no msd for track',trackid
 
-
+    msds=np.array(msds)
+    np.savez(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau),
+            msds=msds)
+            
+else:
+    msdnpz = np.load(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau)+'.npz')
+    msds = msdnpz[msds]
 
 # Mean Squared Displacement:
 if plotmsd:
@@ -134,25 +155,22 @@ if plotmsd:
                 msd[:,1] += np.array(tmsd)[:,1]
             else:
                 for tmsdrow in tmsd:
-                    print "we're all fucked"
-                    print tmsdrow
-                    print msd[(tmsdrow[0]==msd[:,0])[0],1]
-                    print tmsdrow[1]
+                    print 'tmsdrow',tmsdrow
+                    print 'msd[(tmsdrow[0]==msd[:,0])[0],1]',msd[(tmsdrow[0]==msd[:,0])[0],1]
+                    print 'tmsdrow[1]',tmsdrow[1]
                     #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
 
     msd[:,1] /= added
-    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean of all tracks")
+    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
 
     pl.loglog(
             np.arange(dtau,nframes,dtau),
             msd[0,1]*np.arange(dtau,nframes,dtau)/dtau,
-            'k--',label="ref slope = 1")
+            'k-',label="ref slope = 1")
     pl.legend(loc=4)
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
     pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
+    pl.show()
 
-    #pl.show()
-
-np.savez(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau),msds=np.array(msds))
