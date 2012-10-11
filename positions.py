@@ -1,3 +1,5 @@
+import matplotlib        #foppl
+matplotlib.use("agg")    #foppl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
@@ -5,11 +7,11 @@ from scipy.stats import nanmean
 from PIL import Image as Im
 import sys
 
-
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
-prefix = 'n320'
+
+prefix = 'n192'
 
 plottracks = False
 plotmsd   = True
@@ -104,8 +106,8 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 20 # 1 for best statistics, more for faster calc
-dt0  = 50 # 1 for best statistics, more for faster calc
+dtau = 10 # 1 for best statistics, more for faster calc
+dt0  = 10 # 1 for best statistics, more for faster calc
 msds = []#np.zeros(ntracks)
 for trackid in range(ntracks):
     tmsd = trackmsd(trackid)
