@@ -58,6 +58,7 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
 for i in range(len(data)):
     trackids[i] = find_closest(data[i])
 
+np.savez(locdir+prefix+"_TRACKS",trackids=trackids,data=data)
 #print trackids
 
 # Plotting tracks:
@@ -151,3 +152,5 @@ if plotmsd:
     pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
 
     #pl.show()
+
+np.savez(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau),msds=np.array(msds))
