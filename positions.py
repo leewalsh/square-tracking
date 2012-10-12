@@ -16,7 +16,7 @@ prefix = 'n320'
 findtracks = False
 plottracks = False
 findmsd   = True
-plotmsd   = True
+plotmsd   = False
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_results.txt'
@@ -128,7 +128,7 @@ def t0avg(trackdots,tracklen,tau):
     return totsqdisp/nt0s if nt0s else None
 
 dtau = 10 # small for better statistics, larger for faster calc
-dt0  = 10 # small for better statistics, larger for faster calc
+dt0  = 50 # small for better statistics, larger for faster calc
 if findmsd:
     print "begin calculating msds"
     msds = []
