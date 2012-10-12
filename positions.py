@@ -74,9 +74,9 @@ if findtracks:
 
 else:
     print "loading track data from npz files"
-    tracknpz = np.load(locdir+prefix+"_TRACKS.npz")
-    data = tracknpz['data']
-    trackids = tracknpz['trackids']
+    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+    data = tracksnpz['data']
+    trackids = tracksnpz['trackids']
     print "\t...loaded"
 
 # Plotting tracks:
