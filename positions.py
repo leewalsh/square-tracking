@@ -1,5 +1,5 @@
-#import matplotlib        #foppl
-#matplotlib.use("agg")    #foppl
+import matplotlib        #foppl
+matplotlib.use("agg")    #foppl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
@@ -8,13 +8,13 @@ from PIL import Image as Im
 import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-#locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n192'
+prefix = 'n320'
 
 findtracks = False
-plottracks = True
+plottracks = False
 findmsd   = True
 plotmsd   = True
 
@@ -83,7 +83,6 @@ if plottracks:
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
     pl.savefig(locdir+prefix+"_tracks.png")
-    pl.show()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -172,5 +171,4 @@ if plotmsd:
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
     pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
-    pl.show()
 
