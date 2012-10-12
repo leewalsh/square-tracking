@@ -42,11 +42,12 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
             return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
             print "recursed", n, "times, giving up. frame =", frame
-            print "created new static id:", max(trackids) + 1
+            print "New track:", max(trackids) + 1
             return max(trackids) + 1
 
 # Tracking
 if findtracks:
+    print "loading data from",datapath
     data = np.genfromtxt(datapath,
             skip_header = 1,
             usecols = [0,2,3,5],
@@ -56,21 +57,26 @@ if findtracks:
 
     trackids = np.empty_like(data,dtype=int)
     trackids[:] = -1
+    print "\t...loaded"
     
     giveup = 1000
     sys.setrecursionlimit(2*giveup)
     
+    print "seeking tracks"
     for i in range(len(data)):
         trackids[i] = find_closest(data[i])
 
     # save the data record array and the trackids array
+    print "saving track data"
     np.savez(locdir+prefix+"_TRACKS",
             data=data,trackids=trackids)
 
 else:
+    print "loading track data from npz files"
     tracknpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracknpz['data']
     trackids = tracknpz['trackids']
+    print "\t...loaded"
 
 # Plotting tracks:
 ntracks = max(trackids) + 1
@@ -82,6 +88,7 @@ if plottracks:
             c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
+    print "saving tracks image"
     pl.savefig(locdir+prefix+"_tracks.png")
 
 # Mean Squared Displacement
@@ -122,22 +129,27 @@ def t0avg(trackdots,tracklen,tau):
 dtau = 10 # small for better statistics, larger for faster calc
 dt0  = 10 # small for better statistics, larger for faster calc
 if findmsd:
+    print "begin calculating msds"
     msds = []
     for trackid in range(ntracks):
+        print "calculating msd for track",trackid
         tmsd = trackmsd(trackid)
         if tmsd:
-            print 'appending msd for track',trackid
+            print '\tappending msd for track',trackid
             msds.append(tmsd)
         else:
-            print 'no msd for track',trackid
+            print '\tno msd for track',trackid
 
     msds=np.array(msds)
+    print "saving msd data"
     np.savez(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau),
             msds=msds)
             
 else:
+    print "loading msd data from npz files"
     msdnpz = np.load(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau)+'.npz')
     msds = msdnpz[msds]
+    print "\t...loaded"
 
 # Mean Squared Displacement:
 if plotmsd:
