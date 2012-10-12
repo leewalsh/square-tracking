@@ -69,7 +69,8 @@ if findtracks:
     # save the data record array and the trackids array
     print "saving track data"
     np.savez(locdir+prefix+"_TRACKS",
-            data=data,trackids=trackids)
+            data = data,
+            trackids = trackids)
 
 else:
     print "loading track data from npz files"
@@ -142,13 +143,21 @@ if findmsd:
 
     msds=np.array(msds)
     print "saving msd data"
-    np.savez(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau),
-            msds=msds)
+    np.savez(locdir+prefix+"_MSD",
+            msds = msds,
+            dt0  = np.array(dt0),
+            dtau = np.array(dtau))
             
 else:
     print "loading msd data from npz files"
-    msdnpz = np.load(locdir+prefix+"_MSD_dt0"+str(dt0)+"_dtau"+str(dtau)+'.npz')
-    msds = msdnpz[msds]
+    msdnpz = np.load(locdir+prefix+"_MSD.npz")
+    msds = msdnpz['msds']
+    if msdnpz['dt0']:
+        dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
+        dtau = msdnpz['dtau'][()]
+    else:
+        dt0  = 10 # here's assuming...
+        dtau = 10 #  should be true for all from before dt* was saved
     print "\t...loaded"
 
 # Mean Squared Displacement:
