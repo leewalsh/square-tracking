@@ -75,7 +75,9 @@ def find_particles_in_image(f, **kwargs):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
+    from multiprocessing import Pool
     from argparse import ArgumentParser, FileType
+
     parser = ArgumentParser()
     parser.add_argument('files', type=FileType('r'), nargs='+',
                         help='Images to process')
@@ -83,20 +85,23 @@ if __name__ == '__main__':
                         help='Produce a plot for each image')
     parser.add_argument('-o', '--output', default='points',
                         help='Output file')
+    parser.add_argument('-N', '--threads', default=1, type=int,
+                        help='Number of worker threads')
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
-    points = []
-    filenames = sorted(map(lambda f: f.name, args.files))
-    for n,f in enumerate(filenames):
-        pts,labels = find_particles_in_image(f)
-        points.append(np.hstack([n*np.ones((len(pts),1)), pts]))
+    def f((n,file)):
+        pts, labels = find_particles_in_image(file)
         if args.plot:
             pl.imshow(labels, cmap=cm)
             pts = np.array(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            pl.savefig(f.name+'.png')
+            pl.savefig(file.name+'.png')
+        return np.hstack([n*np.ones((len(pts),1)), pts])
 
+    p = Pool(args.threads)
+    filenames = sorted(map(lambda f: f.name, args.files))
+    points = p.map(f, enumerate(filenames))
     points = np.vstack(points)
     with open(args.output, 'w') as output:
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
