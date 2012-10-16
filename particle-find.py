@@ -94,6 +94,7 @@ if __name__ == '__main__':
 
     def f((n,file)):
         pts, labels = find_particles_in_image(file)
+        print '%20s: Found %d points' % (file, len(pts))
         if args.plot:
             pl.imshow(labels, cmap=cm)
             pts = np.array(pts)
