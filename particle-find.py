@@ -81,7 +81,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser, FileType
 
     parser = ArgumentParser()
-    parser.add_argument('files', type=FileType('r'), nargs='+',
+    parser.add_argument('files', metavar='FILE', nargs='+',
                         help='Images to process')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Produce a plot for each image')
@@ -98,11 +98,11 @@ if __name__ == '__main__':
             pl.imshow(labels, cmap=cm)
             pts = np.array(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            pl.savefig(file.name+'.png')
+            pl.savefig(file+'.png')
         return np.hstack([n*np.ones((len(pts),1)), pts])
 
     p = Pool(args.threads)
-    filenames = sorted(map(lambda f: f.name, args.files))
+    filenames = sorted(args.files)
     points = p.map(f, enumerate(filenames))
     points = np.vstack(points)
     with open(args.output, 'w') as output:
