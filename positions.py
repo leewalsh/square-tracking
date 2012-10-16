@@ -1,5 +1,5 @@
-import matplotlib        #foppl
-matplotlib.use("agg")    #foppl
+#import matplotlib        #foppl
+#matplotlib.use("agg")    #foppl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
@@ -8,8 +8,8 @@ from PIL import Image as Im
 import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+#locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
 prefix = 'n320'
 
