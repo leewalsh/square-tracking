@@ -74,6 +74,8 @@ def find_particles_in_image(f, **kwargs):
     return find_particles(im, **kwargs)
 
 if __name__ == '__main__':
+    import matplotlib
+    matplotlib.use('Agg')
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
     from argparse import ArgumentParser, FileType
