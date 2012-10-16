@@ -3,13 +3,13 @@
 import numpy as np
 from scipy import ndimage
 from skimage import filter, measure
-#from skimage.segmentation import random_walker
+from skimage import segmentation as seg
 from skimage.morphology import label, square, binary_closing, skeletonize
 from collections import namedtuple
 import PIL.Image as image
 
-def label_particles(im, sigma=3, closing_size=3):
-    """ label_particles(image, sigma=3, closing_size=3)
+def label_particles_edge(im, sigma=3, closing_size=3):
+    """ label_particles_edge(image, sigma=3, closing_size=3)
 
         Returns the labels for an image.
 
@@ -25,10 +25,16 @@ def label_particles(im, sigma=3, closing_size=3):
     labels = np.ma.array(labels, mask=edges==0)
     return labels
 
+def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5):
+    labels = np.zeros_like(im)
+    labels[im>max_thresh] = 1
+    labels[im<min_thresh] = 2
+    return label(seg.random_walker(im, labels))
+
 Particle = namedtuple('Particle', 'x y label ecc area'.split())
 
-def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=50):
-    """ filter_particles(labels, max_ecc=0.5, min_area=15, max_area=50) -> [Particle]
+def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200):
+    """ filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Particle]
 
         Returns a list of Particles as well as masks out labels for
         particles not meeting acceptance criteria.
@@ -52,7 +58,7 @@ def drop_labels(labels, take_labels):
     labels[np.logical_not(a)] = np.ma.masked
     return labels
 
-def find_particles(im, gaussian_size=3, **kwargs):
+def find_particles(im, gaussian_size=3, method='walker', **kwargs):
     """ find_particles(im, gaussian_size=3, **kwargs) -> [Particle],labels
 
         Find the particles in image im. The arguments in kwargs is
@@ -61,7 +67,13 @@ def find_particles(im, gaussian_size=3, **kwargs):
         Returns the list of found particles and the label image.
     """
     im = ndimage.gaussian_filter(im, gaussian_size)
-    labels = label_particles(im, **kwargs)
+    labels = None
+    if method == 'walker':
+        labels = label_particles_walker(im, **kwargs)
+    elif method == 'edge':
+        labels = label_particles(im, **kwargs)
+    else:
+        raise RuntimeError('Undefined method "%s"' % method)
     particles = filter_particles(labels, **kwargs)
     return (particles,labels)
 
