@@ -1,195 +1,124 @@
-#import matplotlib        #foppl
-#matplotlib.use("agg")    #foppl
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
+#!/usr/bin/env python
+
 import numpy as np
-from scipy.stats import nanmean
-from PIL import Image as Im
-import sys
+from scipy import ndimage
+from skimage import filter, measure
+from skimage import segmentation as seg
+from skimage.morphology import label, square, binary_closing, skeletonize
+from collections import namedtuple
+import PIL.Image as image
 
-#extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-#locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+def label_particles_edge(im, sigma=3, closing_size=3):
+    """ label_particles_edge(image, sigma=3, closing_size=3)
 
-prefix = 'n320'
+        Returns the labels for an image.
 
-findtracks = False
-plottracks = False
-findmsd   = True
-plotmsd   = False
+        keyword arguments:
+        image        -- The image in which to find particles
+        sigma        -- The size of the Canny filter
+        closing_size -- The size of the closing filter
+    """
+    edges = filter.canny(im, sigma=sigma)
+    edges = binary_closing(edges, square(closing_size))
+    edges = skeletonize(edges)
+    labels = label(edges)
+    labels = np.ma.array(labels, mask=edges==0)
+    return labels
 
-bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'_results.txt'
+def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5):
+    labels = np.zeros_like(im)
+    labels[im>max_thresh] = 1
+    labels[im<min_thresh] = 2
+    return label(seg.random_walker(im, labels))
 
+Particle = namedtuple('Particle', 'x y label ecc area'.split())
 
-    # recursive function to find nearest dot in previous frame.
-    # looks further back until it finds the nearest particle
-def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
-    frame = thisdot['s']
-    if frame <= n:  # at (or recursed back to) the first frame
-        newsid = max(trackids) + 1
-        print "New track:",newsid
-        print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
-        return newsid
-    else:
-        oldframes = data[data['s']==frame-n]
-        dists = (thisdot['x']-oldframes['x'])**2 + (thisdot['y']-oldframes['y'])**2
-        closest = oldframes[np.argmin(dists)]
-        sid = trackids[closest['id']]
-        if min(dists) < maxdist:
-            return sid
-        elif n < giveup:
-            return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
-        else: # give up after giveup frames
-            print "recursed", n, "times, giving up. frame =", frame
-            print "New track:", max(trackids) + 1
-            return max(trackids) + 1
+def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200):
+    """ filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Particle]
 
-# Tracking
-if findtracks:
-    print "loading data from",datapath
-    data = np.genfromtxt(datapath,
-            skip_header = 1,
-            usecols = [0,2,3,5],
-            names   = "id,x,y,s",
-            dtype   = [int,float,float,int])
-    data['id'] -= 1 # data from imagej is 1-indexed
-
-    trackids = np.empty_like(data,dtype=int)
-    trackids[:] = -1
-    print "\t...loaded"
-    
-    giveup = 1000
-    sys.setrecursionlimit(2*giveup)
-    
-    print "seeking tracks"
-    for i in range(len(data)):
-        trackids[i] = find_closest(data[i])
-
-    # save the data record array and the trackids array
-    print "saving track data"
-    np.savez(locdir+prefix+"_TRACKS",
-            data = data,
-            trackids = trackids)
-
-else:
-    print "loading track data from npz files"
-    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-    data = tracksnpz['data']
-    trackids = tracksnpz['trackids']
-    print "\t...loaded"
-
-# Plotting tracks:
-ntracks = max(trackids) + 1
-if plottracks:
-    pl.figure(1)
-    bgheight = bgimage.size[1] # for flippin over y
-    pl.scatter(
-            data['x'], bgheight-data['y'],
-            c=np.array(trackids)%12, marker='o')
-    pl.imshow(bgimage,cmap=cm.gray,origin='lower')
-    pl.title(prefix)
-    print "saving tracks image"
-    pl.savefig(locdir+prefix+"_tracks.png")
-
-# Mean Squared Displacement
-# dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
-#              <  averaged over t0, then i   >
-
-# trackmsd finds the track msd, as function of tau, averaged over t0, for one track (worldline)
-def trackmsd(track):
-    tmsd = []
-    trackdots = data[trackids==track]
-    tracklen = trackdots['s'][-1] - trackdots['s'][0] + 1
-    for tau in xrange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
-        avg = t0avg(trackdots,tracklen,tau)
-        if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]]) 
-    return tmsd
-
-# t0avg() averages over all t0, for given track, given tau
-def t0avg(trackdots,tracklen,tau):
-    totsqdisp = 0.0
-    nt0s = 0.0
-    for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        olddot = trackdots[trackdots['s']==t0]
-        newdot = trackdots[trackdots['s']==t0+tau]
-        if (len(olddot) != 1) or (len(newdot) != 1):
-            # sometimes olddot or newdot is a list
-            continue
-        sqdisp  = (newdot['x'] - olddot['x'])**2 \
-                + (newdot['y'] - olddot['y'])**2
-        if len(sqdisp) == 1:
-            totsqdisp += sqdisp
-        elif len(sqdisp[0]) == 1:
-            totsqdisp += sqdisp[0]
-        else: continue
-        nt0s += 1.0
-    return totsqdisp/nt0s if nt0s else None
-
-dtau = 10 # small for better statistics, larger for faster calc
-dt0  = 50 # small for better statistics, larger for faster calc
-if findmsd:
-    print "begin calculating msds"
-    msds = []
-    for trackid in range(ntracks):
-        print "calculating msd for track",trackid
-        tmsd = trackmsd(trackid)
-        if tmsd:
-            print '\tappending msd for track',trackid
-            msds.append(tmsd)
+        Returns a list of Particles as well as masks out labels for
+        particles not meeting acceptance criteria.
+    """
+    pts = []
+    rprops = measure.regionprops(labels, ['Area', 'Eccentricity', 'Centroid'])
+    for props in rprops:
+        label = props['Label']
+        if min_area > props['Area'] or props['Area'] > max_area \
+                or props['Eccentricity'] > max_ecc:
+            labels[labels==label] = np.ma.masked
         else:
-            print '\tno msd for track',trackid
+            (x,y) = props['Centroid']
+            pts.append(Particle(x,y, label, props['Eccentricity'], props['Area']))
+    return pts
 
-    msds=np.array(msds)
-    print "saving msd data"
-    np.savez(locdir+prefix+"_MSD",
-            msds = msds,
-            dt0  = np.array(dt0),
-            dtau = np.array(dtau))
-            
-else:
-    print "loading msd data from npz files"
-    msdnpz = np.load(locdir+prefix+"_MSD.npz")
-    msds = msdnpz['msds']
-    if msdnpz['dt0']:
-        dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
-        dtau = msdnpz['dtau'][()]
+def drop_labels(labels, take_labels):
+    a = np.zeros_like(labels, dtype=bool)
+    for l in take_labels:
+        a = np.logical_or(a, labels == l)
+    labels[np.logical_not(a)] = np.ma.masked
+    return labels
+
+def find_particles(im, gaussian_size=3, method='walker', **kwargs):
+    """ find_particles(im, gaussian_size=3, **kwargs) -> [Particle],labels
+
+        Find the particles in image im. The arguments in kwargs is
+        passed to label_particles and filter_particles.
+
+        Returns the list of found particles and the label image.
+    """
+    im = ndimage.gaussian_filter(im, gaussian_size)
+    labels = None
+    if method == 'walker':
+        labels = label_particles_walker(im, **kwargs)
+    elif method == 'edge':
+        labels = label_particles(im, **kwargs)
     else:
-        dt0  = 10 # here's assuming...
-        dtau = 10 #  should be true for all from before dt* was saved
-    print "\t...loaded"
+        raise RuntimeError('Undefined method "%s"' % method)
+    particles = filter_particles(labels, **kwargs)
+    return (particles,labels)
 
-# Mean Squared Displacement:
-if plotmsd:
-    nframes = max(data['s'])
-    msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
-    msd = np.transpose(msd)
-    pl.figure(2)
-    added = 0
-    for tmsd in msds:
-        if tmsd:
-            added += 1.0
-            pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1])
-            if len(tmsd)==len(msd):
-                msd[:,1] += np.array(tmsd)[:,1]
-            else:
-                for tmsdrow in tmsd:
-                    print 'tmsdrow',tmsdrow
-                    print 'msd[(tmsdrow[0]==msd[:,0])[0],1]',msd[(tmsdrow[0]==msd[:,0])[0],1]
-                    print 'tmsdrow[1]',tmsdrow[1]
-                    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
+def find_particles_in_image(f, **kwargs):
+    """ find_particles_in_image(im, **kwargs)
+    """
+    im = image.open(f)
+    im = np.array(im)
+    im = im / 255.
+    return find_particles(im, **kwargs)
 
-    msd[:,1] /= added
-    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
+if __name__ == '__main__':
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as pl
+    from multiprocessing import Pool
+    from argparse import ArgumentParser, FileType
 
-    pl.loglog(
-            np.arange(dtau,nframes,dtau),
-            msd[0,1]*np.arange(dtau,nframes,dtau)/dtau,
-            'k-',label="ref slope = 1")
-    pl.legend(loc=4)
-    pl.title(prefix)
-    pl.xlabel('Time tau (Image frames)')
-    pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
-    pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
+    parser = ArgumentParser()
+    parser.add_argument('files', metavar='FILE', nargs='+',
+                        help='Images to process')
+    parser.add_argument('-p', '--plot', action='store_true',
+                        help='Produce a plot for each image')
+    parser.add_argument('-o', '--output', default='points',
+                        help='Output file')
+    parser.add_argument('-N', '--threads', default=1, type=int,
+                        help='Number of worker threads')
+    args = parser.parse_args()
+    cm = pl.cm.prism_r
 
+    def f((n,file)):
+        pts, labels = find_particles_in_image(file)
+        print '%20s: Found %d points' % (file, len(pts))
+        if args.plot:
+            pl.imshow(labels, cmap=cm)
+            pts = np.array(pts)
+            pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
+            pl.savefig(file+'.png')
+        return np.hstack([n*np.ones((len(pts),1)), pts])
+
+    p = Pool(args.threads)
+    filenames = sorted(args.files)
+    points = p.map(f, enumerate(filenames))
+    points = np.vstack(points)
+    with open(args.output, 'w') as output:
+        output.write('# Frame    X           Y             Label  Eccen        Area\n')
+        np.savetxt(output, points, delimiter='     ', fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
+ 
