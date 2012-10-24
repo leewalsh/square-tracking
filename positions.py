@@ -90,14 +90,14 @@ if __name__ == '__main__':
     matplotlib.use('Agg')
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
-    from argparse import ArgumentParser, FileType
+    from argparse import ArgumentParser
 
     parser = ArgumentParser()
     parser.add_argument('files', metavar='FILE', nargs='+',
                         help='Images to process')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Produce a plot for each image')
-    parser.add_argument('-o', '--output', default='points',
+    parser.add_argument('-o', '--output', default='locations',
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
@@ -120,5 +120,6 @@ if __name__ == '__main__':
     points = np.vstack(points)
     with open(args.output, 'w') as output:
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
-        np.savetxt(output, points, delimiter='     ', fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
+        np.savetxt(output, points, delimiter='     ',
+                fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
  
