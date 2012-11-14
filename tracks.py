@@ -11,12 +11,12 @@ import sys
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 #locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n320'
+prefix = 'n336'
 
-findtracks = False
-plottracks = False
+findtracks = True
+plottracks = True
 findmsd   = True
-plotmsd   = False
+plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_results.txt'

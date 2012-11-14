@@ -22,14 +22,10 @@ floodFill(48, 39);
 floodFill(19, 520);
 //run("Bandpass Filter...", "filter_large=60 filter_small=2 suppress=None tolerance=5 autoscale saturate");
 
-setThreshold(150, 255);
+setThreshold(118, 255);
 //setOption("Stack Position",true)
 run("Set Measurements...", "area shape centroid stack redirect=None decimal=2");
 run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Masks");
 //run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Nothing");
 //close();
 //run("Open Next");
-
-// Ran out of memory (1596 MB)
-// after 4550 slices (34825 particles)
-// that's 2.8 slices/MB :(
