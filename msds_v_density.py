@@ -3,8 +3,8 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 
-ns = np.array([8,16,32,64,128,192,256,320])
-nframes = 3800
+ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432])
+nframes = 3000
 
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 
@@ -17,10 +17,12 @@ def powerlaw(t,d):
 
 def diff_const(msd):
     popt,pcov = curve_fit(powerlaw,*msd.transpose())
-    print "popt,pcov",popt,',',pcov
+    #print "popt,pcov =",popt,',',pcov
     return popt[0], pcov[0]
 
 ds = []
+dsd = 0**2 # uncert in squared disp
+pl.figure()
 for n in ns:
     prefix = 'n'+str(n)
     print "loading ",prefix
@@ -60,10 +62,11 @@ for n in ns:
 
     if added:
         msd[:,1] /= added
-        pl.loglog(msd[:,0],msd[:,1],
+        pl.loglog(msd[:,0],msd[:,1]-dsd,
                 marker = 'o',linestyle = '',
                 c = cm.jet(np.nonzero(ns==n)[0][0]*255/len(ns)),
-                label="N = " + str(n))
+                label="%.1f%s" % (n/5.1,'%')
+                )
         d,dd = diff_const(msd)
         ds.append(d)
     else:
@@ -78,17 +81,20 @@ for n,d in enumerate(ds):
     pl.loglog(
             np.arange(dtau,nframes,dtau),
             powerlaw(np.arange(dtau,nframes,dtau),d),
-            marker = ',',c = cm.jet(n*255/len(ds)),
-            label="d = "+str(d)+"n = "+str(ns[n]))
+            marker = ',',c = cm.jet(n*255/len(ds))
+            #,label="d = "+str(d)+"n = "+str(ns[n])
+            )
 pl.legend(loc=4)
-#pl.title()
+pl.title("MSD v N, uncert in sq disp = "+str(dsd))
 pl.xlabel('Time tau (Image frames)')
 pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
-#pl.savefig(locdir+"MSDvN_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
+pl.savefig(locdir+"MSDvN_dt0=%d_dtau=%d.png"%(dt0,dtau))
+#pl.savefig(locdir+"MSDvN_dsd=%d.png"%dsd)
 
 pl.figure()
 pl.plot(ns/5.06,ds,'o')
 pl.title("Constant of diffusion vs. density")
 pl.xlabel("Packing fraction")
 pl.ylabel("Diffusion constant: \n"+r"$pix^2/frame$")
+pl.savefig(locdir+"DvN_dt0=%d_dtau=%d.png")
 pl.show()
