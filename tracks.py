@@ -11,7 +11,7 @@ import sys
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 #locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n336'
+prefix = 'n352'
 
 findtracks = False
 plottracks = False
@@ -82,7 +82,7 @@ else:
 # Plotting tracks:
 ntracks = max(trackids) + 1
 if plottracks:
-    pl.figure(1)
+    pl.figure()
     bgheight = bgimage.size[1] # for flippin over y
     pl.scatter(
             data['x'], bgheight-data['y'],
@@ -105,22 +105,31 @@ def farange(start,stop,factor):
 def trackmsd(track):
     tmsd = []
     trackdots = data[trackids==track]
-    tracklen = trackdots['s'][-1] - trackdots['s'][0] + 1
-    for tau in farange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
+    trackend =   trackdots['s'][-1]
+    trackbegin = trackdots['s'][0]
+    tracklen = trackend - trackbegin + 1
+    print "tracklen =",tracklen
+    print "\t from %d to %d"%(trackbegin,trackend)
+    for tau in farange(dt0,tracklen,dtau):  # for tau in T, by factor dtau
+        print "tau =",tau
         avg = t0avg(trackdots,tracklen,tau)
+        print "avg =",avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
+    print "\t...actually",len(tmsd)
     return tmsd
 
-# t0avg() averages over all t0, for given track, given tau
 def t0avg(trackdots,tracklen,tau):
+    """ t0avg() averages over all t0, for given track, given tau """
     totsqdisp = 0.0
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
+        print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
         olddot = trackdots[trackdots['s']==t0]
         newdot = trackdots[trackdots['s']==t0+tau]
         if (len(olddot) != 1) or (len(newdot) != 1):
-            # sometimes olddot or newdot is a list
+            print "olddot:",olddot
+            print "newdot:",newdot
             continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
@@ -128,12 +137,14 @@ def t0avg(trackdots,tracklen,tau):
             totsqdisp += sqdisp
         elif len(sqdisp[0]) == 1:
             totsqdisp += sqdisp[0]
-        else: continue
+        else:
+            print "fail"
+            continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 1.10 # small for better statistics, larger for faster calc
-dt0  = 50 # small for better statistics, larger for faster calc
+dtau = 1.30 # small for better statistics, larger for faster calc
+dt0  = 100 # small for better statistics, larger for faster calc
 if findmsd:
     print "begin calculating msds"
     msds = []
@@ -152,6 +163,7 @@ if findmsd:
             msds = msds,
             dt0  = np.array(dt0),
             dtau = np.array(dtau))
+    print "\t...saved"
             
 else:
     print "loading msd data from npz files"
@@ -168,22 +180,25 @@ else:
 # Mean Squared Displacement:
 if plotmsd:
     nframes = max(data['s'])
-    taus = farange(dtau,nframes,dtau)
+    taus = farange(dt0,nframes,dtau)
     msd = np.transpose([taus,np.zeros_like(taus)])
-    pl.figure(2)
+    pl.figure()
     added = 0
     for tmsd in msds:
         if tmsd:
             added += 1.0
             pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1])
-            if len(tmsd)==len(msd):
-                msd[:,1] += np.array(tmsd)[:,1]
+            if len(tmsd)>=len(msd):
+                msd[:,1] += np.array(tmsd)[:len(msd),1]
+                print "yay"
             else:
-                for tmsdrow in tmsd:
-                    print 'tmsdrow',tmsdrow
-                    print 'msd[(tmsdrow[0]==msd[:,0])[0],1]',msd[(tmsdrow[0]==msd[:,0])[0],1]
-                    print 'tmsdrow[1]',tmsdrow[1]
-                    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
+                print "tmsd too short",len(tmsd),len(msd)
+                #for tmsdrow in tmsd:
+                #    print 'tmsdrow',tmsdrow
+                #    print 'msd[(tmsdrow[0]==msd[:,0])[0],1]',\
+                #           msd[(tmsdrow[0]==msd[:,0])[0],1]
+                #    print 'tmsdrow[1]',tmsdrow[1]
+                #    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
 
     msd[:,1] /= added
     pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
@@ -196,5 +211,6 @@ if plotmsd:
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
+    pl.show()
     pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
 
