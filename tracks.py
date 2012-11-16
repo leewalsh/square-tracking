@@ -13,8 +13,8 @@ locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 
 prefix = 'n336'
 
-findtracks = True
-plottracks = True
+findtracks = False
+plottracks = False
 findmsd   = True
 plotmsd   = True
 
@@ -22,9 +22,9 @@ bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_results.txt'
 
 
-    # recursive function to find nearest dot in previous frame.
-    # looks further back until it finds the nearest particle
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
+    """ recursive function to find nearest dot in previous frame.
+        looks further back until it finds the nearest particle"""
     frame = thisdot['s']
     if frame <= n:  # at (or recursed back to) the first frame
         newsid = max(trackids) + 1
@@ -73,7 +73,7 @@ if findtracks:
             trackids = trackids)
 
 else:
-    print "loading track data from npz files"
+    print "loading tracks from npz files"
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
     trackids = tracksnpz['trackids']
@@ -97,11 +97,16 @@ if plottracks:
 #              <  averaged over t0, then i   >
 
 # trackmsd finds the track msd, as function of tau, averaged over t0, for one track (worldline)
+def farange(start,stop,factor):
+    start_power = np.log(start)/np.log(factor)
+    stop_power = np.log(stop)/np.log(factor)
+    return factor**np.arange(start_power,stop_power)
+
 def trackmsd(track):
     tmsd = []
     trackdots = data[trackids==track]
     tracklen = trackdots['s'][-1] - trackdots['s'][0] + 1
-    for tau in xrange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
+    for tau in farange(dtau,tracklen,dtau):  # for tau in T, by dtau stepsize
         avg = t0avg(trackdots,tracklen,tau)
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
@@ -127,7 +132,7 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # small for better statistics, larger for faster calc
+dtau = 1.10 # small for better statistics, larger for faster calc
 dt0  = 50 # small for better statistics, larger for faster calc
 if findmsd:
     print "begin calculating msds"
@@ -163,8 +168,8 @@ else:
 # Mean Squared Displacement:
 if plotmsd:
     nframes = max(data['s'])
-    msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
-    msd = np.transpose(msd)
+    taus = farange(dtau,nframes,dtau)
+    msd = np.transpose([taus,np.zeros_like(taus)])
     pl.figure(2)
     added = 0
     for tmsd in msds:
@@ -184,12 +189,12 @@ if plotmsd:
     pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
 
     pl.loglog(
-            np.arange(dtau,nframes,dtau),
-            msd[0,1]*np.arange(dtau,nframes,dtau)/dtau,
+            taus,
+            msd[0,1]*taus/dtau,
             'k-',label="ref slope = 1")
     pl.legend(loc=4)
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
-    pl.savefig(locdir+prefix+"_dt0="+str(dt0)+"_dtau="+str(dtau)+".png")
+    pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
 
