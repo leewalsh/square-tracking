@@ -11,19 +11,18 @@ def count_in_ring(positions,center,r,dr=1):
             thickness dr (defaults to 1.0),
         normalized by the area of the ring
     """
-
     count = 0
     for position in positions:
-        if r - dr/2. < norm(position-center) < r + dr/2.
+        if r - dr < norm(np.array(position)-np.array(center)) < r + dr :
             count += 1
-        else continue
+        else: continue
 
     ring_area = 2 * np.pi * r * dr
     return count / ring_area
 
 
 
-def pair_corr(positions, dr=1, rmax=200):
+def pair_corr(positions, dr=22, rmax=220):
     """ pair_corr(positions)
 
         the pair correlation function g(r)
@@ -32,16 +31,70 @@ def pair_corr(positions, dr=1, rmax=200):
         dr is step size in r for function g(r)
             (units are those implied in coords of positions)
     """
-
     rs = np.arange(dr,rmax,dr)
-    g = np.zeros(shape(rs))
-    dg = np.zeros(shape(rs))
-    for r in rs:
-        gr = [count_in_ring(positions,position,r) for position in positions]
+    g = np.zeros(np.shape(rs))
+    dg = np.zeros(np.shape(rs))
+    rg = np.zeros(np.shape(rs))
+    for ir,r in enumerate(rs):
+        # Three ways to do same thing: list comp, map/lambda, loop
+        #gr = [count_in_ring(positions,position,r) for position in positions]
         #gr = map( lambda x,y=r,p=positions: count_in_ring(p,x,y), positions )
-        #gr = []
-        #for position in positions:
-        #    gr.append(count_in_ring(positions,position,r))
-        g[r] = np.mean(gr)
-        dg[r] = np.std(gr)
+        gr = []
+        for position in positions:
+            if norm(np.array(position)-np.array((300,300))) < 300-rmax:
+                gr.append(count_in_ring(positions,position,r))
+        if np.array(gr).any():
+            g[ir]  = np.mean(gr)
+            dg[ir] = np.std(gr)
+            rg[ir] = r
+        else: print "none for r =",r
+    return g,dg,rg
 
+def pair_corr_hist(positions, dr=11,rmax=220):
+    """ pair_corr_hist(positions):
+        the pair correlation function g(r)
+        calculated using a histogram of distances between particle pairs
+    """
+    distances = []
+    for pos1 in positions:
+        if norm(np.array(pos1)-np.array((300,300))) < 300-rmax:
+            distances.append(
+                    [norm(np.array(pos2) - np.array(pos1)) for pos2 in positions]
+                    )
+    distances = np.array(distances)
+    distances = distances[np.nonzero(distances)]
+    return np.histogram(distances
+            , bins = 10*rmax/dr
+            , weights = 1/(np.pi*np.array(distances)*dr)
+            )
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as pl
+
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+    prefix = 'n416'
+    datapath = locdir+prefix+'_results.txt'
+    
+    print "loading data from",datapath
+    data = np.genfromtxt(datapath,
+            skip_header = 1,
+            usecols = [0,2,3,5],
+            names   = "id,x,y,s",
+            dtype   = [int,float,float,int])
+    data['id'] -= 1 # data from imagej is 1-indexed
+    print "\t...loaded"
+    print "loading positions"
+    g = [ [] for slice in np.arange(min(data['s']),max(data['s']),10) ]
+    for slice in np.arange(min(data['s']),max(data['s']),10):
+        print "\t appending for slice",slice
+        positions = zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
+        #g,dg,rg = pair_corr(positions)
+        g,rg = pair_corr_hist(positions)
+        rg = rg[1:]
+    
+
+    #pl.figure()
+    pl.plot(np.array(rg)/22.,g,'.-',label=prefix)
+    pl.title("g[r],%s,dr%d"%(prefix,22))
+    pl.show()
