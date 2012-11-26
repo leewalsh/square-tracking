@@ -1,7 +1,7 @@
+#!/usr/bin/env python
 
 import numpy as np
 from numpy.linalg import norm
-
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -19,8 +19,6 @@ def count_in_ring(positions,center,r,dr=1):
 
     ring_area = 2 * np.pi * r * dr
     return count / ring_area
-
-
 
 def pair_corr(positions, dr=22, rmax=220):
     """ pair_corr(positions)
@@ -68,6 +66,25 @@ def pair_corr_hist(positions, dr=11,rmax=220):
             , weights = 1/(np.pi*np.array(distances)*dr)
             )
 
+def get_positions(data,slice):
+    return zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
+
+def avg_hists(g,rg):
+    gs = np.array(g)
+    min([ len(gs[i]) for i in len(gs) ])
+
+def build_gs():
+    gs = [ np.zeros(int(prefix[1:]))\
+            for slice in np.arange(min(data['s']),max(data['s']),10) ]
+    for slice in np.arange(min(data['s']),max(data['s']),10):
+        print "\t appending for slice",slice
+        positions = get_positions(data,slice)
+        print '\t\t',np.shape(positions)
+        g,dg,rg = pair_corr(positions)
+        g,rg = pair_corr_hist(positions)
+        rg = rg[1:]
+
+    return gs,rs
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
@@ -85,13 +102,6 @@ if __name__ == '__main__':
     data['id'] -= 1 # data from imagej is 1-indexed
     print "\t...loaded"
     print "loading positions"
-    g = [ [] for slice in np.arange(min(data['s']),max(data['s']),10) ]
-    for slice in np.arange(min(data['s']),max(data['s']),10):
-        print "\t appending for slice",slice
-        positions = zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
-        #g,dg,rg = pair_corr(positions)
-        g,rg = pair_corr_hist(positions)
-        rg = rg[1:]
     
 
     #pl.figure()
