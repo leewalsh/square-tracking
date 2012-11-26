@@ -20,6 +20,11 @@ def count_in_ring(positions,center,r,dr=1):
     ring_area = 2 * np.pi * r * dr
     return count / ring_area
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 17bc4be9f5d603ebc2b08799ef19697f11ee8bdd
 def pair_corr(positions, dr=22, rmax=220):
     """ pair_corr(positions)
 
@@ -66,6 +71,7 @@ def pair_corr_hist(positions, dr=11,rmax=220):
             , weights = 1/(np.pi*np.array(distances)*dr)
             )
 
+<<<<<<< HEAD
 def get_positions(data,slice):
     return zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
 
@@ -85,6 +91,8 @@ def build_gs():
         rg = rg[1:]
 
     return gs,rs
+=======
+>>>>>>> 17bc4be9f5d603ebc2b08799ef19697f11ee8bdd
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
@@ -101,10 +109,24 @@ if __name__ == '__main__':
             dtype   = [int,float,float,int])
     data['id'] -= 1 # data from imagej is 1-indexed
     print "\t...loaded"
+<<<<<<< HEAD
     print "loading positions"
+=======
+    print "calculating g[r]"
+    for slice in np.arange(max(data['s'])):
+        positions = zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
+        #g,dg,rg = pair_corr(positions)
+        gi,rgi = pair_corr_hist(positions)
+        rgi = rgi[1:]
+        g.append()
+>>>>>>> 17bc4be9f5d603ebc2b08799ef19697f11ee8bdd
     
 
     #pl.figure()
     pl.plot(np.array(rg)/22.,g,'.-',label=prefix)
+<<<<<<< HEAD
     pl.title("g[r],%s,dr%d"%(prefix,22))
+=======
+    pl.title("g[r], %s,slice%d,dr%d"%(prefix,slice,22))
+>>>>>>> 17bc4be9f5d603ebc2b08799ef19697f11ee8bdd
     pl.show()
