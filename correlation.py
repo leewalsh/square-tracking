@@ -66,23 +66,26 @@ def pair_corr_hist(positions, dr=11,rmax=220):
             , weights = 1/(np.pi*np.array(distances)*dr)
             )
 
-def get_positions(data,slice):
-    return zip(data['x'][data['s']==slice],data['y'][data['s']==slice])
+def get_positions(data,frame):
+    return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
 
 def avg_hists(g,rg):
     gs = np.array(g)
     min([ len(gs[i]) for i in len(gs) ])
 
 def build_gs():
-    gs = [ np.zeros(int(prefix[1:]))\
-            for slice in np.arange(min(data['s']),max(data['s']),10) ]
-    for slice in np.arange(min(data['s']),max(data['s']),10):
-        print "\t appending for slice",slice
-        positions = get_positions(data,slice)
+    frames = np.arange(min(data['f']),max(data['f']),10)
+    gs = [ np.zeros(int(prefix[1:])) for frame in frames ]
+    gs = np.array(gs)
+    print "gs initiated with shape",np.shape(gs)
+    for frame in frames:
+        print "\t appending for frame",frame
+        positions = get_positions(data,frame)
         print '\t\t',np.shape(positions)
         g,dg,rg = pair_corr(positions)
         g,rg = pair_corr_hist(positions)
         rg = rg[1:]
+
 
     return gs,rs
 
@@ -97,7 +100,7 @@ if __name__ == '__main__':
     data = np.genfromtxt(datapath,
             skip_header = 1,
             usecols = [0,2,3,5],
-            names   = "id,x,y,s",
+            names   = "id,x,y,f",
             dtype   = [int,float,float,int])
     data['id'] -= 1 # data from imagej is 1-indexed
     print "\t...loaded"
