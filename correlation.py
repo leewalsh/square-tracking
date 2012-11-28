@@ -69,25 +69,30 @@ def pair_corr_hist(positions, dr=11,rmax=220):
 def get_positions(data,frame):
     return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
 
-def avg_hists(g,rg):
-    gs = np.array(g)
-    min([ len(gs[i]) for i in len(gs) ])
+def avg_hists(gs,rgs):
+    rg = rgs[0]
+    g_avg = [ np.mean(gs[:,r]) for r in rg ]
+    dg_avg = [ np.std(gs[:,r]) for r in rg ]
+    return g_avg, dg_avg, rg
 
-def build_gs():
-    frames = np.arange(min(data['f']),max(data['f']),10)
+def build_gs(data,prefix,framestep=100):
+    frames = np.arange(min(data['f']),max(data['f']),framestep)
     gs = [ np.zeros(int(prefix[1:])) for frame in frames ]
     gs = np.array(gs)
+    rgs = np.array(gs)
     print "gs initiated with shape",np.shape(gs)
-    for frame in frames:
+    print "frames type",type(frames)
+    for nf,frame in enumerate(frames):
         print "\t appending for frame",frame
         positions = get_positions(data,frame)
-        print '\t\t',np.shape(positions)
-        g,dg,rg = pair_corr(positions)
+        #g,dg,rg = pair_corr(positions)
         g,rg = pair_corr_hist(positions)
         rg = rg[1:]
 
+        gs[nf,:len(g)]  = g
+        rgs[nf,:len(g)] = rg
 
-    return gs,rs
+    return gs,rgs
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
@@ -105,6 +110,11 @@ if __name__ == '__main__':
     data['id'] -= 1 # data from imagej is 1-indexed
     print "\t...loaded"
     print "loading positions"
+    gs,rgs = build_gs(data,prefix)
+    print "\t...gs,rgs built"
+    print "averaging over all frames..."
+    g,dg,rg = avg_hists(gs,rgs)
+    print "\t...averaged"
     
 
     #pl.figure()
