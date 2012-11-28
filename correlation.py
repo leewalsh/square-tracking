@@ -79,10 +79,10 @@ def avg_hists(gs,rgs):
     dg_avg = [ np.std(gs[:,ir]) for ir,r in enumerate(rg) ]
     return g_avg, dg_avg, rg
 
-def build_gs(data,prefix,framestep=100):
+def build_gs(data,prefix,framestep=10):
     frames = np.arange(min(data['f']),max(data['f']),framestep)
     ss = 22
-    dr = ss
+    dr = ss/2
     rmax = ss*10
     nbins  = ss*rmax/dr
     gs = [ np.zeros(nbins) for frame in frames ]
@@ -110,6 +110,7 @@ if __name__ == '__main__':
     datapath = locdir+prefix+'_results.txt'
 
     ss = 22  # side length of square in pixels
+    rmax = ss*10
 
     print "loading data from",datapath
     data = np.genfromtxt(datapath,
@@ -126,8 +127,8 @@ if __name__ == '__main__':
     g,dg,rg = avg_hists(gs,rgs)
     print "\t...averaged"
 
-    nbins = len(rg[rg>0])
+    nbins = len(rg[rg<rmax])
     pl.figure()
     pl.plot(1.*rg[:nbins]/ss,g[:nbins],'.-',label=prefix)
-    pl.title("g[r],%s,dr%d"%(prefix,1))
+    pl.title("g[r],%s,dr%d"%(prefix,ss/2))
     pl.show()
