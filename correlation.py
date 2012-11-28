@@ -66,7 +66,7 @@ def pair_corr_hist(positions, dr=22,rmax=220):
     distances = np.array(distances)
     distances = distances[np.nonzero(distances)]
     return np.histogram(distances
-            , bins = rmax/dr
+            , bins = ss*rmax/dr
             , weights = 1/(np.pi*np.array(distances)*dr) # normalize by pi*r*dr
             )
 
@@ -79,12 +79,12 @@ def avg_hists(gs,rgs):
     dg_avg = [ np.std(gs[:,ir]) for ir,r in enumerate(rg) ]
     return g_avg, dg_avg, rg
 
-def build_gs(data,prefix,framestep=10):
+def build_gs(data,prefix,framestep=100):
     frames = np.arange(min(data['f']),max(data['f']),framestep)
     ss = 22
     dr = ss
     rmax = ss*10
-    nbins  = rmax/dr
+    nbins  = ss*rmax/dr
     gs = [ np.zeros(nbins) for frame in frames ]
     gs = np.array(gs)
     rgs = np.array(gs)
