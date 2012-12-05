@@ -50,13 +50,14 @@ def pair_corr(positions, dr=22, rmax=220):
         else: print "none for r =",r
     return g,dg,rg
 
-def pair_corr_hist(positions, dr=22,rmax=220):
+def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
     """ pair_corr_hist(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
     """
     ss = 22  # side length of square in pixels
     rr = 300 # radius of disk in pixels
+    nbins = ss*rmax/dr if nbins is None else nbins
     distances = []
     for pos1 in positions:
         if norm(np.array(pos1)-np.array((rr,rr))) < rr-rmax:
@@ -66,7 +67,7 @@ def pair_corr_hist(positions, dr=22,rmax=220):
     distances = np.array(distances)
     distances = distances[np.nonzero(distances)]
     return np.histogram(distances
-            , bins = ss*rmax/dr
+            , bins = nbins
             , weights = 1/(np.pi*np.array(distances)*dr) # normalize by pi*r*dr
             )
 
@@ -88,13 +89,13 @@ def build_gs(data,prefix,framestep=10):
     gs = [ np.zeros(nbins) for frame in frames ]
     gs = np.array(gs)
     rgs = np.array(gs)
-    print "gs initiated with shape",np.shape(gs)
-    print "frames type",type(frames)
+    print "gs initiated with shape (nbins,nframes)",np.shape(gs)
     for nf,frame in enumerate(frames):
-        print "\t appending for frame",frame
+        #print "\t appending for frame",frame
         positions = get_positions(data,frame)
         #g,dg,rg = pair_corr(positions)
-        g,rg = pair_corr_hist(positions,dr=dr,rmax=rmax)
+        g,rg = pair_corr_hist(positions
+                ,dr=dr,rmax=rmax,nbins=nbins)
         rg = rg[1:]
 
         gs[nf,:len(g)]  = g
@@ -102,11 +103,24 @@ def build_gs(data,prefix,framestep=10):
 
     return gs,rgs
 
+def get_neighbors(particle,positions):
+    distances = []
+    for position in positions:
+        distance = norm(np.array(particle) - np.array(position))
+        distances.append(distance)
+    return 
+
+
+def build_angles(data):
+    return
+
+
+
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
 
     locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-    prefix = 'n416'
+    prefix = 'n400'
     datapath = locdir+prefix+'_results.txt'
 
     ss = 22  # side length of square in pixels
@@ -127,8 +141,8 @@ if __name__ == '__main__':
     g,dg,rg = avg_hists(gs,rgs)
     print "\t...averaged"
 
-    nbins = len(rg[rg<rmax])
+    binmax = len(rg[rg<rmax])
     pl.figure()
-    pl.plot(1.*rg[:nbins]/ss,g[:nbins],'.-',label=prefix)
+    pl.plot(1.*rg[:binmax]/ss,g[:binmax],'.-',label=prefix)
     pl.title("g[r],%s,dr%d"%(prefix,ss/2))
     pl.show()
