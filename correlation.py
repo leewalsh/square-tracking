@@ -72,7 +72,10 @@ def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
             )
 
 def get_positions(data,frame):
-    return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
+    if np.iterable(frame):
+        return zip(data['x'][data['f'] in frame],data['y'][data['f'] in frame])
+    else:
+        return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
 
 def avg_hists(gs,rgs):
     rg = rgs[0]
