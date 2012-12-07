@@ -2,6 +2,7 @@
 
 import numpy as np
 from numpy.linalg import norm
+from numpy.lib import recfunctions as rec
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -89,9 +90,8 @@ def build_gs(data,prefix,framestep=10):
     dr = ss/2
     rmax = ss*10
     nbins  = ss*rmax/dr
-    gs = [ np.zeros(nbins) for frame in frames ]
-    gs = np.array(gs)
-    rgs = np.array(gs)
+    gs = np.array([ np.zeros(nbins) for frame in frames ])
+    rgs = np.copy(gs)
     print "gs initiated with shape (nbins,nframes)",np.shape(gs)
     for nf,frame in enumerate(frames):
         #print "\t appending for frame",frame
@@ -106,16 +106,47 @@ def build_gs(data,prefix,framestep=10):
 
     return gs,rgs
 
-def get_neighbors(particle,positions):
-    distances = []
-    for position in positions:
-        distance = norm(np.array(particle) - np.array(position))
-        distances.append(distance)
-    return 
+def add_neighbors(data,n_dist=None,delauney=None):
+    """ add_neighbors(data)
+        takes data structured array, adds field of neighbors
+        which is a list of nearest neighbors
+        returns new array with neighbors field
+    """
+    if 'n' in data.dtype.names:
+        print "It's your lucky day, neighbors have already been added to this data"
+        return data
+    ss = 22
+    if n_dist is True:
+        n_dist = ss*np.sqrt(2)
+    elif n_dist is None and delauney is not True:
+        n_dist = ss*np.sqrt(2)
+    elif delauney is True:
+        print "hm haven't figured that out yet"
+        return data
+    framestep = 10 # for testing purposes.  Use 1 otherwise
+    frames = np.arange(min(data['f']),max(data['f']),framestep)
+    neighbors = -np.ones_like(data['id'])
+    data = rec.rec_append_fields(data,'n',neighbors)
+    for nf,frame in frames:
+        positions = get_positions(data,frame)
+        distances = []
+        for pos0 in positions:
+            for pos1 in positions:
+                distance = norm(np.array(pos0) - np.array(pos1))
+                if distance < n_dist:
 
+
+
+    return data
 
 def build_angles(data):
-    return
+    if 'n' not in data.dtype.names:
+        print "Oh no, neighest neighbors haven't been calculated!"
+        print "Just wait, I'll do it for you"
+        return build_angles(add_neighbors(data))
+    elif 'n' in data.dtype.names:
+
+        return
 
 
 
