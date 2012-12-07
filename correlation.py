@@ -106,6 +106,20 @@ def build_gs(data,prefix,framestep=10):
 
     return gs,rgs
 
+def get_id(data,position,frames=None):
+    """ take a particle's `position' (x,y)
+        optionally limit search to one or more `frames'
+
+        return that particle's id
+    """
+    if frames is not None:
+        if np.iterable(frames):
+            data = data[data['f'] in frames]
+        else:
+            data = data[data['f']==frames]
+    xmatch = data[data['x']==position[0]]
+    return xmatch['id'][xmatch['y']==position[1]]
+
 def add_neighbors(data,n_dist=None,delauney=None):
     """ add_neighbors(data)
         takes data structured array, adds field of neighbors
@@ -116,6 +130,7 @@ def add_neighbors(data,n_dist=None,delauney=None):
         print "It's your lucky day, neighbors have already been added to this data"
         return data
     ss = 22
+    nn = 8 # max number nearest neighbors
     if n_dist is True:
         n_dist = ss*np.sqrt(2)
     elif n_dist is None and delauney is not True:
@@ -125,18 +140,27 @@ def add_neighbors(data,n_dist=None,delauney=None):
         return data
     framestep = 10 # for testing purposes.  Use 1 otherwise
     frames = np.arange(min(data['f']),max(data['f']),framestep)
-    neighbors = -np.ones_like(data['id'])
-    data = rec.rec_append_fields(data,'n',neighbors)
+    neighbors = -np.ones(len(data),dtype=str(nn)+'int32')
+    data = rec.append_fields(data,'n',neighbors)
     for nf,frame in frames:
         positions = get_positions(data,frame)
         distances = []
         for pos0 in positions:
-            for pos1 in positions:
-                distance = norm(np.array(pos0) - np.array(pos1))
-                if distance < n_dist:
-
-
-
+            id0 = get_id(data,pos0,frame)
+            if np.all(data['n'][data['id']==id0] == -1):
+                ns = []
+                for pos1 in positions:
+                    distance = norm(np.array(pos0) - np.array(pos1))
+                    if distance < n_dist:
+                        ns.append(get_id(data,pos1,frame))
+                ns.sort()
+                if len(ns) <= nn:
+                    data['n'][data['id']==id0][:len(nn)] = ns
+                else:
+                    print "too many nearest neighbors\n\tusing closest",nn
+                    data['n'][data['id']==id0][:] = ns[:nn]
+            else:
+                continue
     return data
 
 def build_angles(data):
