@@ -2,7 +2,7 @@
 
 import numpy as np
 from numpy.linalg import norm
-from numpy.lib import recfunctions as rec
+from numpy.lib.recfunctions import append_fields,merge_arrays
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -130,7 +130,7 @@ def add_neighbors(data,n_dist=None,delauney=None):
         print "It's your lucky day, neighbors have already been added to this data"
         return data
     ss = 22
-    nn = 8 # max number nearest neighbors
+    nn = 6 # max number nearest neighbors
     if n_dist is True:
         n_dist = ss*np.sqrt(2)
     elif n_dist is None and delauney is not True:
@@ -140,9 +140,9 @@ def add_neighbors(data,n_dist=None,delauney=None):
         return data
     framestep = 10 # for testing purposes.  Use 1 otherwise
     frames = np.arange(min(data['f']),max(data['f']),framestep)
-    neighbors = -np.ones(len(data),dtype=str(nn)+'int32')
-    data = rec.append_fields(data,'n',neighbors)
-    for nf,frame in frames:
+    neighbors = np.empty(len(data),dtype=[('n','int8',(nn,))])
+    data = merge_arrays([data,neighbors],'n', flatten=True)
+    for frame in frames:
         positions = get_positions(data,frame)
         distances = []
         for pos0 in positions:
