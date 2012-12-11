@@ -3,6 +3,7 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
+from operator import itemgetter
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -14,7 +15,7 @@ def count_in_ring(positions,center,r,dr=1):
     """
     count = 0
     for position in positions:
-        if r - dr < norm(np.array(position)-np.array(center)) < r + dr :
+        if r - dr < norm(np.asarray(position)-np.asarray(center)) < r + dr :
             count += 1
         else: continue
 
@@ -42,9 +43,9 @@ def pair_corr(positions, dr=22, rmax=220):
         #gr = map( lambda x,y=r,p=positions: count_in_ring(p,x,y), positions )
         gr = []
         for position in positions:
-            if norm(np.array(position)-np.array((rr,rr))) < rr-rmax:
+            if norm(np.asarray(position)-np.asarray((rr,rr))) < rr-rmax:
                 gr.append(count_in_ring(positions,position,r))
-        if np.array(gr).any():
+        if np.asarray(gr).any():
             g[ir]  = np.mean(gr)
             dg[ir] = np.std(gr)
             rg[ir] = r
@@ -61,15 +62,15 @@ def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
     nbins = ss*rmax/dr if nbins is None else nbins
     distances = []
     for pos1 in positions:
-        if norm(np.array(pos1)-np.array((rr,rr))) < rr-rmax:
+        if norm(np.asarray(pos1)-np.asarray((rr,rr))) < rr-rmax:
             distances.append(
-                    [norm(np.array(pos2) - np.array(pos1)) for pos2 in positions]
+                    [norm(np.asarray(pos2) - np.asarray(pos1)) for pos2 in positions]
                     )
-    distances = np.array(distances)
+    distances = np.asarray(distances)
     distances = distances[np.nonzero(distances)]
     return np.histogram(distances
             , bins = nbins
-            , weights = 1/(np.pi*np.array(distances)*dr) # normalize by pi*r*dr
+            , weights = 1/(np.pi*np.asarray(distances)*dr) # normalize by pi*r*dr
             )
 
 def get_positions(data,frame):
@@ -147,32 +148,17 @@ def add_neighbors(data,n_dist=None,delauney=None):
         distances = []
         for pos0 in positions:
             id0 = get_id(data,pos0,frame)
-            if np.all(data['n'][data['id']==id0] == -1):
-                ns = []
-                for pos1 in positions:
-                    distance = norm(np.array(pos0) - np.array(pos1))
-                    if distance < n_dist:
-                        ns.append(get_id(data,pos1,frame))
-                ns.sort()
-                if len(ns) <= nn:
-                    data['n'][data['id']==id0][:len(nn)] = ns
-                else:
-                    print "too many nearest neighbors\n\tusing closest",nn
-                    data['n'][data['id']==id0][:] = ns[:nn]
-            else:
-                continue
+            vec01 = np.asarray(pos0) - np.asarray(pos1)
+            distances = \
+                      [ (
+                        get_id(data,pos1,frame),
+                        norm(vec01),
+                        np.arctan2(vec01[1],vec01[0])
+                        ) for pos1 in positions ]
+            distances.sort(key=itemgetter(1)) #sort by element 1 of tuple (norm)
+            ns = distances[:nn]
+            data['n'][data['id']==id0] = ns
     return data
-
-def build_angles(data):
-    if 'n' not in data.dtype.names:
-        print "Oh no, neighest neighbors haven't been calculated!"
-        print "Just wait, I'll do it for you"
-        return build_angles(add_neighbors(data))
-    elif 'n' in data.dtype.names:
-
-        return
-
-
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
