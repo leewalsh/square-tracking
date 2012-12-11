@@ -22,7 +22,7 @@ floodFill(48, 39);
 floodFill(19, 520);
 //run("Bandpass Filter...", "filter_large=60 filter_small=2 suppress=None tolerance=5 autoscale saturate");
 
-setThreshold(118, 255);
+setThreshold(101, 255);
 //setOption("Stack Position",true)
 run("Set Measurements...", "area shape centroid stack redirect=None decimal=2");
 run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Masks");

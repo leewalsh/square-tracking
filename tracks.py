@@ -11,9 +11,9 @@ import sys
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 #locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n352'
+prefix = 'n448'
 
-findtracks = False
+findtracks = True
 plottracks = False
 findmsd   = True
 plotmsd   = True
