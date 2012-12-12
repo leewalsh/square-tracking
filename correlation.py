@@ -164,7 +164,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
 
     locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-    prefix = 'n400'
+    prefix = 'n416'
     datapath = locdir+prefix+'_results.txt'
 
     ss = 22  # side length of square in pixels
@@ -186,7 +186,8 @@ if __name__ == '__main__':
     print "\t...averaged"
 
     binmax = len(rg[rg<rmax])
-    pl.figure()
+    #pl.figure()
     pl.plot(1.*rg[:binmax]/ss,g[:binmax],'.-',label=prefix)
-    pl.title("g[r],%s,dr%d"%(prefix,ss/2))
-    pl.show()
+    #pl.title("g[r],%s,dr%d"%(prefix,ss/2))
+    pl.legend()
+    #pl.show()
