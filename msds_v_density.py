@@ -3,7 +3,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 
-ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432])
+ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
 nframes = 3000
 
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
