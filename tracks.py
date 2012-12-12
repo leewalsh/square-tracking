@@ -143,8 +143,8 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dtau = 10 # small for better statistics, larger for faster calc
-dt0  = 50 # small for better statistics, larger for faster calc
+dtau = 1.30 # small for better statistics, larger for faster calc
+dt0  = 100 # small for better statistics, larger for faster calc
 if findmsd:
     print "begin calculating msds"
     msds = []
