@@ -110,7 +110,11 @@ def trackmsd(track):
     tracklen = trackend - trackbegin + 1
     print "tracklen =",tracklen
     print "\t from %d to %d"%(trackbegin,trackend)
-    for tau in farange(dt0,tracklen,dtau):  # for tau in T, by factor dtau
+    if factorwise:
+        taus = farange(dt0,tracklen,dtau)
+    elif stepwise:
+        taus = xrange(dtau,tracklen,dtau)
+    for tau in taus:  # for tau in T, by factor dtau
         print "tau =",tau
         avg = t0avg(trackdots,tracklen,tau)
         print "avg =",avg
@@ -145,6 +149,14 @@ def t0avg(trackdots,tracklen,tau):
 
 dtau = 1.30 # small for better statistics, larger for faster calc
 dt0  = 100 # small for better statistics, larger for faster calc
+if type(dtau) is int:
+    stepwise = True
+    factorwise = False
+elif type(dtau) is float:
+    stepwise = False
+    factorwise = True
+else:
+    print "something wrong with dtau =",dtau
 if findmsd:
     print "begin calculating msds"
     msds = []
@@ -180,8 +192,13 @@ else:
 # Mean Squared Displacement:
 if plotmsd:
     nframes = max(data['s'])
-    taus = farange(dt0,nframes,dtau)
-    msd = np.transpose([taus,np.zeros_like(taus)])
+    if factorwise:
+        taus = farange(dt0,nframes,dtau)
+        msd = np.transpose([taus,np.zeros_like(taus)])
+    elif stepwise:
+        taus = np.arange(dtau,nframes,dtau)
+        msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
+        msd = np.transpose(msd)
     pl.figure()
     added = 0
     for tmsd in msds:
