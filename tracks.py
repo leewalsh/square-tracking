@@ -8,12 +8,12 @@ from PIL import Image as Im
 import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+#locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n448'
+prefix = 'n352'
 
-findtracks = True
+findtracks = False
 plottracks = False
 findmsd   = True
 plotmsd   = False
@@ -115,9 +115,9 @@ def trackmsd(track):
     elif stepwise:
         taus = xrange(dtau,tracklen,dtau)
     for tau in taus:  # for tau in T, by factor dtau
-        print "tau =",tau
+        #print "tau =",tau
         avg = t0avg(trackdots,tracklen,tau)
-        print "avg =",avg
+        #print "avg =",avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
     print "\t...actually",len(tmsd)
@@ -128,12 +128,14 @@ def t0avg(trackdots,tracklen,tau):
     totsqdisp = 0.0
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
+        #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
         olddot = trackdots[trackdots['s']==t0]
         newdot = trackdots[trackdots['s']==t0+tau]
-        if (len(olddot) != 1) or (len(newdot) != 1):
-            print "olddot:",olddot
+        if (len(newdot) != 1):
             print "newdot:",newdot
+            continue
+        elif (len(olddot) != 1):
+            print "olddot:",olddot
             continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
                 + (newdot['y'] - olddot['y'])**2
@@ -150,9 +152,11 @@ def t0avg(trackdots,tracklen,tau):
 dt0  = 50 # small for better statistics, larger for faster calc
 dtau = 10 # small for better statistics, larger for faster calc
 if type(dtau) is int:
+    print "Using stepwise dtau"
     stepwise = True
     factorwise = False
 elif type(dtau) is float:
+    print "Using factorwise (log-spaced) dtau"
     stepwise = False
     factorwise = True
 else:
