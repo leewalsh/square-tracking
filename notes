@@ -5,3 +5,13 @@ plot maxima height as function r for g(r) decay scale
 
 why is msd in integer units of pixels^2
 
+plot pkloc (and normalized by pkloc[0]) and pkheight as functions of density
+
+make sure peaks are found in lower densities as well
+perhaps scale pkfind parameters by max(g(r))
+
+choose a set of peaks, and fit pkheights to exp() decays
+
+Finish g(r), start looking at pair orientation
+
+Next big jump is tracking particle orientation

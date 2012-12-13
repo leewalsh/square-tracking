@@ -149,8 +149,7 @@ def add_neighbors(data,n_dist=None,delauney=None):
         for pos0 in positions:
             id0 = get_id(data,pos0,frame)
             vec01 = np.asarray(pos0) - np.asarray(pos1)
-            distances = \
-                      [ (
+            distances = [ (
                         get_id(data,pos1,frame),
                         norm(vec01),
                         np.arctan2(vec01[1],vec01[0])
@@ -159,6 +158,52 @@ def add_neighbors(data,n_dist=None,delauney=None):
             ns = distances[:nn]
             data['n'][data['id']==id0] = ns
     return data
+
+def find_gpeaks():
+    import peakdetect as pk
+    import matplotlib.pyplot as pl
+    import matplotlib.cm as cm
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+    ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
+    binmax = 258
+    gdata = dict([
+            ('n'+str(n), np.load(locdir+'n'+str(n)+'_GR.npz'))
+            for n in ns])
+    peaks = {}
+    maxima = {}
+    minima = {}
+    for k in gdata:
+        extrema = pk.peakdetect(
+                gdata[k]['g'][:binmax]/22.0, gdata[k]['rg'][:binmax]/22.,
+                lookahead=2.,delta=.0001)
+        peaks[k] = extrema
+        maxima[k] = np.asarray(extrema[0])
+        minima[k] = np.asarray(extrema[1])
+
+    pl.figure()
+    for k in gdata:
+        #try:
+            #pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',-',label=k)
+            #pl.scatter(*np.asarray(peaks[k][0]).T,
+            #        marker='o', label=k, c = cm.jet((int(k[1:])-200)*255/300))
+            #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
+            pks = np.asarray(peaks[k][0]).T
+            try:
+                pkpos = pks[0]
+            except:
+                print "pks has wrong shape for k=",k
+                print pks.shape
+                continue
+            pl.scatter(int(k[1:])*np.ones_like(pkpos),pkpos,marker='*',label=k)  # maxima
+        #except:
+            #print "failed for ",k
+            #continue
+    pl.legend()
+
+
+
+
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
