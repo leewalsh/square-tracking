@@ -164,26 +164,41 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
 
     locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-    prefix = 'n416'
-    datapath = locdir+prefix+'_results.txt'
+    prefix = 'n400'
 
     ss = 22  # side length of square in pixels
     rmax = ss*10
 
-    print "loading data from",datapath
-    data = np.genfromtxt(datapath,
-            skip_header = 1,
-            usecols = [0,2,3,5],
-            names   = "id,x,y,f",
-            dtype   = [int,float,float,int])
-    data['id'] -= 1 # data from imagej is 1-indexed
-    print "\t...loaded"
-    print "loading positions"
-    gs,rgs = build_gs(data,prefix)
-    print "\t...gs,rgs built"
-    print "averaging over all frames..."
-    g,dg,rg = avg_hists(gs,rgs)
-    print "\t...averaged"
+    try:
+        datapath = locdir+prefix+"_GR.npz"
+        print "loading data from",datapath
+        grnpz = np.load(datapath)
+        g  = grnpz['g']
+        dg = grnpz['dg']
+        rg = grnpz['rg']
+    except:
+        print "NPZ file not found for n =",prefix[1:]
+        datapath = locdir+prefix+'_results.txt'
+        print "loading data from",datapath
+        data = np.genfromtxt(datapath,
+                skip_header = 1,
+                usecols = [0,2,3,5],
+                names   = "id,x,y,f",
+                dtype   = [int,float,float,int])
+        data['id'] -= 1 # data from imagej is 1-indexed
+        print "\t...loaded"
+        print "loading positions"
+        gs,rgs = build_gs(data,prefix)
+        print "\t...gs,rgs built"
+        print "averaging over all frames..."
+        g,dg,rg = avg_hists(gs,rgs)
+        print "\t...averaged"
+        print "saving data..."
+        np.savez(locdir+prefix+"_GR",
+                g  = np.asarray(g),
+                dg = np.asarray(dg),
+                rg = np.asarray(rg))
+        print "\t...saved"
 
     binmax = len(rg[rg<rmax])
     #pl.figure()
