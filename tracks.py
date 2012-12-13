@@ -1,5 +1,5 @@
-import matplotlib        #foppl
-matplotlib.use("agg")    #foppl
+#import matplotlib        #foppl
+#matplotlib.use("agg")    #foppl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import numpy as np
@@ -9,14 +9,14 @@ import sys
 
 #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
+#locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'   #foppl
 
-prefix = 'n448'
+prefix = 'n32'
 
-findtracks = True
+findtracks = False
 plottracks = False
 findmsd   = True
-plotmsd   = False
+plotmsd   = True
 
 bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+'_results.txt'
