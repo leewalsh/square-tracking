@@ -159,17 +159,30 @@ def add_neighbors(data,n_dist=None,delauney=None):
             data['n'][data['id']==id0] = ns
     return data
 
-def find_gpeaks():
+def get_gdata(locdir,ns):
+    return dict([
+            ('n'+str(n), np.load(locdir+'n'+str(n)+'_GR.npz'))
+            for n in ns])
+
+def find_gpeaks(ns,locdir,binmax):
+    """ find_gpeaks(ns,locdir,binmax)
+        finds peaks and valleys in g(r) curve
+        takes:
+            ns, list of densities to analyse
+            locdir, local directory for data
+            binmax, the max bin number, hopefully temporary problem
+        returns:
+            peaks,  list of [list of peaks and list of valleys]
+                    in format given by peakdetect.py
+    """
     import peakdetect as pk
     import matplotlib.pyplot as pl
     import matplotlib.cm as cm
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-    ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
+    #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+    #ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
     binmax = 258
-    gdata = dict([
-            ('n'+str(n), np.load(locdir+'n'+str(n)+'_GR.npz'))
-            for n in ns])
-    peaks = {}
+    gdata = get_gdata(locdir,ns)
+    peaks  = {}
     maxima = {}
     minima = {}
     for k in gdata:
@@ -179,31 +192,84 @@ def find_gpeaks():
         peaks[k] = extrema
         maxima[k] = np.asarray(extrema[0])
         minima[k] = np.asarray(extrema[1])
+    return peaks
 
+def plot_gpeaks(peaks,gdata,binmax):
+    """ plot_gpeaks(peaks,gdata,binmax)
+        plots locations and/or heights of peaks and/or valleys in g(r)
+        takes:
+            peaks,  list of peaks from output of find_gpeaks()
+            gdata,  g(r) arrays, loaded from get_gdata()
+            binmax, the max bin number, hopefully temporary problem
+        side affects:
+            creates a figure and plots things
+        returns:
+            nothing
+    """
+    import matplotlib.pyplot as pl
     pl.figure()
-    for k in gdata:
-        #try:
+    for k in peaks:
+        try:
             #pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',-',label=k)
             #pl.scatter(*np.asarray(peaks[k][0]).T,
             #        marker='o', label=k, c = cm.jet((int(k[1:])-200)*255/300))
             #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
             pks = np.asarray(peaks[k][0]).T
             try:
-                pkpos = pks[0]
+                pkpos = pks[1]
             except:
                 print "pks has wrong shape for k=",k
                 print pks.shape
                 continue
             pl.scatter(int(k[1:])*np.ones_like(pkpos),pkpos,marker='*',label=k)  # maxima
-        #except:
-            #print "failed for ",k
-            #continue
+        except:
+            print "failed for ",k
+            continue
     pl.legend()
 
+def gpeak_decay(peaks,f):
+    """
+    gpeak_decay(peaks,f)
+    fits curve to the peaks in g(r)
+    takes:
+        peaks,  list of peak/valley positions and heights
+        f,      the function for the curve, right now either:
+                    exp_decay or powerlaw
 
+    returns:
+        popt, a tuple of parameters for f
+        pcov, their covariances
+    """
+    from scipy.optimize import curve_fit
+    import matplotlib.pyplot as pl
+    maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
+    minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
+    popt = {}
+    pcov = {}
+    pl.figure()
+    for k in peaks:
+        maximak = maxima[k].T
+        print "k: f,maximak"
+        print k,f,maximak
+        if len(maxima[k]) > 1:
+            try:
+                popt[k],pcov[k] = curve_fit(f,maximak[0],maximak[1])
+                pl.plot(maximak[0],f(maximak[0],*popt[k]),'--',label='fit '+k)
+            except:
+                print "error fitting for",k
+        else:
+            print "maximak empty:",maximak
+    return popt,pcov
 
+def exp_decay(s,a,c,sigma):
+    return c + a*np.exp(-s/sigma)
 
-
+def powerlaw(t,d):
+    # to allow fits for b and/or c,
+    # then add them as args to function and delete them below.
+    b = 1
+    c = 0
+    return c + d * t ** b
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
