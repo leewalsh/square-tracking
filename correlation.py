@@ -74,18 +74,48 @@ def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
             )
 
 def get_positions(data,frame):
+    """ get_positions(data,frame)
+        
+        Takes:
+            data: structured array of data
+            frame: int or list of ints of frame number
+
+        Returns:
+            list of tuples (x,y) of positions of all particles in those frames
+    """
     if np.iterable(frame):
         return zip(data['x'][data['f'] in frame],data['y'][data['f'] in frame])
     else:
         return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
 
 def avg_hists(gs,rgs):
+    """ avg_hists(gs,rgs)
+        takes:
+            gs: an array of g(r) for several frames
+            rgs: their associated r values
+        returns:
+            g_avg: the average of gs over frames
+            dg_avg: their std dev
+            rg: r for the avgs (just uses rgs[0] for now) 
+    """
+    #TODO: use better rg here, not just rgs[0]
     rg = rgs[0]
     g_avg = [ np.mean(gs[:,ir]) for ir,r in enumerate(rg) ]
     dg_avg = [ np.std(gs[:,ir]) for ir,r in enumerate(rg) ]
     return g_avg, dg_avg, rg
 
 def build_gs(data,prefix,framestep=10):
+    """ build_gs(data,prefix,framestep=10)
+        calculates and builds g(r) for each (framestep) frames
+        Takes:
+            data: the structued array of data
+            prefix: which n to use, in string form 'n416', e.g.
+            framestep=10: how many frames to skip
+        Returns:
+            gs: an array of g(r) for several frames
+            rgs: their associated r values
+    """
+
     frames = np.arange(min(data['f']),max(data['f']),framestep)
     ss = 22
     dr = ss/2
