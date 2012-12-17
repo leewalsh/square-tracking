@@ -12,6 +12,21 @@ perhaps scale pkfind parameters by max(g(r))
 
 choose a set of peaks, and fit pkheights to exp() decays
 
-Finish g(r), start looking at pair orientation
+Finish g(r)
+
+===========
+start looking at pair orientation
+
+histogram of angles, perhaps polar: should be flat if averaged over frames
+
+subract the angle to closest neighbor:
+    the average over frames should have peaks at 0,90,etc.
+        and secondary peaks at 45,135, etc.
+    try angle%90 or hist of cos(4*angle)
+        try angle%90 or hist of cos(4*angle)
+
 
 Next big jump is tracking particle orientation
+
+
+
