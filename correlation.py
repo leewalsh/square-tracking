@@ -258,8 +258,7 @@ def plot_gpeaks(peaks,gdata,binmax):
     pl.legend()
 
 def gpeak_decay(peaks,f):
-    """
-    gpeak_decay(peaks,f)
+    """ gpeak_decay(peaks,f)
     fits curve to the peaks in g(r)
     takes:
         peaks,  list of peak/valley positions and heights
@@ -291,15 +290,41 @@ def gpeak_decay(peaks,f):
             print "maximak empty:",maximak
     return popt,pcov
 
-def exp_decay(s,a,c,sigma):
+def exp_decay(s,sigma,c,a):
+    """ exp_decay(s,sigma,c,a)
+        exponential decay function for fitting
+
+        Args:
+            s,  independent variable
+        Params:
+            sigma,  decay constant
+            c,  constant offset
+            a,  prefactor
+
+        Returns:
+            exp value at s
+    """
     return c + a*np.exp(-s/sigma)
 
-def powerlaw(t,d):
+def powerlaw(t,b,c,a):
+    """ powerlaw(t,b,c,a)
+        power law function for fitting
+
+        Args:
+            t,  independent variable
+        Params:
+            b,  exponent (power)
+            c,  constant offset
+            a,  prefactor
+        Returns:
+            power law value at t
+    """
     # to allow fits for b and/or c,
     # then add them as args to function and delete them below.
-    b = 1
-    c = 0
-    return c + d * t ** b
+    #b = 1
+    #c = 0
+    return c + a * t**b
+    
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
