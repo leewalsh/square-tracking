@@ -324,6 +324,18 @@ def powerlaw(t,b,c,a):
     #b = 1
     #c = 0
     return c + a * t**b
+
+def domyfits():
+    for k in fixedpeaks:
+        figure()
+        plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
+        scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
+        pexps[k],cexp = curve_fit(corr.exp_decay,*np.array(fixedpeaks[k]).T,p0=(3,.0001,.0005))
+        ppows[k],cpow = curve_fit(corr.powerlaw,*np.array(fixedpeaks[k]).T,p0=(-.5,.0001,.0005))
+        xs = arange(0.8,10.4,0.2)
+        plot(xs,corr.exp_decay(xs,*pexps[k]),label='exp_decay')
+        plot(xs,corr.powerlaw(xs,*ppows[k]),label='powerlaw')
+
     
 
 if __name__ == '__main__':
