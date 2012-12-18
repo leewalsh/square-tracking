@@ -162,7 +162,7 @@ def add_neighbors(data,n_dist=None,delauney=None):
         print "It's your lucky day, neighbors have already been added to this data"
         return data
     if 's' in data.dtype.names:
-        fieldnames = np.array(data.dtyp.names)
+        fieldnames = np.array(data.dtype.names)
         fieldnames[fieldnames == 's'] = 'f'
         data.dtype.names = tuple(fieldnames)
     ss = 22
