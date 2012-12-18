@@ -157,9 +157,14 @@ def add_neighbors(data,n_dist=None,delauney=None):
         which is a list of nearest neighbors
         returns new array with neighbors field
     """
+    from multiprocessing import Pool
     if 'n' in data.dtype.names:
         print "It's your lucky day, neighbors have already been added to this data"
         return data
+    if 's' in data.dtype.names:
+        fieldnames = np.array(data.dtype.names)
+        fieldnames[fieldnames == 's'] = 'f'
+        data.dtype.names = tuple(fieldnames)
     ss = 22
     nn = 6 # max number nearest neighbors
     if n_dist is True:
@@ -169,23 +174,28 @@ def add_neighbors(data,n_dist=None,delauney=None):
     elif delauney is True:
         print "hm haven't figured that out yet"
         return data
-    framestep = 10 # for testing purposes.  Use 1 otherwise
+    framestep = 500 # for testing purposes.  Use 1 otherwise
     frames = np.arange(min(data['f']),max(data['f']),framestep)
-    neighbors = np.empty(len(data),dtype=[('n','int8',(nn,))])
+    nsdtype = [('nid',int),('norm',float),('angle',float)]
+    neighbors = np.empty(len(data),dtype=[('n',nsdtype,(nn,))])
     data = merge_arrays([data,neighbors],'n', flatten=True)
+    nthreads = 2
+    p = Pool(nthreads)
+    #def f(frame,data):
     for frame in frames:
         positions = get_positions(data,frame)
         distances = []
         for pos0 in positions:
             id0 = get_id(data,pos0,frame)
-            vec01 = np.asarray(pos0) - np.asarray(pos1)
+            #vec01 = np.asarray(pos0) - np.asarray(pos1)
             distances = [ (
                         get_id(data,pos1,frame),
-                        norm(vec01),
-                        np.arctan2(vec01[1],vec01[0])
+                        norm(np.asarray(pos0) - np.asarray(pos1)),
+                        np.arctan2((np.asarray(pos0) - np.asarray(pos1))[1],
+                            (np.asarray(pos0) - np.asarray(pos1))[0])
                         ) for pos1 in positions ]
-            distances.sort(key=itemgetter(1)) #sort by element 1 of tuple (norm)
-            ns = distances[:nn]
+            distances.sort(key=itemgetter(1))   # sort by element 1 of tuple (norm)
+            ns = distances[1:nn+1]              # the first neighbor is itself
             data['n'][data['id']==id0] = ns
     return data
 
