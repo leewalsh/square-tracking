@@ -151,7 +151,16 @@ def get_id(data,position,frames=None):
     xmatch = data[data['x']==position[0]]
     return xmatch['id'][xmatch['y']==position[1]]
 
-def add_neighbors(data,n_dist=None,delauney=None):
+def get_norm(posi,posj):
+    return norm(np.asarray(posj) - np.asarray(posi))
+
+def get_angle(posi,posj):
+    vecij = np.asarray(posi) - np.asarray(posj)
+    dx = vecij[0]
+    dy = vecij[1]
+    return np.arctan2(dy,dx)
+
+def add_neighbors(data, nn=6, n_dist=None, delauney=None):
     """ add_neighbors(data)
         takes data structured array, adds field of neighbors
         which is a list of nearest neighbors
@@ -166,37 +175,39 @@ def add_neighbors(data,n_dist=None,delauney=None):
         fieldnames[fieldnames == 's'] = 'f'
         data.dtype.names = tuple(fieldnames)
     ss = 22
-    nn = 6 # max number nearest neighbors
-    if n_dist is True:
+    if nn is not None:
+        continue
+    elif n_dist is True:
+        print "hm haven't figured that out yet"
         n_dist = ss*np.sqrt(2)
     elif n_dist is None and delauney is not True:
+        print "hm haven't figured that out yet"
         n_dist = ss*np.sqrt(2)
     elif delauney is True:
         print "hm haven't figured that out yet"
         return data
-    framestep = 500 # for testing purposes.  Use 1 otherwise
+    framestep = 500 # large for testing purposes.
     frames = np.arange(min(data['f']),max(data['f']),framestep)
     nsdtype = [('nid',int),('norm',float),('angle',float)]
     neighbors = np.empty(len(data),dtype=[('n',nsdtype,(nn,))])
     data = merge_arrays([data,neighbors],'n', flatten=True)
     nthreads = 2
-    p = Pool(nthreads)
+    #TODO p = Pool(nthreads)
     #def f(frame,data):
     for frame in frames:
         positions = get_positions(data,frame)
-        distances = []
-        for pos0 in positions:
-            id0 = get_id(data,pos0,frame)
-            #vec01 = np.asarray(pos0) - np.asarray(pos1)
-            distances = [ (
-                        get_id(data,pos1,frame),
-                        norm(np.asarray(pos0) - np.asarray(pos1)),
-                        np.arctan2((np.asarray(pos0) - np.asarray(pos1))[1],
-                            (np.asarray(pos0) - np.asarray(pos1))[0])
-                        ) for pos1 in positions ]
-            distances.sort(key=itemgetter(1))   # sort by element 1 of tuple (norm)
-            ns = distances[1:nn+1]              # the first neighbor is itself
-            data['n'][data['id']==id0] = ns
+        ineighbors = []
+        for posi in positions:
+            idi = get_id(data,posi,frame)
+            ineighbors = [ (
+                        get_id(data,posj,frame),
+                        get_norm(posi,posj),
+                        get_angle(posi,posj)#TODO 0.      # placeholder for get_angle(posi,posj)
+                        ) for posj in positions ]
+            ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
+            ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi
+            data['n'][data['id']==idi] = ineighbors
+            #TODO data['n'][data['id']==data[
     return data
 
 def get_gdata(locdir,ns):
