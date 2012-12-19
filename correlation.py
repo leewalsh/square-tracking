@@ -4,6 +4,17 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
 from operator import itemgetter
+#computer = 'foppl'
+computer = 'rock'
+if computer is 'foppl':
+    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+elif computer is 'rock':
+    import matplotlib.pyplot as pl
+    import matplotlib.cm as cm
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+else:
+    print "computer not defined"
+    print "where are you working?"
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -233,9 +244,6 @@ def find_gpeaks(ns,locdir,binmax):
                     in format given by peakdetect.py
     """
     import peakdetect as pk
-    import matplotlib.pyplot as pl
-    import matplotlib.cm as cm
-    #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
     #ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
     binmax = 258
     gdata = get_gdata(locdir,ns)
@@ -263,7 +271,9 @@ def plot_gpeaks(peaks,gdata,binmax):
         returns:
             nothing
     """
-    import matplotlib.pyplot as pl
+    if computer is 'foppl':
+        print "cant do this on foppl"
+        return
     pl.figure()
     for k in peaks:
         try:
@@ -285,6 +295,9 @@ def plot_gpeaks(peaks,gdata,binmax):
     pl.legend()
 
 def gpeak_decay(peaks,f):
+    if computer is 'foppl':
+        print "cant do this on foppl"
+        return
     """ gpeak_decay(peaks,f)
     fits curve to the peaks in g(r)
     takes:
@@ -297,7 +310,6 @@ def gpeak_decay(peaks,f):
         pcov, their covariances
     """
     from scipy.optimize import curve_fit
-    import matplotlib.pyplot as pl
     maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
     minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
     popt = {}
@@ -353,7 +365,9 @@ def powerlaw(t,b,c,a):
     return c + a * t**b
 
 def domyfits():
-    import matplotlib.pyplot as pl
+    if computer is 'foppl':
+        print "cant do this on foppl"
+        return
     for k in fixedpeaks:
         pl.figure()
         pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
@@ -364,11 +378,12 @@ def domyfits():
         pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
 
-def domyhists(nbins=180):
-    import matplotlib.pyplot as pl
+def domyhists(nbins=180,relative=True):
+    if computer is 'foppl':
+        print "cant do this on foppl"
+        return
     ns = np.arange(320,464,16)
     for n in ns:
-        locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
         prefix = 'n'+str(n)
         pl.figure()
         pl.title(prefix+' '+str(nbins)+' bins')
@@ -381,8 +396,6 @@ def domyhists(nbins=180):
         pl.hist(allangles, bins = nbins)
 
 def domyneighbors(prefix):
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
-    #locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'  #foppl
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
     ndata = add_neighbors(data)
@@ -391,9 +404,7 @@ def domyneighbors(prefix):
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as pl
 
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
     prefix = 'n400'
 
     ss = 22  # side length of square in pixels
