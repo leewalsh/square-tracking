@@ -73,7 +73,7 @@ def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
             , weights = 1/(np.pi*np.asarray(distances)*dr) # normalize by pi*r*dr
             )
 
-def get_positions(data,frame):
+def get_positions(data,frame,pid=None):
     """ get_positions(data,frame)
         
         Takes:
@@ -83,6 +83,10 @@ def get_positions(data,frame):
         Returns:
             list of tuples (x,y) of positions of all particles in those frames
     """
+    if pid is not None:
+        fdata = data[data['f']==frame]
+        fiddata = fdata[data['id']==pid]
+        return (fiddata['x'],fiddata['y'])
     if np.iterable(frame):
         return zip(data['x'][data['f'] in frame],data['y'][data['f'] in frame])
     else:
@@ -151,6 +155,9 @@ def get_id(data,position,frames=None):
     xmatch = data[data['x']==position[0]]
     return xmatch['id'][xmatch['y']==position[1]]
 
+def get_pos(data,pid):
+
+
 def get_norm(posi,posj):
     return norm(np.asarray(posj) - np.asarray(posi))
 
@@ -202,12 +209,12 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
             ineighbors = [ (
                         get_id(data,posj,frame),
                         get_norm(posi,posj),
-                        get_angle(posi,posj)#TODO 0.      # placeholder for get_angle(posi,posj)
+                        0.#get_angle(posi,posj) #TODO placeholder for get_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
             ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi
             data['n'][data['id']==idi] = ineighbors
-            #TODO data['n'][data['id']==data[
+            #TODO data['n'][data['id']==data['n']]
     return data
 
 def get_gdata(locdir,ns):
