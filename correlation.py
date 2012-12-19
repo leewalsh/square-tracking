@@ -389,17 +389,24 @@ def domyhists(nbins=180,relative=True):
         pl.title(prefix+' '+str(nbins)+' bins')
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
-        allangles = ndata['n']['angle']
+        ndata = ndata[np.all(ndata['n']['nid'],axis=1)]
+        if relative:
+            allangles = np.array([
+                    ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0] for i in np.arange(6)
+                    ])
+        else:
+            allangles = ndata['n']['angle']
         allangles = np.array(allangles.flatten())
-        allangles = allangles[abs(allangles)>1e-10]
+        #allangles = allangles[abs(allangles)>1e-10]
         allangles = allangles[abs(allangles)<2*np.pi]
         pl.hist(allangles, bins = nbins)
+        pl.title(prefix+'relative angle offset = '+str(relative))
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
     ndata = add_neighbors(data)
-    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
+    np.savez(locdir+prefix+'_NEIGHBORS_fast.npz',ndata=ndata)
 
 
 
