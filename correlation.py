@@ -155,9 +155,6 @@ def get_id(data,position,frames=None):
     xmatch = data[data['x']==position[0]]
     return xmatch['id'][xmatch['y']==position[1]]
 
-def get_pos(data,pid):
-
-
 def get_norm(posi,posj):
     return norm(np.asarray(posj) - np.asarray(posi))
 
@@ -183,7 +180,7 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         data.dtype.names = tuple(fieldnames)
     ss = 22
     if nn is not None:
-        continue
+        n_dist = None
     elif n_dist is True:
         print "hm haven't figured that out yet"
         n_dist = ss*np.sqrt(2)
@@ -209,10 +206,12 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
             ineighbors = [ (
                         get_id(data,posj,frame),
                         get_norm(posi,posj),
-                        0.#get_angle(posi,posj) #TODO placeholder for get_angle(posi,posj)
+                        (posi,posj) #placeholder for get_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
             ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi
+            ineighbors = [ (nid,nnorm,get_angle(nposi,nposj)) 
+                    for (nid,nnorm,(nposi,nposj)) in ineighbors]
             data['n'][data['id']==idi] = ineighbors
             #TODO data['n'][data['id']==data['n']]
     return data
