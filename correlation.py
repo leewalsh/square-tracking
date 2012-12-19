@@ -204,14 +204,14 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         for posi in positions:
             idi = get_id(data,posi,frame)
             ineighbors = [ (
-                        get_id(data,posj,frame),
+                        posj,        #get_id(data,posj,frame),
                         get_norm(posi,posj),
                         (posi,posj) #placeholder for get_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
             ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi
-            ineighbors = [ (nid,nnorm,get_angle(nposi,nposj)) 
-                    for (nid,nnorm,(nposi,nposj)) in ineighbors]
+            ineighbors = [ (get_id(data,nposj,frame),nnorm,get_angle(*npos)) 
+                    for (nposj,nnorm,npos) in ineighbors]
             data['n'][data['id']==idi] = ineighbors
             #TODO data['n'][data['id']==data['n']]
     return data
