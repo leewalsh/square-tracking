@@ -353,17 +353,42 @@ def powerlaw(t,b,c,a):
     return c + a * t**b
 
 def domyfits():
+    import matplotlib.pyplot as pl
     for k in fixedpeaks:
-        figure()
-        plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
-        scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
+        pl.figure()
+        pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
+        pl.scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
         pexps[k],cexp = curve_fit(corr.exp_decay,*np.array(fixedpeaks[k]).T,p0=(3,.0001,.0005))
         ppows[k],cpow = curve_fit(corr.powerlaw,*np.array(fixedpeaks[k]).T,p0=(-.5,.0001,.0005))
-        xs = arange(0.8,10.4,0.2)
-        plot(xs,corr.exp_decay(xs,*pexps[k]),label='exp_decay')
-        plot(xs,corr.powerlaw(xs,*ppows[k]),label='powerlaw')
+        xs = np.arange(0.8,10.4,0.2)
+        pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
+        pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
 
-    
+def domyhists(nbins=180):
+    import matplotlib.pyplot as pl
+    ns = np.arange(320,464,16)
+    for n in ns:
+        locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+        prefix = 'n'+str(n)
+        pl.figure()
+        pl.title(prefix+' '+str(nbins)+' bins')
+        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
+        ndata = ndatanpz['ndata']
+        allangles = ndata['n']['angle']
+        allangles = np.array(allangles.flatten())
+        allangles = allangles[abs(allangles)>1e-10]
+        allangles = allangles[abs(allangles)<2*np.pi]
+        pl.hist(allangles, bins = nbins)
+
+def domyneighbors(prefix):
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
+    #locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'  #foppl
+    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+    data = tracksnpz['data']
+    ndata = add_neighbors(data)
+    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
+
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
