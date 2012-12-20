@@ -25,7 +25,18 @@ subract the angle to closest neighbor:
     try angle%90 or hist of cos(4*angle)
         try angle%90 or hist of cos(4*angle)
 
+=====
+fix nan bug in data['n']['angle']
 
+run all densities for better statistics (framestep <= 50)
+look at 4 nearest neighbors to check for squares
+    and 6 for hex order
+sort by angle, start with smallest, to check for rhombus
+    unless better statistics show a split at 90 +/- dtheta
+
+fit gaussians?  one or two width free parameters
+
+=====
 Next big jump is tracking particle orientation
 
 
