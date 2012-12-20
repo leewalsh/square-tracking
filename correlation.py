@@ -4,6 +4,7 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
 from operator import itemgetter
+
 #computer = 'foppl'
 computer = 'rock'
 if computer is 'foppl':
@@ -173,7 +174,7 @@ def get_angle(posi,posj):
     vecij = np.asarray(posi) - np.asarray(posj)
     dx = vecij[0]
     dy = vecij[1]
-    return np.arctan2(dy,dx)
+    return np.arctan2(dy,dx) % (2*np.pi)
 
 def add_neighbors(data, nn=6, n_dist=None, delauney=None):
     """ add_neighbors(data)
@@ -201,13 +202,13 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
     elif delauney is True:
         print "hm haven't figured that out yet"
         return data
-    framestep = 500 # large for testing purposes.
-    frames = np.arange(min(data['f']),max(data['f']),framestep)
     nsdtype = [('nid',int),('norm',float),('angle',float)]
-    neighbors = np.empty(len(data),dtype=[('n',nsdtype,(nn,))])
+    neighbors = np.zeros(len(data), dtype=[('n',nsdtype,(nn,))] )
     data = merge_arrays([data,neighbors],'n', flatten=True)
     nthreads = 2
     #TODO p = Pool(nthreads)
+    framestep = 500 # large for testing purposes.
+    frames = np.arange(min(data['f']),max(data['f']),framestep)
     #def f(frame,data):
     for frame in frames:
         positions = get_positions(data,frame)
@@ -215,16 +216,15 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         for posi in positions:
             idi = get_id(data,posi,frame)
             ineighbors = [ (
-                        posj,        #get_id(data,posj,frame),
+                        posj,           #to become get_id(data,posj,frame),
                         get_norm(posi,posj),
-                        (posi,posj) #placeholder for get_angle(posi,posj)
+                        (posi,posj)     #to become get_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
-            ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi
+            ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi itself
             ineighbors = [ (get_id(data,nposj,frame),nnorm,get_angle(*npos)) 
                     for (nposj,nnorm,npos) in ineighbors]
             data['n'][data['id']==idi] = ineighbors
-            #TODO data['n'][data['id']==data['n']]
     return data
 
 def get_gdata(locdir,ns):
@@ -377,6 +377,7 @@ def domyfits():
         xs = np.arange(0.8,10.4,0.2)
         pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
+    return pexps,ppows
 
 def domyhists(nbins=180,relative=True):
     if computer is 'foppl':
@@ -392,13 +393,11 @@ def domyhists(nbins=180,relative=True):
         ndata = ndata[np.all(ndata['n']['nid'],axis=1)]
         if relative:
             allangles = np.array([
-                    ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0] for i in np.arange(6)
-                    ])
+                    (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%(2*np.pi)
+                    for i in np.arange(6) ])
         else:
             allangles = ndata['n']['angle']
-        allangles = np.array(allangles.flatten())
-        #allangles = allangles[abs(allangles)>1e-10]
-        allangles = allangles[abs(allangles)<2*np.pi]
+        allangles = np.array(allangles.flatten()) % (2*np.pi)
         pl.hist(allangles, bins = nbins)
         pl.title(prefix+'relative angle offset = '+str(relative))
 
