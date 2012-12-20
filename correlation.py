@@ -383,8 +383,9 @@ def domyhists(nbins=180,relative=True):
     if computer is 'foppl':
         print "cant do this on foppl"
         return
-    ns = np.arange(320,464,16)
+    ns = np.arange(320,464,64)
     for n in ns:
+        print 'n=',n
         prefix = 'n'+str(n)
         pl.figure()
         pl.title(prefix+' '+str(nbins)+' bins')
