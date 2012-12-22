@@ -391,7 +391,7 @@ def domyhists(nbins=180,relative=True):
         pl.title(prefix+' '+str(nbins)+' bins')
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS_fast.npz')
         ndata = ndatanpz['ndata']
-        ndata = ndata[np.all(ndata['n']['nid'],axis=1)]
+        ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
         if relative:
             allangles = np.array([
                     (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%(2*np.pi)
