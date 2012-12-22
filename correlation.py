@@ -383,13 +383,13 @@ def domyhists(nbins=180,relative=True):
     if computer is 'foppl':
         print "cant do this on foppl"
         return
-    ns = np.arange(320,464,64)
+    ns = np.arange(320,464,16)
     for n in ns:
         print 'n=',n
         prefix = 'n'+str(n)
         pl.figure()
         pl.title(prefix+' '+str(nbins)+' bins')
-        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS_fast.npz')
+        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
         ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
         if relative:
@@ -406,7 +406,7 @@ def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
     ndata = add_neighbors(data)
-    np.savez(locdir+prefix+'_NEIGHBORS_fast.npz',ndata=ndata)
+    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
 
 
 
