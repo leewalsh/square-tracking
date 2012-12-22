@@ -389,7 +389,7 @@ def domyhists(nbins=180,relative=True):
         prefix = 'n'+str(n)
         pl.figure()
         pl.title(prefix+' '+str(nbins)+' bins')
-        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
+        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS_fast.npz')
         ndata = ndatanpz['ndata']
         ndata = ndata[np.all(ndata['n']['nid'],axis=1)]
         if relative:
