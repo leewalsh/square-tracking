@@ -5,8 +5,8 @@ from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
 from operator import itemgetter
 
-#computer = 'foppl'
-computer = 'rock'
+computer = 'foppl'
+#computer = 'rock'
 if computer is 'foppl':
     locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
 elif computer is 'rock':
@@ -203,11 +203,11 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         print "hm haven't figured that out yet"
         return data
     nsdtype = [('nid',int),('norm',float),('angle',float)]
-    neighbors = np.zeros(len(data), dtype=[('n',nsdtype,(nn,))] )
-    data = merge_arrays([data,neighbors],'n', flatten=True)
+    ndata = np.zeros(len(data), dtype=[('n',nsdtype,(nn,))] )
+    #data = merge_arrays([data,ndata],'n', flatten=True)
     nthreads = 2
     #TODO p = Pool(nthreads)
-    framestep = 500 # large for testing purposes.
+    framestep = 50 # large for testing purposes.
     frames = np.arange(min(data['f']),max(data['f']),framestep)
     #def f(frame,data):
     for frame in frames:
@@ -224,8 +224,8 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
             ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi itself
             ineighbors = [ (get_id(data,nposj,frame),nnorm,get_angle(*npos)) 
                     for (nposj,nnorm,npos) in ineighbors]
-            data['n'][data['id']==idi] = ineighbors
-    return data
+            ndata['n'][data['id']==idi] = ineighbors
+    return ndata
 
 def get_gdata(locdir,ns):
     return dict([
