@@ -5,8 +5,8 @@ from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
 from operator import itemgetter
 
-computer = 'foppl'
-#computer = 'rock'
+#computer = 'foppl'
+computer = 'rock'
 if computer is 'foppl':
     locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
 elif computer is 'rock':
@@ -379,16 +379,21 @@ def domyfits():
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
     return pexps,ppows
 
+def delta_distro(n,histlim):
+    """ delta_distro(n, histlim)
+        returns a delta distribution of angles for n-fold order
+    """
+    return list(np.arange(0,1,1./n)*2*np.pi)*histlim
+
 def domyhists(nbins=180,relative=True):
     if computer is 'foppl':
         print "cant do this on foppl"
         return
     ns = np.arange(320,464,16)
+    histlim = 500000/nbins
     for n in ns:
         print 'n=',n
         prefix = 'n'+str(n)
-        pl.figure()
-        pl.title(prefix+' '+str(nbins)+' bins')
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
         ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
@@ -399,8 +404,15 @@ def domyhists(nbins=180,relative=True):
         else:
             allangles = ndata['n']['angle']
         allangles = np.array(allangles.flatten()) % (2*np.pi)
+
+        pl.figure(figsize=(12,9))
+        pl.hist(delta_distro(8,histlim), bins = nbins,label="n=8")
+        pl.hist(delta_distro(6,histlim), bins = nbins,label="n=6")
+        pl.hist(delta_distro(4,histlim), bins = nbins,label="n=4")
         pl.hist(allangles, bins = nbins)
+        pl.ylim([0,histlim])
         pl.title(prefix+'relative angle offset = '+str(relative))
+        pl.savefig(locdir+prefix+'_ang_hist.png')
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
