@@ -36,6 +36,17 @@ sort by angle, start with smallest, to check for rhombus
 
 fit gaussians?  one or two width free parameters
 
+Find delta-theta, plot hist of that
+Plot hist of nearest neighbor norms
+Plot norms vs. delta-angle
+
+Filter out edge particles
+    (i.e., only use particles within 2r/3 of center,e.g.)
+    and then do the same analysis with that
+
+Then do spatial plot of this correlation, using
+    <cos(n dtheta)> for n=4,6
+
 =====
 Next big jump is tracking particle orientation
 

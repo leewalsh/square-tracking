@@ -385,34 +385,49 @@ def delta_distro(n,histlim):
     """
     return list(np.arange(0,1,1./n)*2*np.pi)*histlim
 
-def domyhists(nbins=180,relative=True):
+def domyhists(nbins=180, ang_type='relative',kill_borders=False):
     if computer is 'foppl':
         print "cant do this on foppl"
         return
     ns = np.arange(320,464,16)
+    nn = 4
     histlim = 500000/nbins
+    if ang_type is 'delta':
+        histlim*=4
     for n in ns:
         print 'n=',n
         prefix = 'n'+str(n)
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
         ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
-        if relative:
+        if ang_type is 'relative':
             allangles = np.array([
                     (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%(2*np.pi)
-                    for i in np.arange(6) ])
-        else:
+                    for i in np.arange(nn) ])
+        elif ang_type is 'delta':
+            allangles = []
+            for i in range(len(ndata['n'])):
+                ineighbors = ndata['n'][i][:nn]
+                ineighbors.sort(order='angle')
+                allangles.append(list([
+                        (ineighbors['angle'][i] - ineighbors['angle'][i-1])%(2*np.pi)
+                        for i in range(len(ineighbors))
+                        ]))
+        elif ang_type is None:
             allangles = ndata['n']['angle']
-        allangles = np.array(allangles.flatten()) % (2*np.pi)
+        else:
+            print "uknown ang_type:",ang_type
+            continue
+        allangles = np.asarray(allangles).flatten() % (2*np.pi)
 
         pl.figure(figsize=(12,9))
-        pl.hist(delta_distro(8,histlim), bins = nbins,label="n=8")
-        pl.hist(delta_distro(6,histlim), bins = nbins,label="n=6")
-        pl.hist(delta_distro(4,histlim), bins = nbins,label="n=4")
-        pl.hist(allangles, bins = nbins)
+        for nfold in [8,6,4]:
+            pl.hist(delta_distro(nfold,histlim), bins = nbins,label="n=%d"%nfold)
+        pl.hist(allangles, bins = nbins,label=ang_type+' angles')
         pl.ylim([0,histlim])
-        pl.title(prefix+'relative angle offset = '+str(relative))
-        pl.savefig(locdir+prefix+'_ang_hist.png')
+        pl.title(prefix+'relative angle offset = '+ang_type+' '+str(nn))
+        pl.legend()
+        pl.savefig(locdir+prefix+'_ang_'+ang_type+'_'+str(nn)+'_hist.png')
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
