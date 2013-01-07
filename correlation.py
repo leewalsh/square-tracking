@@ -176,6 +176,21 @@ def get_angle(posi,posj):
     dy = vecij[1]
     return np.arctan2(dy,dx) % (2*np.pi)
 
+def merge_data(data,ndata,**kw):
+    if data is None:
+        if ndata is not None:
+            print "Returning ndata"
+            return ndata
+        elif ndata is None:
+            print "Returning None"
+            return None
+    elif ndata is None:
+        print "Returning data"
+        return data
+    else:
+        return merge_arrays([data,ndata], flatten=True, **kw)
+
+
 def add_neighbors(data, nn=6, n_dist=None, delauney=None):
     """ add_neighbors(data)
         takes data structured array, adds field of neighbors
@@ -204,7 +219,6 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         return data
     nsdtype = [('nid',int),('norm',float),('angle',float)]
     ndata = np.zeros(len(data), dtype=[('n',nsdtype,(nn,))] )
-    #data = merge_arrays([data,ndata],'n', flatten=True)
     nthreads = 2
     #TODO p = Pool(nthreads)
     framestep = 50 # large for testing purposes.
@@ -385,20 +399,51 @@ def delta_distro(n,histlim):
     """
     return list(np.arange(0,1,1./n)*2*np.pi)*histlim
 
-def domyhists(nbins=180, ang_type='relative',kill_borders=False):
+def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
+    """ ang_type can be 'relative', 'delta', or 'absolute'
+
+        if boundaries is True: boundaries are included, else: excluded
+            boundary width is assumed to be 0.3*r
+            if boundaries is false, data must be loaded to find positions
+    """
     if computer is 'foppl':
         print "cant do this on foppl"
         return
-    ns = np.arange(320,464,16)
-    nn = 4
+    if ns is None:
+        ns = np.arange(320,464,16)
+    if not np.iterable(ns):
+        ns = [ns]
+    if nn is None:
+        nn = 6
     histlim = 500000/nbins
     if ang_type is 'delta':
         histlim*=4
+    if boundaries is False:
+        histlim /= 2
     for n in ns:
         print 'n=',n
         prefix = 'n'+str(n)
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
+        if boundaries is False:
+            datanpz = np.load(locdir+prefix+'_TRACKS.npz')
+            alldata = merge_data(datanpz['data'],ndata)
+            x0 = np.mean([max(alldata['x']),min(alldata['x'])])
+            y0 = np.mean([max(alldata['y']),min(alldata['y'])])
+            r0 = 0.5*np.mean([
+                max(alldata['x']) - min(alldata['x']),
+                max(alldata['y']) - min(alldata['y'])])
+            center = (x0,y0)
+            bulk_particles = np.asarray(
+                    map(get_norm,zip(zip(alldata['x'],alldata['y']),list(center)*len(alldata)))
+                        < r0*0.7,
+                        dtype=bool)
+            if len(bulk_particles) == len(ndata):
+                ndata = ndata[bulk_particles]
+                #ndata = alldata.view(dtype = [('n',alldata['n'].dtype,(nn,))])
+            else:
+                print "length mismatch"
+        # remove data without neighbor info:
         ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
         if ang_type is 'relative':
             allangles = np.array([
@@ -423,12 +468,13 @@ def domyhists(nbins=180, ang_type='relative',kill_borders=False):
         pl.figure(figsize=(12,9))
         for nfold in [8,6,4]:
             pl.hist(delta_distro(nfold,histlim), bins = nbins,label="n=%d"%nfold)
-        pl.hist(allangles, bins = nbins,label=ang_type+' angles')
+        pl.hist(allangles, bins = nbins,label=ang_type+' theta')
         pl.ylim([0,histlim])
-        pl.title("%s, %s theta, %d neighbors, borders %scluded"%\
-                (prefix,ang_type,nn,"ex" if kill_borders else "in"))
+        pl.title("%s, %s theta, %d neighbors, boundaries %scluded"%\
+                (prefix,ang_type,nn,"in" if boundaries else "ex"))
         pl.legend()
-        pl.savefig(locdir+prefix+'_ang_'+ang_type+'_'+str(nn)+'_hist.png')
+        pl.savefig("%s%s_ang_%s_%d%s_hist.png"%\
+                    (locdir,prefix,ang_type,nn,'_' if boundaries else '_nobndry'))
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
