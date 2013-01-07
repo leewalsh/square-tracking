@@ -167,7 +167,7 @@ def get_id(data,position,frames=None):
     xmatch = data[data['x']==position[0]]
     return xmatch['id'][xmatch['y']==position[1]]
 
-def get_norm(posi,posj):
+def get_norm((posi,posj)):
     return norm(np.asarray(posj) - np.asarray(posi))
 
 def get_angle(posi,posj):
@@ -217,7 +217,7 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
             idi = get_id(data,posi,frame)
             ineighbors = [ (
                         posj,           #to become get_id(data,posj,frame),
-                        get_norm(posi,posj),
+                        get_norm((posi,posj)),
                         (posi,posj)     #to become get_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
@@ -413,7 +413,7 @@ def domyhists(nbins=180, ang_type='relative',kill_borders=False):
                         (ineighbors['angle'][i] - ineighbors['angle'][i-1])%(2*np.pi)
                         for i in range(len(ineighbors))
                         ]))
-        elif ang_type is None:
+        elif ang_type is 'absolute':
             allangles = ndata['n']['angle']
         else:
             print "uknown ang_type:",ang_type
@@ -425,7 +425,8 @@ def domyhists(nbins=180, ang_type='relative',kill_borders=False):
             pl.hist(delta_distro(nfold,histlim), bins = nbins,label="n=%d"%nfold)
         pl.hist(allangles, bins = nbins,label=ang_type+' angles')
         pl.ylim([0,histlim])
-        pl.title(prefix+'relative angle offset = '+ang_type+' '+str(nn))
+        pl.title("%s, %s theta, %d neighbors, borders %scluded"%\
+                (prefix,ang_type,nn,"ex" if kill_borders else "in"))
         pl.legend()
         pl.savefig(locdir+prefix+'_ang_'+ang_type+'_'+str(nn)+'_hist.png')
 
