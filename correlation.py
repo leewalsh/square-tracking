@@ -415,31 +415,31 @@ def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
         ns = [ns]
     if nn is None:
         nn = 6
-    histlim = 500000/nbins
-    if ang_type is 'delta':
-        histlim*=4
-    if boundaries is False:
-        histlim /= 2
     for n in ns:
         print 'n=',n
         prefix = 'n'+str(n)
         ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
         ndata = ndatanpz['ndata']
+        histlim = nn*len(ndata)/nbins/2
+        if ang_type is not 'delta':
+            histlim /= 2
         if boundaries is False:
+            histlim /= 6
             datanpz = np.load(locdir+prefix+'_TRACKS.npz')
-            alldata = merge_data(datanpz['data'],ndata)
+            #alldata = merge_data(datanpz['data'],ndata)
+            alldata = datanpz['data']
             x0 = np.mean([max(alldata['x']),min(alldata['x'])])
             y0 = np.mean([max(alldata['y']),min(alldata['y'])])
             r0 = 0.5*np.mean([
                 max(alldata['x']) - min(alldata['x']),
                 max(alldata['y']) - min(alldata['y'])])
             center = (x0,y0)
-            bulk_particles = np.asarray(
+            is_bulk = np.asarray(
                     map(get_norm,zip(zip(alldata['x'],alldata['y']),list(center)*len(alldata)))
                         < r0*0.7,
                         dtype=bool)
-            if len(bulk_particles) == len(ndata):
-                ndata = ndata[bulk_particles]
+            if len(is_bulk) == len(ndata):
+                ndata = ndata[is_bulk]
                 #ndata = alldata.view(dtype = [('n',alldata['n'].dtype,(nn,))])
             else:
                 print "length mismatch"
@@ -467,14 +467,15 @@ def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
 
         pl.figure(figsize=(12,9))
         for nfold in [8,6,4]:
-            pl.hist(delta_distro(nfold,histlim), bins = nbins,label="n=%d"%nfold)
+            pl.hist(delta_distro(nfold,histlim), bins = nbins,label="%d-fold"%nfold)
         pl.hist(allangles, bins = nbins,label=ang_type+' theta')
         pl.ylim([0,histlim])
+        pl.xlim([0,np.pi if ang_type is 'delta' else 2*np.pi])
         pl.title("%s, %s theta, %d neighbors, boundaries %scluded"%\
                 (prefix,ang_type,nn,"in" if boundaries else "ex"))
         pl.legend()
         pl.savefig("%s%s_ang_%s_%d%s_hist.png"%\
-                    (locdir,prefix,ang_type,nn,'_' if boundaries else '_nobndry'))
+                    (locdir,prefix,ang_type,nn,'' if boundaries else '_nobndry'))
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
