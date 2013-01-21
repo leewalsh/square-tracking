@@ -246,7 +246,7 @@ def get_gdata(locdir,ns):
             ('n'+str(n), np.load(locdir+'n'+str(n)+'_GR.npz'))
             for n in ns])
 
-def find_gpeaks(ns,locdir,binmax):
+def find_gpeaks(ns,locdir,binmax=258):
     """ find_gpeaks(ns,locdir,binmax)
         finds peaks and valleys in g(r) curve
         takes:
@@ -273,7 +273,7 @@ def find_gpeaks(ns,locdir,binmax):
         minima[k] = np.asarray(extrema[1])
     return peaks
 
-def plot_gpeaks(peaks,gdata,binmax):
+def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
     """ plot_gpeaks(peaks,gdata,binmax)
         plots locations and/or heights of peaks and/or valleys in g(r)
         takes:
@@ -291,27 +291,28 @@ def plot_gpeaks(peaks,gdata,binmax):
     pl.figure()
     for k in peaks:
         try:
-            #pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',-',label=k)
+            pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',-',label=k)
             #pl.scatter(*np.asarray(peaks[k][0]).T,
             #        marker='o', label=k, c = cm.jet((int(k[1:])-200)*255/300))
             #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
-            pks = np.asarray(peaks[k][0]).T
+
+            if pksonly is False:
+                pks = np.asarray(peaks[k][0]).T # gets just maxima
+            elif pksonly is True:
+                pks = np.asarray(peaks[k]).T    # if peaks is already just maxima
             try:
-                pkpos = pks[1]
+                pkpos = pks[0]
             except:
                 print "pks has wrong shape for k=",k
                 print pks.shape
                 continue
-            pl.scatter(int(k[1:])*np.ones_like(pkpos),pkpos,marker='*',label=k)  # maxima
+            #pl.scatter(int(k[1:])*np.ones_like(pkpos),pkpos,marker='*',label=k)  # maxima
         except:
             print "failed for ",k
             continue
     pl.legend()
 
-def gpeak_decay(peaks,f):
-    if computer is 'foppl':
-        print "cant do this on foppl"
-        return
+def gpeak_decay(peaks,f,pksonly=False):
     """ gpeak_decay(peaks,f)
     fits curve to the peaks in g(r)
     takes:
@@ -323,9 +324,15 @@ def gpeak_decay(peaks,f):
         popt, a tuple of parameters for f
         pcov, their covariances
     """
+    if computer is 'foppl':
+        print "cant do this on foppl"
+        return
     from scipy.optimize import curve_fit
-    maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
-    minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
+    if pksonly is False:
+        maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
+        minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
+    elif pksonly is True:
+        maxima = peaks
     popt = {}
     pcov = {}
     pl.figure()
@@ -334,11 +341,9 @@ def gpeak_decay(peaks,f):
         print "k: f,maximak"
         print k,f,maximak
         if len(maxima[k]) > 1:
-            try:
-                popt[k],pcov[k] = curve_fit(f,maximak[0],maximak[1])
-                pl.plot(maximak[0],f(maximak[0],*popt[k]),'--',label='fit '+k)
-            except:
-                print "error fitting for",k
+            popt[k],pcov[k] = curve_fit(f,maximak[0],maximak[1])
+            fitrange = np.arange(min(maximak[0]),max(maximak[0]),.05)
+            pl.plot(fitrange,f(fitrange,*popt[k]),'--',label='fit '+k)
         else:
             print "maximak empty:",maximak
     return popt,pcov
