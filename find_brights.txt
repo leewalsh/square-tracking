@@ -14,7 +14,7 @@ run("Properties...", "unit=pixel pixel_width=1 pixel_height=1 voxel_depth=1.0000
 setBatchMode(true)
 
 // select oval size (left, top, width, height)
-makeOval(5, 3, 597, 597);
+makeOval(14, 7, 581, 581);
 run("Clear Outside","stack");
 run("Median...", "radius=0");
 setForegroundColor(71, 71, 71);
@@ -24,8 +24,8 @@ floodFill(19, 520);
 
 setThreshold(101, 255);
 //setOption("Stack Position",true)
-run("Set Measurements...", "area shape centroid stack redirect=None decimal=2");
+run("Set Measurements...", "area shape centroid stack mean redirect=None decimal=2");
 run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Masks");
-//run("Analyze Particles...", "size=50-300 circularity=0.5-1.00 stack display show=Nothing");
+//run("Analyze Particles...", "size=3-12 circularity=0.6-1.00 stack display show=Masks");
 //close();
 //run("Open Next");

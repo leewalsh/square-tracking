@@ -2,8 +2,10 @@
 computer = 'rock'
 
 if computer is 'rock':
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-    extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+    #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+    #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 elif computer is 'foppl':
     locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
     import matplotlib        #foppl
@@ -16,15 +18,17 @@ from PIL import Image as Im
 import sys
 
 
-prefix = 'n448'
+prefix = 'marked5'
+extdir = locdir+prefix+'_tifs/'
 
-findtracks = False
-plottracks = False
-findmsd   = True
-plotmsd   = True
+findtracks = True
+plottracks = True
+findmsd   = False
+loadmsd   = False
+plotmsd   = False
 
-bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'_results.txt'
+bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+datapath = locdir+prefix+'_bigdot_results.txt'
 
 
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
@@ -55,9 +59,12 @@ if findtracks:
     print "loading data from",datapath
     data = np.genfromtxt(datapath,
             skip_header = 1,
-            usecols = [0,2,3,5],
-            names   = "id,x,y,s",
-            dtype   = [int,float,float,int])
+            #usecols = [0,2,3,5],
+            #names   = "id,x,y,s",
+            #dtype   = [int,float,float,int])
+            usecols = [0,1,2,3,4,5,6],
+            names   = "id,area,mean,x,y,circ,s",
+            dtype   = [int,float,float,float,float,float,int])
     data['id'] -= 1 # data from imagej is 1-indexed
 
     trackids = np.empty_like(data,dtype=int)
@@ -73,7 +80,7 @@ if findtracks:
 
     # save the data record array and the trackids array
     print "saving track data"
-    np.savez(locdir+prefix+"_TRACKS",
+    np.savez(locdir+prefix+"_bigdot_TRACKS",
             data = data,
             trackids = trackids)
 
@@ -90,7 +97,8 @@ if plottracks:
     pl.figure()
     bgheight = bgimage.size[1] # for flippin over y
     pl.scatter(
-            data['x'], bgheight-data['y'],
+            data['x'],
+            data['y'],#bgheight-data['y'],
             c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
@@ -154,18 +162,19 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-dt0  = 50 # small for better statistics, larger for faster calc
-dtau = 10 # small for better statistics, larger for faster calc
-if type(dtau) is int:
-    print "Using stepwise dtau"
-    stepwise = True
-    factorwise = False
-elif type(dtau) is float:
-    print "Using factorwise (log-spaced) dtau"
-    stepwise = False
-    factorwise = True
-else:
-    print "something wrong with dtau =",dtau
+if findmsd or loadmsd:
+    dt0  = 50 # small for better statistics, larger for faster calc
+    dtau = 10 # small for better statistics, larger for faster calc
+    if type(dtau) is int:
+        print "Using stepwise dtau"
+        stepwise = True
+        factorwise = False
+    elif type(dtau) is float:
+        print "Using factorwise (log-spaced) dtau"
+        stepwise = False
+        factorwise = True
+    else:
+        print "something wrong with dtau =",dtau
 if findmsd:
     print "begin calculating msds"
     msds = []
@@ -186,7 +195,7 @@ if findmsd:
             dtau = np.array(dtau))
     print "\t...saved"
             
-else:
+elif loadmsd:
     print "loading msd data from npz files"
     msdnpz = np.load(locdir+prefix+"_MSD.npz")
     msds = msdnpz['msds']
