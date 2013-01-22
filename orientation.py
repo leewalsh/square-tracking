@@ -59,7 +59,8 @@ def get_orientation(b):
     return s, p
 
 def find_corner(particle,corners,rc=11,drc=2):
-    """
+    """ find_corner(particle,corners,rc=11,drc=2)
+
         looks in the given frame for the corner-marking dot closest to (and in
         appropriate range of) the particle
 
@@ -71,11 +72,11 @@ def find_corner(particle,corners,rc=11,drc=2):
             drc      - delta r_c is the tolerance on rc
 
         returns:
-            pcorner - position of corner that belongs to particle
-            porient - particle orientation
+            pcorner - position (x,y) of corner that belongs to particle
+            porient - particle orientation (% 2pi)
+            cdisp   - vector (x,y) from particle center to corner
     """
     from numpy.linalg import norm
-
 
     cdisps = np.array([
         (corner[0]-particle[0], corner[1]-particle[1])
@@ -99,7 +100,7 @@ def find_corner(particle,corners,rc=11,drc=2):
 
     porient = np.arctan2(cdisp[1],cdisp[0]) % (2*np.pi)
 
-    return pcorner,porient
+    return pcorner,porient,cdisp
 
 def get_angles(data,cdata):#,framestep=100):
     if 's' in data.dtype.names:
