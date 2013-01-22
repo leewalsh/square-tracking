@@ -34,14 +34,14 @@ datapath = locdir+prefix+'_bigdot_results.txt'
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle"""
-    frame = thisdot['s']
+    frame = thisdot['f']
     if frame <= n:  # at (or recursed back to) the first frame
         newsid = max(trackids) + 1
         print "New track:",newsid
         print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newsid
     else:
-        oldframes = data[data['s']==frame-n]
+        oldframes = data[data['f']==frame-n]
         dists = (thisdot['x']-oldframes['x'])**2 + (thisdot['y']-oldframes['y'])**2
         closest = oldframes[np.argmin(dists)]
         sid = trackids[closest['id']]
@@ -60,10 +60,10 @@ if findtracks:
     data = np.genfromtxt(datapath,
             skip_header = 1,
             #usecols = [0,2,3,5],
-            #names   = "id,x,y,s",
+            #names   = "id,x,y,f",
             #dtype   = [int,float,float,int])
             usecols = [0,1,2,3,4,5,6],
-            names   = "id,area,mean,x,y,circ,s",
+            names   = "id,area,mean,x,y,circ,f",
             dtype   = [int,float,float,float,float,float,int])
     data['id'] -= 1 # data from imagej is 1-indexed
 
@@ -118,8 +118,8 @@ def farange(start,stop,factor):
 def trackmsd(track):
     tmsd = []
     trackdots = data[trackids==track]
-    trackend =   trackdots['s'][-1]
-    trackbegin = trackdots['s'][0]
+    trackend =   trackdots['f'][-1]
+    trackbegin = trackdots['f'][0]
     tracklen = trackend - trackbegin + 1
     print "tracklen =",tracklen
     print "\t from %d to %d"%(trackbegin,trackend)
@@ -142,8 +142,8 @@ def t0avg(trackdots,tracklen,tau):
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
-        olddot = trackdots[trackdots['s']==t0]
-        newdot = trackdots[trackdots['s']==t0+tau]
+        olddot = trackdots[trackdots['f']==t0]
+        newdot = trackdots[trackdots['f']==t0+tau]
         if (len(newdot) != 1):
             print "newdot:",newdot
             continue
@@ -209,7 +209,7 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 if plotmsd:
-    nframes = max(data['s'])
+    nframes = max(data['f'])
     if factorwise:
         taus = farange(dt0,nframes,dtau)
         msd = np.transpose([taus,np.zeros_like(taus)])
