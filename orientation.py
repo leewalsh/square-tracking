@@ -96,13 +96,28 @@ def find_corner(particle,corners,rc=11,drc=2):
         cdisp = cdisps[legal].flatten()
     else:
         #print "No legal corners for this particle"
-        return None, None
+        return None, None, None
 
     porient = np.arctan2(cdisp[1],cdisp[0]) % (2*np.pi)
 
     return pcorner,porient,cdisp
 
 def get_angles(data,cdata):#,framestep=100):
+    """ get_angles(data,cdata)
+        
+        arguments:
+            data    - data array with 'x' and 'y' fields for particle centers
+            cdata   - data array wity 'x' and 'y' fields for corners
+            (these arrays need not have the same length,
+                but both must have 'f' field for the image frame)
+            
+        returns:
+            odata   - array with fields:
+                'orient' for orientation of particles
+                'corner' for particle corner (with 'x' and 'y' sub-fields)
+            (odata has the same shape as data)
+    """
+    from correlation import get_id
     if 's' in data.dtype.names:
         fieldnames = np.array(data.dtype.names)
         fieldnames[fieldnames == 's'] = 'f'
@@ -113,19 +128,41 @@ def get_angles(data,cdata):#,framestep=100):
         cdata.dtype.names = tuple(fieldnames)
     #frames = np.arange(min(data['f']),max(data['f']),framestep)
     #postype = np.dtype()
-    odata = np.zeros(len(data),dtype=[('pc',float,(2,)),('o',float)])
+    odata = np.zeros(len(data),dtype=[('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
     orients = []
     for datum in data:
-        #print "frame: {}, particle: {}".format(datum['f'],datum['id'])
-        orients.append(find_corner(
-                (datum['x'],datum['y']),
+        posi = (datum['x'],datum['y'])
+        iid = get_id(data,posi,datum['f'])
+        icorner, iorient, idisp = find_corner( posi,
                 zip(cdata['x'][cdata['f']==datum['f']],
                     cdata['y'][cdata['f']==datum['f']])
                 )
-        #odata['pc'], odata['o']
-    return orients#odata
+        imask = data['id']==iid
+        odata['corner'][imask] = icorner
+        odata['orient'][imask] = iorient
+        odata['cdisp'][imask] = idisp
+    return odata
+
+def plot_orient_hist(odata,figtitle=''):
+    import matplotlib.pyplot as pl
+
+    pl.figure()
+    pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)
+    pl.title('orientation histogram' if figtitle is '' else figtitle)
 
 
+def plot_orient_map(data,odata,imfile=''):
+    from PIL import Image as Im
+    import matplotlib.pyplot as pl
+    import matplotlib.cm as cm
 
-
-
+    pl.figure()
+    if imfile is not None:
+        bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
+        pl.imshow(bgimage, cmap=cm.gray, origin='lower')
+    #pl.quiver(X, Y, U, V, **kw)
+    omask = np.isfinite(odata['orient'])
+    pl.quiver(data['x'][omask], data['y'][omask],
+            odata['cdisp'][omask][:,0], odata['cdisp'][omask][:,1],
+            color=cm.jet(data['f'][omask]/100.))
+    
