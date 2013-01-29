@@ -87,11 +87,11 @@ def find_corner(particle,corners,rc=11,drc=2):
     if legal.sum() == 1:
         pcorner = tuple(np.asarray(corners)[legal].flatten())
         cdisp = cdisps[legal].flatten()
-        print "Bingo: one corner found at {}".format(cdists[legal])
+        #print "Bingo: one corner found at {}".format(cdists[legal])
     elif legal.sum() > 1:
-        print "Too many ({}) legal corners for this particle".format(legal.sum())
+        #print "Too many ({}) legal corners for this particle".format(legal.sum())
         legal = np.argmin(abs(cdists-rc))
-        print "Using closest to rc = {} pixels at {}".format(rc, cdists[legal])
+        #print "Using closest to rc = {} pixels at {}".format(rc, cdists[legal])
         pcorner = corners[legal]
         cdisp = cdisps[legal].flatten()
     else:
@@ -130,7 +130,11 @@ def get_angles(data,cdata):#,framestep=100):
     #postype = np.dtype()
     odata = np.zeros(len(data),dtype=[('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
     orients = []
+    frame=0
     for datum in data:
+        if frame != datum['f']:
+            frame=datum['f']
+            print 'frame',frame
         posi = (datum['x'],datum['y'])
         iid = get_id(data,posi,datum['f'])
         icorner, iorient, idisp = find_corner( posi,
@@ -144,25 +148,49 @@ def get_angles(data,cdata):#,framestep=100):
     return odata
 
 def plot_orient_hist(odata,figtitle=''):
-    import matplotlib.pyplot as pl
 
     pl.figure()
     pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)
     pl.title('orientation histogram' if figtitle is '' else figtitle)
 
 
-def plot_orient_map(data,odata,imfile=''):
-    from PIL import Image as Im
-    import matplotlib.pyplot as pl
-    import matplotlib.cm as cm
-
+def plot_orient_map(data,odata,imfile='',mask=None):
     pl.figure()
     if imfile is not None:
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
         pl.imshow(bgimage, cmap=cm.gray, origin='lower')
     #pl.quiver(X, Y, U, V, **kw)
     omask = np.isfinite(odata['orient'])
-    pl.quiver(data['x'][omask], data['y'][omask],
-            odata['cdisp'][omask][:,0], odata['cdisp'][omask][:,1],
-            color=cm.jet(data['f'][omask]/100.))
+    if mask is None:
+        mask=omask
+    pl.quiver(data['x'][mask], data['y'][mask],
+            odata['cdisp'][mask][:,0], odata['cdisp'][mask][:,1],
+            color=cm.jet(data['f'][mask]/1260.),
+            scale=400.)
+    #pl.colorbar(cm.jet(data['f'][mask]/1260.))
+
+def plot_orient_time(data,odata,tracks):
+    omask = np.isfinite(odata['orient'])
+    goodtracks = np.array([78,95,191,203,322])
+    #tmask = np.in1d(tracks,goodtracks)
+    pl.figure()
+    for goodtrack in goodtracks:
+        tmask = tracks == goodtrack
+        fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
+        pl.plot(data['f'][fullmask],
+                (odata['orient'][fullmask]
+                 - odata['orient'][fullmask][np.argmin(data['f'][fullmask])]
+                 + np.pi)%(2*np.pi),
+                label="Track {}".format(goodtrack))
+                #color=cm.jet(1.*tracks[fullmask]/max(tracks)))
+                #color=cm.jet(1.*goodtrack/max(tracks)))
+    for n in np.arange(0.5,2.0,0.5):
+        pl.plot([0,1260],n*np.pi*np.array([1,1]),'k--')
+    pl.legend()
+    pl.title('Orientation over time\ninitial orientation = 0')
+    pl.xlabel('frame (150fps)')
+    pl.ylabel('orientation')
+
+
+
     
