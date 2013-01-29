@@ -153,7 +153,7 @@ def build_gs(data,prefix,framestep=10):
 
     return gs,rgs
 
-def get_id(data,position,frames=None):
+def get_id(data,position,frames=None,tolerance=10e-5):
     """ take a particle's `position' (x,y)
         optionally limit search to one or more `frames'
 
@@ -164,8 +164,8 @@ def get_id(data,position,frames=None):
             data = data[data['f'] in frames]
         else:
             data = data[data['f']==frames]
-    xmatch = data[data['x']==position[0]]
-    return xmatch['id'][xmatch['y']==position[1]]
+    xmatch = data[abs(data['x']-position[0])<tolerance]
+    return xmatch['id'][abs(xmatch['y']-position[1])<tolerance]
 
 def get_norm((posi,posj)):
     return norm(np.asarray(posj) - np.asarray(posi))
