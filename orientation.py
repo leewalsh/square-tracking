@@ -197,6 +197,30 @@ def plot_orient_time(data,odata,tracks):
     pl.xlabel('frame (150fps)')
     pl.ylabel('orientation')
 
+def plot_orient_location(data,odata,tracks):
+    import correlation as corr
+
+    omask = np.isfinite(odata['orient'])
+    goodtracks = np.array([78,95,191,203,322])
+
+    ss = 22.
+
+    pl.figure()
+    for goodtrack in goodtracks:
+        tmask = tracks == goodtrack
+        fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
+        loc_start = (data['x'][fullmask][0],data['y'][fullmask][0])
+        orient_start = odata['orient'][fullmask][0]
+        pl.scatter(
+                (odata['orient'][fullmask] - orient_start + np.pi) % (2*np.pi),
+                np.asarray(map(corr.get_norm,
+                    zip([loc_start]*fullmask.sum(),
+                        zip(data['x'][fullmask],data['y'][fullmask]))
+                    ))/ss,
+                label = 'track {}'.format(goodtrack),
+                color = cm.jet(1.*goodtrack/max(tracks)))
+        print "track",goodtrack
+    pl.legend()
 
 
-    
+
