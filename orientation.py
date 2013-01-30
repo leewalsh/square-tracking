@@ -155,6 +155,8 @@ def plot_orient_hist(odata,figtitle=''):
 
 
 def plot_orient_map(data,odata,imfile='',mask=None):
+    import matplotlib.colors as mcolors
+    import matplotlib.colorbar as mcolorbar
     pl.figure()
     if imfile is not None:
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
@@ -163,11 +165,15 @@ def plot_orient_map(data,odata,imfile='',mask=None):
     omask = np.isfinite(odata['orient'])
     if mask is None:
         mask=omask
+    nz = mcolors.Normalize()
+    nz.autoscale(data['f'][mask])
     pl.quiver(data['x'][mask], data['y'][mask],
             odata['cdisp'][mask][:,0], odata['cdisp'][mask][:,1],
-            color=cm.jet(data['f'][mask]/1260.),
+            color=cm.jet(nz(data['f'][mask])),
             scale=400.)
-    #pl.colorbar(cm.jet(data['f'][mask]/1260.))
+    cax,_ = mcolorbar.make_axes(pl.gca())
+    cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
+    cb.set_label('time')
 
 def plot_orient_time(data,odata,tracks):
     omask = np.isfinite(odata['orient'])
