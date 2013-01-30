@@ -19,16 +19,18 @@ import sys
 
 
 prefix = 'marked5'
+dotfix = '_bigdot'
 extdir = locdir+prefix+'_tifs/'
 
-findtracks = True
-plottracks = True
-findmsd   = False
+loaddata = False
+findtracks = False
+plottracks = False
+findmsd   = True
 loadmsd   = False
-plotmsd   = False
+plotmsd   = True
 
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+'_bigdot_results.txt'
+datapath = locdir+prefix+dotfix+'_results.txt'
 
 
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
@@ -55,7 +57,7 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
             return max(trackids) + 1
 
 # Tracking
-if findtracks:
+if loaddata:
     print "loading data from",datapath
     data = np.genfromtxt(datapath,
             skip_header = 1,
@@ -71,6 +73,7 @@ if findtracks:
     trackids[:] = -1
     print "\t...loaded"
     
+if findtracks:
     giveup = 1000
     sys.setrecursionlimit(2*giveup)
     
@@ -80,13 +83,17 @@ if findtracks:
 
     # save the data record array and the trackids array
     print "saving track data"
-    np.savez(locdir+prefix+"_bigdot_TRACKS",
+    np.savez(locdir+prefix+dotfix+"_TRACKS",
             data = data,
             trackids = trackids)
-
-else:
+elif loaddata:
+    print "saving data only (no tracks)"
+    np.savez(locdir+prefix+dotfix+"_POSITIONS",
+            data = data)
+    
+else: #(if findtracks is false and loaddata is false, assume existing tracks.npz)
     print "loading tracks from npz files"
-    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+    tracksnpz = np.load(locdir+prefix+dotfix+"_TRACKS.npz")
     data = tracksnpz['data']
     trackids = tracksnpz['trackids']
     print "\t...loaded"
@@ -176,9 +183,10 @@ if findmsd or loadmsd:
     else:
         print "something wrong with dtau =",dtau
 if findmsd:
+    goodtracks = np.array([ 78,  95, 191, 203, 322])
     print "begin calculating msds"
     msds = []
-    for trackid in range(ntracks):
+    for trackid in goodtracks:#range(ntracks):
         print "calculating msd for track",trackid
         tmsd = trackmsd(trackid)
         if tmsd:
