@@ -26,7 +26,7 @@ def label_particles_edge(im, sigma=3, closing_size=3):
     labels = np.ma.array(labels, mask=edges==0)
     return labels
 
-def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5):
+def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     """ label_particles_walker(image, min_thresh=0.3, max_thresh=0.5)
 
         Returns the labels for an image.
@@ -37,6 +37,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5):
         min_thresh   -- The lower limit for binary threshold
         max_thresh   -- The upper limit for binary threshold
     """
+    im = ndimage.gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
     labels[im>max_thresh] = 1
     labels[im<min_thresh] = 2
@@ -69,7 +70,7 @@ def drop_labels(labels, take_labels):
     labels[np.logical_not(a)] = np.ma.masked
     return labels
 
-def find_particles(im, gaussian_size=3, method='edge', **kwargs):
+def find_particles(im, method='edge', **kwargs):
     """ find_particles(im, gaussian_size=3, **kwargs) -> [Particle],labels
 
         Find the particles in image im. The arguments in kwargs is
@@ -77,7 +78,6 @@ def find_particles(im, gaussian_size=3, method='edge', **kwargs):
 
         Returns the list of found particles and the label image.
     """
-    im = ndimage.gaussian_filter(im, gaussian_size)
     labels = None
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
