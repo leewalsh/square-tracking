@@ -108,7 +108,7 @@ if __name__ == '__main__':
                         help='Images to process')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Produce a plot for each image')
-    parser.add_argument('-o', '--output', default='locations',
+    parser.add_argument('-o', '--output', default='LOCATIONS',
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
