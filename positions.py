@@ -57,7 +57,8 @@ def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200):
         label = props['Label']
         if min_area > props['Area'] or props['Area'] > max_area \
                 or props['Eccentricity'] > max_ecc:
-            labels[labels==label] = np.ma.masked
+            pass
+            #labels[labels==label] = np.ma.masked
         else:
             (x,y) = props['Centroid']
             pts.append(Particle(x,y, label, props['Eccentricity'], props['Area']))
@@ -119,8 +120,9 @@ if __name__ == '__main__':
         pts, labels = find_particles_in_image(file)
         print '%20s: Found %d points' % (file, len(pts))
         if args.plot:
+            pl.clf()
             pl.imshow(labels, cmap=cm)
-            pts = np.array(pts)
+            pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
             pl.savefig(file+'.png')
         return np.hstack([n*np.ones((len(pts),1)), pts])
