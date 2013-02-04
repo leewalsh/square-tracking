@@ -1,8 +1,18 @@
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
 import numpy as np
 #from scipy.stats import nanmean
 from PIL import Image as Im
+
+#computer = 'foppl'
+computer = 'rock'
+if computer is 'foppl':
+    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+elif computer is 'rock':
+    import matplotlib.pyplot as pl
+    import matplotlib.cm as cm
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+else:
+    print "computer not defined"
+    print "where are you working?"
 
 def get_fft(ifile=None,location=None):
     # FFT information from:
@@ -48,7 +58,7 @@ def get_orientation(b):
         sm = np.average(p[si,1])
         s.append([sl*slicewidth,sm])
     s = np.asarray(s)
-    if do_plots:
+    if do_plots and computer=='rock':
         pl.figure()
         #pl.plot(p[:,0],p[:,1],'.',label='p')
         #pl.plot(s[:,0],s[:,1],'o',label='s')
@@ -56,6 +66,8 @@ def get_orientation(b):
         pl.plot(s[:,0]%(np.pi/2),s[:,1],'o',label='s')
         pl.legend()
         pl.show()
+    elif do_plots and computer=='foppl':
+        print "can't plot on foppl"
     return s, p
 
 def find_corner(particle,corners,rc=11,drc=2):
@@ -148,13 +160,18 @@ def get_angles(data,cdata):#,framestep=100):
     return odata
 
 def plot_orient_hist(odata,figtitle=''):
-
+    if computer is not 'rock':
+        print 'computer must be on rock'
+        return False
     pl.figure()
     pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)
     pl.title('orientation histogram' if figtitle is '' else figtitle)
-
+    return True
 
 def plot_orient_map(data,odata,imfile='',mask=None):
+    if computer is not 'rock':
+        print 'computer must be on rock'
+        return False
     import matplotlib.colors as mcolors
     import matplotlib.colorbar as mcolorbar
     pl.figure()
@@ -167,15 +184,20 @@ def plot_orient_map(data,odata,imfile='',mask=None):
         mask=omask
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask])
-    pl.quiver(data['x'][mask], data['y'][mask],
+    qq = pl.quiver(data['x'][mask], data['y'][mask],
             odata['cdisp'][mask][:,0], odata['cdisp'][mask][:,1],
             color=cm.jet(nz(data['f'][mask])),
             scale=400.)
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
     cb.set_label('time')
+    return qq, cb
 
 def plot_orient_time(data,odata,tracks):
+    if computer is not 'rock':
+        print 'computer must be on rock'
+        return False
+
     omask = np.isfinite(odata['orient'])
     goodtracks = np.array([78,95,191,203,322])
     #tmask = np.in1d(tracks,goodtracks)
@@ -198,6 +220,9 @@ def plot_orient_time(data,odata,tracks):
     pl.ylabel('orientation')
 
 def plot_orient_location(data,odata,tracks):
+    if computer is not 'rock':
+        print 'computer must be on rock'
+        return False
     import correlation as corr
 
     omask = np.isfinite(odata['orient'])
@@ -211,7 +236,7 @@ def plot_orient_location(data,odata,tracks):
         fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
         loc_start = (data['x'][fullmask][0],data['y'][fullmask][0])
         orient_start = odata['orient'][fullmask][0]
-        pl.scatter(
+        sc = pl.scatter(
                 (odata['orient'][fullmask] - orient_start + np.pi) % (2*np.pi),
                 np.asarray(map(corr.get_norm,
                     zip([loc_start]*fullmask.sum(),
@@ -221,6 +246,7 @@ def plot_orient_location(data,odata,tracks):
                 color = cm.jet(1.*goodtrack/max(tracks)))
         print "track",goodtrack
     pl.legend()
+    return True
 
 
 
