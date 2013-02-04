@@ -1,21 +1,26 @@
-#computer = 'foppl'
-computer = 'rock'
-
-if computer is 'rock':
-    #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-    #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
-    #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-elif computer is 'foppl':
-    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-    import matplotlib        #foppl
-    matplotlib.use("agg")    #foppl
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
 import numpy as np
 from scipy.stats import nanmean
 from PIL import Image as Im
 import sys
+
+from socket import gethostname
+hostname = gethostname()
+if 'rock' in hostname:
+    computer = 'rock'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+    #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+elif 'foppl' in hostname:
+    computer = 'foppl'
+    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    import matplotlib
+    matplotlib.use("agg")
+else:
+    print "computer not defined"
+    print "where are you working?"
+
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
 
 
 prefix = 'marked5'

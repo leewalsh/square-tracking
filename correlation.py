@@ -5,11 +5,12 @@ from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
 from operator import itemgetter
 
-#computer = 'foppl'
-computer = 'rock'
-if computer is 'foppl':
+from socket import gethostname
+hostname = gethostname()
+if 'foppl' in hostname:
     locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-elif computer is 'rock':
+elif 'rock' in hostname:
+    computer = 'rock'
     import matplotlib.pyplot as pl
     import matplotlib.cm as cm
     locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'

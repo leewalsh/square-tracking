@@ -2,14 +2,16 @@ import numpy as np
 #from scipy.stats import nanmean
 from PIL import Image as Im
 
-#computer = 'foppl'
-computer = 'rock'
-if computer is 'foppl':
-    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-elif computer is 'rock':
+from socket import gethostname
+hostname = gethostname()
+if 'foppl' in hostname:
+    computer = 'foppl'
+    locdir = '/home/lawalsh/Granular/Squares/orientation/'
+elif 'rock' in hostname:
+    computer = 'rock'
     import matplotlib.pyplot as pl
     import matplotlib.cm as cm
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
 else:
     print "computer not defined"
     print "where are you working?"
