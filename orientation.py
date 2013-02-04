@@ -217,8 +217,10 @@ def plot_orient_location(data,odata,tracks):
                     zip([loc_start]*fullmask.sum(),
                         zip(data['x'][fullmask],data['y'][fullmask]))
                     ))/ss,
+                #marker='*',
                 label = 'track {}'.format(goodtrack),
                 color = cm.jet(1.*goodtrack/max(tracks)))
+                #color = cm.jet(1.*data['f'][fullmask]/1260.))
         print "track",goodtrack
     pl.legend()
 
