@@ -197,7 +197,6 @@ def get_angles_loop(data,cdata):#,framestep=100):
     #postype = np.dtype()
     dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
     odata = np.zeros(len(data), dtype=dt)
-    orients = []
     frame=0
     for datum in data:
         if frame != datum['f']:
