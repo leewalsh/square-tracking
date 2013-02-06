@@ -60,7 +60,7 @@ def get_orientation(b):
         sm = np.average(p[si,1])
         s.append([sl*slicewidth,sm])
     s = np.asarray(s)
-    if do_plots and computer=='rock':
+    if do_plots and computer is 'rock':
         pl.figure()
         #pl.plot(p[:,0],p[:,1],'.',label='p')
         #pl.plot(s[:,0],s[:,1],'o',label='s')
@@ -68,7 +68,7 @@ def get_orientation(b):
         pl.plot(s[:,0]%(np.pi/2),s[:,1],'o',label='s')
         pl.legend()
         pl.show()
-    elif do_plots and computer=='foppl':
+    elif do_plots and computer is 'foppl':
         print "can't plot on foppl"
     return s, p
 
