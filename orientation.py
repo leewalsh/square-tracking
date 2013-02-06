@@ -116,7 +116,11 @@ def find_corner(particle,corners,rc=11,drc=2):
 
     return pcorner,porient,cdisp
 
-def get_angle(datum):
+#TODO:
+# try splitting by frame first, use views for each frame
+# or just pass a tuple of (datum, cdata[f==f]) to get_angle()
+
+def get_angle((datum,cdata)):
     corner = find_corner(
             (datum['x'],datum['y']),
             zip(cdata['x'][cdata['f']==datum['f']],
@@ -159,7 +163,9 @@ def get_angles_map(data,cdata,nthreads=None):
     print "on {}, using {} threads".format(computer,nthreads)
     pool = Pool(nthreads)
 
-    odatalist = pool.map(get_angle, data)
+    datums = [ (datum,cdata[cdata['f']==datum['f']])
+                for datum in data ]
+    odatalist = pool.map(get_angle, datums)
     odata = np.vstack(odatalist)
     return odata
 
