@@ -116,7 +116,53 @@ def find_corner(particle,corners,rc=11,drc=2):
 
     return pcorner,porient,cdisp
 
-def get_angles(data,cdata):#,framestep=100):
+def get_angle(datum):
+    corner = find_corner(
+            (datum['x'],datum['y']),
+            zip(cdata['x'][cdata['f']==datum['f']],
+                cdata['y'][cdata['f']==datum['f']])
+            )
+    dt = np.dtype([('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
+    return np.array([corner], dtype=dt)
+
+def get_angles_map(data,cdata,nthreads=None):
+    """ get_angles(data, cdata, nthreads=None)
+        
+        arguments:
+            data    - data array with 'x' and 'y' fields for particle centers
+            cdata   - data array wity 'x' and 'y' fields for corners
+            (these arrays need not have the same length,
+                but both must have 'f' field for the image frame)
+            nthreads - number of processing threads (cpu cores) to use
+                None uses all cores of machine (8 for foppl, 2 for rock)
+            
+        returns:
+            odata   - array with fields:
+                'orient' for orientation of particles
+                'corner' for particle corner (with 'x' and 'y' sub-fields)
+            (odata has the same shape as data)
+    """
+    if 's' in data.dtype.names:
+        fieldnames = np.array(data.dtype.names)
+        fieldnames[fieldnames == 's'] = 'f'
+        data.dtype.names = tuple(fieldnames)
+    if 's' in cdata.dtype.names:
+        fieldnames = np.array(cdata.dtype.names)
+        fieldnames[fieldnames == 's'] = 'f'
+        cdata.dtype.names = tuple(fieldnames)
+
+    from multiprocessing import Pool
+    if nthreads is None or nthreads > 8:
+        nthreads = 8 if computer is 'foppl' else 2
+    elif nthreads > 2 and computer is 'rock':
+        nthreads = 2
+    pool = Pool(nthreads)
+
+    odatalist = pool.map(get_angle, data)
+    odata = np.vstack(odatalist)
+    return odata
+
+def get_angles_loop(data,cdata):#,framestep=100):
     """ get_angles(data,cdata)
         
         arguments:
@@ -142,7 +188,8 @@ def get_angles(data,cdata):#,framestep=100):
         cdata.dtype.names = tuple(fieldnames)
     #frames = np.arange(min(data['f']),max(data['f']),framestep)
     #postype = np.dtype()
-    odata = np.zeros(len(data),dtype=[('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
+    dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
+    odata = np.zeros(len(data), dtype=dt)
     orients = []
     frame=0
     for datum in data:
@@ -150,11 +197,12 @@ def get_angles(data,cdata):#,framestep=100):
             frame=datum['f']
             print 'frame',frame
         posi = (datum['x'],datum['y'])
-        iid = get_id(data,posi,datum['f'])
         icorner, iorient, idisp = find_corner( posi,
                 zip(cdata['x'][cdata['f']==datum['f']],
                     cdata['y'][cdata['f']==datum['f']])
                 )
+
+        iid = get_id(data,posi,datum['f'])
         imask = data['id']==iid
         odata['corner'][imask] = icorner
         odata['orient'][imask] = iorient
