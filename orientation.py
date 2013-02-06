@@ -156,6 +156,7 @@ def get_angles_map(data,cdata,nthreads=None):
         nthreads = 8 if computer is 'foppl' else 2
     elif nthreads > 2 and computer is 'rock':
         nthreads = 2
+    print "on {}, using {} threads".format(computer,nthreads)
     pool = Pool(nthreads)
 
     odatalist = pool.map(get_angle, data)
