@@ -7,12 +7,13 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    locdir = '/Users/leewalsh/Physics/Squares/lighting/'
     #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
     #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 elif 'foppl' in hostname:
     computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    locdir = '/home/lawalsh/Granular/Squares/lighting/'
+    extdir = '/media/bhavari/Squares/lighting/still/'
     import matplotlib
     matplotlib.use("agg")
 else:
@@ -23,16 +24,16 @@ import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 
 
-prefix = 'marked5'
+prefix = 'still'
 dotfix = '_bigdot'
-extdir = locdir+prefix+'_tifs/'
+#extdir = locdir+prefix+'_tifs/'
 
-loaddata = False
-findtracks = False
+loaddata = True
+findtracks = True
 plottracks = False
 findmsd   = True
 loadmsd   = False
-plotmsd   = True
+plotmsd   = False
 
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_results.txt'
