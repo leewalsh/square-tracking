@@ -133,7 +133,7 @@ else:
 
 # Plotting tracks:
 ntracks = max(trackids) + 1
-if plottracks:
+def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.figure()
     bgheight = bgimage.size[1] # for flippin over y
     pl.scatter(
@@ -144,6 +144,10 @@ if plottracks:
     pl.title(prefix)
     print "saving tracks image"
     pl.savefig(locdir+prefix+"_tracks.png")
+    pl.show()
+
+if plottracks and computer is 'rock':
+    plot_tracks(data, trackids)
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
