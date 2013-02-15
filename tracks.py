@@ -27,12 +27,14 @@ prefix = 'marked5'
 dotfix = '_bigdot'
 extdir = locdir+prefix+'_tifs/'
 
-loaddata = False
-findtracks = False
-plottracks = False
-findmsd   = True
-loadmsd   = False
-plotmsd   = True
+loaddata   = False # create and save structured array from data txt file
+
+findtracks = True
+plottracks = True
+
+findmsd = True
+loadmsd = False
+plotmsd = True
 
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_results.txt'
