@@ -40,26 +40,28 @@ datapath = locdir+prefix+dotfix+'_results.txt'
 
 def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
-        looks further back until it finds the nearest particle"""
+        looks further back until it finds the nearest particle
+        returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
     if frame <= n:  # at (or recursed back to) the first frame
-        newsid = max(trackids) + 1
-        print "New track:",newsid
+        newtrackid = max(trackids) + 1
+        print "New track:",newtrackid
         print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
-        return newsid
+        return newtrackid
     else:
-        oldframes = data[data['f']==frame-n]
-        dists = (thisdot['x']-oldframes['x'])**2 + (thisdot['y']-oldframes['y'])**2
-        closest = oldframes[np.argmin(dists)]
-        sid = trackids[closest['id']]
+        oldframe = data[data['f']==frame-n]
+        dists = (thisdot['x']-oldframe['x'])**2 + (thisdot['y']-oldframe['y'])**2
+        closest = oldframe[np.argmin(dists)]
         if min(dists) < maxdist:
-            return sid
+            return trackids[closest['id']]
         elif n < giveup:
             return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
-            print "recursed", n, "times, giving up. frame =", frame
-            print "New track:", max(trackids) + 1
-            return max(trackids) + 1
+            print "Recursed {} times, giving up. frame = {} ".format(n,frame)
+            newtrackid = max(trackids) + 1
+            print "New track:",newtrackid
+            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+            return newtrackid
 
 # Tracking
 if loaddata:
