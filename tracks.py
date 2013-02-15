@@ -28,14 +28,14 @@ prefix = 'still'
 dotfix = '_bigdot'
 #extdir = locdir+prefix+'_tifs/'
 
-loaddata   = False # create and save structured array from data txt file
+loaddata   = True   # Create and save structured array from data txt file?
 
-findtracks = True
-plottracks = True
+findtracks = True   # Connect the dots and save in 'trackids' field of data
+plottracks = True   # plot their tracks
 
-findmsd = True
-loadmsd = False
-plotmsd = True
+findmsd = True      # Calculate the MSD
+loadmsd = False     # load previoius MSD from npz file
+plotmsd = True      # plot the MSD
 
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_results.txt'
