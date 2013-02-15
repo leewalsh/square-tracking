@@ -64,21 +64,41 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
             return newtrackid
 
 # Tracking
-if loaddata:
+def load_data(datapath):
     print "loading data from",datapath
-    data = np.genfromtxt(datapath,
-            skip_header = 1,
-            #usecols = [0,2,3,5],
-            #names   = "id,x,y,f",
-            #dtype   = [int,float,float,int])
-            usecols = [0,1,2,3,4,5,6],
-            names   = "id,area,mean,x,y,circ,f",
-            dtype   = [int,float,float,float,float,float,int])
-    data['id'] -= 1 # data from imagej is 1-indexed
+    if  datapath.endswith('results.txt'):
+        shapeinfo = False
+        # imagej output (called *_results.txt)
+        dtargs = {  'usecols' : [0,2,3,5],
+                    'names'   : "id,x,y,f",
+                    'dtype'   : [int,float,float,int]} \
+            if not shapeinfo else \
+                 {  'usecols' : [0,1,2,3,4,5,6],
+                    'names'   : "id,area,mean,x,y,circ,f",
+                    'dtype'   : [int,float,float,float,float,float,int]}
+        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
+        data['id'] -= 1 # data from imagej is 1-indexed
+    elif datapath.endswith('POSITIONS.txt'):
+        from numpy.lib.recfunctions import append_fields
+        # positions.py output (called *_POSITIONS.txt)
+        data = np.genfromtxt(datapath,
+                skip_header = 1,
+                names = "f,x,y,lab,ecc,area",
+                dtype = [int,float,float,int,float,int])
+        data = append_fields(data,'id',np.arange(data.shape[0]))
 
+
+    else:
+        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
+        print "Please rename it to end with _results.txt or _POSITIONS.txt"
+    return data
+
+if loaddata:
+    data = load_data(datapath)
+    print "\t...loaded"
     trackids = np.empty_like(data,dtype=int)
     trackids[:] = -1
-    print "\t...loaded"
+
     
 if findtracks:
     giveup = 1000
