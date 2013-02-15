@@ -153,13 +153,15 @@ if plottracks and computer is 'rock':
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
-# trackmsd finds the track msd, as function of tau, averaged over t0, for one track (worldline)
 def farange(start,stop,factor):
     start_power = np.log(start)/np.log(factor)
     stop_power = np.log(stop)/np.log(factor)
     return factor**np.arange(start_power,stop_power)
 
-def trackmsd(track):
+def trackmsd(track,dt0,dtau):
+    """ trackmsd(track,dt0,dtau)
+        finds the track msd, as function of tau, averaged over t0, for one track (worldline)
+    """
     tmsd = []
     trackdots = data[trackids==track]
     trackend =   trackdots['f'][-1]
@@ -167,9 +169,9 @@ def trackmsd(track):
     tracklen = trackend - trackbegin + 1
     print "tracklen =",tracklen
     print "\t from %d to %d"%(trackbegin,trackend)
-    if factorwise:
+    if type(dtau) is float:
         taus = farange(dt0,tracklen,dtau)
-    elif stepwise:
+    elif type(dtau) is int:
         taus = xrange(dtau,tracklen,dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
@@ -209,16 +211,6 @@ def t0avg(trackdots,tracklen,tau):
 if findmsd or loadmsd:
     dt0  = 50 # small for better statistics, larger for faster calc
     dtau = 10 # small for better statistics, larger for faster calc
-    if type(dtau) is int:
-        print "Using stepwise dtau"
-        stepwise = True
-        factorwise = False
-    elif type(dtau) is float:
-        print "Using factorwise (log-spaced) dtau"
-        stepwise = False
-        factorwise = True
-    else:
-        print "something wrong with dtau =",dtau
 if findmsd:
     goodtracks = np.array([ 78,  95, 191, 203, 322])
     print "begin calculating msds"
@@ -255,10 +247,10 @@ elif loadmsd:
 # Mean Squared Displacement:
 if plotmsd:
     nframes = max(data['f'])
-    if factorwise:
+    if type(dtau) is float:
         taus = farange(dt0,nframes,dtau)
         msd = np.transpose([taus,np.zeros_like(taus)])
-    elif stepwise:
+    elif type(dtau) is int:
         taus = np.arange(dtau,nframes,dtau)
         msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
         msd = np.transpose(msd)
