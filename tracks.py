@@ -132,7 +132,6 @@ else:
     print "\t...loaded"
 
 # Plotting tracks:
-ntracks = max(trackids) + 1
 def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.figure()
     bgheight = bgimage.size[1] # for flippin over y
@@ -211,26 +210,32 @@ def t0avg(trackdots,tracklen,tau):
 if findmsd or loadmsd:
     dt0  = 50 # small for better statistics, larger for faster calc
     dtau = 10 # small for better statistics, larger for faster calc
-if findmsd:
+
+def find_msds(data, trackids):
     goodtracks = np.array([ 78,  95, 191, 203, 322])
     print "begin calculating msds"
     msds = []
+    ntracks = max(trackids) + 1
     for trackid in goodtracks:#range(ntracks):
         print "calculating msd for track",trackid
-        tmsd = trackmsd(trackid)
-        if tmsd:
+        try:
+            tmsd = trackmsd(trackid)
             print '\tappending msd for track',trackid
             msds.append(tmsd)
-        else:
+        except:
             print '\tno msd for track',trackid
 
-    msds=np.array(msds)
+    msds = np.asarray(msds)
     print "saving msd data"
     np.savez(locdir+prefix+"_MSD",
             msds = msds,
-            dt0  = np.array(dt0),
-            dtau = np.array(dtau))
+            dt0  = np.asarray(dt0),
+            dtau = np.asarray(dtau))
     print "\t...saved"
+    return msds
+
+if findmsd:
+    msds = find_msds(data, trackids)
             
 elif loadmsd:
     print "loading msd data from npz files"
