@@ -96,14 +96,14 @@ def load_data(datapath):
 if loaddata:
     data = load_data(datapath)
     print "\t...loaded"
+
+
+def find_tracks(data, giveup = 1000):
+    sys.setrecursionlimit(2*giveup)
+
     trackids = np.empty_like(data,dtype=int)
     trackids[:] = -1
 
-    
-if findtracks:
-    giveup = 1000
-    sys.setrecursionlimit(2*giveup)
-    
     print "seeking tracks"
     for i in range(len(data)):
         trackids[i] = find_closest(data[i])
@@ -113,12 +113,18 @@ if findtracks:
     np.savez(locdir+prefix+dotfix+"_TRACKS",
             data = data,
             trackids = trackids)
+
+    return trackids
+
+if findtracks:
+    trackids = find_tracks(data)
 elif loaddata:
     print "saving data only (no tracks)"
     np.savez(locdir+prefix+dotfix+"_POSITIONS",
             data = data)
-    
-else: #(if findtracks is false and loaddata is false, assume existing tracks.npz)
+
+#(if findtracks is false and loaddata is false, assume existing tracks.npz)
+else: 
     print "loading tracks from npz files"
     tracksnpz = np.load(locdir+prefix+dotfix+"_TRACKS.npz")
     data = tracksnpz['data']
