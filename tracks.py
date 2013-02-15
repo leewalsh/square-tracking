@@ -250,15 +250,15 @@ elif loadmsd:
     print "\t...loaded"
 
 # Mean Squared Displacement:
-if plotmsd:
+
+def plot_msd(data,msds):
     nframes = max(data['f'])
     if type(dtau) is float:
         taus = farange(dt0,nframes,dtau)
         msd = np.transpose([taus,np.zeros_like(taus)])
     elif type(dtau) is int:
         taus = np.arange(dtau,nframes,dtau)
-        msd = [np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)]
-        msd = np.transpose(msd)
+        msd = np.transpose([np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = 0
     for tmsd in msds:
@@ -277,17 +277,21 @@ if plotmsd:
                 #    print 'tmsdrow[1]',tmsdrow[1]
                 #    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
 
-    msd[:,1] /= added
+    try:
+        msd[:,1] /= added
+    except:
+        print "none added!"
     pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
 
-    pl.loglog(
-            taus,
-            msd[0,1]*taus/dtau,
+    pl.loglog(taus, msd[0,1]*taus/dtau,
             'k-',label="ref slope = 1")
     pl.legend(loc=4)
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
-    pl.show()
     pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
+    pl.show()
+
+if plotmsd and computer is 'rock':
+    plot_msd(data,msds)
 
