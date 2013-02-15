@@ -7,12 +7,13 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    locdir = '/Users/leewalsh/Physics/Squares/lighting/'
     #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
     #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
 elif 'foppl' in hostname:
     computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    locdir = '/home/lawalsh/Granular/Squares/lighting/'
+    extdir = '/media/bhavari/Squares/lighting/still/'
     import matplotlib
     matplotlib.use("agg")
 else:
@@ -23,9 +24,9 @@ import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 
 
-prefix = 'marked5'
+prefix = 'still'
 dotfix = '_bigdot'
-extdir = locdir+prefix+'_tifs/'
+#extdir = locdir+prefix+'_tifs/'
 
 loaddata   = False # create and save structured array from data txt file
 
