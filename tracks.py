@@ -41,7 +41,7 @@ bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_results.txt'
 
 
-def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
+def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
@@ -58,7 +58,7 @@ def find_closest(thisdot,n=1,maxdist=25.,giveup=1000):
         if min(dists) < maxdist:
             return trackids[closest['id']]
         elif n < giveup:
-            return find_closest(thisdot,n=n+1,maxdist=maxdist,giveup=giveup)
+            return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
             print "Recursed {} times, giving up. frame = {} ".format(n,frame)
             newtrackid = max(trackids) + 1
@@ -109,7 +109,7 @@ def find_tracks(data, giveup = 1000):
 
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i])
+        trackids[i] = find_closest(data[i],trackids)
 
     # save the data record array and the trackids array
     print "saving track data"
