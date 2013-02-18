@@ -45,7 +45,7 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
-    if frame <= n:  # at (or recursed back to) the first frame
+    if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
         print "New track:",newtrackid
         print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
@@ -103,8 +103,7 @@ if loaddata:
 def find_tracks(data, giveup = 1000):
     sys.setrecursionlimit(2*giveup)
 
-    trackids = np.empty_like(data,dtype=int)
-    trackids[:] = -1
+    trackids = -np.ones_like(data,dtype=int)
 
     print "seeking tracks"
     for i in range(len(data)):
