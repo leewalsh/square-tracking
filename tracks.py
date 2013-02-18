@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import nanmean
 from PIL import Image as Im
 import sys
 
@@ -137,7 +136,7 @@ else:
 # Plotting tracks:
 def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.figure()
-    bgheight = bgimage.size[1] # for flippin over y
+    #bgheight = bgimage.size[1] # for flippin over y
     pl.scatter(
             data['x'],
             data['y'],#bgheight-data['y'],
@@ -214,12 +213,12 @@ if findmsd or loadmsd:
     dt0  = 50 # small for better statistics, larger for faster calc
     dtau = 10 # small for better statistics, larger for faster calc
 
-def find_msds(data, trackids):
-    goodtracks = np.array([ 78,  95, 191, 203, 322])
+def find_msds():
     print "begin calculating msds"
     msds = []
-    ntracks = max(trackids) + 1
-    for trackid in goodtracks:#range(ntracks):
+    #tracks = xrange(max(trackids) + 1)
+    tracks = (78,  95, 191, 203, 322)
+    for trackid in tracks:
         print "calculating msd for track",trackid
         try:
             tmsd = trackmsd(trackid)
@@ -238,7 +237,7 @@ def find_msds(data, trackids):
     return msds
 
 if findmsd:
-    msds = find_msds(data, trackids)
+    msds = find_msds()
             
 elif loadmsd:
     print "loading msd data from npz files"
