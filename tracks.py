@@ -24,7 +24,7 @@ import matplotlib.cm as cm
 
 
 prefix = 'still'
-dotfix = '_bigdot'
+dotfix = ''#_bigdot'
 #extdir = locdir+prefix+'_tifs/'
 
 loaddata   = True   # Create and save structured array from data txt file?
@@ -37,7 +37,7 @@ loadmsd = False     # load previoius MSD from npz file
 plotmsd = True      # plot the MSD
 
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+dotfix+'_results.txt'
+datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
