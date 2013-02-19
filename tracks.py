@@ -103,7 +103,7 @@ if loaddata:
 def find_tracks(data, giveup = 1000):
     sys.setrecursionlimit(2*giveup)
 
-    trackids = -np.ones_like(data,dtype=int)
+    trackids = -np.ones(data.shape, dtype=int)
 
     print "seeking tracks"
     for i in range(len(data)):
