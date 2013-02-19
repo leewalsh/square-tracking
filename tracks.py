@@ -87,7 +87,7 @@ def load_data(datapath):
                 skip_header = 1,
                 names = "f,x,y,lab,ecc,area",
                 dtype = [int,float,float,int,float,int])
-        data = append_fields(data,'id',np.arange(data.shape[0]))
+        data = append_fields(data,'id',np.arange(data.shape[0]), usemask=False)
 
 
     else:
