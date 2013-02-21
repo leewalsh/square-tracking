@@ -133,13 +133,9 @@ else:
 # Plotting tracks:
 def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.figure()
-    #bgheight = bgimage.size[1] # for flippin over y
-    pl.scatter(
-            data['x'],
-            #bgheight-\
-                data['y'],
+    pl.scatter( data['y'], data['x'],
             c=np.array(trackids)%12, marker='o')
-    pl.imshow(bgimage,cmap=cm.gray,origin='lower')
+    pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
     print "saving tracks image"
     pl.savefig(locdir+prefix+"_tracks.png")
