@@ -7,8 +7,7 @@ hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
     locdir = '/Users/leewalsh/Physics/Squares/lighting/'
-    #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
-    #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+    extdir = '/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/lighting/'
@@ -24,8 +23,7 @@ import matplotlib.cm as cm
 
 
 prefix = 'still'
-dotfix = ''#_bigdot'
-#extdir = locdir+prefix+'_tifs/'
+dotfix = '_smalldot'
 
 loaddata   = True   # Create and save structured array from data txt file?
 
@@ -138,7 +136,8 @@ def plot_tracks(data,trackids,  bgimage=bgimage):
     #bgheight = bgimage.size[1] # for flippin over y
     pl.scatter(
             data['x'],
-            data['y'],#bgheight-data['y'],
+            #bgheight-\
+                data['y'],
             c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='lower')
     pl.title(prefix)
