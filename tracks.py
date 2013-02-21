@@ -207,23 +207,19 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-if findmsd or loadmsd:
-    dt0  = 50 # small for better statistics, larger for faster calc
-    dtau = 10 # small for better statistics, larger for faster calc
 
-def find_msds():
-    print "begin calculating msds"
+def find_msds(dt0, dtau, tracks=None):
+    """ Calculates the MSDs"""
+    print "Begin calculating MSDs"
     msds = []
-    #tracks = xrange(max(trackids) + 1)
-    tracks = (78,  95, 191, 203, 322)
+    if tracks is None:
+        #tracks = xrange(max(trackids) + 1)
+        tracks = (78,  95, 191, 203, 322)
     for trackid in tracks:
         print "calculating msd for track",trackid
-        try:
-            tmsd = trackmsd(trackid)
-            print '\tappending msd for track',trackid
-            msds.append(tmsd)
-        except:
-            print '\tno msd for track',trackid
+        tmsd = trackmsd(trackid,dt0,dtau)
+        print "\tappending msd for track",trackid
+        msds.append(tmsd)
 
     msds = np.asarray(msds)
     print "saving msd data"
@@ -235,7 +231,9 @@ def find_msds():
     return msds
 
 if findmsd:
-    msds = find_msds()
+    dt0  = 50 # small for better statistics, larger for faster calc
+    dtau = 10 # int for stepwise, float for factorwise
+    msds = find_msds(dt0, dtau)
             
 elif loadmsd:
     print "loading msd data from npz files"
@@ -252,6 +250,7 @@ elif loadmsd:
 # Mean Squared Displacement:
 
 def plot_msd(data,msds):
+    """ Plots the MSDs"""
     nframes = max(data['f'])
     if type(dtau) is float:
         taus = farange(dt0,nframes,dtau)
@@ -270,12 +269,6 @@ def plot_msd(data,msds):
                 print "yay"
             else:
                 print "tmsd too short",len(tmsd),len(msd)
-                #for tmsdrow in tmsd:
-                #    print 'tmsdrow',tmsdrow
-                #    print 'msd[(tmsdrow[0]==msd[:,0])[0],1]',\
-                #           msd[(tmsdrow[0]==msd[:,0])[0],1]
-                #    print 'tmsdrow[1]',tmsdrow[1]
-                #    #msd[(tmsdrow[0]==msd[:,0])[0],1] += tmsdrow[1]
 
     try:
         msd[:,1] /= added
