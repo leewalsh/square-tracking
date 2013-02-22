@@ -8,7 +8,7 @@ from skimage.morphology import label, square, binary_closing, skeletonize
 from collections import namedtuple
 import PIL.Image as image
 
-def label_particles_edge(im, sigma=3, closing_size=3):
+def label_particles_edge(im, sigma=2, closing_size=1, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
 
         Returns the labels for an image.
@@ -45,7 +45,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
 
 Particle = namedtuple('Particle', 'x y label ecc area'.split())
 
-def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200):
+def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200, **extra_args):
     """ filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Particle]
 
         Returns a list of Particles and masks out labels for
@@ -113,18 +113,23 @@ if __name__ == '__main__':
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
+    parser.add_argument('-s', '--dot', default='big',
+                        help='Size of dot to find: `big` or `small`')
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
     def f((n,file)):
-        pts, labels = find_particles_in_image(file)
+        threshargs = {'max_ecc' :  .5 if args.dot is 'big' else .9,
+                      'min_area':  15 if args.dot is 'big' else 4,
+                      'max_area': 200 if args.dot is 'big' else 25}
+        pts, labels = find_particles_in_image(file, **threshargs)
         print '%20s: Found %d points' % (file, len(pts))
         if args.plot:
             pl.clf()
             pl.imshow(labels, cmap=cm)
             pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            pl.savefig(file+'.png')
+            pl.savefig(file.replace('.tif',args.dot+'.png'))
         return np.hstack([n*np.ones((len(pts),1)), pts])
 
     p = Pool(args.threads)
