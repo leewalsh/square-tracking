@@ -121,9 +121,8 @@ elif loaddata:
     print "saving data only (no tracks)"
     np.savez(locdir+prefix+dotfix+"_POSITIONS",
             data = data)
-
-#(if findtracks is false and loaddata is false, assume existing tracks.npz)
 else: 
+    # assume existing tracks.npz
     print "loading tracks from npz files"
     tracksnpz = np.load(locdir+prefix+dotfix+"_TRACKS.npz")
     data = tracksnpz['data']
