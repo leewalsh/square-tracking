@@ -12,14 +12,14 @@ elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/lighting/'
     extdir = '/media/bhavari/Squares/lighting/still/'
-    import matplotlib
-    matplotlib.use("agg")
+    #import matplotlib
+    #matplotlib.use("agg")
 else:
     print "computer not defined"
     print "where are you working?"
 
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
+#import matplotlib.pyplot as pl
+#import matplotlib.cm as cm
 
 
 prefix = 'still'
