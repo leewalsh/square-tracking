@@ -1,3 +1,33 @@
+<<<<<<< HEAD
+||||||| merged common ancestors
+#computer = 'foppl'
+computer = 'rock'
+
+if computer is 'rock':
+    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+    extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+elif computer is 'foppl':
+    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    import matplotlib        #foppl
+    matplotlib.use("agg")    #foppl
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
+=======
+#computer = 'foppl'
+computer = 'rock'
+
+if computer is 'rock':
+    #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+    #extdir = '/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    #extdir = locdir+#'/Volumes/Walsh_Lab/2D-Active/spatial_diffusion/'
+elif computer is 'foppl':
+    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    import matplotlib        #foppl
+    matplotlib.use("agg")    #foppl
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
 import numpy as np
 from PIL import Image as Im
 import sys
@@ -27,15 +57,43 @@ dotfix = '_smalldot'
 
 loaddata   = True   # Create and save structured array from data txt file?
 
+<<<<<<< HEAD
 findtracks = True   # Connect the dots and save in 'trackids' field of data
 plottracks = True   # plot their tracks
+||||||| merged common ancestors
+prefix = 'n448'
+=======
+prefix = 'marked5'
+extdir = locdir+prefix+'_tifs/'
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
 
+<<<<<<< HEAD
 findmsd = True      # Calculate the MSD
 loadmsd = False     # load previoius MSD from npz file
 plotmsd = True      # plot the MSD
+||||||| merged common ancestors
+findtracks = False
+plottracks = False
+findmsd   = True
+plotmsd   = True
+=======
+findtracks = True
+plottracks = True
+findmsd   = False
+loadmsd   = False
+plotmsd   = False
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
 
+<<<<<<< HEAD
 bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
+||||||| merged common ancestors
+bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
+datapath = locdir+prefix+'_results.txt'
+=======
+bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+datapath = locdir+prefix+'_bigdot_results.txt'
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
 
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
@@ -66,6 +124,7 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
 # Tracking
 def load_data(datapath):
     print "loading data from",datapath
+<<<<<<< HEAD
     if  datapath.endswith('results.txt'):
         shapeinfo = False
         # imagej output (called *_results.txt)
@@ -95,6 +154,30 @@ def load_data(datapath):
 
 if loaddata:
     data = load_data(datapath)
+||||||| merged common ancestors
+    data = np.genfromtxt(datapath,
+            skip_header = 1,
+            usecols = [0,2,3,5],
+            names   = "id,x,y,s",
+            dtype   = [int,float,float,int])
+    data['id'] -= 1 # data from imagej is 1-indexed
+
+    trackids = np.empty_like(data,dtype=int)
+    trackids[:] = -1
+=======
+    data = np.genfromtxt(datapath,
+            skip_header = 1,
+            #usecols = [0,2,3,5],
+            #names   = "id,x,y,s",
+            #dtype   = [int,float,float,int])
+            usecols = [0,1,2,3,4,5,6],
+            names   = "id,area,mean,x,y,circ,s",
+            dtype   = [int,float,float,float,float,float,int])
+    data['id'] -= 1 # data from imagej is 1-indexed
+
+    trackids = np.empty_like(data,dtype=int)
+    trackids[:] = -1
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
     print "\t...loaded"
 
 
@@ -109,7 +192,13 @@ def find_tracks(data, giveup = 1000):
 
     # save the data record array and the trackids array
     print "saving track data"
+<<<<<<< HEAD
     np.savez(locdir+prefix+dotfix+"_TRACKS",
+||||||| merged common ancestors
+    np.savez(locdir+prefix+"_TRACKS",
+=======
+    np.savez(locdir+prefix+"_bigdot_TRACKS",
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
             data = data,
             trackids = trackids)
 
@@ -130,9 +219,20 @@ else:
     print "\t...loaded"
 
 # Plotting tracks:
-def plot_tracks(data,trackids,  bgimage=bgimage):
+def plot_tracks(data, trackids, bgimage=None):
     pl.figure()
+<<<<<<< HEAD
     pl.scatter( data['y'], data['x'],
+||||||| merged common ancestors
+    bgheight = bgimage.size[1] # for flippin over y
+    pl.scatter(
+            data['x'], bgheight-data['y'],
+=======
+    bgheight = bgimage.size[1] # for flippin over y
+    pl.scatter(
+            data['x'],
+            data['y'],#bgheight-data['y'],
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
             c=np.array(trackids)%12, marker='o')
     pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
@@ -141,7 +241,11 @@ def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.show()
 
 if plottracks and computer is 'rock':
-    plot_tracks(data, trackids)
+    try:
+        bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+    except IOError:
+        bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
+    plot_tracks(data, trackids, bgimage)
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -202,10 +306,43 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
+<<<<<<< HEAD
 
 def find_msds(dt0, dtau, tracks=None):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
+||||||| merged common ancestors
+dt0  = 50 # small for better statistics, larger for faster calc
+dtau = 10 # small for better statistics, larger for faster calc
+if type(dtau) is int:
+    print "Using stepwise dtau"
+    stepwise = True
+    factorwise = False
+elif type(dtau) is float:
+    print "Using factorwise (log-spaced) dtau"
+    stepwise = False
+    factorwise = True
+else:
+    print "something wrong with dtau =",dtau
+if findmsd:
+    print "begin calculating msds"
+=======
+if findmsd or loadmsd:
+    dt0  = 50 # small for better statistics, larger for faster calc
+    dtau = 10 # small for better statistics, larger for faster calc
+    if type(dtau) is int:
+        print "Using stepwise dtau"
+        stepwise = True
+        factorwise = False
+    elif type(dtau) is float:
+        print "Using factorwise (log-spaced) dtau"
+        stepwise = False
+        factorwise = True
+    else:
+        print "something wrong with dtau =",dtau
+if findmsd:
+    print "begin calculating msds"
+>>>>>>> 9e602be16e836cbf530b1bec88abb6e70e65e503
     msds = []
     if tracks is None:
         #tracks = xrange(max(trackids) + 1)
