@@ -23,6 +23,7 @@ def label_particles_edge(im, sigma=2, closing_size=1, **extra_args):
     edges = binary_closing(edges, square(closing_size))
     edges = skeletonize(edges)
     labels = label(edges)
+    print "found {} segments".format(max(labels.flatten()))
     labels = np.ma.array(labels, mask=edges==0)
     return labels
 
@@ -80,6 +81,7 @@ def find_particles(im, method='edge', **kwargs):
         Returns the list of found particles and the label image.
     """
     labels = None
+    print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
     elif method == 'edge':
@@ -92,6 +94,7 @@ def find_particles(im, method='edge', **kwargs):
 def find_particles_in_image(f, **kwargs):
     """ find_particles_in_image(im, **kwargs)
     """
+    print "opening", f
     im = image.open(f)
     im = np.array(im)
     im = im / 255.
@@ -113,29 +116,45 @@ if __name__ == '__main__':
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
-    parser.add_argument('-s', '--dot', default='big',
-                        help='Size of dot to find: `big` or `small`')
+    parser.add_argument('-c', '--corner', action='store_true',
+                        help='Look for small corner dots')
+    parser.add_argument('--slr', action='store_true',
+                        help='Full resolution SLR was used')
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
-    def f((n,file)):
-        threshargs = {'max_ecc' :  .5 if args.dot is 'big' else .9,
-                      'min_area':  15 if args.dot is 'big' else 4,
-                      'max_area': 200 if args.dot is 'big' else 25}
-        pts, labels = find_particles_in_image(file, **threshargs)
-        print '%20s: Found %d points' % (file, len(pts))
+    def f((n,filename)):
+        print filename
+        if args.slr:
+            threshargs = {'max_ecc' :  .7 if args.corner else  .5,
+                          'min_area': 30 if args.corner else 165,
+                          'max_area': 60 if args.corner else 210}
+        else:
+            threshargs = {'max_ecc' : .9 if args.corner else   .5,
+                          'min_area':  5 if args.corner else   15,
+                          'max_area': 25 if args.corner else  200}
+        pts, labels = find_particles_in_image(filename, **threshargs)
+        print '%20s: Found %d points' % ('', len(pts))
         if args.plot:
             pl.clf()
             pl.imshow(labels, cmap=cm)
             pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            pl.savefig(file.replace('.tif',args.dot+'.png'))
+            savename = ''.join(filename.split('.')[:-1])+'_POSITIONS'+'_CORNER'*args.corner+'.png'
+            pl.savefig(savename)
         return np.hstack([n*np.ones((len(pts),1)), pts])
 
-    p = Pool(args.threads)
     filenames = sorted(args.files)
-    points = p.map(f, enumerate(filenames))
+    if args.threads > 1:
+        print "Multiprocessing with {} threads".format(args.threads)
+        p = Pool(args.threads)
+        points = p.map(f, enumerate(filenames))
+    else:
+        points = map(f, enumerate(filenames))
     points = np.vstack(points)
+    if args.corner and args.output == 'POSITIONS':
+        # change default for CORNER dot output
+        args.output = 'CORNER_POSITIONS'
     with open(args.output, 'w') as output:
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',

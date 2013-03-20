@@ -130,7 +130,7 @@ else:
     print "\t...loaded"
 
 # Plotting tracks:
-def plot_tracks(data,trackids,  bgimage=bgimage):
+def plot_tracks(data, trackids, bgimage=None):
     pl.figure()
     pl.scatter( data['y'], data['x'],
             c=np.array(trackids)%12, marker='o')
@@ -141,7 +141,11 @@ def plot_tracks(data,trackids,  bgimage=bgimage):
     pl.show()
 
 if plottracks and computer is 'rock':
-    plot_tracks(data, trackids)
+    try:
+        bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+    except IOError:
+        bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
+    plot_tracks(data, trackids, bgimage)
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >

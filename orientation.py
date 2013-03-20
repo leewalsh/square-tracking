@@ -72,8 +72,8 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle,corners,rc=11,drc=2):
-    """ find_corner(particle,corners,rc=11,drc=2)
+def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, tup=False):
+    """ find_corner(particle, corners, n=1, rc=11, drc=2, slr=False, tup=False)
 
         looks in the given frame for the corner-marking dot closest to (and in
         appropriate range of) the particle
@@ -92,31 +92,40 @@ def find_corner(particle,corners,rc=11,drc=2):
     """
     from numpy.linalg import norm
 
+    if slr:
+        rc = 56; drc = 10
+
     cdisps = np.array([
         (corner[0]-particle[0], corner[1]-particle[1])
         for corner in corners])
     cdists = np.array(map(norm, cdisps))
     legal = np.array(abs(cdists-rc) < drc, dtype=bool)
 
-    if legal.sum() == 1:
-        pcorner = tuple(np.asarray(corners)[legal].flatten())
-        cdisp = cdisps[legal].flatten()
-        #print "Bingo: one corner found at {}".format(cdists[legal])
-    elif legal.sum() > 1:
-        #print "Too many ({}) legal corners for this particle".format(legal.sum())
-        legal = np.argmin(abs(cdists-rc))
-        #print "Using closest to rc = {} pixels at {}".format(rc, cdists[legal])
-        pcorner = corners[legal]
-        cdisp = cdisps[legal].flatten()
+    N = legal.sum()
+    if N < n:
+        print N,"<",n
+        return (None,)*3
+    elif N == n:
+        print N,"=",n
+        pass
+    elif N > n:
+        print N,">",n
+        #return (None,)*3
+        legal[np.argsort(abs(cdists-rc))[3:]] = False
     else:
-        #print "No legal corners for this particle"
-        return None, None, None
+        print 'whoops'
+        return (None,)*3
+    pcorner = np.asarray(corners)[legal]
+    cdisp = cdisps[legal]
 
-    porient = np.arctan2(cdisp[1],cdisp[0]) % (2*np.pi)
+    porient = np.arctan2(cdisp[:,1],cdisp[:,0]) % (2*np.pi)
 
-    return pcorner,porient,cdisp
+    if tup:
+        return zip(pcorner,porient,cdisp)
+    else:
+        return pcorner.mean(axis=0),porient.mean(axis=0),cdisp.mean(axis=0)
 
-#TODO:
+#TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
 # or just pass a tuple of (datum, cdata[f==f]) to get_angle()
 
@@ -195,6 +204,10 @@ def get_angles_loop(data,cdata):#,framestep=100):
         cdata.dtype.names = tuple(fieldnames)
     #frames = np.arange(min(data['f']),max(data['f']),framestep)
     #postype = np.dtype()
+    n = 3
+    #if n == 3:
+    #    dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
+    #elif n == 1:
     dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
     odata = np.zeros(len(data), dtype=dt)
     frame=0
@@ -206,7 +219,7 @@ def get_angles_loop(data,cdata):#,framestep=100):
         icorner, iorient, idisp = find_corner( posi,
                 zip(cdata['x'][cdata['f']==datum['f']],
                     cdata['y'][cdata['f']==datum['f']])
-                )
+                ,n=n)
 
         iid = get_id(data,posi,datum['f'])
         imask = data['id']==iid
@@ -240,8 +253,8 @@ def plot_orient_map(data,odata,imfile='',mask=None):
         mask=omask
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask])
-    qq = pl.quiver(data['x'][mask], data['y'][mask],
-            odata['cdisp'][mask][:,0], odata['cdisp'][mask][:,1],
+    qq = pl.quiver(data['y'][mask], data['x'][mask],
+            odata['cdisp'][mask][:,1], odata['cdisp'][mask][:,0],
             color=cm.jet(nz(data['f'][mask])),
             scale=400.)
     cax,_ = mcolorbar.make_axes(pl.gca())
