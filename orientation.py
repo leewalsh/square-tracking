@@ -72,8 +72,8 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, tup=False):
-    """ find_corner(particle, corners, n=1, rc=11, drc=2, slr=False, tup=False)
+def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
+    """ find_corner(particle, corners, n=1, rc=11, drc=2, slr=False, multi=False)
 
         looks in the given frame for the corner-marking dot closest to (and in
         appropriate range of) the particle
@@ -82,8 +82,12 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, tup=False):
             particle - is particle position as (x,y) tuple
             corners  - is zipped list of positions of corner dots
                         as (x,y) vector tuples
+            n        - number of corner dots
             rc       - is the expected distance to corner from particle position
             drc      - delta r_c is the tolerance on rc
+            slr      - whether to use slr resolution
+            multi    - whether to return data from all n dots
+                        if not, average them
 
         returns:
             pcorner - position (x,y) of corner that belongs to particle
@@ -101,7 +105,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, tup=False):
     cdists = np.array(map(norm, cdisps))
     legal = np.array(abs(cdists-rc) < drc, dtype=bool)
 
-    N = legal.sum()
+    N = legal.sum()#number of corners found
     if N < n:
         print N,"<",n
         return (None,)*3
@@ -120,7 +124,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, tup=False):
 
     porient = np.arctan2(cdisp[:,1],cdisp[:,0]) % (2*np.pi)
 
-    if tup:
+    if multi:
         return zip(pcorner,porient,cdisp)
     else:
         return pcorner.mean(axis=0),porient.mean(axis=0),cdisp.mean(axis=0)
@@ -178,14 +182,16 @@ def get_angles_map(data,cdata,nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(data,cdata):#,framestep=100):
-    """ get_angles(data,cdata)
+def get_angles_loop(data, cdata, framestep=1, nc=3):
+    """ get_angles(data, cdata, framestep=1, nc=3)
         
         arguments:
             data    - data array with 'x' and 'y' fields for particle centers
             cdata   - data array wity 'x' and 'y' fields for corners
             (these arrays need not have the same length,
                 but both must have 'f' field for the image frame)
+            framestep - only analyze every `framestep` frames
+            nc      - number of corner dots
             
         returns:
             odata   - array with fields:
@@ -204,14 +210,13 @@ def get_angles_loop(data,cdata):#,framestep=100):
         cdata.dtype.names = tuple(fieldnames)
     #frames = np.arange(min(data['f']),max(data['f']),framestep)
     #postype = np.dtype()
-    n = 3
-    #if n == 3:
-    #    dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
-    #elif n == 1:
-    dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
+    multi=False
+    if nc == 3 and multi:
+        dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
+    elif nc == 1:
+        dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
     odata = np.zeros(len(data), dtype=dt)
-    framestep = 1
-    frame=0
+    frame = 0
     for datum in data:
         if datum['f'] % framestep != 0:
             continue
@@ -219,10 +224,11 @@ def get_angles_loop(data,cdata):#,framestep=100):
             frame = datum['f']
             print 'frame',frame
         posi = (datum['x'],datum['y'])
-        icorner, iorient, idisp = find_corner( posi,
-                zip(cdata['x'][cdata['f']==datum['f']],
-                    cdata['y'][cdata['f']==datum['f']])
-                ,n=n)
+        icorner, iorient, idisp = \
+            find_corner(posi,
+                        zip(cdata['x'][cdata['f']==datum['f']],
+                            cdata['y'][cdata['f']==datum['f']]),
+                        n=nc,multi=multi)
 
         iid = get_id(data,posi,datum['f'])
         imask = data['id']==iid
