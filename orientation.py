@@ -102,11 +102,11 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     if slr:
         rc = 56; drc = 10
 
-    cdisps = np.array([
-        (corner[0]-particle[0], corner[1]-particle[1])
-        for corner in corners])
-    cdists = np.array(map(norm, cdisps))
-    legal = np.array(abs(cdists-rc) < drc, dtype=bool)
+    particle = np.asarray(particle)
+    corners = np.asarray(corners)
+    cdisps = corners - particle
+    cdists = np.sqrt((cdisps**2).sum(axis=1))
+    legal = abs(cdists-rc) < drc
 
     N = legal.sum() # number of corners found
     if N < n:
@@ -122,7 +122,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     else:
         print 'whoops'
         return (None,)*3
-    pcorner = np.asarray(corners)[legal]
+    pcorner = corners[legal]
     cdisp = cdisps[legal]
 
     porient = np.arctan2(cdisp[:,1],cdisp[:,0]) % (2*np.pi)
