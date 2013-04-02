@@ -128,7 +128,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     porient = np.arctan2(cdisp[:,1],cdisp[:,0]) % (2*np.pi)
 
     if multi:
-        return zip(pcorner,porient,cdisp)
+        return pcorner, porient, cdisp
     else:
         return pcorner.mean(axis=0), porient.mean(axis=0), cdisp.mean(axis=0)
 
