@@ -17,8 +17,10 @@ else:
     print "where are you working?"
 
 def get_fft(ifile=None,location=None):
-    # FFT information from:
-    # http://stackoverflow.com/questions/2652415/fft-and-array-to-image-image-to-array-conversion
+    """ get the fft of an image
+        FFT information from:
+        http://stackoverflow.com/questions/2652415/fft-and-array-to-image-image-to-array-conversion
+    """
     if ifile is None:
         ifile= "n20_bw_dots/n20_b_w_dots_0010.tif"
     if location is None:
@@ -45,6 +47,7 @@ def get_fft(ifile=None,location=None):
     return b
 
 def get_orientation(b):
+    """ get orientation from `b`, the fft of an image """
     p = []
     for (mi,m) in enumerate(b):
         for (ni, n) in enumerate(m):
@@ -73,7 +76,7 @@ def get_orientation(b):
     return s, p
 
 def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
-    """ find_corner(particle, corners, n=1, rc=11, drc=2, slr=False, multi=False)
+    """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
         appropriate range of) the particle
@@ -87,7 +90,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
             drc      - delta r_c is the tolerance on rc
             slr      - whether to use slr resolution
             multi    - whether to return data from all n dots
-                        if not, average them
+                           if not, average them
 
         returns:
             pcorner - position (x,y) of corner that belongs to particle
@@ -105,7 +108,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     cdists = np.array(map(norm, cdisps))
     legal = np.array(abs(cdists-rc) < drc, dtype=bool)
 
-    N = legal.sum()#number of corners found
+    N = legal.sum() # number of corners found
     if N < n:
         print N,"<",n
         return (None,)*3
@@ -114,7 +117,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
         pass
     elif N > n:
         print N,">",n
-        #return (None,)*3
+        # keep only the three closest to rc
         legal[np.argsort(abs(cdists-rc))[3:]] = False
     else:
         print 'whoops'
@@ -127,7 +130,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     if multi:
         return zip(pcorner,porient,cdisp)
     else:
-        return pcorner.mean(axis=0),porient.mean(axis=0),cdisp.mean(axis=0)
+        return pcorner.mean(axis=0), porient.mean(axis=0), cdisp.mean(axis=0)
 
 #TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
@@ -213,7 +216,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3):
     multi=False
     if nc == 3 and multi:
         dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
-    elif nc == 1:
+    else:
         dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
     odata = np.zeros(len(data), dtype=dt)
     frame = 0
