@@ -126,9 +126,9 @@ if __name__ == '__main__':
     def f((n,filename)):
         print filename
         if args.slr:
-            threshargs = {'max_ecc' :  .7 if args.corner else  .5,
-                          'min_area': 30 if args.corner else 165,
-                          'max_area': 60 if args.corner else 210}
+            threshargs = {'max_ecc' : .8 if args.corner else  .4,
+                          'min_area': 40 if args.corner else 160,
+                          'max_area': 70 if args.corner else 250}
         else:
             threshargs = {'max_ecc' : .9 if args.corner else   .5,
                           'min_area':  5 if args.corner else   15,
