@@ -16,6 +16,10 @@ else:
     print "computer not defined"
     print "where are you working?"
 
+def field_rename(a,old,new):
+    a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
+
+
 def get_fft(ifile=None,location=None):
     """ get the fft of an image
         FFT information from:
@@ -162,14 +166,8 @@ def get_angles_map(data,cdata,nthreads=None):
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
-    if 's' in data.dtype.names:
-        fieldnames = np.array(data.dtype.names)
-        fieldnames[fieldnames == 's'] = 'f'
-        data.dtype.names = tuple(fieldnames)
-    if 's' in cdata.dtype.names:
-        fieldnames = np.array(cdata.dtype.names)
-        fieldnames[fieldnames == 's'] = 'f'
-        cdata.dtype.names = tuple(fieldnames)
+    field_rename(data,'s','f')
+    field_rename(cdata,'s','f')
 
     from multiprocessing import Pool
     if nthreads is None or nthreads > 8:
@@ -203,16 +201,8 @@ def get_angles_loop(data, cdata, framestep=1, nc=3):
             (odata has the same shape as data)
     """
     from correlation import get_id
-    if 's' in data.dtype.names:
-        fieldnames = np.array(data.dtype.names)
-        fieldnames[fieldnames == 's'] = 'f'
-        data.dtype.names = tuple(fieldnames)
-    if 's' in cdata.dtype.names:
-        fieldnames = np.array(cdata.dtype.names)
-        fieldnames[fieldnames == 's'] = 'f'
-        cdata.dtype.names = tuple(fieldnames)
-    #frames = np.arange(min(data['f']),max(data['f']),framestep)
-    #postype = np.dtype()
+    field_rename(data,'s','f')
+    field_rename(cdata,'s','f')
     multi=False
     if nc == 3 and multi:
         dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
