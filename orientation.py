@@ -110,8 +110,8 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     corners = np.asarray(corners)
     cdisps = corners - particle
     cdists = np.sqrt((cdisps**2).sum(axis=1))
-    legal = abs(cdists-rc) < drc
 
+    legal = abs(cdists-rc) < drc
     N = legal.sum() # number of corners found
     if N < n:
         print N,"<",n
@@ -239,7 +239,9 @@ def plot_orient_hist(odata,figtitle=''):
     pl.title('orientation histogram' if figtitle is '' else figtitle)
     return True
 
-def plot_orient_map(data,odata,imfile='',mask=None):
+def plot_orient_quiver(data, odata, mask=None, imfile=''):
+    """ plot_orient_quiver(data, odata, mask=None, imfile='')
+    """
     if computer is not 'rock':
         print 'computer must be on rock'
         return False
@@ -255,8 +257,9 @@ def plot_orient_map(data,odata,imfile='',mask=None):
         mask=omask
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask])
-    qq = pl.quiver(data['y'][mask], data['x'][mask],
-            odata['cdisp'][mask][:,1], odata['cdisp'][mask][:,0],
+    qq = pl.quiver(
+            data['y'][mask][ndex], data['x'][mask][ndex],
+            odata['cdisp'][mask][...,1].flatten(), odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask])),
             scale=400.)
     cax,_ = mcolorbar.make_axes(pl.gca())
