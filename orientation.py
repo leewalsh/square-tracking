@@ -113,19 +113,14 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
 
     legal = abs(cdists-rc) < drc
     N = legal.sum() # number of corners found
-    if N < n:
-        print N,"<",n
-        return (None,)*3
-    elif N == n:
-        print N,"=",n
+    if N == n:
         pass
+    elif N < n:
+        return (None,)*3
     elif N > n:
-        print N,">",n
         # keep only the three closest to rc
         legal[np.argsort(abs(cdists-rc))[3:]] = False
-    else:
-        print 'whoops'
-        return (None,)*3
+
     pcorner = corners[legal]
     cdisp = cdisps[legal]
 
