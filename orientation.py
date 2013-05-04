@@ -227,7 +227,14 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
         odata['corner'][imask] = icorner
         odata['orient'][imask] = iorient
         odata['cdisp'][imask] = idisp
-    return odata
+
+
+    if do_average or nc == 1:
+        mask = np.isfinite(odata['orient'])
+    elif nc > 1:
+        mask = np.all(np.isfinite(odata['orient']), axis=1)
+
+    return odata, mask
 
 def plot_orient_hist(odata,figtitle=''):
     if computer is not 'rock':
@@ -251,9 +258,12 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
         pl.imshow(bgimage, cmap=cm.gray, origin='lower')
     #pl.quiver(X, Y, U, V, **kw)
-    omask = np.isfinite(odata['orient'])
     if mask is None:
-        mask=omask
+        try:
+            mask = np.all(np.isfinite(odata['orient']), axis=1)
+        except ValueError:
+            mask = np.isfinite(odata['orient'])
+
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask])
     qq = pl.quiver(
