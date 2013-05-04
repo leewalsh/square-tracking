@@ -86,9 +86,9 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
         appropriate range of) the particle
 
         arguments:
-            particle - is particle position as (x,y) tuple
-            corners  - is zipped list of positions of corner dots
-                        as (x,y) vector tuples
+            particle - is particle position as [x,y] array of shape (2,)
+            corners  - is shape (N,2) array of positions of corner dots
+                        as [x,y] pairs
             n        - number of corner dots
             rc       - is the expected distance to corner from particle position
             drc      - delta r_c is the tolerance on rc
@@ -106,8 +106,6 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     if slr:
         rc = 56; drc = 10
 
-    particle = np.asarray(particle)
-    corners = np.asarray(corners)
     cdisps = corners - particle
     cdists = np.sqrt((cdisps**2).sum(axis=1))
 
@@ -137,9 +135,9 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
 
 def get_angle((datum,cdata)):
     corner = find_corner(
-            (datum['x'],datum['y']),
-            zip(cdata['x'][cdata['f']==datum['f']],
-                cdata['y'][cdata['f']==datum['f']])
+            np.asarray((datum['x'],datum['y']))
+            np.column_stack((cdata['x'][cdata['f']==datum['f']],
+                             cdata['y'][cdata['f']==datum['f']]))
             )
     dt = np.dtype([('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
     return np.array([corner], dtype=dt)
