@@ -264,6 +264,8 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
         except ValueError:
             mask = np.isfinite(odata['orient'])
 
+    n = odata.shape[-1] if odata.ndim > 1 else 1
+    ndex = np.repeat(np.arange(mask.sum()), n)
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask])
     qq = pl.quiver(
