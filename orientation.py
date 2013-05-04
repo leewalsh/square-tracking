@@ -79,7 +79,7 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
+def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -93,13 +93,12 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
             rc       - is the expected distance to corner from particle position
             drc      - delta r_c is the tolerance on rc
             slr      - whether to use slr resolution
-            multi    - whether to return data from all n dots
-                           if not, average them
+            do_average - whether to average the n corners to one value for return
 
         returns:
-            pcorner - position (x,y) of corner that belongs to particle
-            porient - particle orientation (% 2pi)
-            cdisp   - vector (x,y) from particle center to corner
+            pcorner - (mean) position(s) (x,y) of corner that belongs to particle
+            porient - (mean) particle orientation(s) (% 2pi)
+            cdisp   - (mean) vector(s) (x,y) from particle center to corner(s)
     """
     from numpy.linalg import norm
 
@@ -122,12 +121,17 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, multi=False):
     pcorner = corners[legal]
     cdisp = cdisps[legal]
 
-    porient = np.arctan2(cdisp[:,1],cdisp[:,0]) % (2*np.pi)
-
-    if multi:
-        return pcorner, porient, cdisp
+    if do_average and n > 1:
+        amps = np.hypot(*cdisp.T)[...,None]
+        ndisp = cdisp/amps
+        porient = np.arctan2(*ndisp.mean(0)[::-1]) % (2*np.pi)
+        cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
+        pcorner = cdisp + particle
     else:
-        return pcorner.mean(axis=0), porient.mean(axis=0), cdisp.mean(axis=0)
+        porient = np.arctan2(cdisp[...,1],cdisp[...,0]) % (2*np.pi)
+
+    return pcorner, porient, cdisp
+
 
 #TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
@@ -176,8 +180,8 @@ def get_angles_map(data,cdata,nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(data, cdata, framestep=1, nc=3):
-    """ get_angles(data, cdata, framestep=1, nc=3)
+def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
+    """ get_angles(data, cdata, framestep=1, nc=3, do_average=True)
         
         arguments:
             data    - data array with 'x' and 'y' fields for particle centers
@@ -186,6 +190,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3):
                 but both must have 'f' field for the image frame)
             framestep - only analyze every `framestep` frames
             nc      - number of corner dots
+            do_average - whether to average the n corners to one value for return
             
         returns:
             odata   - array with fields:
@@ -196,11 +201,10 @@ def get_angles_loop(data, cdata, framestep=1, nc=3):
     from correlation import get_id
     field_rename(data,'s','f')
     field_rename(cdata,'s','f')
-    multi=False
-    if nc == 3 and multi:
-        dt = [('corner',float,(n,2,)),('orient',float,(n,)),('cdisp',float,(n,2,))]
-    else:
+    if do_average or nc == 1:
         dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
+    else nc > 1:
+        dt = [('corner',float,(nc,2,)),('orient',float,(nc,)),('cdisp',float,(nc,2,))]
     odata = np.zeros(len(data), dtype=dt)
     frame = 0
     for datum in data:
@@ -214,7 +218,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3):
             find_corner(posi,
                         zip(cdata['x'][cdata['f']==datum['f']],
                             cdata['y'][cdata['f']==datum['f']]),
-                        n=nc,multi=multi)
+                        n=nc,do_average=do_average)
 
         iid = get_id(data,posi,datum['f'])
         imask = data['id']==iid
