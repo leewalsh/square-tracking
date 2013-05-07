@@ -141,7 +141,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, do_average=True)
 
 def get_angle((datum,cdata)):
     corner = find_corner(
-            np.asarray((datum['x'],datum['y']))
+            np.asarray((datum['x'],datum['y'])),
             np.column_stack((cdata['x'][cdata['f']==datum['f']],
                              cdata['y'][cdata['f']==datum['f']]))
             )
@@ -205,7 +205,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
     field_rename(cdata,'s','f')
     if do_average or nc == 1:
         dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
-    else nc > 1:
+    elif nc > 1:
         dt = [('corner',float,(nc,2,)),('orient',float,(nc,)),('cdisp',float,(nc,2,))]
     odata = np.zeros(len(data), dtype=dt)
     frame = 0
@@ -217,12 +217,12 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
             print 'frame',frame
         posi = (datum['x'],datum['y'])
         icorner, iorient, idisp = \
-            find_corner(posi,
-                        zip(cdata['x'][cdata['f']==datum['f']],
-                            cdata['y'][cdata['f']==datum['f']]),
+            find_corner(np.asarray(posi),
+                        np.column_stack((cdata['x'][cdata['f']==frame],
+                                         cdata['y'][cdata['f']==frame])),
                         n=nc,do_average=do_average)
 
-        iid = get_id(data,posi,datum['f'])
+        iid = get_id(data,posi,frame)
         imask = data['id']==iid
         odata['corner'][imask] = icorner
         odata['orient'][imask] = iorient
