@@ -6,7 +6,7 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/lighting/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     extdir = '/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
@@ -22,19 +22,19 @@ else:
 #import matplotlib.cm as cm
 
 
-prefix = 'still'
-dotfix = '_smalldot'
+prefix = 'array'
+dotfix = '_CORNER'
 
 loaddata   = True   # Create and save structured array from data txt file?
 
 findtracks = True   # Connect the dots and save in 'trackids' field of data
-plottracks = True   # plot their tracks
+plottracks = False   # plot their tracks
 
-findmsd = True      # Calculate the MSD
+findmsd = False      # Calculate the MSD
 loadmsd = False     # load previoius MSD from npz file
-plotmsd = True      # plot the MSD
+plotmsd = False      # plot the MSD
 
-bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+bgimage = None#Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):

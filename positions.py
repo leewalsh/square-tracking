@@ -127,8 +127,8 @@ if __name__ == '__main__':
         print filename
         if args.slr:
             threshargs = {'max_ecc' : .8 if args.corner else  .4,
-                          'min_area': 40 if args.corner else 160,
-                          'max_area': 70 if args.corner else 250}
+                          'min_area': 25 if args.corner else 160,
+                          'max_area': 80 if args.corner else 250}
         else:
             threshargs = {'max_ecc' : .9 if args.corner else   .5,
                           'min_area':  5 if args.corner else   15,
@@ -141,7 +141,7 @@ if __name__ == '__main__':
             pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
             savename = ''.join(filename.split('.')[:-1])+'_POSITIONS'+'_CORNER'*args.corner+'.png'
-            pl.savefig(savename)
+            pl.savefig(savename, dpi=300)
         return np.hstack([n*np.ones((len(pts),1)), pts])
 
     filenames = sorted(args.files)
