@@ -256,7 +256,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
     pl.figure()
     if imfile is not None:
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
-        pl.imshow(bgimage, cmap=cm.gray, origin='lower')
+        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
     #pl.quiver(X, Y, U, V, **kw)
     if mask is None:
         try:
@@ -272,7 +272,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask])),
-            scale=400.)
+            scale=1500.)
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
     cb.set_label('time')
@@ -284,12 +284,15 @@ def plot_orient_time(data,odata,tracks):
         return False
 
     omask = np.isfinite(odata['orient'])
-    goodtracks = np.array([78,95,191,203,322])
+    goodtracks = set(tracks[omask])
+    print 'good tracks are', goodtracks
     #tmask = np.in1d(tracks,goodtracks)
     pl.figure()
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
         fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
+        if fullmask.sum() < 1:
+            continue
         pl.plot(data['f'][fullmask],
                 (odata['orient'][fullmask]
                  - odata['orient'][fullmask][np.argmin(data['f'][fullmask])]
