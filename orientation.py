@@ -118,7 +118,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, do_average=True)
         # keep only the n closest to rc
         #legal[np.argsort(abs(cdists-rc))[n:]] = False
         # the following is marginally faster than the above:
-        legal[legal.nonzero()[0][np.argsort(np.abs((dists-r)[legal]))[n:]]] = False
+        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[n:]]] = False
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
