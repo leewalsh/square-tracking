@@ -212,9 +212,9 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
     for datum in data:
         if datum['f'] % framestep != 0:
             continue
-        if frame != datum['f']:
-            frame = datum['f']
-            print 'frame',frame
+        #if frame != datum['f']:
+            #print 'frame',frame
+        frame = datum['f']
         posi = (datum['x'],datum['y'])
         icorner, iorient, idisp = \
             find_corner(np.asarray(posi),
