@@ -8,7 +8,7 @@ from skimage.morphology import label, square, binary_closing, skeletonize
 from collections import namedtuple
 import PIL.Image as image
 
-def label_particles_edge(im, sigma=2, closing_size=1, **extra_args):
+def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
 
         Returns the labels for an image.
@@ -20,11 +20,12 @@ def label_particles_edge(im, sigma=2, closing_size=1, **extra_args):
         closing_size -- The size of the closing filter
     """
     edges = filter.canny(im, sigma=sigma)
-    edges = binary_closing(edges, square(closing_size))
+    if closing_size > 0:
+        edges = binary_closing(edges, square(closing_size))
     edges = skeletonize(edges)
     labels = label(edges)
     print "found {} segments".format(max(labels.flatten()))
-    labels = np.ma.array(labels, mask=edges==0)
+    labels = np.ma.array(labels, mask=edges==0) # in ma.array mask, False is True, and vice versa
     return labels
 
 def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
@@ -106,6 +107,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
     from argparse import ArgumentParser
+    from os import path
 
     parser = ArgumentParser()
     parser.add_argument('files', metavar='FILE', nargs='+',
@@ -123,6 +125,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
+    if args.plot:
+        pdir = path.split(path.abspath(args.output))[0]
+
     def f((n,filename)):
         print filename
         if args.slr:
@@ -130,7 +135,7 @@ if __name__ == '__main__':
                           'min_area': 25 if args.corner else 160,
                           'max_area': 80 if args.corner else 250}
         else:
-            threshargs = {'max_ecc' : .9 if args.corner else   .5,
+            threshargs = {'max_ecc' : .9 if args.corner else   .7,
                           'min_area':  5 if args.corner else   15,
                           'max_area': 25 if args.corner else  200}
         pts, labels = find_particles_in_image(filename, **threshargs)
@@ -140,7 +145,8 @@ if __name__ == '__main__':
             pl.imshow(labels, cmap=cm)
             pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            savename = ''.join(filename.split('.')[:-1])+'_POSITIONS'+'_CORNER'*args.corner+'.png'
+            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_POSITIONS'+'_CORNER'*args.corner+'.png'
+            print 'saving to',savename
             pl.savefig(savename, dpi=300)
         return np.hstack([n*np.ones((len(pts),1)), pts])
 
