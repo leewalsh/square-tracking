@@ -4,7 +4,7 @@ import numpy as np
 from scipy import ndimage
 from skimage import filter, measure
 from skimage import segmentation as seg
-from skimage.morphology import label, square, binary_closing, skeletonize
+from skimage.morphology import label, square, disk, binary_closing, skeletonize
 from collections import namedtuple
 import PIL.Image as image
 
@@ -100,6 +100,27 @@ def find_particles_in_image(f, **kwargs):
     im = np.array(im, dtype=float)
     im = im / im.max()
     return find_particles(im, **kwargs)
+
+def subtract_disks(orig, particles, method='disk'):
+    """ subtract_disks(method=['disk' or 'segment'])
+
+        input:
+            orig   -    input image as ndarray or PIL Image
+            method -    'segments'  attempts to remove the found big dot segment as found in original
+                        'disk'      removes a disk of given size centered at dot location
+            disk_r -    radius of disk, from skimage.morphology.disk(r)
+                            (size of square array is 2*r+1)
+        output:
+            diff - the original image with big dots removed
+    """
+    disks = np.zeros_like(orig)
+    d = disk(disk_r)
+
+
+    diff = orig - disks
+    diff -= diff.min()
+    diff /= diff.max()
+    return diff
 
 if __name__ == '__main__':
     import matplotlib
