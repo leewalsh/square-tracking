@@ -50,6 +50,9 @@ Particle = namedtuple('Particle', 'x y label ecc area'.split())
 def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200, **extra_args):
     """ filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Particle]
 
+        Takes threshold arguments,
+            ignores extra_args to avoid unexpected keyword argument error
+
         Returns a list of Particles and masks out labels for
         particles not meeting acceptance criteria.
     """
