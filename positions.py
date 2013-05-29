@@ -100,7 +100,8 @@ def find_particles_in_image(f, **kwargs):
     print "opening", f
     im = image.open(f)
     im = np.array(im, dtype=float)
-    im = im / im.max()
+    im -= im.min()
+    im /= im.max()
     return find_particles(im, **kwargs)
 
 if __name__ == '__main__':
