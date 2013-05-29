@@ -119,7 +119,7 @@ if __name__ == '__main__':
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
     parser.add_argument('-c', '--corner', action='store_true',
-                        help='Look for small corner dots')
+                        help='Also find small corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
     args = parser.parse_args()
@@ -127,25 +127,26 @@ if __name__ == '__main__':
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
+    threshargs = {'max_ecc' :  .4 if args.slr else  .7,
+                  'min_area': 160 if args.slr else  15,
+                  'max_area': 250 if args.slr else 200}
 
     def f((n,filename)):
         print filename
-        if args.slr:
-            threshargs = {'max_ecc' : .8 if args.corner else  .4,
-                          'min_area': 25 if args.corner else 160,
-                          'max_area': 80 if args.corner else 250}
-        else:
-            threshargs = {'max_ecc' : .9 if args.corner else   .7,
-                          'min_area':  5 if args.corner else   15,
-                          'max_area': 25 if args.corner else  200}
         pts, labels = find_particles_in_image(filename, **threshargs)
         print '%20s: Found %d points' % ('', len(pts))
-        if args.plot:
+        if args.corner:
+            diff = subtract_disks()
+            #TODO pass subtracted image to find corners
+            if args.plot:
+                #TODO plot stuff with corner
+                pass 
+        elif args.plot:
             pl.clf()
             pl.imshow(labels, cmap=cm)
             pts = np.asarray(pts)
             pl.scatter(pts[:,1], pts[:,0], c=pts[:,2], cmap=cm)
-            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_POSITIONS'+'_CORNER'*args.corner+'.png'
+            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_POSITIONS.png'
             print 'saving to',savename
             pl.savefig(savename, dpi=300)
         return np.hstack([n*np.ones((len(pts),1)), pts])
