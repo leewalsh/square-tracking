@@ -84,7 +84,6 @@ def find_particles(im, method='edge', **kwargs):
 
         Returns the list of found particles and the label image.
     """
-    labels = None
     print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
