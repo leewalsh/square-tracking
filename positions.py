@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from scipy import ndimage
+from scipy.ndimage import gaussian_filter, binary_erosion
 from skimage import filter, measure
 from skimage import segmentation as seg
 from skimage.morphology import label, square, disk, binary_closing, skeletonize
@@ -39,7 +39,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
         min_thresh   -- The lower limit for binary threshold
         max_thresh   -- The upper limit for binary threshold
     """
-    im = ndimage.gaussian_filter(im, sigma)
+    im = gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
     labels[im>max_thresh] = 1
     labels[im<min_thresh] = 2
@@ -101,26 +101,21 @@ def find_particles_in_image(f, **kwargs):
     im = im / im.max()
     return find_particles(im, **kwargs)
 
-def subtract_disks(orig, particles, method='disk'):
-    """ subtract_disks(method=['disk' or 'segment'])
-
-        input:
+def remove_disks(orig, particles, dsk=disk(15)):
+    """ remove_disks(method=['disk' or 'segment'])
+        removes a disk of given size centered at dot location
+        inputs:
             orig   -    input image as ndarray or PIL Image
-            method -    'segments'  attempts to remove the found big dot segment as found in original
-                        'disk'      removes a disk of given size centered at dot location
-            disk_r -    radius of disk, from skimage.morphology.disk(r)
+            particles - list of particles (namedtuple Particle)
+            dsk   -    radius of disk, default is skimage.morphology.disk(r)
                             (size of square array is 2*r+1)
         output:
-            diff - the original image with big dots removed
+            the original image with big dots removed
     """
-    disks = np.zeros_like(orig)
-    d = disk(disk_r)
-
-
-    diff = orig - disks
-    diff -= diff.min()
-    diff /= diff.max()
-    return diff
+    disks = np.ones(orig.shape, int)
+    disks[zip(*(map(int,(p.x,p.y)) for p in pts))] = 0
+    disks = binary_erosion(disks,dsk)
+    return orig*disks
 
 if __name__ == '__main__':
     import matplotlib
@@ -157,8 +152,8 @@ if __name__ == '__main__':
         pts, labels = find_particles_in_image(filename, **threshargs)
         print '%20s: Found %d points' % ('', len(pts))
         if args.corner:
-            diff = subtract_disks()
-            #TODO pass subtracted image to find corners
+            diff = remove_disks()
+            #TODO pass removed image to find corners
             if args.plot:
                 #TODO plot stuff with corner
                 pass 
