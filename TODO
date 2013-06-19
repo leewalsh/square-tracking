@@ -1,0 +1,18 @@
+Make a todo list
+
+Find corner dots
+Order lamps/bulbs
+Take data at all densities with corner dots
+Spatial correlation of orientation
+Comparison of data from January:
+    Compare positional diffusion with circles
+    Compare Percus-Yevick formula for g(r, phi)
+    Compare g(r) with MD simulations for circles
+Data and analysis for single particle spatial & orientational diffusion
+Measure drift of center of mass over long times at different phi
+Learn about MSD/Diffusion/Cage dynamics; tau_cage, tau_neigh, etc
+Fix normalization of g(r)
+Digitization in MSD
+
+
+
