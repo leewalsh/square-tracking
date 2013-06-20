@@ -1,18 +1,24 @@
 Make a todo list
 
-Find corner dots
+Spatial correlation of particle orientation:
+	Find corner dots:
+		Center of mass with threshold mask as region labels
+		: use theshold to set a mask of labels, then use
+		: scipy.ndimage.measurements.center_of_mass to find centroids
+	Take data at all densities with corner dots
+Comparison of positional data to circles (from January grp mtg):
+	Compare positional diffusion with circles
+	Compare Percus-Yevick formula for g(r, phi)
+	Compare g(r) with MD simulations for circles
+Single Particle diffusion:
+	Take data for single (very few) particle(s)
+	Spatial & orientational diffusion / MSD
+Drift:
+	: Measure drift of center of mass over long times at different phi
+Cage Dynamics:
+	: Learn about MSD/Diffusion/Cage dynamics; tau_cage, tau_neigh, etc
+
 Order lamps/bulbs
-Take data at all densities with corner dots
-Spatial correlation of orientation
-Comparison of data from January:
-    Compare positional diffusion with circles
-    Compare Percus-Yevick formula for g(r, phi)
-    Compare g(r) with MD simulations for circles
-Data and analysis for single particle spatial & orientational diffusion
-Measure drift of center of mass over long times at different phi
-Learn about MSD/Diffusion/Cage dynamics; tau_cage, tau_neigh, etc
 Fix normalization of g(r)
 Digitization in MSD
-
-
 
