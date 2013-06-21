@@ -111,6 +111,16 @@ def remove_segments(orig, particles, labels):
 def disk(n):
     return _disk(n).astype(int)
 
+def gdisk(n):
+    w = 2*n
+    g = np.arange(-w, w+1)
+    g = np.exp(-.5 * g**2 / n**2)
+    g = np.outer(g, g)  # or g*g[...,None]
+    g -= g.mean()
+    g /= g.std()
+    assert g.sum() == 0, 'sum is nonzero: {}'.format(g.sum())
+    return g
+
 def remove_disks(orig, particles, dsk=disk(6)):
     """ remove_disks(method=['disk' or 'segment'])
         removes a disk of given size centered at dot location
