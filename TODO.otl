@@ -18,7 +18,8 @@ Spatial correlation of particle orientation:
 			output list in usable format [15 min]
 			test positional accuracy with a few different images [30 min]
 	Apply corner dot finding method to central dots [1 hr]
-	: see if it's an improvement to edge finding method
+		see if it's an improvement to edge finding method [20 min]
+		Use the segments to create a Segment removal instead of disk removal [1 hr]
 	Find particle angles with new corner positions [1 hr]
 	Angular diffusion
 		Angular MSD
