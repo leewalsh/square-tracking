@@ -4,7 +4,8 @@ import numpy as np
 from scipy.ndimage import gaussian_filter, binary_erosion
 from skimage import filter, measure
 from skimage import segmentation as seg
-from skimage.morphology import label, square, disk, binary_closing, skeletonize
+from skimage.morphology import label, square, binary_closing, skeletonize
+from skimage.morphology import disk as _disk
 from collections import namedtuple
 import PIL.Image as image
 
@@ -41,8 +42,8 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     """
     im = gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
-    labels[im>max_thresh] = 1
-    labels[im<min_thresh] = 2
+    labels[im>max_thresh*im.max()] = 1
+    labels[im<min_thresh*im.max()] = 2
     return label(seg.random_walker(im, labels))
 
 Particle = namedtuple('Particle', 'x y label ecc area'.split())
@@ -101,7 +102,16 @@ def find_particles_in_image(f, **kwargs):
     im = im / im.max()
     return find_particles(im, **kwargs)
 
-def remove_disks(orig, particles, dsk=disk(15)):
+def remove_segments(orig, particles, labels):
+    """ remove_segments(orig, particles, labels)
+        attempts to remove the found big dot segment as found in original
+    """
+    return
+
+def disk(n):
+    return _disk(n).astype(int)
+
+def remove_disks(orig, particles, dsk=disk(6)):
     """ remove_disks(method=['disk' or 'segment'])
         removes a disk of given size centered at dot location
         inputs:
@@ -113,7 +123,11 @@ def remove_disks(orig, particles, dsk=disk(15)):
             the original image with big dots removed
     """
     disks = np.ones(orig.shape, int)
-    disks[zip(*(map(int,(p.x,p.y)) for p in pts))] = 0
+    if isinstance(particles[0], Particle):
+        xys = zip(*(map(int,(p.x,p.y)) for p in pts))
+    elif 'X' in particles.dtype.names:
+        xys = np.round(particles['X']).astype(int),np.round(particles['Y']).astype(int)
+    disks[xys] = 0
     disks = binary_erosion(disks,dsk)
     return orig*disks
 
