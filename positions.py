@@ -46,6 +46,24 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im<min_thresh*im.max()] = 2
     return label(seg.random_walker(im, labels))
 
+def label_particles_thresh(im, max_thresh=0.2, min_thresh=None):
+    """ label_particles_thresh(im, max_thresh=0.2, min_thresh=0)
+
+        Returns the labels for an image
+        Segments using a simple binary threshold
+        Uses center of mass from original image to find centroid of segments
+
+        Input:
+            image
+            max_thresh  the threshold above which pixels are included
+            min_thresh  if supplied, pixels are included if between min_thresh and max_thresh
+    """
+    if min_thresh is not None:
+        threshed = (min_thresh < im) & (im < max_thresh)
+    else:
+        threshed = im > max_thresh
+    return label(threshed)
+
 Particle = namedtuple('Particle', 'x y label ecc area'.split())
 
 def filter_particles(labels, max_ecc=0.5, min_area=15, max_area=200, **extra_args):
