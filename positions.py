@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, binary_erosion
+from scipy.ndimage import gaussian_filter, binary_erosion, convolve
 from skimage import filter, measure
 from skimage import segmentation as seg
 from skimage.morphology import label, square, binary_closing, skeletonize
@@ -140,6 +140,11 @@ def remove_disks(orig, particles, dsk=disk(6)):
     disks[xys] = 0
     disks = binary_erosion(disks,dsk)
     return orig*disks
+
+def convolve_disks(orig, dsk):
+    if isinstance(dsk, int):
+        dsk = gdisk(dsk)
+    return convolve(orig, dsk)
 
 if __name__ == '__main__':
     import matplotlib
