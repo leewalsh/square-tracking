@@ -2,8 +2,7 @@
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, binary_erosion, convolve
-from skimage import filter, measure
-from skimage import segmentation as seg
+from skimage import filter, measure, segmentation
 from skimage.morphology import label, square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
 from collections import namedtuple
@@ -44,7 +43,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels = np.zeros_like(im)
     labels[im>max_thresh*im.max()] = 1
     labels[im<min_thresh*im.max()] = 2
-    return label(seg.random_walker(im, labels))
+    return label(segmentation.random_walker(im, labels))
 
 def label_particles_thresh(im, max_thresh=0.2, min_thresh=None):
     """ label_particles_thresh(im, max_thresh=0.2, min_thresh=0)
