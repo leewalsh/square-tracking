@@ -195,7 +195,6 @@ if __name__ == '__main__':
                   'max_area': 250 if args.slr else 200}
 
     def f((n,filename)):
-        print filename
         pts, labels = find_particles_in_image(filename, **threshargs)
         print '%20s: Found %d points' % ('', len(pts))
         if args.corner:
