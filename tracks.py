@@ -126,7 +126,7 @@ elif loaddata:
 else: 
     # assume existing tracks.npz
     print "loading tracks from npz files"
-    tracksnpz = np.load(locdir+prefix+dotfix+"_TRACKS.npz")
+    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
     trackids = tracksnpz['trackids']
     print "\t...loaded"
@@ -255,12 +255,12 @@ elif loadmsd:
 def plot_msd(data,msds):
     """ Plots the MSDs"""
     nframes = max(data['f'])
-    if type(dtau) is float:
+    if isinstance(dtau,float):
         taus = farange(dt0,nframes,dtau)
         msd = np.transpose([taus,np.zeros_like(taus)])
-    elif type(dtau) is int:
+    elif isinstance(dtau,int):
         taus = np.arange(dtau,nframes,dtau)
-        msd = np.transpose([np.arange(dtau,nframes,dtau),np.zeros(-(-nframes/dtau) - 1)])
+        msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = 0
     for tmsd in msds:
