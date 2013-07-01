@@ -262,28 +262,26 @@ def plot_msd(data,msds):
         taus = np.arange(dtau,nframes,dtau)
         msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
-    added = 0
+    added = np.zeros(len(msd), float)
     for tmsd in msds:
         if tmsd:
-            added += 1.0
-            pl.loglog(zip(*tmsd)[0],zip(*tmsd)[1])
-            if len(tmsd)>=len(msd):
-                msd[:,1] += np.array(tmsd)[:len(msd),1]
-                print "yay"
-            else:
-                print "tmsd too short",len(tmsd),len(msd)
-
-    try:
-        msd[:,1] /= added
-    except:
-        print "none added!"
+            tmsd = np.asarray(tmsd)
+            tmsd[:,1] /= 22**2 # convert to unit "particle area"
+            pl.loglog(*zip(*tmsd))
+            lim = min(len(msd), len(tmsd))
+            msd[:lim,1] += np.array(tmsd)[:lim,1]
+            added[:lim] += 1.
+    #assert not np.any(added==0), "no tmsd for some value of tau!"
+    #TODO FIX THIS!  don't just divide these by one:
+    added[added==0]=1
+    msd[:,1] /= added
     pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
     pl.loglog(taus, msd[0,1]*taus/dtau,
             'k-',label="ref slope = 1")
     pl.legend(loc=4)
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
-    pl.ylabel('Squared Displacement ('+r'$pixels^2$'+')')
+    pl.ylabel('Squared Displacement (particle area '+r'$s^2$'+')')
     pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
     pl.show()
 
