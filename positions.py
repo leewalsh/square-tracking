@@ -194,9 +194,9 @@ if __name__ == '__main__':
     threshargs = {'max_ecc' :  .4 if args.slr else  .7,
                   'min_area': 160 if args.slr else  15,
                   'max_area': 250 if args.slr else 200}
-    cthreshargs = {'max_ecc' :  .4 if args.slr else .7,
-                   'min_area': 160 if args.slr else  4,
-                   'max_area': 250 if args.slr else 24}
+    cthreshargs = {'max_ecc' :  .4 if args.slr else .8,
+                   'min_area': 160 if args.slr else  3,
+                   'max_area': 250 if args.slr else 36}
 
     def f((n,filename)):
         pts, labels = find_particles_in_image(filename, method='edge', **threshargs)
@@ -241,9 +241,9 @@ if __name__ == '__main__':
             coutput = args.output.replace('POSITIONS','CORNER_POSITIONS')
         else:
             coutput = ''.join(args.output.split('.')[:-1]+['_CORNER.']+args.output.split('.')[-1:])
-        with open(coutput, 'w') as output:
-            output.write('# Frame    X           Y             Label  Eccen        Area\n')
-            np.savetxt(output, points, delimiter='     ',
+        with open(coutput, 'w') as coutput:
+            coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
+            np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
     else:
         points = np.vstack(points)
