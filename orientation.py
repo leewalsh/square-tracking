@@ -278,6 +278,20 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
     cb.set_label('time')
     return qq, cb
 
+def track_orient(data, odata, track, tracks, omask=None):
+    """ tracks branch cut crossings for orientation data
+        assumes that dtheta << pi for each frame
+    """
+    cutoff = 3*np.pi/2
+    if omask is None:
+        omask = np.isfinite(odata['orient'])
+    mask = (track == tracks) & omask
+    deltas = np.diff(odata['orient'][mask])
+    deltas = np.concatenate(([0], deltas))
+    crossings = (deltas < -cutoff).astype(int) - (deltas > cutoff).astype(int)
+    crossings = crossings.cumsum() * 2 * np.pi
+    return odata['orient'][mask] + crossings
+
 def plot_orient_time(data,odata,tracks):
     if computer is not 'rock':
         print 'computer must be on rock'
