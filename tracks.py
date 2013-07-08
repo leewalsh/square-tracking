@@ -18,8 +18,8 @@ else:
     print "computer not defined"
     print "where are you working?"
 
-#import matplotlib.pyplot as pl
-#import matplotlib.cm as cm
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
 
 
 prefix = 'array'
