@@ -255,7 +255,7 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0):
+def plot_msd(data, msds, dtau, dt0, tnormalize=False):
     """ Plots the MSDs"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
@@ -268,18 +268,33 @@ def plot_msd(data, msds, dtau, dt0):
     added = np.zeros(len(msd), float)
     for tmsd in msds:
         if len(tmsd) > 0:
-            pl.loglog(*zip(*tmsd))
+            if tnormalize:
+                tmsdt, tmsdd = zip(*tmsd)
+                tmsdt = np.asarray(tmsdt)
+                tmsdd = np.asarray(tmsdd)
+                pl.semilogx(tmsdt, tmsdd/tmsdt)
+            else:
+                pl.loglog(*zip(*tmsd))
             lim = min(len(msd), len(tmsd))
             msd[:lim,1] += np.array(tmsd)[:lim,1]
             added[:lim] += 1.
     assert not np.any(msd[:,1]==0), "no tmsd for some value of tau!"
     msd[:,1] /= added
-    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Angular Disp")
-    pl.loglog(taus, msd[0,1]*taus/dtau,
-            'k-',label="ref slope = 1")
-    pl.ylim([1,100])
-    pl.legend(loc=4)
-    pl.title(prefix)
+    if tnormalize:
+        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Angular Disp/Time")
+        pl.semilogx(taus, msd[0,1]*np.ones_like(taus)/dtau,
+                'k-',label="ref slope = 1",lw=4)
+        #pl.semilogx(taus, np.ones_like(taus)*4*np.pi**2/taus,
+        #        'k--',label=r"$(2\pi)^2$")
+    else:
+        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Angular Disp")
+        pl.loglog(taus, msd[0,1]*taus/dtau,
+                'k-',label="ref slope = 1",lw=4)
+        pl.loglog(taus, np.ones_like(taus)*4*np.pi**2,
+                'k--',label=r"$(2\pi)^2$")
+    pl.xlim([2,1000])
+    pl.legend(loc=2)
+    pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Angular Displacement ('+r'$radians^2$'+')')
     pl.savefig(locdir+prefix+"_MSAD.png",dpi=180)

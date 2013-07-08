@@ -252,6 +252,7 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
+tnormalize = True
 def plot_msd(data,msds):
     """ Plots the MSDs"""
     nframes = max(data['f'])
@@ -267,7 +268,13 @@ def plot_msd(data,msds):
         if tmsd:
             tmsd = np.asarray(tmsd)
             tmsd[:,1] /= 22**2 # convert to unit "particle area"
-            pl.loglog(*zip(*tmsd))
+            if tnormalize:
+                tmsdt, tmsdd = zip(*tmsd)
+                tmsdt = np.asarray(tmsdt)
+                tmsdd = np.asarray(tmsdd)
+                pl.semilogx(tmsdt, tmsdd/tmsdt)
+            else:
+                pl.loglog(*zip(*tmsd))
             lim = min(len(msd), len(tmsd))
             msd[:lim,1] += np.array(tmsd)[:lim,1]
             added[:lim] += 1.
@@ -275,10 +282,15 @@ def plot_msd(data,msds):
     #TODO FIX THIS!  don't just divide these by one:
     added[added==0]=1
     msd[:,1] /= added
-    pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
-    pl.loglog(taus, msd[0,1]*taus/dtau,
-            'k-',label="ref slope = 1")
-    pl.legend(loc=4)
+    if tnormalize:
+        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Disp/Time")
+        pl.semilogx(taus, msd[0,1]*np.ones_like(taus)/dtau,
+                'k-',label="ref slope = 1",lw=4)
+    else:
+        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
+        pl.loglog(taus, msd[0,1]*taus/dtau,
+                'k-',label="ref slope = 1",lw=4)
+    pl.legend(loc=2 if tnormalize else 4)
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Displacement (particle area '+r'$s^2$'+')')
