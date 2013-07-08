@@ -293,34 +293,45 @@ def track_orient(data, odata, track, tracks, omask=None):
     crossings = crossings.cumsum() * 2 * np.pi
     return odata['orient'][mask] + crossings
 
-def plot_orient_time(data,odata,tracks):
+def plot_orient_time(data, odata, tracks, omask=None, delta=False):
     if computer is not 'rock':
         print 'computer must be on rock'
         return False
 
-    omask = np.isfinite(odata['orient'])
+    if omask is None:
+        omask = np.isfinite(odata['orient'])
     goodtracks = set(tracks[omask])
     print 'good tracks are', goodtracks
     #tmask = np.in1d(tracks,goodtracks)
     pl.figure()
+    colors = ['red','green','blue','cyan','black','magenta','yellow']
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
         fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
         if fullmask.sum() < 1:
             continue
-        pl.plot(data['f'][fullmask],
-                (odata['orient'][fullmask]
-                 - odata['orient'][fullmask][np.argmin(data['f'][fullmask])]
-                 + np.pi)%(2*np.pi),
-                label="Track {}".format(goodtrack))
-                #color=cm.jet(1.*tracks[fullmask]/max(tracks)))
-                #color=cm.jet(1.*goodtrack/max(tracks)))
-    for n in np.arange(0.5,2.0,0.5):
-        pl.plot([0,1260],n*np.pi*np.array([1,1]),'k--')
-    pl.legend()
-    pl.title('Orientation over time\ninitial orientation = 0')
-    pl.xlabel('frame (150fps)')
+        plotrange = slice(None,None)
+        if delta:
+            c = colors[goodtrack%7]
+            pl.plot(data['f'][fullmask][plotrange],
+                    odata['orient'][fullmask][plotrange],
+                    c=c,label="Track {}".format(goodtrack))
+            pl.plot(data['f'][fullmask][plotrange][1:],
+                    np.diff(odata['orient'][fullmask])[plotrange],
+                    'o', c=c,label='delta {}'.format(goodtrack))
+        else:
+            pl.plot(data['f'][fullmask][plotrange],
+                    track_orient(data, odata, goodtrack, tracks, omask)[plotrange],
+                    '--', label='tracked {}'.format(goodtrack))
+    if delta:
+        for n in np.arange(-2 if delta else 0,2.5,0.5):
+            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*np.pi,'k--')
+    if len(goodtracks) < 10:
+        pl.legend()
+    pl.title('Orientation over time')#\ninitial orientation = 0')
+    pl.xlabel('frame (120fps)')
     pl.ylabel('orientation')
+    #pl.savefig('orient_tracking.png',dpi=180,figsize=(6,4))
 
 def plot_orient_location(data,odata,tracks):
     if computer is not 'rock':
