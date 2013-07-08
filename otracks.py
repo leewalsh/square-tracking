@@ -137,7 +137,7 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
     print "saving tracks image"
-    pl.savefig(locdir+prefix+"_tracks.png")
+    pl.savefig(locdir+prefix+"_tracks.png",dpi=180)
     pl.show()
 
 if plottracks and computer is 'rock':
@@ -156,13 +156,15 @@ def farange(start,stop,factor):
     stop_power = np.log(stop)/np.log(factor)
     return factor**np.arange(start_power,stop_power)
 
-def trackmsd(track, dt0, dtau, data, trackids, odata, omask):
+from orientation import track_orient
+def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
     """ trackmsd(track,dt0,dtau,odata,omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
     """
     tmsd = []
     trackdots = data[(trackids==track) & (omask)]
-    trackodata = odata[(trackids==track) & (omask)]
+    trackodata = odata[(trackids==track) & (omask)]['orient'] if mod_2pi \
+            else track_orient(data, odata, track, trackids, omask)
     trackend =   trackdots['f'][-1]
     trackbegin = trackdots['f'][0]
     tracklen = trackend - trackbegin + 1
@@ -175,7 +177,7 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask):
         taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
-        avg = t0avg(trackdots,tracklen,tau,trackodata,dt0)
+        avg = t0avg(trackdots,tracklen,tau,trackodata,dt0,mod_2pi=mod_2pi)
         #print "avg =",avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
@@ -183,7 +185,7 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask):
         print "\t...actually",len(tmsd)
     return tmsd
 
-def t0avg(trackdots, tracklen, tau, trackodata, dt0):
+def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
     """ t0avg() averages over all t0, for given track, given tau """
     totsqdisp = 0.0
     nt0s = 0.0
@@ -191,16 +193,15 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0):
         #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
         olddot = trackodata[trackdots['f']==t0]
         newdot = trackodata[trackdots['f']==t0+tau]
-        if (len(newdot) != 1):
-            #print "newdot:",newdot
+        if len(newdot) != 1 or len(olddot) != 1:
             continue
-        elif (len(olddot) != 1):
-            #print "olddot:",olddot
-            continue
-        aa = (newdot['orient'] - olddot['orient'])%(2*np.pi)
-        if aa > np.pi:
-            aa -= 2*np.pi
-        sqdisp  = aa**2
+        if mod_2pi:
+            disp = (newdot - olddot)%(2*np.pi)
+            if disp > np.pi:
+                disp -= 2*np.pi
+        else:
+            disp = newdot - olddot
+        sqdisp  = disp**2
         if len(sqdisp) == 1:
             #print 'unflattened'
             totsqdisp += sqdisp
@@ -213,7 +214,7 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None):
+def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
     print locdir
@@ -223,7 +224,7 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None):
     for trackid in tracks:
         if verbose:
             print "calculating msd for track", trackid
-        tmsd = trackmsd(trackid, dt0, dtau, data, trackids, odata, omask)
+        tmsd = trackmsd(trackid, dt0, dtau, data, trackids, odata, omask, mod_2pi=mod_2pi)
         msds.append(tmsd)
 
     msds = np.asarray(msds)
@@ -281,7 +282,7 @@ def plot_msd(data, msds, dtau, dt0):
     pl.title(prefix)
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Angular Displacement ('+r'$radians^2$'+')')
-    pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
+    pl.savefig(locdir+prefix+"_MSAD.png",dpi=180)
     pl.show()
 
 if plotmsd and computer is 'rock':
