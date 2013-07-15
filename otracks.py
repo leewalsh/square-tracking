@@ -47,7 +47,8 @@ plotmsd = False      # plot the MSD
 
 verbose = False
 
-bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+if plottracks:
+    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
@@ -138,7 +139,21 @@ if __name__=='___main__':
         tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
         data = tracksnpz['data']
         trackids = tracksnpz['trackids']
+        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
+        cdata = cdatanpz['data']
         print "\t...loaded"
+    try:
+        odatanpz = np.load(locdor+prefix+'_ORIENTATION.npz')
+        odata = odatanpz['odata']
+        omask = odatanpz['omask']
+    except IOError:
+        print "calculating orientation data"
+        from orientation import get_angles_loop
+        odata, omask = get_angles_loop(data, cdata)
+        np.savez(locdir+prefix+'_ORIENTATION.npz',
+                odata=odata,
+                omask=omask)
+
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None):
@@ -250,7 +265,7 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False
 if findmsd:
     dt0  = 100 # small for better statistics, larger for faster calc
     dtau = 10 # int for stepwise, float for factorwise
-    msds = find_msds(dt0, dtau)
+    msds = find_msds(dt0, dtau, data, trackids, odata, omask)
             
 elif loadmsd:
     print "loading msd data from npz files"
