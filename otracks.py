@@ -14,8 +14,8 @@ elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/diffusion/'
     extdir = '/media/bhavari/Squares/lighting/still/'
-    #import matplotlib
-    #matplotlib.use("agg")
+    import matplotlib
+    matplotlib.use("agg")
 else:
     print "computer not defined"
     print "where are you working?"
@@ -126,7 +126,7 @@ def find_tracks(data, giveup=1000):
 
     return trackids
 
-if __name__=='___main__':
+if __name__=='__main__':
     if findtracks:
         trackids = find_tracks(data)
     elif loaddata:
@@ -143,7 +143,7 @@ if __name__=='___main__':
         cdata = cdatanpz['data']
         print "\t...loaded"
     try:
-        odatanpz = np.load(locdor+prefix+'_ORIENTATION.npz')
+        odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
         odata = odatanpz['odata']
         omask = odatanpz['omask']
     except IOError:
