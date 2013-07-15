@@ -245,8 +245,8 @@ def find_msds(dt0, dtau, tracks=None):
     return msds
 
 if findmsd:
-    dt0  = 5 # small for better statistics, larger for faster calc
-    dtau = 2 # int for stepwise, float for factorwise
+    dt0  = 100 # small for better statistics, larger for faster calc
+    dtau = 10 # int for stepwise, float for factorwise
     msds = find_msds(dt0, dtau)
             
 elif loadmsd:
