@@ -79,7 +79,7 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=2, slr=True, do_average=True):
+def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -270,42 +270,68 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
     nz.autoscale(data['f'][mask])
     qq = pl.quiver(
             data['y'][mask][ndex], data['x'][mask][ndex],
-            odata['cdisp'][mask][...,1].flatten(), odata['cdisp'][mask][...,0].flatten(),
+            odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask])),
-            scale=1500.)
+            scale=1000.)
+    pl.title(imfile.split('/')[-1].split('_')[:-1])
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
     cb.set_label('time')
     return qq, cb
 
-def plot_orient_time(data,odata,tracks):
+def track_orient(data, odata, track, tracks, omask=None):
+    """ tracks branch cut crossings for orientation data
+        assumes that dtheta << pi for each frame
+    """
+    cutoff = 3*np.pi/2
+    if omask is None:
+        omask = np.isfinite(odata['orient'])
+    mask = (track == tracks) & omask
+    deltas = np.diff(odata['orient'][mask])
+    deltas = np.concatenate(([0], deltas))
+    crossings = (deltas < -cutoff).astype(int) - (deltas > cutoff).astype(int)
+    crossings = crossings.cumsum() * 2 * np.pi
+    return odata['orient'][mask] + crossings
+
+def plot_orient_time(data, odata, tracks, omask=None, delta=False):
     if computer is not 'rock':
         print 'computer must be on rock'
         return False
 
-    omask = np.isfinite(odata['orient'])
+    if omask is None:
+        omask = np.isfinite(odata['orient'])
     goodtracks = set(tracks[omask])
     print 'good tracks are', goodtracks
     #tmask = np.in1d(tracks,goodtracks)
     pl.figure()
+    colors = ['red','green','blue','cyan','black','magenta','yellow']
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
         fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
         if fullmask.sum() < 1:
             continue
-        pl.plot(data['f'][fullmask],
-                (odata['orient'][fullmask]
-                 - odata['orient'][fullmask][np.argmin(data['f'][fullmask])]
-                 + np.pi)%(2*np.pi),
-                label="Track {}".format(goodtrack))
-                #color=cm.jet(1.*tracks[fullmask]/max(tracks)))
-                #color=cm.jet(1.*goodtrack/max(tracks)))
-    for n in np.arange(0.5,2.0,0.5):
-        pl.plot([0,1260],n*np.pi*np.array([1,1]),'k--')
-    pl.legend()
-    pl.title('Orientation over time\ninitial orientation = 0')
-    pl.xlabel('frame (150fps)')
+        plotrange = slice(None,None)
+        if delta:
+            c = colors[goodtrack%7]
+            pl.plot(data['f'][fullmask][plotrange],
+                    odata['orient'][fullmask][plotrange],
+                    c=c,label="Track {}".format(goodtrack))
+            pl.plot(data['f'][fullmask][plotrange][1:],
+                    np.diff(odata['orient'][fullmask])[plotrange],
+                    'o', c=c,label='delta {}'.format(goodtrack))
+        else:
+            pl.plot(data['f'][fullmask][plotrange],
+                    track_orient(data, odata, goodtrack, tracks, omask)[plotrange],
+                    '--', label='tracked {}'.format(goodtrack))
+    if delta:
+        for n in np.arange(-2 if delta else 0,2.5,0.5):
+            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*np.pi,'k--')
+    if len(goodtracks) < 10:
+        pl.legend()
+    pl.title('Orientation over time')#\ninitial orientation = 0')
+    pl.xlabel('frame (120fps)')
     pl.ylabel('orientation')
+    #pl.savefig('orient_tracking.png',dpi=180,figsize=(6,4))
 
 def plot_orient_location(data,odata,tracks):
     if computer is not 'rock':

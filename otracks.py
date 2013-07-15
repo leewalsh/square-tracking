@@ -6,8 +6,8 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
-    extdir = '/Volumes/bhavari/Squares/lighting/still/'
+    locdir = '/Users/leewalsh/Physics/Squares/lowdensity/'
+    extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/lighting/'
@@ -22,16 +22,16 @@ import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 
 
-prefix = 'array'
-dotfix = '_CORNER'
+prefix = 'n32_100mv_50hz_first1000'
+dotfix = ''#_CORNER'
 
-loaddata   = True   # Create and save structured array from data txt file?
+loaddata   = False   # Create and save structured array from data txt file?
 
-findtracks = True   # Connect the dots and save in 'trackids' field of data
+findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
 
 findmsd = False      # Calculate the MSD
-loadmsd = False      # load previoius MSD from npz file
+loadmsd = False     # load previoius MSD from npz file
 plotmsd = False      # plot the MSD
 
 verbose = False
@@ -46,9 +46,8 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
     frame = thisdot['f']
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
-        if verbose:
-            print "New track:",newtrackid
-            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+        print "New track:",newtrackid
+        print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
         oldframe = data[data['f']==frame-n]
@@ -59,12 +58,10 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
         elif n < giveup:
             return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
-            if verbose:
-                print "Recursed {} times, giving up. frame = {} ".format(n,frame)
+            print "Recursed {} times, giving up. frame = {} ".format(n,frame)
             newtrackid = max(trackids) + 1
-            if verbose:
-                print "New track:",newtrackid
-                print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+            print "New track:",newtrackid
+            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
             return newtrackid
 
 # Tracking
@@ -100,14 +97,14 @@ if loaddata:
     print "\t...loaded"
 
 
-def find_tracks(data, giveup = 1000):
+def find_tracks(data, giveup=1000):
     sys.setrecursionlimit(2*giveup)
 
     trackids = -np.ones(data.shape, dtype=int)
 
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i],trackids)
+        trackids[i] = find_closest(data[i], trackids)
 
     # save the data record array and the trackids array
     print "saving track data"
@@ -117,19 +114,20 @@ def find_tracks(data, giveup = 1000):
 
     return trackids
 
-if findtracks:
-    trackids = find_tracks(data)
-elif loaddata:
-    print "saving data only (no tracks)"
-    np.savez(locdir+prefix+dotfix+"_POSITIONS",
-            data = data)
-else: 
-    # assume existing tracks.npz
-    print "loading tracks from npz files"
-    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-    data = tracksnpz['data']
-    trackids = tracksnpz['trackids']
-    print "\t...loaded"
+if __name__=='___main__':
+    if findtracks:
+        trackids = find_tracks(data)
+    elif loaddata:
+        print "saving data only (no tracks)"
+        np.savez(locdir+prefix+dotfix+"_POSITIONS",
+                data = data)
+    else: 
+        # assume existing tracks.npz
+        print "loading tracks from npz files"
+        tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+        data = tracksnpz['data']
+        trackids = tracksnpz['trackids']
+        print "\t...loaded"
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None):
@@ -139,7 +137,7 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
     print "saving tracks image"
-    pl.savefig(locdir+prefix+"_tracks.png")
+    pl.savefig(locdir+prefix+"_tracks.png",dpi=180)
     pl.show()
 
 if plottracks and computer is 'rock':
@@ -158,25 +156,28 @@ def farange(start,stop,factor):
     stop_power = np.log(stop)/np.log(factor)
     return factor**np.arange(start_power,stop_power)
 
-def trackmsd(track,dt0,dtau):
-    """ trackmsd(track,dt0,dtau)
+from orientation import track_orient
+def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
+    """ trackmsd(track,dt0,dtau,odata,omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
     """
     tmsd = []
-    trackdots = data[trackids==track]
+    trackdots = data[(trackids==track) & (omask)]
+    trackodata = odata[(trackids==track) & (omask)]['orient'] if mod_2pi \
+            else track_orient(data, odata, track, trackids, omask)
     trackend =   trackdots['f'][-1]
     trackbegin = trackdots['f'][0]
     tracklen = trackend - trackbegin + 1
     if verbose:
         print "tracklen =",tracklen
-        print "\t from %d to %d"%(trackbegin,trackend)
-    if type(dtau) is float:
-        taus = farange(dt0,tracklen,dtau)
-    elif type(dtau) is int:
-        taus = xrange(dtau,tracklen,dtau)
+        print "\t from %d to %d"%(trackbegin, trackend)
+    if isinstance(dtau, float):
+        taus = farange(dt0, tracklen, dtau)
+    elif isinstance(dtau,int):
+        taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
-        avg = t0avg(trackdots,tracklen,tau)
+        avg = t0avg(trackdots,tracklen,tau,trackodata,dt0,mod_2pi=mod_2pi)
         #print "avg =",avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
@@ -184,22 +185,23 @@ def trackmsd(track,dt0,dtau):
         print "\t...actually",len(tmsd)
     return tmsd
 
-def t0avg(trackdots,tracklen,tau):
+def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
     """ t0avg() averages over all t0, for given track, given tau """
     totsqdisp = 0.0
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
-        olddot = trackdots[trackdots['f']==t0]
-        newdot = trackdots[trackdots['f']==t0+tau]
-        if (len(newdot) != 1):
-            #print "newdot:",newdot
+        olddot = trackodata[trackdots['f']==t0]
+        newdot = trackodata[trackdots['f']==t0+tau]
+        if len(newdot) != 1 or len(olddot) != 1:
             continue
-        elif (len(olddot) != 1):
-            #print "olddot:",olddot
-            continue
-        sqdisp  = (newdot['x'] - olddot['x'])**2 \
-                + (newdot['y'] - olddot['y'])**2
+        if mod_2pi:
+            disp = (newdot - olddot)%(2*np.pi)
+            if disp > np.pi:
+                disp -= 2*np.pi
+        else:
+            disp = newdot - olddot
+        sqdisp  = disp**2
         if len(sqdisp) == 1:
             #print 'unflattened'
             totsqdisp += sqdisp
@@ -212,35 +214,36 @@ def t0avg(trackdots,tracklen,tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-def find_msds(dt0, dtau, tracks=None):
+def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
+    print locdir
     msds = []
     if tracks is None:
-        #tracks = xrange(max(trackids) + 1)
-        tracks = (78,  95, 191, 203, 322)
+        tracks = set(trackids[omask])
     for trackid in tracks:
         if verbose:
-            print "calculating msd for track",trackid
-        tmsd = trackmsd(trackid,dt0,dtau)
+            print "calculating msd for track", trackid
+        tmsd = trackmsd(trackid, dt0, dtau, data, trackids, odata, omask, mod_2pi=mod_2pi)
         msds.append(tmsd)
 
     msds = np.asarray(msds)
     print "saving msd data"
-    np.savez(locdir+prefix+"_MSD",
+    np.savez(locdir+prefix+"_MSAD",
             msds = msds,
             dt0  = np.asarray(dt0),
             dtau = np.asarray(dtau))
+    print "\t...saved"
     return msds
 
 if findmsd:
-    dt0  = 50 # small for better statistics, larger for faster calc
-    dtau = 10 # int for stepwise, float for factorwise
+    dt0  = 5 # small for better statistics, larger for faster calc
+    dtau = 2 # int for stepwise, float for factorwise
     msds = find_msds(dt0, dtau)
             
 elif loadmsd:
     print "loading msd data from npz files"
-    msdnpz = np.load(locdir+prefix+"_MSD.npz")
+    msdnpz = np.load(locdir+prefix+"_MSAD.npz")
     msds = msdnpz['msds']
     if msdnpz['dt0']:
         dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
@@ -252,22 +255,19 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-tnormalize = True
-def plot_msd(data,msds):
+def plot_msd(data, msds, dtau, dt0, tnormalize=False):
     """ Plots the MSDs"""
     nframes = max(data['f'])
-    if isinstance(dtau,float):
-        taus = farange(dt0,nframes,dtau)
-        msd = np.transpose([taus,np.zeros_like(taus)])
-    elif isinstance(dtau,int):
-        taus = np.arange(dtau,nframes,dtau)
-        msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
+    if isinstance(dtau, float):
+        taus = farange(dt0, nframes, dtau)
+        msd = np.transpose([taus, np.zeros_like(taus)])
+    elif isinstance(dtau, int):
+        taus = np.arange(dtau, nframes, dtau)
+        msd = np.transpose([np.arange(dtau, nframes, dtau), np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = np.zeros(len(msd), float)
     for tmsd in msds:
-        if tmsd:
-            tmsd = np.asarray(tmsd)
-            tmsd[:,1] /= 22**2 # convert to unit "particle area"
+        if len(tmsd) > 0:
             if tnormalize:
                 tmsdt, tmsdd = zip(*tmsd)
                 tmsdt = np.asarray(tmsdt)
@@ -278,26 +278,29 @@ def plot_msd(data,msds):
             lim = min(len(msd), len(tmsd))
             msd[:lim,1] += np.array(tmsd)[:lim,1]
             added[:lim] += 1.
-    #assert not np.any(added==0), "no tmsd for some value of tau!"
-    #TODO FIX THIS!  don't just divide these by one:
-    added[added==0]=1
+    assert not np.any(msd[:,1]==0), "no tmsd for some value of tau!"
     msd[:,1] /= added
     if tnormalize:
-        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Disp/Time")
+        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Angular Disp/Time")
         pl.semilogx(taus, msd[0,1]*np.ones_like(taus)/dtau,
                 'k-',label="ref slope = 1",lw=4)
+        #pl.semilogx(taus, np.ones_like(taus)*4*np.pi**2/taus,
+        #        'k--',label=r"$(2\pi)^2$")
     else:
-        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
+        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Angular Disp")
         pl.loglog(taus, msd[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
-    pl.legend(loc=2 if tnormalize else 4)
-    pl.title(prefix)
+        pl.loglog(taus, np.ones_like(taus)*4*np.pi**2,
+                'k--',label=r"$(2\pi)^2$")
+    pl.xlim([2,1000])
+    pl.legend(loc=2)
+    pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
     pl.xlabel('Time tau (Image frames)')
-    pl.ylabel('Squared Displacement (particle area '+r'$s^2$'+')')
-    pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
+    pl.ylabel('Squared Angular Displacement ('+r'$radians^2$'+')')
+    pl.savefig(locdir+prefix+"_MSAD.png",dpi=180)
     pl.show()
 
 if plotmsd and computer is 'rock':
     print 'plotting now!'
-    plot_msd(data,msds)
+    plot_msd(data, msds)
 
