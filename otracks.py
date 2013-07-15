@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 from PIL import Image as Im
 import sys
@@ -10,7 +12,7 @@ if 'rock' in hostname:
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/lighting/'
+    locdir = '/home/lawalsh/Granular/Squares/diffusion/'
     extdir = '/media/bhavari/Squares/lighting/still/'
     #import matplotlib
     #matplotlib.use("agg")
@@ -18,25 +20,35 @@ else:
     print "computer not defined"
     print "where are you working?"
 
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
+from matplotlib import pyplot as pl
+from matplotlib import cm as cm
 
 
-prefix = 'n32_100mv_50hz_first1000'
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('prefix')
+args = parser.parse_args()
+
+prefix = args.prefix#'n32_100mv_50hz'
+print 'using prefix', prefix
 dotfix = ''#_CORNER'
+if dotfix:
+    print 'using dotfix', dotfix
 
 loaddata   = False   # Create and save structured array from data txt file?
 
 findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
 
-findmsd = False      # Calculate the MSD
+findmsd = True      # Calculate the MSD
 loadmsd = False     # load previoius MSD from npz file
 plotmsd = False      # plot the MSD
 
 verbose = False
 
-bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+if plottracks:
+    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
@@ -127,7 +139,21 @@ if __name__=='___main__':
         tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
         data = tracksnpz['data']
         trackids = tracksnpz['trackids']
+        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
+        cdata = cdatanpz['data']
         print "\t...loaded"
+    try:
+        odatanpz = np.load(locdor+prefix+'_ORIENTATION.npz')
+        odata = odatanpz['odata']
+        omask = odatanpz['omask']
+    except IOError:
+        print "calculating orientation data"
+        from orientation import get_angles_loop
+        odata, omask = get_angles_loop(data, cdata)
+        np.savez(locdir+prefix+'_ORIENTATION.npz',
+                odata=odata,
+                omask=omask)
+
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None):
@@ -237,9 +263,9 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False
     return msds
 
 if findmsd:
-    dt0  = 5 # small for better statistics, larger for faster calc
-    dtau = 2 # int for stepwise, float for factorwise
-    msds = find_msds(dt0, dtau)
+    dt0  = 100 # small for better statistics, larger for faster calc
+    dtau = 10 # int for stepwise, float for factorwise
+    msds = find_msds(dt0, dtau, data, trackids, odata, omask)
             
 elif loadmsd:
     print "loading msd data from npz files"
