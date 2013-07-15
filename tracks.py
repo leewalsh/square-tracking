@@ -35,12 +35,12 @@ dotfix = ''#_CORNER'
 if dotfix:
     print 'using dotfix', dotfix
 
-loaddata   = True   # Create and save structured array from data txt file?
+loaddata   = False   # Create and save structured array from data txt file?
 
-findtracks = True   # Connect the dots and save in 'trackids' field of data
+findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
 
-findmsd = False      # Calculate the MSD
+findmsd = True      # Calculate the MSD
 loadmsd = False      # load previoius MSD from npz file
 plotmsd = False      # plot the MSD
 
