@@ -32,7 +32,7 @@ args = parser.parse_args()
 prefix = args.prefix#'n32_100mv_50hz'
 print 'using prefix', prefix
 dotfix = ''#_CORNER'
-if dotfox:
+if dotfix:
     print 'using dotfix', dotfix
 
 loaddata   = True   # Create and save structured array from data txt file?
