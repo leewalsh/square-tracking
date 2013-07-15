@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np
 from PIL import Image as Im
 import sys
@@ -6,24 +7,30 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
-    extdir = '/Volumes/bhavari/Squares/lighting/still/'
+    locdir = '/Users/leewalsh/Physics/Squares/lowdensity/'
+    extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/lighting/'
-    extdir = '/media/bhavari/Squares/lighting/still/'
-    #import matplotlib
-    #matplotlib.use("agg")
+    locdir = '/home/lawalsh/Granular/Squares/diffusion/'
+    extdir = '/media/bhavari/Squares/diffusion/still/'
+    import matplotlib
+    matplotlib.use("agg")
 else:
     print "computer not defined"
     print "where are you working?"
 
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
+from matplotlib import pyplot as pl
+from matplotlib import cm as cm
 
 
-prefix = 'array'
-dotfix = '_CORNER'
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.addargument('prefix')
+args = parser.parse_args()
+
+prefix = args.prefix#'n32_100mv_50hz'
+dotfix = ''#_CORNER'
 
 loaddata   = True   # Create and save structured array from data txt file?
 
@@ -36,10 +43,11 @@ plotmsd = False      # plot the MSD
 
 verbose = False
 
-bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+if plottracks:
+    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
-def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
+def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
@@ -217,8 +225,8 @@ def find_msds(dt0, dtau, tracks=None):
     print "Begin calculating MSDs"
     msds = []
     if tracks is None:
-        #tracks = xrange(max(trackids) + 1)
-        tracks = (78,  95, 191, 203, 322)
+        tracks = xrange(max(trackids) + 1)
+        #tracks = (78,  95, 191, 203, 322)
     for trackid in tracks:
         if verbose:
             print "calculating msd for track",trackid
@@ -234,8 +242,8 @@ def find_msds(dt0, dtau, tracks=None):
     return msds
 
 if findmsd:
-    dt0  = 50 # small for better statistics, larger for faster calc
-    dtau = 10 # int for stepwise, float for factorwise
+    dt0  = 5 # small for better statistics, larger for faster calc
+    dtau = 2 # int for stepwise, float for factorwise
     msds = find_msds(dt0, dtau)
             
 elif loadmsd:
