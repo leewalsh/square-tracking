@@ -33,10 +33,16 @@ Comparison of positional data to circles (from January grp mtg):
 
 Single Particle diffusion:
 	Take data for single (very few) particle(s)
+		Vary frequency and amplitude of shaker
 	Spatial & orientational diffusion / MSD
+		Find Diffusion Constant (and time constant)
+		Compare between translational v. rotational motion
+		How is it affected by the shaking parameters
 
-Drift:
-: Measure drift of center of mass over long times at different phi
+Drift/nonuniformity:
+	Measure drift of center of mass over long times at different phi
+	Measure diffusion/velocity as function of location
+
 Cage Dynamics:
 : Learn about MSD/Diffusion/Cage dynamics; tau_cage, tau_neigh, etc
 
