@@ -293,7 +293,7 @@ def track_orient(data, odata, track, tracks, omask=None):
     crossings = crossings.cumsum() * 2 * np.pi
     return odata['orient'][mask] + crossings
 
-def plot_orient_time(data, odata, tracks, omask=None, delta=False):
+def plot_orient_time(data, odata, tracks, omask=None, delta=False, simplify=False):
     if computer is not 'rock':
         print 'computer must be on rock'
         return False
@@ -301,6 +301,8 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False):
     if omask is None:
         omask = np.isfinite(odata['orient'])
     goodtracks = set(tracks[omask])
+    if simplify:
+        goodtracks = list(goodtracks)[:4]
     print 'good tracks are', goodtracks
     #tmask = np.in1d(tracks,goodtracks)
     pl.figure()
@@ -310,13 +312,13 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False):
         fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
         if fullmask.sum() < 1:
             continue
-        plotrange = slice(None,None)
+        plotrange = slice(None,600 if simplify else None)
         if delta:
             c = colors[goodtrack%7]
             pl.plot(data['f'][fullmask][plotrange],
                     odata['orient'][fullmask][plotrange],
                     c=c,label="Track {}".format(goodtrack))
-            pl.plot(data['f'][fullmask][plotrange][1:],
+            pl.plot(data['f'][fullmask][plotrange][0 if simplify else 1:],
                     np.diff(odata['orient'][fullmask])[plotrange],
                     'o', c=c,label='delta {}'.format(goodtrack))
         else:
