@@ -24,32 +24,34 @@ from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
 
-from argparse import ArgumentParser
+if __name__=='__main__':
+    from argparse import ArgumentParser
 
-parser = ArgumentParser()
-parser.add_argument('prefix')
-args = parser.parse_args()
+    parser = ArgumentParser()
+    parser.add_argument('prefix')
+    args = parser.parse_args()
 
-prefix = args.prefix#'n32_100mv_50hz'
-print 'using prefix', prefix
-dotfix = ''#_CORNER'
-if dotfix:
-    print 'using dotfix', dotfix
+    prefix = args.prefix#'n32_100mv_50hz'
+    print 'using prefix', prefix
+    dotfix = ''#_CORNER'
+    if dotfix:
+        print 'using dotfix', dotfix
 
 loaddata   = False   # Create and save structured array from data txt file?
 
 findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
 
-findmsd = True      # Calculate the MSD
-loadmsd = False     # load previoius MSD from npz file
+findmsd = False      # Calculate the MSD
+loadmsd = False      # load previoius MSD from npz file
 plotmsd = False      # plot the MSD
 
 verbose = False
 
 if plottracks:
     bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
-datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
+if loaddata:
+    datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
@@ -133,6 +135,7 @@ if __name__=='__main__':
         print "saving data only (no tracks)"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
                 data = data)
+        print '\t...saved'
     else: 
         # assume existing tracks.npz
         print "loading tracks from npz files"
@@ -153,6 +156,7 @@ if __name__=='__main__':
         np.savez(locdir+prefix+'_ORIENTATION.npz',
                 odata=odata,
                 omask=omask)
+        print '\t...saved'
 
 
 # Plotting tracks:
