@@ -292,13 +292,16 @@ def plot_msd(data, msds, dtau, dt0,tnormalize=0, prefix=''):
             msd[:lim,1] += np.array(tmsd)[:lim,1]
             added[:lim] += 1.
     #assert not np.any(added==0), "no tmsd for some value of tau!"
-    #TODO FIX THIS!  don't just divide these by one:
+    #TODO FIX THIS!  don't just divide these by one: -- why not?
     added[added==0]=1
     msd[:,1] /= added
     if tnormalize:
-        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Disp/Time")
-        pl.semilogx(taus, msd[0,1]*np.ones_like(taus)/dtau,
+        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0]**tnormalize,'ko',label="Mean Sq Disp/Time")
+        pl.semilogx(taus, msd[0,1]*taus**(1-tnormalize)/dtau,
                 'k-',label="ref slope = 1",lw=4)
+        pl.semilogx(taus, 1.*taus**(0)/taus**(tnormalize),
+                'k--',label="One particle area",lw=2)
+        pl.ylim([0,1.5*np.max(msd[:,1]/msd[:,0]**tnormalize)])
     else:
         pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
         pl.loglog(taus, msd[0,1]*taus/dtau,

@@ -285,7 +285,7 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=False):
+def plot_msd(data, msds, dtau, dt0, tnormalize=False,prefix='',show_tracks=True,plfunc=pl.semilogx):
     """ Plots the MSDs"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
@@ -293,7 +293,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False):
         msd = np.transpose([taus, np.zeros_like(taus)])
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
-        msd = np.transpose([np.arange(dtau, nframes, dtau), np.zeros(-(-nframes/dtau) - 1)])
+        msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = np.zeros(len(msd), float)
     for tmsd in msds:
@@ -302,8 +302,9 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False):
                 tmsdt, tmsdd = zip(*tmsd)
                 tmsdt = np.asarray(tmsdt)
                 tmsdd = np.asarray(tmsdd)
-                pl.semilogx(tmsdt, tmsdd/tmsdt)
-            else:
+                if show_tracks:
+                    plfunc(tmsdt, tmsdd/tmsdt**tnormalize)
+            elif show_tracks:
                 pl.loglog(*zip(*tmsd))
             lim = min(len(msd), len(tmsd))
             msd[:lim,1] += np.array(tmsd)[:lim,1]
@@ -311,18 +312,19 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False):
     assert not np.any(msd[:,1]==0), "no tmsd for some value of tau!"
     msd[:,1] /= added
     if tnormalize:
-        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0],'ko',label="Mean Sq Angular Disp/Time")
-        pl.semilogx(taus, msd[0,1]*np.ones_like(taus)/dtau,
+        plfunc(msd[:,0],msd[:,1]/msd[:,0]**tnormalize,
+                'ko',label="Mean Sq Angular Disp/Time{}".format("^{}".format(tnormalize) if tnormalize != 1 else ''))
+        plfunc(taus, msd[0,1]*taus**(1-tnormalize)/dtau,
                 'k-',label="ref slope = 1",lw=4)
-        #pl.semilogx(taus, np.ones_like(taus)*4*np.pi**2/taus,
-        #        'k--',label=r"$(2\pi)^2$")
+        plfunc(taus, np.ones_like(taus)*4*np.pi**2/taus**tnormalize,
+                'k--',label=r"$(2\pi)^2$",lw=2)
+        pl.ylim([0,1.1*np.max(msd[:,1]/msd[:,0]**tnormalize)])
     else:
         pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Angular Disp")
         pl.loglog(taus, msd[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
         pl.loglog(taus, np.ones_like(taus)*4*np.pi**2,
                 'k--',label=r"$(2\pi)^2$")
-    pl.xlim([2,1000])
     pl.legend(loc=2)
     pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
     pl.xlabel('Time tau (Image frames)')
