@@ -13,7 +13,7 @@ if 'rock' in hostname:
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/diffusion/'
-    extdir = '/media/bhavari/Squares/lighting/still/'
+    extdir = '/media/bhavari/Squares/diffusion/still/'
     import matplotlib
     matplotlib.use("agg")
 else:
@@ -53,15 +53,16 @@ if plottracks:
 if loaddata:
     datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
-def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
+def find_closest(thisdot, trackids, n=1, maxdist=25., giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
-        print "New track:",newtrackid
-        print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+        if verbose:
+            print "New track:", newtrackid
+            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
         oldframe = data[data['f']==frame-n]
@@ -70,17 +71,19 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
         if min(dists) < maxdist:
             return trackids[closest['id']]
         elif n < giveup:
-            return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
+            return find_closest(thisdot, trackids, n=n+1, maxdist=maxdist, giveup=giveup)
         else: # give up after giveup frames
-            print "Recursed {} times, giving up. frame = {} ".format(n,frame)
+            if verbose:
+                print "Recursed {} times, giving up. frame = {} ".format(n, frame)
             newtrackid = max(trackids) + 1
-            print "New track:",newtrackid
-            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+            if verbose:
+                print "New track:", newtrackid
+                print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
             return newtrackid
 
 # Tracking
 def load_data(datapath):
-    print "loading data from",datapath
+    print "loading data from", datapath
     if  datapath.endswith('results.txt'):
         shapeinfo = False
         # imagej output (called *_results.txt)
@@ -100,7 +103,7 @@ def load_data(datapath):
                 skip_header = 1,
                 names = "f,x,y,lab,ecc,area",
                 dtype = [int,float,float,int,float,int])
-        data = append_fields(data,'id',np.arange(data.shape[0]), usemask=False)
+        data = append_fields(data, 'id', np.arange(data.shape[0]), usemask=False)
     else:
         print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
@@ -111,7 +114,7 @@ if loaddata:
     print "\t...loaded"
 
 
-def find_tracks(data, giveup=1000):
+def find_tracks(data, giveup = 1000):
     sys.setrecursionlimit(2*giveup)
 
     trackids = -np.ones(data.shape, dtype=int)
@@ -164,10 +167,10 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.figure()
     pl.scatter( data['y'], data['x'],
             c=np.array(trackids)%12, marker='o')
-    pl.imshow(bgimage,cmap=cm.gray,origin='upper')
+    pl.imshow(bgimage, cmap=cm.gray, origin='upper')
     pl.title(prefix)
     print "saving tracks image"
-    pl.savefig(locdir+prefix+"_tracks.png",dpi=180)
+    pl.savefig(locdir+prefix+"_tracks.png", dpi=180)
     pl.show()
 
 if plottracks and computer is 'rock':
@@ -181,14 +184,14 @@ if plottracks and computer is 'rock':
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
-def farange(start,stop,factor):
+def farange(start, stop, factor):
     start_power = np.log(start)/np.log(factor)
     stop_power = np.log(stop)/np.log(factor)
-    return factor**np.arange(start_power,stop_power)
+    return factor**np.arange(start_power, stop_power)
 
 from orientation import track_orient
-def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
-    """ trackmsd(track,dt0,dtau,odata,omask)
+def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
+    """ trackmsd(track, dt0, dtau, odata, omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
     """
     tmsd = []
@@ -199,20 +202,20 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
     trackbegin = trackdots['f'][0]
     tracklen = trackend - trackbegin + 1
     if verbose:
-        print "tracklen =",tracklen
+        print "tracklen =", tracklen
         print "\t from %d to %d"%(trackbegin, trackend)
     if isinstance(dtau, float):
         taus = farange(dt0, tracklen, dtau)
-    elif isinstance(dtau,int):
+    elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
-        #print "tau =",tau
-        avg = t0avg(trackdots,tracklen,tau,trackodata,dt0,mod_2pi=mod_2pi)
-        #print "avg =",avg
+        #print "tau =", tau
+        avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=mod_2pi)
+        #print "avg =", avg
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]]) 
+            tmsd.append([tau, avg[0]]) 
     if verbose:
-        print "\t...actually",len(tmsd)
+        print "\t...actually", len(tmsd)
     return tmsd
 
 def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
@@ -244,7 +247,7 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False):
+def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
     print locdir
@@ -285,7 +288,7 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=False,prefix='',show_tracks=True,plfunc=pl.semilogx):
+def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
     """ Plots the MSDs"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
@@ -313,23 +316,24 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False,prefix='',show_tracks=True,
     msd[:,1] /= added
     if tnormalize:
         plfunc(msd[:,0],msd[:,1]/msd[:,0]**tnormalize,
-                'ko',label="Mean Sq Angular Disp/Time{}".format("^{}".format(tnormalize) if tnormalize != 1 else ''))
+                'ko', label="Mean Sq Angular Disp/Time{}".format(
+                    "^{}".format(tnormalize) if tnormalize != 1 else ''))
         plfunc(taus, msd[0,1]*taus**(1-tnormalize)/dtau,
                 'k-',label="ref slope = 1",lw=4)
-        plfunc(taus, np.ones_like(taus)*4*np.pi**2/taus**tnormalize,
-                'k--',label=r"$(2\pi)^2$",lw=2)
+        plfunc(taus, 4*np.pi**2*taus**(-tnormalize),
+                'k--', label=r"$(2\pi)^2$", lw=2)
         pl.ylim([0,1.1*np.max(msd[:,1]/msd[:,0]**tnormalize)])
     else:
         pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Angular Disp")
         pl.loglog(taus, msd[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
         pl.loglog(taus, np.ones_like(taus)*4*np.pi**2,
-                'k--',label=r"$(2\pi)^2$")
-    pl.legend(loc=2)
-    pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+                'k--', label=r"$(2\pi)^2$")
+    pl.legend(loc=2 if tnormalize else 4)
+    pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0, dtau))
     pl.xlabel('Time tau (Image frames)')
     pl.ylabel('Squared Angular Displacement ('+r'$radians^2$'+')')
-    pl.savefig(locdir+prefix+"_MSAD.png",dpi=180)
+    pl.savefig(locdir+prefix+"_MSAD.png", dpi=180)
     pl.show()
 
 if plotmsd and computer is 'rock':
