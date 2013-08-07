@@ -42,9 +42,10 @@ loaddata   = False   # Create and save structured array from data txt file?
 findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
 
-findmsd = False      # Calculate the MSD
-loadmsd = False      # load previoius MSD from npz file
-plotmsd = False      # plot the MSD
+formula = 'pos_ang'
+findcorr = False      # Calculate the corr
+loadcorr = False      # load previoius corr from npz file
+plotcorr = False      # plot the corr
 
 verbose = False
 
@@ -145,7 +146,22 @@ if __name__=='__main__':
         tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
         data = tracksnpz['data']
         trackids = tracksnpz['trackids']
+        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
+        cdata = cdatanpz['data']
         print "\t...loaded"
+    try:
+        odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
+        odata = odatanpz['odata']
+        omask = odatanpz['omask']
+    except IOError:
+        print "calculating orientation data"
+        from orientation import get_angles_loop
+        odata, omask = get_angles_loop(data, cdata)
+        np.savez(locdir+prefix+'_ORIENTATION.npz',
+                odata=odata,
+                omask=omask)
+        print '\t...saved'
+
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None):
@@ -175,13 +191,19 @@ def farange(start, stop, factor):
     return factor**np.arange(start_power, stop_power)
 
 from orientation import track_orient
-def trackmsd(track, dt0, dtau):
-    """ trackmsd(track, dt0, dtau)
-        finds the track msd, as function of tau, averaged over t0, for one track (worldline)
+def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula='', mod_2pi=False):
+    """ track_corr(track, dt0, dtau, odata, omask)
+        finds the track corr, as function of tau, averaged over t0, for one track (worldline)
     """
-    tmsd = []
-    trackdots = data[trackids==track]
-    trackend =   trackdots['f'][-1]
+    tcorr = []
+    formula = formula.lower()
+    pos = formula.count('pos') or formula.count('tr')
+    ang = formula.count('ang') or formula.count('ori')
+    mask = (trackids==track) & omask if ang else trackids==track
+    trackdots = data[mask]
+    trackodata = (odata[mask]['orient'] if mod_2pi
+            else track_orient(data, odata, track, trackids, omask)) if ang else None
+    trackend   = trackdots['f'][-1]
     trackbegin = trackdots['f'][0]
     tracklen = trackend - trackbegin + 1
     if verbose:
@@ -193,75 +215,99 @@ def trackmsd(track, dt0, dtau):
         taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =", tau
-        avg = t0avg(trackdots, tracklen, tau)
+        avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi)
         #print "avg =", avg
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau, avg[0]]) 
+            tcorr.append([tau, avg[0]])
     if verbose:
-        print "\t...actually", len(tmsd)
-    return tmsd
+        print "\t...actually", len(tcorr)
+    return tcorr
 
-def t0avg(trackdots, tracklen, tau):
+def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
     """ t0avg() averages over all t0, for given track, given tau """
-    totsqdisp = 0.0
+    totsq = 0.0
     nt0s = 0.0
-    for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
-        olddot = trackdots[trackdots['f']==t0]
-        newdot = trackdots[trackdots['f']==t0+tau]
-        if (len(newdot) != 1):
-            #print "newdot:",newdot
-            continue
-        elif (len(olddot) != 1):
-            #print "olddot:",olddot
-            continue
-        sqdisp  = (newdot['x'] - olddot['x'])**2 \
-                + (newdot['y'] - olddot['y'])**2
-        if len(sqdisp) == 1:
-            #print 'unflattened'
-            totsqdisp += sqdisp
-        elif len(sqdisp[0]) == 1:
+    formula = formula.lower()
+    pos = formula.count('pos') or formula.count('tr')
+    ang = formula.count('ang') or formula.count('ori')
+
+    for t0 in np.arange(1, (tracklen-tau-1), dt0): # for t0 in (T - tau - 1), by dt0 stepsize
+        quantity = 1.
+        if pos:
+            olddot = trackdots[trackdots['f']==t0]
+            newdot = trackdots[trackdots['f']==t0+tau]
+            if len(newdot) != 1 or len(olddot) != 1:
+                continue
+            sqdisp = (newdot['x'] - olddot['x'])**2 \
+                   + (newdot['y'] - olddot['y'])**2
+            quantity *= sqdisp
+
+        if ang:
+            oldorient = trackodata[trackdots['f']==t0]
+            neworient = trackodata[trackdots['f']==t0+tau]
+            if len(neworient) != 1 or len(oldorient) != 1:
+                continue
+            if mod_2pi:
+                odisp = (newdot - olddot)%(2*np.pi)
+                if odisp > np.pi:
+                    odisp -= 2*np.pi
+            else:
+                odisp = newdot - olddot
+            sqodisp = odisp**2
+            quantity *= sqodisp
+
+        if len(quantity) == 1:
+            totsq += quantity
+        elif len(quantity[0]) == 1:
             print 'flattened once'
-            totsqdisp += sqdisp[0]
+            totsq += quantity[0]
         else:
             print "fail"
             continue
-        nt0s += 1.0
-    return totsqdisp/nt0s if nt0s else None
+        nt0s += 1
+    return totsq/nt0s if nt0s else None
 
-def find_msds(dt0, dtau, tracks=None):
-    """ Calculates the MSDs"""
-    print "Begin calculating MSDs"
-    msds = []
+def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False):
+    """ Calculates the correlation given by formula"""
+    print "Begin calculating correlation:", formula
+    corr = []
     if tracks is None:
         tracks = set(trackids)
     for trackid in tracks:
         if verbose:
-            print "calculating msd for track", trackid
-        tmsd = trackmsd(trackid, dt0, dtau)
-        msds.append(tmsd)
+            print "calculating corr for track", trackid
+        tcorr = track_corr(track, dt0, dtau, data, trackids, odata, omask, formula, mod_2pi):
+        corr.append(tcorr)
 
-    msds = np.asarray(msds)
-    print "saving msd data"
-    np.savez(locdir+prefix+"_MSD",
-            msds = msds,
+    corr = np.asarray(corr)
+    print "saving corr data",formula
+    if formula.count('pos'):
+        suffix = 'ATC' if formula.count('ang') else 'MSD'
+    else:
+        suffix = 'MSAD'
+    np.savez(locdir+prefix+'_'+suffix,
+            corr = corr,
             dt0  = np.asarray(dt0),
             dtau = np.asarray(dtau))
     print "\t...saved"
-    return msds
+    return corr
 
-if findmsd:
+if findcorr:
     dt0  = 100 # small for better statistics, larger for faster calc
     dtau = 10 # int for stepwise, float for factorwise
-    msds = find_msds(dt0, dtau)
+    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask):
             
-elif loadmsd:
-    print "loading msd data from npz files"
-    msdnpz = np.load(locdir+prefix+"_MSD.npz")
-    msds = msdnpz['msds']
-    if msdnpz['dt0']:
-        dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
-        dtau = msdnpz['dtau'][()]
+elif loadcorr:
+    print "loading corr ({}) data from npz files".format(formula)
+    if formula.count('pos'):
+        suffix = 'ATC' if formula.count('ang') else 'MSD'
+    else:
+        suffix = 'MSAD'
+    corrnpz = np.load(locdir+prefix+'_'+suffix+".npz")
+    corr = corrnpz['corr']
+    if corrnpz['dt0']:
+        dt0  = corrnpz['dt0'][()] # [()] gets element from 0D array
+        dtau = corrnpz['dtau'][()]
     else:
         dt0  = 10 # here's assuming...
         dtau = 10 #  should be true for all from before dt* was saved
@@ -269,48 +315,48 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
-    """ Plots the MSDs"""
+def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
+    """ Plots the corr"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
         taus = farange(dt0, nframes, dtau)
-        msd = np.transpose([taus, np.zeros_like(taus)])
+        corr = np.transpose([taus, np.zeros_like(taus)])
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
-        msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
+        corr = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
-    added = np.zeros(len(msd), float)
-    for tmsd in msds:
-        if len(tmsd) > 0:
-            tmsd = np.asarray(tmsd)
-            tmsd[:,1] /= 22**2 # convert to unit "particle area"
+    added = np.zeros(len(corr), float)
+    for tcorr in corr:
+        if len(tcorr) > 0:
+            tcorr = np.asarray(tcorr)
+            tcorr[:,1] /= 22**2 # convert to unit "particle area"
             if tnormalize:
-                tmsdt, tmsdd = zip(*tmsd)
-                tmsdt = np.asarray(tmsdt)
-                tmsdd = np.asarray(tmsdd)
+                tcorrt, tcorrd = zip(*tcorr)
+                tcorrt = np.asarray(tcorrt)
+                tcorrd = np.asarray(tcorrd)
                 if show_tracks:
-                    plfunc(tmsdt, tmsdd/tmsdt**tnormalize)
+                    plfunc(tcorrt, tcorrd/tcorrt**tnormalize)
             elif show_tracks:
-                pl.loglog(*zip(*tmsd))
-            lim = min(len(msd), len(tmsd))
-            msd[:lim,1] += np.array(tmsd)[:lim,1]
+                pl.loglog(*zip(*tcorr))
+            lim = min(len(corr), len(tcorr))
+            corr[:lim,1] += np.array(tcorr)[:lim,1]
             added[:lim] += 1.
-    #assert not np.any(added==0), "no tmsd for some value of tau!"
+    assert not np.any(added==0), "no tcorr for some value of tau!"
     #TODO FIX THIS!  don't just divide these by one: -- why not?
-    added[added==0]=1
-    msd[:,1] /= added
+    #added[added==0]=1
+    corr[:,1] /= added
     if tnormalize:
-        plfunc(msd[:,0],msd[:,1]/msd[:,0]**tnormalize,
+        plfunc(corr[:,0],corr[:,1]/corr[:,0]**tnormalize,
                 'ko', label="Mean Sq Disp/Time{}".format(
                     "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, msd[0,1]*taus**(1-tnormalize)/dtau,
+        plfunc(taus, corr[0,1]*taus**(1-tnormalize)/dtau,
                 'k-',label="ref slope = 1",lw=4)
         plfunc(taus, taus**(-tnormalize),
                 'k--', label="One particle area", lw=2)
-        pl.ylim([0,1.5*np.max(msd[:,1]/msd[:,0]**tnormalize)])
+        pl.ylim([0,1.5*np.max(corr[:,1]/corr[:,0]**tnormalize)])
     else:
-        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
-        pl.loglog(taus, msd[0,1]*taus/dtau,
+        pl.loglog(corr[:,0],corr[:,1],'ko',label="Mean Sq Disp")
+        pl.loglog(taus, corr[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
         pl.loglog(taus, np.ones_like(taus)
                 'k--', label="One particle area")
@@ -321,7 +367,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
     pl.savefig(locdir+prefix+"_MSD.png", dpi=180)
     pl.show()
 
-if plotmsd and computer is 'rock':
+if plotcorr and computer is 'rock':
     print 'plotting now!'
-    plot_msd(data, msds)
+    plot_corr(data, corr)
 
