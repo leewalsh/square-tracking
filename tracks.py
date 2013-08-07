@@ -200,6 +200,10 @@ def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula
     pos = formula.count('pos') or formula.count('tr')
     ang = formula.count('ang') or formula.count('ori')
     mask = (trackids==track) & omask if ang else trackids==track
+    if mask.sum() <= 1:
+        if verbose:
+            print 'for track {}, mask size is {}, skipping this track'.format(track,mask.sum())
+        return None
     trackdots = data[mask]
     trackodata = (odata[mask]['orient'] if mod_2pi
             else track_orient(data, odata, track, trackids, omask)) if ang else None
@@ -248,11 +252,11 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
             if len(neworient) != 1 or len(oldorient) != 1:
                 continue
             if mod_2pi:
-                odisp = (newdot - olddot)%(2*np.pi)
+                odisp = (neworient - oldorient)%(2*np.pi)
                 if odisp > np.pi:
                     odisp -= 2*np.pi
             else:
-                odisp = newdot - olddot
+                odisp = neworient - oldorient
             sqodisp = odisp**2
             quantity *= sqodisp
 
@@ -276,8 +280,9 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     for trackid in tracks:
         if verbose:
             print "calculating corr for track", trackid
-        tcorr = track_corr(track, dt0, dtau, data, trackids, odata, omask, formula, mod_2pi):
-        corr.append(tcorr)
+        tcorr = track_corr(trackid, dt0, dtau, data, trackids, odata, omask, formula, mod_2pi)
+        if tcorr is not None:
+            corr.append(tcorr)
 
     corr = np.asarray(corr)
     print "saving corr data",formula
@@ -295,7 +300,7 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
 if findcorr:
     dt0  = 100 # small for better statistics, larger for faster calc
     dtau = 10 # int for stepwise, float for factorwise
-    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask):
+    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask)
             
 elif loadcorr:
     print "loading corr ({}) data from npz files".format(formula)
@@ -358,7 +363,7 @@ def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tr
         pl.loglog(corr[:,0],corr[:,1],'ko',label="Mean Sq Disp")
         pl.loglog(taus, corr[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
-        pl.loglog(taus, np.ones_like(taus)
+        pl.loglog(taus, np.ones_like(taus),
                 'k--', label="One particle area")
     pl.legend(loc=2 if tnormalize else 4)
     pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0, dtau))
