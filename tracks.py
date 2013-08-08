@@ -238,17 +238,15 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
     ang = formula.count('ang') or formula.count('ori')
 
     for t0 in np.arange(1, (tracklen-tau-1), dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        quantity = 1.
-        if pos:
+        if pos and not ang:
             olddot = trackdots[trackdots['f']==t0]
             newdot = trackdots[trackdots['f']==t0+tau]
             if len(newdot) != 1 or len(olddot) != 1:
                 continue
             sqdisp = (newdot['x'] - olddot['x'])**2 \
                    + (newdot['y'] - olddot['y'])**2
-            quantity *= sqdisp
-
-        if ang:
+            quantity = sqdisp
+        elif ang and not pos:
             oldorient = trackodata[trackdots['f']==t0]
             neworient = trackodata[trackdots['f']==t0+tau]
             if len(neworient) != 1 or len(oldorient) != 1:
@@ -260,7 +258,28 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
             else:
                 odisp = neworient - oldorient
             sqodisp = odisp**2
-            quantity *= sqodisp
+            quantity = sqodisp
+        elif ang and pos:
+            dt = 8
+            olddot = trackdots[trackdots['f']==t0]
+            newdot = trackdots[trackdots['f']==t0+dt]
+            if len(newdot) != 1 or len(olddot) != 1:
+                continue
+            sqdisp = (newdot['x'] - olddot['x'])**2 \
+                   + (newdot['y'] - olddot['y'])**2
+
+            oldorient = trackodata[trackdots['f']==t0+tau]
+            neworient = trackodata[trackdots['f']==t0+tau+dt]
+            if len(neworient) != 1 or len(oldorient) != 1:
+                continue
+            if mod_2pi:
+                odisp = (neworient - oldorient)%(2*np.pi)
+                if odisp > np.pi:
+                    odisp -= 2*np.pi
+            else:
+                odisp = neworient - oldorient
+            sqodisp = odisp**2
+            quantity = sqdisp * sqodisp
 
         if len(quantity) == 1:
             totsq += quantity
