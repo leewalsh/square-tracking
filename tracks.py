@@ -23,8 +23,11 @@ else:
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
+is_main = __name__=='__main__'
 
-if __name__=='__main__':
+verbose = True
+
+if is_main:
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
@@ -37,22 +40,21 @@ if __name__=='__main__':
     if dotfix:
         print 'using dotfix', dotfix
 
-loaddata   = False   # Create and save structured array from data txt file?
+    loaddata   = False   # Create and save structured array from data txt file?
 
-findtracks = False   # Connect the dots and save in 'trackids' field of data
-plottracks = False   # plot their tracks
+    findtracks = False   # Connect the dots and save in 'trackids' field of data
+    plottracks = False   # plot their tracks
 
-formula = 'pos_ang'
-findcorr = False      # Calculate the corr
-loadcorr = False      # load previoius corr from npz file
-plotcorr = False      # plot the corr
+    formula = 'pos_ang'
+    findcorr = True      # Calculate the corr
+    loadcorr = False      # load previoius corr from npz file
+    plotcorr = False      # plot the corr
 
-verbose = False
 
-if plottracks:
-    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
-if loaddata:
-    datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
+    if plottracks:
+        bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
+    if loaddata:
+        datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
 def find_closest(thisdot, trackids, n=1, maxdist=25., giveup=1000):
     """ recursive function to find nearest dot in previous frame.
@@ -110,7 +112,7 @@ def load_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-if loaddata:
+if is_main and loaddata:
     data = load_data(datapath)
     print "\t...loaded"
 
@@ -132,7 +134,7 @@ def find_tracks(data, giveup = 1000):
 
     return trackids
 
-if __name__=='__main__':
+if is_main:
     if findtracks:
         trackids = find_tracks(data)
     elif loaddata:
@@ -174,7 +176,7 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.savefig(locdir+prefix+"_tracks.png", dpi=180)
     pl.show()
 
-if plottracks and computer is 'rock':
+if is_main and plottracks and computer is 'rock':
     try:
         bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
     except IOError:
@@ -297,8 +299,8 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     print "\t...saved"
     return corr
 
-if findcorr:
-    dt0  = 100 # small for better statistics, larger for faster calc
+if is_main and findcorr:
+    dt0  = 10 # small for better statistics, larger for faster calc
     dtau = 10 # int for stepwise, float for factorwise
     corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask)
             
@@ -372,7 +374,7 @@ def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tr
     pl.savefig(locdir+prefix+"_MSD.png", dpi=180)
     pl.show()
 
-if plotcorr and computer is 'rock':
+if is_main and plotcorr and computer is 'rock':
     print 'plotting now!'
     plot_corr(data, corr)
 
