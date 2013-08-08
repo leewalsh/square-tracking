@@ -322,7 +322,7 @@ elif loadcorr:
 
 # Mean Squared Displacement:
 
-def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
+def plot_corr(formula, data, corrs, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
     """ Plots the corr"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
@@ -333,10 +333,19 @@ def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tr
         corr = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = np.zeros(len(corr), float)
-    for tcorr in corr:
+
+    if formula.count('pos'):
+        suffix = 'ATC' if formula.count('ang') else 'MSD'
+        corrunit = '' if formula.count('ang') else 'particle area'
+    else:
+        suffix = 'MSAD'
+        corrunit = 'radian'+r'$^2$'
+
+    for tcorr in corrs:
         if len(tcorr) > 0:
             tcorr = np.asarray(tcorr)
-            tcorr[:,1] /= 22**2 # convert to unit "particle area"
+            if 'pos' in formula:
+                tcorr[:,1] /= 22**2 # convert to unit "particle area"
             if tnormalize:
                 tcorrt, tcorrd = zip(*tcorr)
                 tcorrt = np.asarray(tcorrt)
@@ -348,29 +357,29 @@ def plot_corr(data, corr, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tr
             lim = min(len(corr), len(tcorr))
             corr[:lim,1] += np.array(tcorr)[:lim,1]
             added[:lim] += 1.
-    assert not np.any(added==0), "no tcorr for some value of tau!"
+    #assert not np.any(corr[:,1]==0), "no tcorr for some value of tau!"
     #TODO FIX THIS!  don't just divide these by one: -- why not?
-    #added[added==0]=1
+    added[added==0]=1
     corr[:,1] /= added
     if tnormalize:
         plfunc(corr[:,0],corr[:,1]/corr[:,0]**tnormalize,
-                'ko', label="Mean Sq Disp/Time{}".format(
+                'ko', label="<{}>/Time{}".format(formula,
                     "^{}".format(tnormalize) if tnormalize != 1 else ''))
         plfunc(taus, corr[0,1]*taus**(1-tnormalize)/dtau,
                 'k-',label="ref slope = 1",lw=4)
-        plfunc(taus, taus**(-tnormalize),
-                'k--', label="One particle area", lw=2)
+        plfunc(taus, (1.0*taus)**(-tnormalize),
+                'k--', label="One "+corrunit, lw=2)
         pl.ylim([0,1.5*np.max(corr[:,1]/corr[:,0]**tnormalize)])
     else:
-        pl.loglog(corr[:,0],corr[:,1],'ko',label="Mean Sq Disp")
+        pl.loglog(corr[:,0],corr[:,1],'ko',label='<'+formula+'>')
         pl.loglog(taus, corr[0,1]*taus/dtau,
                 'k-',label="ref slope = 1",lw=4)
         pl.loglog(taus, np.ones_like(taus),
-                'k--', label="One particle area")
+                'k--', label="One "+corrunit)
     pl.legend(loc=2 if tnormalize else 4)
-    pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0, dtau))
+    pl.title(prefix+' <'+formula+'>\ndt0=%d dtau=%d'%(dt0, dtau))
     pl.xlabel('Time tau (Image frames)')
-    pl.ylabel('Squared Displacement (particle area '+r'$s^2$'+')')
+    pl.ylabel('Squared'+(' Angular ' if 'radian' in corrunit else ' ')+'Displacement ('+corrunit+')')
     pl.savefig(locdir+prefix+"_MSD.png", dpi=180)
     pl.show()
 
