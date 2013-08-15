@@ -315,9 +315,9 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     else:
         suffix = 'MSAD'
     np.savez(locdir+prefix+'_'+suffix,
-            corr = corr,
             dt0  = np.asarray(dt0),
-            dtau = np.asarray(dtau))
+            dtau = np.asarray(dtau)
+            **{suffix : corr})
     print "\t...saved"
     return corr
 
@@ -333,7 +333,7 @@ elif loadcorr:
     else:
         suffix = 'MSAD'
     corrnpz = np.load(locdir+prefix+'_'+suffix+".npz")
-    corr = corrnpz['corr']
+    corr = corrnpz[suffix]
     if corrnpz['dt0']:
         dt0  = corrnpz['dt0'][()] # [()] gets element from 0D array
         dtau = corrnpz['dtau'][()]
