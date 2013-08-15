@@ -218,7 +218,10 @@ def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula
     if isinstance(dtau, float):
         taus = farange(dt0, tracklen, dtau)
     elif isinstance(dtau, int):
-        taus = xrange(dtau, tracklen, dtau)
+        if dtau > 0:
+            taus = xrange(dtau, tracklen, dtau)
+        elif dtau < 0:
+            taus = xrange(dtau-tracklen, tracklen, -dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =", tau
         avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi)
@@ -237,7 +240,8 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
     pos = formula.count('pos') or formula.count('tr')
     ang = formula.count('ang') or formula.count('ori')
 
-    for t0 in np.arange(1, (tracklen-tau-1), dt0): # for t0 in (T - tau - 1), by dt0 stepsize
+    dt = 8
+    for t0 in np.arange(max(1,-tau), tracklen-max(0,tau)-1+dt, dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         if pos and not ang:
             olddot = trackdots[trackdots['f']==t0]
             newdot = trackdots[trackdots['f']==t0+tau]
@@ -260,7 +264,6 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
             sqodisp = odisp**2
             quantity = sqodisp
         elif ang and pos:
-            dt = 8
             olddot = trackdots[trackdots['f']==t0]
             newdot = trackdots[trackdots['f']==t0+dt]
             if len(newdot) != 1 or len(olddot) != 1:
@@ -341,15 +344,20 @@ elif loadcorr:
 
 # Mean Squared Displacement:
 
-def plot_corr(formula, data, corrs, dtau, dt0, tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
+def plot_corr(formula, data, corrs, dtau, dt0,
+              tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
     """ Plots the corr"""
     nframes = max(data['f'])
     if isinstance(dtau, float):
         taus = farange(dt0, nframes, dtau)
-        corr = np.transpose([taus, np.zeros_like(taus)])
     elif isinstance(dtau, int):
-        taus = np.arange(dtau, nframes, dtau)
-        corr = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
+        if dtau > 0:
+            taus = np.arange(dtau, nframes, dtau)
+        elif dtau < 0:
+            taus = np.arange(dtau-nframes, nframes, -dtau)
+    corr = np.transpose([taus, np.zeros_like(taus)]).astype(float)
+
+    plf = pl.semilogy if dtau < 0 else pl.loglog
     pl.figure()
     added = np.zeros(len(corr), float)
 
@@ -372,7 +380,7 @@ def plot_corr(formula, data, corrs, dtau, dt0, tnormalize=False, prefix='', show
                 if show_tracks:
                     plfunc(tcorrt, tcorrd/tcorrt**tnormalize)
             elif show_tracks:
-                pl.loglog(*zip(*tcorr))
+                plf(*zip(*tcorr))
             lim = min(len(corr), len(tcorr))
             corr[:lim,1] += np.array(tcorr)[:lim,1]
             added[:lim] += 1.
@@ -384,17 +392,23 @@ def plot_corr(formula, data, corrs, dtau, dt0, tnormalize=False, prefix='', show
         plfunc(corr[:,0],corr[:,1]/corr[:,0]**tnormalize,
                 'ko', label="<{}>/Time{}".format(formula,
                     "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, corr[0,1]*taus**(1-tnormalize)/dtau,
-                'k-',label="ref slope = 1",lw=4)
-        plfunc(taus, (1.0*taus)**(-tnormalize),
-                'k--', label="One "+corrunit, lw=2)
+        if dtau > 0:
+            plfunc(taus, corr[0,1]*taus**(1-tnormalize)/dtau,
+                    'k-',label="ref slope = 1",lw=4)
+            plfunc(taus, (1.0*taus)**(-tnormalize),
+                    'k--', label="One "+corrunit, lw=2)
+        else:
+            pl.xlim([-1000,1000])
         pl.ylim([0,1.5*np.max(corr[:,1]/corr[:,0]**tnormalize)])
     else:
-        pl.loglog(corr[:,0],corr[:,1],'ko',label='<'+formula+'>')
-        pl.loglog(taus, corr[0,1]*taus/dtau,
-                'k-',label="ref slope = 1",lw=4)
-        pl.loglog(taus, np.ones_like(taus),
-                'k--', label="One "+corrunit)
+        plf(corr[:,0],corr[:,1],'ko',label='<'+formula+'>')
+        if dtau > 0:
+            plf(taus, corr[0,1]*taus/dtau,
+                    'k-',label="ref slope = 1",lw=4)
+            plf(taus, np.ones_like(taus),
+                    'k--', label="One "+corrunit)
+        else:
+            pl.xlim([-1000,1000])
     pl.legend(loc=2 if tnormalize else 4)
     pl.title(prefix+' <'+formula+'>\ndt0=%d dtau=%d'%(dt0, dtau))
     pl.xlabel('Time tau (Image frames)')
