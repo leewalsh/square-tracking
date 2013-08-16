@@ -193,7 +193,7 @@ def farange(start, stop, factor):
     return factor**np.arange(start_power, stop_power)
 
 from orientation import track_orient
-def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula='', mod_2pi=False):
+def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula='', mod_2pi=False, stack=False):
     """ track_corr(track, dt0, dtau, odata, omask)
         finds the track corr, as function of tau, averaged over t0, for one track (worldline)
     """
@@ -222,80 +222,66 @@ def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula
             taus = xrange(dtau, tracklen, dtau)
         elif dtau < 0:
             taus = xrange(dtau-tracklen, tracklen, -dtau)
-    for tau in taus:  # for tau in T, by factor dtau
-        #print "tau =", tau
-        avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi)
-        #print "avg =", avg
-        if avg > 0 and not np.isnan(avg):
-            tcorr.append([tau, avg[0]])
+    if stack:
+        tcorr = t0avg(trackdots, tracklen, dtau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=stack)
+    else:
+        for tau in taus:  # for tau in T, by factor dtau
+            avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=stack)
+            if avg > 0 and np.isfinite(avg):
+                tcorr.append([tau, avg])
     if verbose:
         print "\t...actually", len(tcorr)
     return tcorr
 
-def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False):
+def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, stack=False):
     """ t0avg() averages over all t0, for given track, given tau """
     totsq = 0.0
     nt0s = 0.0
+    allsq = []
     formula = formula.lower()
     pos = formula.count('pos') or formula.count('tr')
     ang = formula.count('ang') or formula.count('ori')
 
+
     dt = 8
     for t0 in np.arange(max(1,-tau), tracklen-max(0,tau)-1+dt, dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        if pos and not ang:
-            olddot = trackdots[trackdots['f']==t0]
-            newdot = trackdots[trackdots['f']==t0+tau]
-            if len(newdot) != 1 or len(olddot) != 1:
+        if pos:
+            try:
+                olddot = trackdots[trackdots['f']==t0][0]
+                newdot = trackdots[trackdots['f']==t0+tau][0]
+            except IndexError:
                 continue
             sqdisp = (newdot['x'] - olddot['x'])**2 \
                    + (newdot['y'] - olddot['y'])**2
+        if ang:
+            try:
+                oldorient = trackodata[trackdots['f']==t0][0]
+                neworient = trackodata[trackdots['f']==t0+tau][0]
+            except IndexError:
+                continue
+            if mod_2pi:
+                odisp = (neworient - oldorient)%(2*np.pi)
+                if odisp > np.pi:
+                    odisp -= 2*np.pi
+            else:
+                odisp = neworient - oldorient
+            sqodisp = odisp**2
+
+        if pos and not ang:
             quantity = sqdisp
         elif ang and not pos:
-            oldorient = trackodata[trackdots['f']==t0]
-            neworient = trackodata[trackdots['f']==t0+tau]
-            if len(neworient) != 1 or len(oldorient) != 1:
-                continue
-            if mod_2pi:
-                odisp = (neworient - oldorient)%(2*np.pi)
-                if odisp > np.pi:
-                    odisp -= 2*np.pi
-            else:
-                odisp = neworient - oldorient
-            sqodisp = odisp**2
             quantity = sqodisp
         elif ang and pos:
-            olddot = trackdots[trackdots['f']==t0]
-            newdot = trackdots[trackdots['f']==t0+dt]
-            if len(newdot) != 1 or len(olddot) != 1:
-                continue
-            sqdisp = (newdot['x'] - olddot['x'])**2 \
-                   + (newdot['y'] - olddot['y'])**2
-
-            oldorient = trackodata[trackdots['f']==t0+tau]
-            neworient = trackodata[trackdots['f']==t0+tau+dt]
-            if len(neworient) != 1 or len(oldorient) != 1:
-                continue
-            if mod_2pi:
-                odisp = (neworient - oldorient)%(2*np.pi)
-                if odisp > np.pi:
-                    odisp -= 2*np.pi
-            else:
-                odisp = neworient - oldorient
-            sqodisp = odisp**2
             quantity = sqdisp * sqodisp
 
-        if len(quantity) == 1:
-            totsq += quantity
-        elif len(quantity[0]) == 1:
-            print 'flattened once'
-            totsq += quantity[0]
-        else:
-            print "fail"
-            continue
         nt0s += 1
-    return totsq/nt0s if nt0s else None
+        if stack:
+            allsq.append(quantity)
+        else:
+            totsq += quantity
+    return np.asarray(allsq) if stack else totsq/nt0s if nt0s else None
 
-def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False):
+def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False, stack=False):
     """ Calculates the correlation given by formula"""
     print "Begin calculating correlation:", formula
     corr = []
@@ -304,7 +290,7 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     for trackid in tracks:
         if verbose:
             print "calculating corr for track", trackid
-        tcorr = track_corr(trackid, dt0, dtau, data, trackids, odata, omask, formula, mod_2pi)
+        tcorr = track_corr(trackid, dt0, dtau, data, trackids, odata, omask, formula, mod_2pi, stack=stack)
         if tcorr is not None:
             corr.append(tcorr)
 
@@ -314,17 +300,17 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
         suffix = 'ATC' if formula.count('ang') else 'MSD'
     else:
         suffix = 'MSAD'
-    np.savez(locdir+prefix+'_'+suffix,
+    np.savez(locdir+prefix+'_'+'stacked'*stack+suffix,
             dt0  = np.asarray(dt0),
-            dtau = np.asarray(dtau)
+            dtau = np.asarray(dtau),
             **{suffix : corr})
     print "\t...saved"
     return corr
 
 if is_main and findcorr:
-    dt0  = 10 # small for better statistics, larger for faster calc
-    dtau = 10 # int for stepwise, float for factorwise
-    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask)
+    dt0  = 50 # small for better statistics, larger for faster calc
+    dtau = 100 # int for stepwise, float for factorwise
+    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=True)
             
 elif loadcorr:
     print "loading corr ({}) data from npz files".format(formula)
@@ -342,7 +328,9 @@ elif loadcorr:
         dtau = 10 #  should be true for all from before dt* was saved
     print "\t...loaded"
 
-# Mean Squared Displacement:
+def corr_hist(formula, data, corrs):
+    pl.hist(corrs)
+
 
 def plot_corr(formula, data, corrs, dtau, dt0,
               tnormalize=False, prefix='', show_tracks=True, plfunc=pl.semilogx):
