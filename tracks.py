@@ -221,7 +221,7 @@ def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula
         if dtau > 0:
             taus = xrange(dtau, tracklen, dtau)
         elif dtau < 0:
-            taus = xrange(dtau-tracklen, tracklen, -dtau)
+            taus = xrange(-tracklen/dtau*dtau, tracklen, -dtau)
     if stack:
         tcorr = t0avg(trackdots, tracklen, dtau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=stack)
     else:
@@ -242,10 +242,12 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, 
     pos = formula.count('pos') or formula.count('tr')
     ang = formula.count('ang') or formula.count('ori')
 
+    dt = 10 # constant step size in frames for derivative
 
-    dt = 8
     for t0 in np.arange(max(1,-tau), tracklen-max(0,tau)-1+dt, dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         if pos:
+            if ang:
+                tau, dt = dt, tau #swap values
             try:
                 olddot = trackdots[trackdots['f']==t0][0]
                 newdot = trackdots[trackdots['f']==t0+tau][0]
@@ -253,10 +255,13 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, 
                 continue
             sqdisp = (newdot['x'] - olddot['x'])**2 \
                    + (newdot['y'] - olddot['y'])**2
+        else:
+            dt = 0
+
         if ang:
             try:
-                oldorient = trackodata[trackdots['f']==t0][0]
-                neworient = trackodata[trackdots['f']==t0+tau][0]
+                oldorient = trackodata[trackdots['f']==t0+dt][0]
+                neworient = trackodata[trackdots['f']==t0+dt+tau][0]
             except IndexError:
                 continue
             if mod_2pi:
@@ -303,16 +308,16 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     np.savez(locdir+prefix+'_'+'stacked'*stack+suffix,
             dt0  = np.asarray(dt0),
             dtau = np.asarray(dtau),
-            **{suffix : corr})
+            **{suffix.lower()+'s' : corr})
     print "\t...saved"
     return corr
 
 if is_main and findcorr:
     dt0  = 50 # small for better statistics, larger for faster calc
-    dtau = 100 # int for stepwise, float for factorwise
-    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=True)
+    dtau = -100# int for stepwise, float for factorwise
+    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=False)
             
-elif loadcorr:
+elif is_main and loadcorr:
     print "loading corr ({}) data from npz files".format(formula)
     if formula.count('pos'):
         suffix = 'ATC' if formula.count('ang') else 'MSD'
@@ -342,7 +347,7 @@ def plot_corr(formula, data, corrs, dtau, dt0,
         if dtau > 0:
             taus = np.arange(dtau, nframes, dtau)
         elif dtau < 0:
-            taus = np.arange(dtau-nframes, nframes, -dtau)
+            taus = np.arange(-nframes/dtau*dtau, nframes, -dtau)
     corr = np.transpose([taus, np.zeros_like(taus)]).astype(float)
 
     plf = pl.semilogy if dtau < 0 else pl.loglog
@@ -385,8 +390,6 @@ def plot_corr(formula, data, corrs, dtau, dt0,
                     'k-',label="ref slope = 1",lw=4)
             plfunc(taus, (1.0*taus)**(-tnormalize),
                     'k--', label="One "+corrunit, lw=2)
-        else:
-            pl.xlim([-1000,1000])
         pl.ylim([0,1.5*np.max(corr[:,1]/corr[:,0]**tnormalize)])
     else:
         plf(corr[:,0],corr[:,1],'ko',label='<'+formula+'>')
@@ -395,8 +398,8 @@ def plot_corr(formula, data, corrs, dtau, dt0,
                     'k-',label="ref slope = 1",lw=4)
             plf(taus, np.ones_like(taus),
                     'k--', label="One "+corrunit)
-        else:
-            pl.xlim([-1000,1000])
+    if dtau<0:
+        pl.xlim([-500,500])
     pl.legend(loc=2 if tnormalize else 4)
     pl.title(prefix+' <'+formula+'>\ndt0=%d dtau=%d'%(dt0, dtau))
     pl.xlabel('Time tau (Image frames)')
