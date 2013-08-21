@@ -223,7 +223,9 @@ def track_corr(track, dt0, dtau, data, trackids, odata=None, omask=None, formula
         elif dtau < 0:
             taus = xrange(-tracklen/dtau*dtau, tracklen, -dtau)
     if stack:
-        tcorr = t0avg(trackdots, tracklen, dtau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=stack)
+        tau = dtau
+        tcorr = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=True) - \
+                t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=False)
     else:
         for tau in taus:  # for tau in T, by factor dtau
             avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, formula=formula, mod_2pi=mod_2pi, stack=stack)
@@ -242,12 +244,14 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, 
     pos = formula.count('pos') or formula.count('tr')
     ang = formula.count('ang') or formula.count('ori')
 
-    dt = 10 # constant step size in frames for derivative
+    if ang and pos:
+        dt = 10 # constant step size in frames for derivative
+        tau, dt = dt, tau #swap values
+    else:
+        dt = 0
 
     for t0 in np.arange(max(1,-tau), tracklen-max(0,tau)-1+dt, dt0): # for t0 in (T - tau - 1), by dt0 stepsize
         if pos:
-            if ang:
-                tau, dt = dt, tau #swap values
             try:
                 olddot = trackdots[trackdots['f']==t0][0]
                 newdot = trackdots[trackdots['f']==t0+tau][0]
@@ -255,8 +259,6 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, 
                 continue
             sqdisp = (newdot['x'] - olddot['x'])**2 \
                    + (newdot['y'] - olddot['y'])**2
-        else:
-            dt = 0
 
         if ang:
             try:
@@ -313,9 +315,9 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
     return corr
 
 if is_main and findcorr:
-    dt0  = 50 # small for better statistics, larger for faster calc
-    dtau = -100# int for stepwise, float for factorwise
-    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=False)
+    dt0  = 10 # small for better statistics, larger for faster calc
+    dtau = 0# int for stepwise, float for factorwise
+    corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=True)
             
 elif is_main and loadcorr:
     print "loading corr ({}) data from npz files".format(formula)
@@ -334,7 +336,9 @@ elif is_main and loadcorr:
     print "\t...loaded"
 
 def corr_hist(formula, data, corrs):
-    pl.hist(corrs)
+    h = pl.hist(np.concatenate(corrs), bins=1000)
+    pl.xlim(0,10000)
+    return h
 
 
 def plot_corr(formula, data, corrs, dtau, dt0,
@@ -379,7 +383,7 @@ def plot_corr(formula, data, corrs, dtau, dt0,
             added[:lim] += 1.
     #assert not np.any(corr[:,1]==0), "no tcorr for some value of tau!"
     #TODO FIX THIS!  don't just divide these by one: -- why not?
-    added[added==0]=1
+    added[added==0] = 1
     corr[:,1] /= added
     if tnormalize:
         plfunc(corr[:,0],corr[:,1]/corr[:,0]**tnormalize,
