@@ -355,6 +355,7 @@ def plot_corr(formula, data, corrs, dtau, dt0,
     corr = np.transpose([taus, np.zeros_like(taus)]).astype(float)
 
     plf = pl.semilogy if dtau < 0 else pl.loglog
+    #plf = pl.plot if dtau < 0 else pl.semilogx
     pl.figure()
     added = np.zeros(len(corr), float)
 
@@ -402,8 +403,10 @@ def plot_corr(formula, data, corrs, dtau, dt0,
                     'k-',label="ref slope = 1",lw=4)
             plf(taus, np.ones_like(taus),
                     'k--', label="One "+corrunit)
-    if dtau<0:
-        pl.xlim([-500,500])
+    if plf is pl.plot or plf is pl.semilogy:
+        pl.xlim([0,max(taus)])
+    if plf is pl.plot or plf is pl.semilogx:
+        pl.ylim([0,max(corr[:,1])])
     pl.legend(loc=2 if tnormalize else 4)
     pl.title(prefix+' <'+formula+'>\ndt0=%d dtau=%d'%(dt0, dtau))
     pl.xlabel('Time tau (Image frames)')
