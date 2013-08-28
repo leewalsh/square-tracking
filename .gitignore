@@ -1,5 +1,6 @@
 
 *.tif
 *.pyc
+.ipynb_checkpoints/
 peakdetect.py
 
