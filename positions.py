@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass
+from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import filter, measure, segmentation
 from skimage.morphology import label, square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
 from collections import namedtuple
-import PIL.Image as image
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
@@ -116,9 +115,13 @@ def find_particles_in_image(f, **kwargs):
     """ find_particles_in_image(im, **kwargs)
     """
     print "opening", f
-    im = image.open(f)
-    im = np.array(im, dtype=float)
-    im = median_filter(im, size=2)
+    im = imread(f).astype(float)
+    if f.lower().endswith('tif'):
+        # clean pixel noise from phantom images
+        im = median_filter(im, size=2)
+    elif f.lower().endswith('jpg') and im.ndim == 3:
+        # use just the green channel from color slr images
+        im = im[...,1]
     im = im / im.max()
     return find_particles(im, **kwargs)
 
