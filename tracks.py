@@ -245,12 +245,14 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, formula='', mod_2pi=False, 
     ang = formula.count('ang') or formula.count('ori')
 
     if ang and pos:
-        dt = 10 # constant step size in frames for derivative
+        dt = 3 # constant step size in frames for derivative
         tau, dt = dt, tau #swap values
+        dtmax = dt
     else:
         dt = 0
 
     for t0 in np.arange(max(1,-tau), tracklen-max(0,tau)-1+dt, dt0): # for t0 in (T - tau - 1), by dt0 stepsize
+        dt = int(np.random.random()*2*dtmax-dtmax)
         if pos:
             try:
                 olddot = trackdots[trackdots['f']==t0][0]
@@ -316,7 +318,7 @@ def find_corr(formula, dt0, dtau, data, trackids, odata, omask, tracks=None, mod
 
 if is_main and findcorr:
     dt0  = 10 # small for better statistics, larger for faster calc
-    dtau = 0# int for stepwise, float for factorwise
+    dtau = 1000# int for stepwise, float for factorwise
     corr = find_corr(formula, dt0, dtau, data, trackids, odata, omask,stack=True)
             
 elif is_main and loadcorr:
