@@ -17,14 +17,16 @@ Spatial correlation of particle orientation:
 			< scipy.ndimage.measurements.center_of_mass to find centroids [15 min] >
 			output list in usable format [15 min]
 			test positional accuracy with a few different images [30 min]
-	Apply corner dot finding method to central dots [1 hr]
+	Apply corner dot finding method to central dots [1 day]
+		open each image only once [1 hr]
 		see if it's an improvement to edge finding method [20 min]
-		Use the segments to create a Segment removal instead of disk removal [1 hr]
+		Use the segments to create a Segment removal instead of disk removal [1 day]
+	Paint remaining corners [10 hrs]
+	Take data at all densities with corner dots [1 day]
 	Find particle angles with new corner positions [1 hr]
 	Angular diffusion
 		Angular MSD
 	Particle angle correlations
-	Take data at all densities with corner dots [1 day]
 
 Comparison of positional data to circles (from January grp mtg):
 	Compare positional diffusion with circles
@@ -32,12 +34,13 @@ Comparison of positional data to circles (from January grp mtg):
 	Compare g(r) with MD simulations for circles
 
 Single Particle diffusion:
-	Take data for single (very few) particle(s)
-		Vary frequency and amplitude of shaker
+	< Take data for single (very few) particle(s) >
+		< Vary frequency and amplitude of shaker >
 	Spatial & orientational diffusion / MSD
 		Find Diffusion Constant (and time constant)
 		Compare between translational v. rotational motion
 		How is it affected by the shaking parameters
+	Find bug in correlation function
 
 Drift/nonuniformity:
 	Measure drift of center of mass over long times at different phi
