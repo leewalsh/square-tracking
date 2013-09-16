@@ -43,7 +43,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return segmentation.random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=2, rmv=None, **extra_args):
+def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -56,7 +56,9 @@ def label_particles_convolve(im, thresh=2, rmv=None, **extra_args):
     """
     if rmv is not None:
         im = remove_disks(im, rmv, disk(8.5))
-    convolved = convolve(im, gdisk(2))
+    if csize == 0:
+        print 'csize not set'
+    convolved = convolve(im, gdisk(csize))
     convolved -= convolved.min()
     convolved /= convolved.max()
 
@@ -79,7 +81,8 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
     rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
     for props in rprops:
         label = props['Label']
-        if min_area > props['Area'] or props['Area'] > max_area \
+        if min_area > props['Area'] \
+                or props['Area'] > max_area \
                 or props['Eccentricity'] > max_ecc:
             pass
             #labels[labels==label] = np.ma.masked
@@ -122,7 +125,7 @@ def find_particles_in_image(f, **kwargs):
     elif f.lower().endswith('jpg') and im.ndim == 3:
         # use just the green channel from color slr images
         im = im[...,1]
-    im = im / im.max()
+    im /= im.max()
     return find_particles(im, **kwargs)
 
 def disk(n):
@@ -196,13 +199,16 @@ if __name__ == '__main__':
         pdir = path.split(path.abspath(args.output))[0]
     threshargs = {'max_ecc' :  .4 if args.slr else  .7,
                   'min_area': 160 if args.slr else  15,
-                  'max_area': 250 if args.slr else 200}
+                  'max_area': 250 if args.slr else 200,
+                  'csize'   :  22 if args.slr  else 10}
     cthreshargs = {'max_ecc' :  .4 if args.slr else .8,
                    'min_area': 160 if args.slr else  3,
-                   'max_area': 250 if args.slr else 36}
+                   'max_area': 250 if args.slr else 36,
+                   'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
-        pts, labels = find_particles_in_image(filename, method='edge', **threshargs)
+        pts, labels = find_particles_in_image(filename,
+                            method='convolve', **threshargs)
         centers = np.hstack([n*np.ones((len(pts),1)), pts])
         print '%20s: Found %d particles' % ('', len(pts))
         if args.plot:
@@ -216,7 +222,7 @@ if __name__ == '__main__':
 
         if args.corner:
             cpts, clabels = find_particles_in_image(filename,
-                                    method='convolve', rmv=pts, **cthreshargs)
+                                    method='convolve', rmv=None, **cthreshargs)
             print '%20s: Found %d corners' % ('', len(cpts))
             if args.plot:
                 #pl.imshow(clabels, cmap=cm)
