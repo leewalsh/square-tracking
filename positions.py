@@ -81,11 +81,16 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
     rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
     for props in rprops:
         label = props['Label']
-        if min_area > props['Area'] \
-                or props['Area'] > max_area \
-                or props['Eccentricity'] > max_ecc:
+        if min_area > props['Area']:
+            #print 'too small:',props['Area']
             pass
+        elif props['Area'] > max_area:
+            #print 'too big:',props['Area']
+            pass
+        elif props['Eccentricity'] > max_ecc:
+            #print 'too eccentric:',props['Eccentricity']
             #labels[labels==label] = np.ma.masked
+            pass
         else:
             x, y = props[centroid]
             pts.append(Segment(x, y, label, props['Eccentricity'], props['Area']))
@@ -197,13 +202,13 @@ if __name__ == '__main__':
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
-    threshargs = {'max_ecc' :  .4 if args.slr else  .7,
-                  'min_area': 160 if args.slr else  15,
-                  'max_area': 250 if args.slr else 200,
-                  'csize'   :  22 if args.slr  else 10}
-    cthreshargs = {'max_ecc' :  .4 if args.slr else .8,
-                   'min_area': 160 if args.slr else  3,
-                   'max_area': 250 if args.slr else 36,
+    threshargs = {'max_ecc' :   .6 if args.slr else  .7,
+                  'min_area':  870 if args.slr else  15,
+                  'max_area': 1425 if args.slr else 200,
+                  'csize'   :   22 if args.slr else  10}
+    cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
+                   'min_area':  92 if args.slr else  3,
+                   'max_area': 180 if args.slr else 36,
                    'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
