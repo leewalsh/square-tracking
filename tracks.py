@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import numpy as np
 from PIL import Image as Im
 import sys
@@ -113,14 +114,14 @@ if loaddata:
     print "\t...loaded"
 
 
-def find_tracks(data, giveup = 1000):
+def find_tracks(data, giveup=1000):
     sys.setrecursionlimit(2*giveup)
 
     trackids = -np.ones(data.shape, dtype=int)
 
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i],trackids)
+        trackids[i] = find_closest(data[i], trackids)
 
     # save the data record array and the trackids array
     print "saving track data"
@@ -137,6 +138,7 @@ if __name__=='__main__':
         print "saving data only (no tracks)"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
                 data = data)
+        print '\t...saved'
     else:
         # assume existing tracks.npz
         print "loading tracks from npz files"
@@ -183,11 +185,11 @@ def trackmsd(track,dt0,dtau):
     tracklen = trackend - trackbegin + 1
     if verbose:
         print "tracklen =",tracklen
-        print "\t from %d to %d"%(trackbegin,trackend)
-    if type(dtau) is float:
-        taus = farange(dt0,tracklen,dtau)
-    elif type(dtau) is int:
-        taus = xrange(dtau,tracklen,dtau)
+        print "\t from %d to %d"%(trackbegin, trackend)
+    if isinstance(dtau, float):
+        taus = farange(dt0, tracklen, dtau)
+    elif isinstance(dtau, int):
+        taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
         avg = t0avg(trackdots,tracklen,tau)
@@ -198,7 +200,7 @@ def trackmsd(track,dt0,dtau):
         print "\t...actually",len(tmsd)
     return tmsd
 
-def t0avg(trackdots,tracklen,tau):
+def t0avg(trackdots, tracklen, tau):
     """ t0avg() averages over all t0, for given track, given tau """
     totsqdisp = 0.0
     nt0s = 0.0
@@ -231,12 +233,11 @@ def find_msds(dt0, dtau, tracks=None):
     print "Begin calculating MSDs"
     msds = []
     if tracks is None:
-        tracks = xrange(max(trackids) + 1)
-        #tracks = (78,  95, 191, 203, 322)
+        tracks = set(trackids)
     for trackid in tracks:
         if verbose:
-            print "calculating msd for track",trackid
-        tmsd = trackmsd(trackid,dt0,dtau)
+            print "calculating msd for track", trackid
+        tmsd = trackmsd(trackid, dt0, dtau)
         msds.append(tmsd)
 
     msds = np.asarray(msds)
@@ -266,14 +267,14 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0,tnormalize=0, prefix=''):
+def plot_msd(data, msds, dtau, dt0, tnormalize=0, prefix=''):
     """ Plots the MSDs"""
     nframes = max(data['f'])
-    if isinstance(dtau,float):
-        taus = farange(dt0,nframes,dtau)
-        msd = np.transpose([taus,np.zeros_like(taus)])
-    elif isinstance(dtau,int):
-        taus = np.arange(dtau,nframes,dtau)
+    if isinstance(dtau, float):
+        taus = farange(dt0, nframes, dtau)
+        msd = np.transpose([taus, np.zeros_like(taus)])
+    elif isinstance(dtau, int):
+        taus = np.arange(dtau, nframes, dtau)
         msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
     pl.figure()
     added = np.zeros(len(msd), float)
@@ -315,5 +316,5 @@ def plot_msd(data, msds, dtau, dt0,tnormalize=0, prefix=''):
 
 if plotmsd and computer is 'rock':
     print 'plotting now!'
-    plot_msd(data,msds)
+    plot_msd(data, msds)
 

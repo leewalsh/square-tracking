@@ -13,7 +13,7 @@ if 'rock' in hostname:
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/diffusion/'
-    extdir = '/media/bhavari/Squares/lighting/still/'
+    extdir = '/media/bhavari/Squares/diffusion/still/'
     import matplotlib
     matplotlib.use("agg")
 else:
@@ -60,8 +60,9 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
     frame = thisdot['f']
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
-        print "New track:",newtrackid
-        print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+        if verbose:
+            print "New track:",newtrackid
+            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
         oldframe = data[data['f']==frame-n]
@@ -72,10 +73,12 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
         elif n < giveup:
             return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
         else: # give up after giveup frames
-            print "Recursed {} times, giving up. frame = {} ".format(n,frame)
+            if verbose:
+                print "Recursed {} times, giving up. frame = {} ".format(n,frame)
             newtrackid = max(trackids) + 1
-            print "New track:",newtrackid
-            print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+            if verbose:
+                print "New track:",newtrackid
+                print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
             return newtrackid
 
 # Tracking
@@ -136,7 +139,7 @@ if __name__=='__main__':
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
                 data = data)
         print '\t...saved'
-    else: 
+    else:
         # assume existing tracks.npz
         print "loading tracks from npz files"
         tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
@@ -203,7 +206,7 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
         print "\t from %d to %d"%(trackbegin, trackend)
     if isinstance(dtau, float):
         taus = farange(dt0, tracklen, dtau)
-    elif isinstance(dtau,int):
+    elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
