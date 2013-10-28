@@ -256,6 +256,7 @@ if __name__ == '__main__':
         else:
             coutput = ''.join(args.output.split('.')[:-1]+['_CORNER.']+args.output.split('.')[-1:])
         with open(coutput, 'w') as coutput:
+            print "Saving corner positions to ", coutput
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
@@ -267,6 +268,7 @@ if __name__ == '__main__':
     elif 'CORNER' in args.output:
         args.output = args.output.replace('CORNER','')
     with open(args.output, 'w') as output:
+        print "Saving positions to ", args.output
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
