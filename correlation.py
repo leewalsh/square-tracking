@@ -3,7 +3,9 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields,merge_arrays
+from scipy.spatial.distance import pdist
 from operator import itemgetter
+
 
 from socket import gethostname
 hostname = gethostname()
@@ -17,6 +19,10 @@ elif 'rock' in hostname:
 else:
     print "computer not defined"
     print "where are you working?"
+
+ss = 92   # side length of square in pixels
+rr = 1255 # radius of disk in pixels
+x0, y0 = 1375, 2020 # center of disk within image, in pixels
 
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
@@ -35,7 +41,7 @@ def count_in_ring(positions,center,r,dr=1):
     ring_area = 2 * np.pi * r * dr
     return count / ring_area
 
-def pair_corr(positions, dr=22, rmax=220):
+def pair_corr(positions, dr=ss, rmax=10*ss):
     """ pair_corr(positions)
 
         the pair correlation function g(r)
@@ -44,8 +50,6 @@ def pair_corr(positions, dr=22, rmax=220):
         dr is step size in r for function g(r)
             (units are those implied in coords of positions)
     """
-    ss = 22  # side length of square in pixels
-    rr = 300 # radius of disk in pixels
     rs = np.arange(ss,rmax,dr)
     g  = np.zeros(np.shape(rs))
     dg = np.zeros(np.shape(rs))
@@ -56,7 +60,7 @@ def pair_corr(positions, dr=22, rmax=220):
         #gr = map( lambda x,y=r,p=positions: count_in_ring(p,x,y), positions )
         gr = []
         for position in positions:
-            if norm(np.asarray(position)-np.asarray((rr,rr))) < rr-rmax:
+            if norm(np.asarray(position)-np.asarray((x0,y0))) < rr-rmax:
                 gr.append(count_in_ring(positions,position,r))
         if np.asarray(gr).any():
             g[ir]  = np.mean(gr)
@@ -65,26 +69,19 @@ def pair_corr(positions, dr=22, rmax=220):
         else: print "none for r =",r
     return g,dg,rg
 
-def pair_corr_hist(positions, dr=22,rmax=220,nbins=None):
+def pair_corr_hist(positions, dr=ss, rmax=10*ss, nbins=None):
     """ pair_corr_hist(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
     """
-    ss = 22  # side length of square in pixels
-    rr = 300 # radius of disk in pixels
-    nbins = ss*rmax/dr if nbins is None else nbins
-    distances = []
-    for pos1 in positions:
-        if norm(np.asarray(pos1)-np.asarray((rr,rr))) < rr-rmax:
-            distances.append(
-                    [norm(np.asarray(pos2) - np.asarray(pos1)) for pos2 in positions]
-                    )
-    distances = np.asarray(distances)
-    distances = distances[np.nonzero(distances)]
-    return np.histogram(distances
-            , bins = nbins
-            , weights = 1/(np.pi*np.asarray(distances)*dr) # normalize by pi*r*dr
-            )
+    nbins = rmax/dr if nbins is None else nbins
+    center = np.array([x0, y0])
+    positions = np.asarray(positions)
+    loc_mask = np.hypot(*(positions - center).T) < rmax
+    distances = pdist(positions[loc_mask])
+    return np.histogram(distances, bins=nbins, range=(0,rmax),
+                        weights = 1/(np.pi*np.asarray(distances)*dr), # normalize by pi*r*dr
+                        )
 
 def get_positions(data,frame,pid=None):
     """ get_positions(data,frame)
@@ -117,12 +114,12 @@ def avg_hists(gs,rgs):
     """
     #TODO: use better rg here, not just rgs[0]
     rg = rgs[0]
-    g_avg = [ np.mean(gs[:,ir]) for ir,r in enumerate(rg) ]
-    dg_avg = [ np.std(gs[:,ir]) for ir,r in enumerate(rg) ]
+    g_avg = np.array([ np.mean(gs[:,ir]) for ir,r in enumerate(rg) ])
+    dg_avg = np.array([ np.std(gs[:,ir]) for ir,r in enumerate(rg) ])
     return g_avg, dg_avg, rg
 
-def build_gs(data,prefix,framestep=10):
-    """ build_gs(data,prefix,framestep=10)
+def build_gs(data, prefix, framestep=10, dr=None, rmax=None):
+    """ build_gs(data, prefix, framestep=10)
         calculates and builds g(r) for each (framestep) frames
         Takes:
             data: the structued array of data
@@ -132,21 +129,21 @@ def build_gs(data,prefix,framestep=10):
             gs: an array of g(r) for several frames
             rgs: their associated r values
     """
-
-    frames = np.arange(min(data['f']),max(data['f']),framestep)
-    ss = 22
-    dr = ss/2
-    rmax = ss*10
-    nbins  = ss*rmax/dr
-    gs = np.array([ np.zeros(nbins) for frame in frames ])
+    frames = np.arange(data['f'].min(), data['f'].max()+1, framestep)
+    if dr is None:
+        dr = .1*ss
+    elif dr:
+        dr *= ss
+    if rmax is None:
+        rmax = rr - ss*3
+    elif rmax:
+        rmax = rr - ss*rmax
+    nbins  = rmax/dr
+    gs = np.zeros((frames.size, nbins))
     rgs = np.copy(gs)
-    print "gs initiated with shape (nbins,nframes)",np.shape(gs)
-    for nf,frame in enumerate(frames):
-        #print "\t appending for frame",frame
-        positions = get_positions(data,frame)
-        #g,dg,rg = pair_corr(positions)
-        g,rg = pair_corr_hist(positions
-                ,dr=dr,rmax=rmax,nbins=nbins)
+    for nf, frame in enumerate(frames):
+        positions = get_positions(data, frame)
+        g, rg = pair_corr_hist(positions, dr=dr, rmax=rmax, nbins=nbins)
         rg = rg[1:]
 
         gs[nf,:len(g)]  = g
@@ -192,7 +189,7 @@ def merge_data(data,ndata,**kw):
         return merge_arrays([data,ndata], flatten=True, **kw)
 
 
-def add_neighbors(data, nn=6, n_dist=None, delauney=None):
+def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
     """ add_neighbors(data)
         takes data structured array, adds field of neighbors
         which is a list of nearest neighbors
@@ -206,7 +203,6 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None):
         fieldnames = np.array(data.dtype.names)
         fieldnames[fieldnames == 's'] = 'f'
         data.dtype.names = tuple(fieldnames)
-    ss = 22
     if nn is not None:
         n_dist = None
     elif n_dist is True:
@@ -495,8 +491,8 @@ if __name__ == '__main__':
 
     prefix = 'n400'
 
-    ss = 22  # side length of square in pixels
-    rmax = ss*10
+    ss = 92#22  # side length of square in pixels
+    rmax = ss*10.
 
     try:
         datapath = locdir+prefix+"_GR.npz"

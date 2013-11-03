@@ -79,7 +79,7 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True):
+def find_corner(particle, corners, n=1, rc=11, drc=4, slr=True, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -103,7 +103,8 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
     from numpy.linalg import norm
 
     if slr:
-        rc = 56; drc = 10
+        rc = 43 # 56 ?
+        drc = 10
 
     cdisps = corners - particle
     cdists = np.sqrt((cdisps**2).sum(axis=1))
