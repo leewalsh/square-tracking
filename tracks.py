@@ -8,7 +8,7 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/lowdensity/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
@@ -37,7 +37,7 @@ if __name__=='__main__':
     if dotfix:
         print 'using dotfix', dotfix
 
-loaddata   = False   # Create and save structured array from data txt file?
+loaddata   = True    # Create and save structured array from data txt file?
 
 findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks

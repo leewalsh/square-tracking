@@ -8,7 +8,7 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/lowdensity/'
+    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
 elif 'foppl' in hostname:
     computer = 'foppl'
@@ -142,9 +142,12 @@ if __name__=='__main__':
     else:
         # assume existing tracks.npz
         print "loading tracks from npz files"
-        tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+        try:
+            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+            trackids = tracksnpz['trackids']
+        except IOError:
+            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
         data = tracksnpz['data']
-        trackids = tracksnpz['trackids']
         cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
         cdata = cdatanpz['data']
         print "\t...loaded"
@@ -161,6 +164,17 @@ if __name__=='__main__':
                 omask=omask)
         print '\t...saved'
 
+from os import getcwd
+def load_from_npz(prefix, locdir=None):
+    """ given a prefix, returns:
+        data, cdata, odata, omask
+        """
+    if locdir is None:
+        locdir = getcwd() +'/'
+    odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
+    return (np.load(locdir+prefix+'_POSITIONS.npz')['data'],
+            np.load(locdir+prefix+'_CORNER_POSITIONS.npz')['data'],
+            odatanpz['odata'], odatanpz['omask'])
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None):
