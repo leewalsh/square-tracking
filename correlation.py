@@ -2,9 +2,10 @@
 
 import numpy as np
 from numpy.linalg import norm
-from numpy.lib.recfunctions import append_fields,merge_arrays
+from numpy.lib.recfunctions import append_fields, merge_arrays
 from scipy.spatial.distance import pdist
 from operator import itemgetter
+from itertools import combinations, chain
 
 
 from socket import gethostname
@@ -76,14 +77,26 @@ def pair_corr_hist(positions, dr=ss, rmax=10*ss, nbins=None):
     """
     nbins = rmax/dr if nbins is None else nbins
     center = np.array([x0, y0])
-    positions = np.asarray(positions)
     loc_mask = np.hypot(*(positions - center).T) < rmax
     distances = pdist(positions[loc_mask])
     return np.histogram(distances, bins=nbins, range=(0,rmax),
-                        weights = 1/(np.pi*np.asarray(distances)*dr), # normalize by pi*r*dr
+                        weights=1/(np.pi*distances*dr), # normalize by pi*r*dr
                         )
 
-def get_positions(data,frame,pid=None):
+def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
+    """ orient_corr():
+        the orientational correlation function g_m(r)
+        given by mean(cos(m*(theta(r_i) - theta(r_j))))
+    """
+    center = np.array([x0, y0])
+    loc_mask = np.hypot(*(positions - center).T) < rmax
+    distances = pdist(positions[loc_mask])
+    opairs = np.fromiter(chain.from_iterable(combinations(orientations[loc_mask],2)), float).reshape(-1,2)
+    odiff = np.subtract(*opairs.T)  # subtract orientations
+    np.cos(m*odiff, odiff)          # in place cosine
+    return distances, odiff
+
+def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
         
         Takes:
@@ -93,29 +106,27 @@ def get_positions(data,frame,pid=None):
         Returns:
             list of tuples (x,y) of positions of all particles in those frames
     """
+    fmask = np.in1d(data['f'], frame) if np.iterable(frame) else data['f']==frame
     if pid is not None:
-        fdata = data[data['f']==frame]
-        fiddata = fdata[data['id']==pid]
-        return (fiddata['x'],fiddata['y'])
-    if np.iterable(frame):
-        return zip(data['x'][data['f'] in frame],data['y'][data['f'] in frame])
-    else:
-        return zip(data['x'][data['f']==frame],data['y'][data['f']==frame])
+        fiddata = data[fmask & (data['id']==pid)]
+        return np.array(fiddata['x'], fiddata['y'])
+    return np.column_stack((data['x'][fmask], data['y'][fmask]))
 
-def avg_hists(gs,rgs):
+def avg_hists(gs, rgs):
     """ avg_hists(gs,rgs)
         takes:
             gs: an array of g(r) for several frames
             rgs: their associated r values
         returns:
             g_avg: the average of gs over frames
-            dg_avg: their std dev
+            dg_avg: their std dev / sqrt(length)
             rg: r for the avgs (just uses rgs[0] for now) 
     """
-    #TODO: use better rg here, not just rgs[0]
+    assert np.all([np.allclose(rgs[i], rgs[j])
+        for i in xrange(rgs.shape[0]) for j in xrange(rgs.shape[0])])
     rg = rgs[0]
-    g_avg = np.array([ np.mean(gs[:,ir]) for ir,r in enumerate(rg) ])
-    dg_avg = np.array([ np.std(gs[:,ir]) for ir,r in enumerate(rg) ])
+    g_avg = gs.mean(0)
+    dg_avg = gs.std(0)/np.sqrt(gs.shape[0])
     return g_avg, dg_avg, rg
 
 def build_gs(data, prefix, framestep=10, dr=None, rmax=None):
@@ -513,10 +524,10 @@ if __name__ == '__main__':
         data['id'] -= 1 # data from imagej is 1-indexed
         print "\t...loaded"
         print "loading positions"
-        gs,rgs = build_gs(data,prefix)
+        gs, rgs = build_gs(data, prefix)
         print "\t...gs,rgs built"
         print "averaging over all frames..."
-        g,dg,rg = avg_hists(gs,rgs)
+        g, dg, rg = avg_hists(gs, rgs)
         print "\t...averaged"
         print "saving data..."
         np.savez(locdir+prefix+"_GR",
