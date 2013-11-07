@@ -165,6 +165,19 @@ def build_gs(data, prefix, framestep=10, dr=None, rmax=None):
 
     return gs,rgs
 
+def global_particle_orientational(orientations, m=4, ret_complex=True):
+    """ global_particle_orientational(orientations, m=4)
+        Returns the global m-fold particle orientational order parameter
+
+                1   N    i m theta
+        Phi  = --- SUM e          j
+           m    N  j=1
+    """
+    np.mod(orientations, tau/4, orientations)
+    phi = np.exp(m*orientations*1j)
+    err = phi.std(ddof=1)/np.sqrt(phi.size)
+    return (phi.mean(), err) if ret_complex else (np.abs(phi.mean()), err)
+
 def get_id(data,position,frames=None,tolerance=10e-5):
     """ take a particle's `position' (x,y)
         optionally limit search to one or more `frames'
