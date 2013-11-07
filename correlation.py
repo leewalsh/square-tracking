@@ -25,6 +25,9 @@ ss = 92   # side length of square in pixels
 rr = 1255 # radius of disk in pixels
 x0, y0 = 1375, 2020 # center of disk within image, in pixels
 
+pi = np.pi
+tau = 2*pi
+
 def count_in_ring(positions,center,r,dr=1):
     """ count_in_ring(positions,center,r,dr)
         return number of particles in a ring of
@@ -39,7 +42,7 @@ def count_in_ring(positions,center,r,dr=1):
             count += 1
         else: continue
 
-    ring_area = 2 * np.pi * r * dr
+    ring_area = tau * r * dr
     return count / ring_area
 
 def pair_corr(positions, dr=ss, rmax=10*ss):
@@ -80,7 +83,7 @@ def pair_corr_hist(positions, dr=ss, rmax=10*ss, nbins=None):
     loc_mask = np.hypot(*(positions - center).T) < rmax
     distances = pdist(positions[loc_mask])
     return np.histogram(distances, bins=nbins, range=(0,rmax),
-                        weights=1/(np.pi*distances*dr), # normalize by pi*r*dr
+                        weights=1/(pi*distances*dr), # normalize by pi*r*dr
                         )
 
 def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
@@ -183,7 +186,7 @@ def get_angle(posi,posj):
     vecij = np.asarray(posi) - np.asarray(posj)
     dx = vecij[0]
     dy = vecij[1]
-    return np.arctan2(dy,dx) % (2*np.pi)
+    return np.arctan2(dy,dx) % tau
 
 def merge_data(data,ndata,**kw):
     if data is None:
@@ -410,7 +413,7 @@ def delta_distro(n,histlim):
     """ delta_distro(n, histlim)
         returns a delta distribution of angles for n-fold order
     """
-    return list(np.arange(0,1,1./n)*2*np.pi)*histlim
+    return list(np.arange(0,1,1./n)*tau)*histlim
 
 def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
     """ ang_type can be 'relative', 'delta', or 'absolute'
@@ -460,7 +463,7 @@ def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
         ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
         if ang_type is 'relative':
             allangles = np.array([
-                    (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%(2*np.pi)
+                    (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%tau
                     for i in np.arange(nn) ])
         elif ang_type is 'delta':
             allangles = []
@@ -468,7 +471,7 @@ def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
                 ineighbors = ndata['n'][i][:nn]
                 ineighbors.sort(order='angle')
                 allangles.append(list([
-                        (ineighbors['angle'][i] - ineighbors['angle'][i-1])%(2*np.pi)
+                        (ineighbors['angle'][i] - ineighbors['angle'][i-1])%tau
                         for i in range(len(ineighbors))
                         ]))
         elif ang_type is 'absolute':
@@ -476,14 +479,14 @@ def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
         else:
             print "uknown ang_type:",ang_type
             continue
-        allangles = np.asarray(allangles).flatten() % (2*np.pi)
+        allangles = np.asarray(allangles).flatten() % tau
 
         pl.figure(figsize=(12,9))
         for nfold in [8,6,4]:
             pl.hist(delta_distro(nfold,histlim), bins = nbins,label="%d-fold"%nfold)
         pl.hist(allangles, bins = nbins,label=ang_type+' theta')
         pl.ylim([0,histlim])
-        pl.xlim([0,np.pi if ang_type is 'delta' else 2*np.pi])
+        pl.xlim([0, pi if ang_type is 'delta' else tau])
         pl.title("%s, %s theta, %d neighbors, boundaries %scluded"%\
                 (prefix,ang_type,nn,"in" if boundaries else "ex"))
         pl.legend()
