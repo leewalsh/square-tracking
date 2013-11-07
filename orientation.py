@@ -19,7 +19,6 @@ else:
 def field_rename(a,old,new):
     a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
 
-
 def get_fft(ifile=None,location=None):
     """ get the fft of an image
         FFT information from:
@@ -135,12 +134,11 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=True, do_average=True)
 
     return pcorner, porient, cdisp
 
-
 #TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
 # or just pass a tuple of (datum, cdata[f==f]) to get_angle()
 
-def get_angle((datum,cdata)):
+def get_angle((datum, cdata)):
     corner = find_corner(
             np.asarray((datum['x'],datum['y'])),
             np.column_stack((cdata['x'][cdata['f']==datum['f']],
@@ -149,7 +147,7 @@ def get_angle((datum,cdata)):
     dt = np.dtype([('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
     return np.array([corner], dtype=dt)
 
-def get_angles_map(data,cdata,nthreads=None):
+def get_angles_map(data, cdata, nthreads=None):
     """ get_angles(data, cdata, nthreads=None)
         
         arguments:
@@ -205,25 +203,28 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
     field_rename(data,'s','f')
     field_rename(cdata,'s','f')
     if do_average or nc == 1:
-        dt = [('corner',float,(2,)),('orient',float),('cdisp',float,(2,))]
+        dt = [('corner',float,(2,)),
+              ('orient',float),
+              ('cdisp',float,(2,))]
     elif nc > 1:
-        dt = [('corner',float,(nc,2,)),('orient',float,(nc,)),('cdisp',float,(nc,2,))]
+        dt = [('corner',float,(nc,2,)),
+              ('orient',float,(nc,)),
+              ('cdisp',float,(nc,2,))]
     odata = np.zeros(len(data), dtype=dt)
     frame = 0
     for datum in data:
         if datum['f'] % framestep != 0:
             continue
         #if frame != datum['f']:
-            #print 'frame',frame
+        #    print 'frame',frame
         frame = datum['f']
-        posi = (datum['x'],datum['y'])
+        posi = (datum['x'], datum['y'])
         icorner, iorient, idisp = \
             find_corner(np.asarray(posi),
                         np.column_stack((cdata['x'][cdata['f']==frame],
                                          cdata['y'][cdata['f']==frame])),
-                        n=nc,do_average=do_average)
-
-        iid = get_id(data,posi,frame)
+                        n=nc, do_average=do_average)
+        iid = get_id(data, posi, frame)
         imask = data['id']==iid
         odata['corner'][imask] = icorner
         odata['orient'][imask] = iorient
@@ -237,7 +238,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
 
     return odata, mask
 
-def plot_orient_hist(odata,figtitle=''):
+def plot_orient_hist(odata, figtitle=''):
     if computer is not 'rock':
         print 'computer must be on rock'
         return False
