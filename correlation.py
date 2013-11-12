@@ -4,6 +4,8 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.lib.recfunctions import append_fields, merge_arrays
 from scipy.spatial.distance import pdist
+from scipy.ndimage import gaussian_filter
+from scipy.signal import hilbert
 from operator import itemgetter
 from itertools import combinations, chain
 
@@ -336,6 +338,24 @@ def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
             continue
     pl.legend()
 
+def apply_hilbert(a, sig=None, full=False):
+    """ Attempts to apply hilbert transform to a signal about a mean.
+        First, smooth the signal, then subtract the smoothed signal.
+        Apply hilbert to the residual, and add the smoothed signal back in.
+    """
+    assert a.ndim == 1, "Only works for 1d arrays"
+    if sig is None:
+        sig = a.size/10.
+    if sig:
+        a_smoothed = gaussian_filter(a, sig, mode='reflect')
+    else:
+        a_smoothed = 0
+    h = hilbert(a - a_smoothed)
+    if full:
+        return h, a_smoothed
+    else:
+        return np.abs(h) + a_smoothed
+
 def gpeak_decay(peaks,f,pksonly=False):
     """ gpeak_decay(peaks,f)
     fits curve to the peaks in g(r)
@@ -372,7 +392,7 @@ def gpeak_decay(peaks,f,pksonly=False):
             print "maximak empty:",maximak
     return popt,pcov
 
-def exp_decay(s,sigma,c,a):
+def exp_decay(s, sig=1., a=1., c=0):
     """ exp_decay(s,sigma,c,a)
         exponential decay function for fitting
 
@@ -386,9 +406,9 @@ def exp_decay(s,sigma,c,a):
         Returns:
             exp value at s
     """
-    return c + a*np.exp(-s/sigma)
+    return c + a*np.exp(-s/sig)
 
-def powerlaw(t,b,c,a):
+def powerlaw(t, b=1., a=1., c=0):
     """ powerlaw(t,b,c,a)
         power law function for fitting
 
@@ -401,12 +421,11 @@ def powerlaw(t,b,c,a):
         Returns:
             power law value at t
     """
-    # to allow fits for b and/or c,
-    # then add them as args to function and delete them below.
-    #b = 1
-    #c = 0
-    return c + a * t**b
+    return c + a * np.power(t, -b)
 
+def log_decay(t, a=1, l=1., c=0.):
+    return c - a*np.log(t/l)
+    
 def domyfits():
     if computer is 'foppl':
         print "cant do this on foppl"
@@ -415,8 +434,8 @@ def domyfits():
         pl.figure()
         pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
         pl.scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
-        pexps[k],cexp = curve_fit(corr.exp_decay,*np.array(fixedpeaks[k]).T,p0=(3,.0001,.0005))
-        ppows[k],cpow = curve_fit(corr.powerlaw,*np.array(fixedpeaks[k]).T,p0=(-.5,.0001,.0005))
+        pexps[k],cexp = curve_fit(corr.exp_decay,*np.array(fixedpeaks[k]).T,p0=(3,.0005,.0001))
+        ppows[k],cpow = curve_fit(corr.powerlaw,*np.array(fixedpeaks[k]).T,p0=(-.5,.0005,.0001))
         xs = np.arange(0.8,10.4,0.2)
         pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
