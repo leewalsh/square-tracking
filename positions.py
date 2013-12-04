@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass
+from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import filter, measure, segmentation
 from skimage.morphology import label, square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
 from collections import namedtuple
-import PIL.Image as image
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
@@ -44,7 +43,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return segmentation.random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=2, rmv=None, **extra_args):
+def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -57,7 +56,9 @@ def label_particles_convolve(im, thresh=2, rmv=None, **extra_args):
     """
     if rmv is not None:
         im = remove_disks(im, rmv, disk(8.5))
-    convolved = convolve(im, gdisk(2))
+    if csize == 0:
+        print 'csize not set'
+    convolved = convolve(im, gdisk(csize))
     convolved -= convolved.min()
     convolved /= convolved.max()
 
@@ -65,7 +66,7 @@ def label_particles_convolve(im, thresh=2, rmv=None, **extra_args):
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
-    print "found {} segments above thresh".format(labels.max())
+    #print "found {} segments above thresh".format(labels.max())
     return labels
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
@@ -80,10 +81,16 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
     rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
     for props in rprops:
         label = props['Label']
-        if min_area > props['Area'] or props['Area'] > max_area \
-                or props['Eccentricity'] > max_ecc:
+        if min_area > props['Area']:
+            #print 'too small:',props['Area']
             pass
+        elif props['Area'] > max_area:
+            #print 'too big:',props['Area']
+            pass
+        elif props['Eccentricity'] > max_ecc:
+            #print 'too eccentric:',props['Eccentricity']
             #labels[labels==label] = np.ma.masked
+            pass
         else:
             x, y = props[centroid]
             pts.append(Segment(x, y, label, props['Eccentricity'], props['Area']))
@@ -98,7 +105,7 @@ def find_particles(im, method='edge', **kwargs):
     """
     labels = None
     intensity = None
-    print "Seeking particles using", method
+    #print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
     elif method == 'edge':
@@ -116,10 +123,14 @@ def find_particles_in_image(f, **kwargs):
     """ find_particles_in_image(im, **kwargs)
     """
     print "opening", f
-    im = image.open(f)
-    im = np.array(im, dtype=float)
-    im = median_filter(im, size=2)
-    im = im / im.max()
+    im = imread(f).astype(float)
+    if f.lower().endswith('tif'):
+        # clean pixel noise from phantom images
+        im = median_filter(im, size=2)
+    elif f.lower().endswith('jpg') and im.ndim == 3:
+        # use just the green channel from color slr images
+        im = im[...,1]
+    im /= im.max()
     return find_particles(im, **kwargs)
 
 def disk(n):
@@ -191,15 +202,18 @@ if __name__ == '__main__':
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
-    threshargs = {'max_ecc' :  .4 if args.slr else  .7,
-                  'min_area': 160 if args.slr else  15,
-                  'max_area': 250 if args.slr else 200}
-    cthreshargs = {'max_ecc' :  .4 if args.slr else .8,
-                   'min_area': 160 if args.slr else  3,
-                   'max_area': 250 if args.slr else 36}
+    threshargs = {'max_ecc' :   .7 if args.slr else  .7, # .6
+                  'min_area':  800 if args.slr else  15, # 870
+                  'max_area': 1600 if args.slr else 200, # 1425
+                  'csize'   :   22 if args.slr else  10}
+    cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
+                   'min_area':  80 if args.slr else  3, # 92
+                   'max_area': 200 if args.slr else 36, # 180
+                   'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
-        pts, labels = find_particles_in_image(filename, method='edge', **threshargs)
+        pts, labels = find_particles_in_image(filename,
+                            method='convolve', **threshargs)
         centers = np.hstack([n*np.ones((len(pts),1)), pts])
         print '%20s: Found %d particles' % ('', len(pts))
         if args.plot:
@@ -213,7 +227,7 @@ if __name__ == '__main__':
 
         if args.corner:
             cpts, clabels = find_particles_in_image(filename,
-                                    method='convolve', rmv=pts, **cthreshargs)
+                                    method='convolve', rmv=None, **cthreshargs)
             print '%20s: Found %d corners' % ('', len(cpts))
             if args.plot:
                 #pl.imshow(clabels, cmap=cm)
@@ -242,6 +256,7 @@ if __name__ == '__main__':
         else:
             coutput = ''.join(args.output.split('.')[:-1]+['_CORNER.']+args.output.split('.')[-1:])
         with open(coutput, 'w') as coutput:
+            print "Saving corner positions to ", coutput
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
@@ -253,6 +268,7 @@ if __name__ == '__main__':
     elif 'CORNER' in args.output:
         args.output = args.output.replace('CORNER','')
     with open(args.output, 'w') as output:
+        print "Saving positions to ", args.output
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
