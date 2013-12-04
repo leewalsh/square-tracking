@@ -2,7 +2,7 @@
 
 import numpy as np
 from numpy.linalg import norm
-from numpy.lib.recfunctions import append_fields, merge_arrays
+#from numpy.lib.recfunctions import append_fields, merge_arrays
 from scipy.spatial.distance import pdist
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
