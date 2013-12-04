@@ -66,7 +66,7 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
-    print "found {} segments above thresh".format(labels.max())
+    #print "found {} segments above thresh".format(labels.max())
     return labels
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
@@ -105,7 +105,7 @@ def find_particles(im, method='edge', **kwargs):
     """
     labels = None
     intensity = None
-    print "Seeking particles using", method
+    #print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
     elif method == 'edge':
@@ -202,13 +202,13 @@ if __name__ == '__main__':
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
-    threshargs = {'max_ecc' :   .6 if args.slr else  .7,
-                  'min_area':  870 if args.slr else  15,
-                  'max_area': 1425 if args.slr else 200,
+    threshargs = {'max_ecc' :   .7 if args.slr else  .7, # .6
+                  'min_area':  800 if args.slr else  15, # 870
+                  'max_area': 1600 if args.slr else 200, # 1425
                   'csize'   :   22 if args.slr else  10}
     cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
-                   'min_area':  92 if args.slr else  3,
-                   'max_area': 180 if args.slr else 36,
+                   'min_area':  80 if args.slr else  3, # 92
+                   'max_area': 200 if args.slr else 36, # 180
                    'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
