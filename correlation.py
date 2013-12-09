@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
-import numpy as np
-from numpy.linalg import norm
-#from numpy.lib.recfunctions import append_fields, merge_arrays
-from scipy.spatial.distance import pdist
-from scipy.ndimage import gaussian_filter
-from scipy.signal import hilbert
+from __future__ import division
+
 from operator import itemgetter
 from itertools import combinations, chain
+
+import numpy as np
+from numpy.linalg import norm
+from scipy.spatial.distance import pdist
+from scipy.spatial import Voronoi
+from scipy.ndimage import gaussian_filter
+from scipy.signal import hilbert
 
 
 from socket import gethostname
@@ -80,26 +83,14 @@ def pair_corr_hist(positions, dr=ss, rmax=10*ss, nbins=None):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
     """
-    nbins = rmax/dr if nbins is None else nbins
-    center = np.array([x0, y0])
+    if nbins is None:
+        nbins = rmax/dr
+    center = (positions.max(0) + positions.min(0))/2
     loc_mask = np.hypot(*(positions - center).T) < rmax
     distances = pdist(positions[loc_mask])
     return np.histogram(distances, bins=nbins, range=(0,rmax),
                         weights=1/(pi*distances*dr), # normalize by pi*r*dr
                         )
-
-def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
-    """ orient_corr():
-        the orientational correlation function g_m(r)
-        given by mean(cos(m*(theta(r_i) - theta(r_j))))
-    """
-    center = np.array([x0, y0])
-    loc_mask = np.hypot(*(positions - center).T) < rmax
-    distances = pdist(positions[loc_mask])
-    opairs = np.fromiter(chain.from_iterable(combinations(orientations[loc_mask],2)), float).reshape(-1,2)
-    odiff = np.subtract(*opairs.T)  # subtract orientations
-    np.cos(m*odiff, odiff)          # in place cosine
-    return distances, odiff
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
@@ -161,10 +152,8 @@ def build_gs(data, prefix, framestep=10, dr=None, rmax=None):
         positions = get_positions(data, frame)
         g, rg = pair_corr_hist(positions, dr=dr, rmax=rmax, nbins=nbins)
         rg = rg[1:]
-
         gs[nf,:len(g)]  = g
         rgs[nf,:len(g)] = rg
-
     return gs,rgs
 
 def global_particle_orientational(orientations, m=4, ret_complex=True):
@@ -176,9 +165,58 @@ def global_particle_orientational(orientations, m=4, ret_complex=True):
            m    N  j=1
     """
     np.mod(orientations, tau/4, orientations)
-    phi = np.exp(m*orientations*1j)
+    phi = np.exp(m*orientations*1j).mean()
     err = phi.std(ddof=1)/np.sqrt(phi.size)
-    return (phi.mean(), err) if ret_complex else (np.abs(phi.mean()), err)
+    return (phi, err) if ret_complex else (np.abs(phi), err)
+
+def dtheta(i, j=None, m=4, sign=False):
+    """ given two angles or one array (N,2) of pairs
+        returns the _smallest angle between them, modulo m
+        if sign is True, retuns a negative angle for i<j, else abs
+    """
+    ma = 2*np.pi/m
+    if j is not None:
+        diff = i - j
+    elif i.shape[1]==2:
+        diff = np.subtract(*i.T)
+    diff = (diff + ma/2)%ma - ma/2
+    return diff if sign else np.abs(diff)
+
+def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
+    """ orient_corr():
+        the orientational correlation function g_m(r)
+        given by mean(phi(0)*phi(r))
+    """
+    center = (positions.max(0) + positions.min(0))/2
+    loc_mask = np.hypot(*(positions - center).T) < rmax
+    distances = pdist(positions[loc_mask])
+    pairs = orientations[loc_mask][np.column_stack(np.triu_indices(loc_mask.sum(), 1))]
+    diffs = np.cos(m*dtheta(pairs))
+    return distances, diffs
+
+def get_neighbors(v, p, pm=None, ret_pairs=False):
+    """ give neighbors in voronoi tessellation v of point id p
+        if already calculated, pm is point mask
+    """
+    if pm is None:
+        pm = v.ridge_points == p
+    else:
+        pm = pm[p]
+    pm = np.any(pm, 1)
+    pairs = v.ridge_points[pm]
+    return pairs if ret_pairs else pairs[pairs != p]
+
+def local_particle_orientational(orientations, vor, m=4, ret_complex=True):
+    """ local m-fold particle orientational order parameter
+        THIS IS WRONG :-( but unnecessary :-/
+
+        phi(r_i) = mean(exp(i*m*(theta_i -theta_j)))
+    """
+    phi = np.empty(orientations.shape, complex)
+    for p in xrange(orientations.size):
+        pairs = get_neighbors(vor, p, ret_pairs=True)
+        phi[p] = np.exp(1j*m*dtheta(*orientations[pairs.T])).mean()
+    return phi
 
 def get_id(data,position,frames=None,tolerance=10e-5):
     """ take a particle's `position' (x,y)
@@ -188,7 +226,7 @@ def get_id(data,position,frames=None,tolerance=10e-5):
     """
     if frames is not None:
         if np.iterable(frames):
-            data = data[data['f'] in frames]
+            data = data[np.in1d(data['f'], frames)]
         else:
             data = data[data['f']==frames]
     xmatch = data[abs(data['x']-position[0])<tolerance]
