@@ -7,7 +7,7 @@ from itertools import combinations, chain
 
 import numpy as np
 from numpy.linalg import norm
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
@@ -50,47 +50,36 @@ def count_in_ring(positions,center,r,dr=1):
     ring_area = tau * r * dr
     return count / ring_area
 
-def pair_corr(positions, dr=ss, rmax=10*ss):
-    """ pair_corr(positions)
-
-        the pair correlation function g(r)
-
-        takes a list of positions of particles in one 2-d frame
-        dr is step size in r for function g(r)
-            (units are those implied in coords of positions)
-    """
-    rs = np.arange(ss,rmax,dr)
-    g  = np.zeros(np.shape(rs))
-    dg = np.zeros(np.shape(rs))
-    rg = np.zeros(np.shape(rs))
-    for ir,r in enumerate(rs):
-        # Three ways to do same thing: list comp, map/lambda, loop
-        #gr = [count_in_ring(positions,position,r) for position in positions]
-        #gr = map( lambda x,y=r,p=positions: count_in_ring(p,x,y), positions )
-        gr = []
-        for position in positions:
-            if norm(np.asarray(position)-np.asarray((x0,y0))) < rr-rmax:
-                gr.append(count_in_ring(positions,position,r))
-        if np.asarray(gr).any():
-            g[ir]  = np.mean(gr)
-            dg[ir] = np.std(gr)
-            rg[ir] = r
-        else: print "none for r =",r
-    return g,dg,rg
-
-def pair_corr_hist(positions, dr=ss, rmax=10*ss, nbins=None):
+def pair_corr_hist(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do_error=False):
     """ pair_corr_hist(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
     """
+    pmax, pmin = positions.max(0), positions.min(0)
+    center = (pmax + pmin)/2   #TODO accuracy of this is critical
+    #radius = np.mean(pmax - pmin)/2
+    d = np.hypot(*(positions - center).T)
+    r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
+    radius = np.maximum(r.max()/2, d.max())#TODO accuracy of this is critical
+    if rmax is None:
+        rmax = 2*radius # this will have terrible statistics
     if nbins is None:
         nbins = rmax/dr
-    center = (positions.max(0) + positions.min(0))/2
-    loc_mask = np.hypot(*(positions - center).T) < rmax
-    distances = pdist(positions[loc_mask])
-    return np.histogram(distances, bins=nbins, range=(0,rmax),
-                        weights=1/(pi*distances*dr), # normalize by pi*r*dr
-                        )
+    if dmax is None:
+        dmax = radius - boundary
+    # for weighting, use areas of the annulus, which is:
+    #   arclength * dr = alpha r dr
+    #   where alpha = 2 arccos( (r2 + d2 - R2) / 2 r d )
+    cosalpha = 0.5 * (r*r + d*d - radius*radius) / (r * d)
+    alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
+    w = np.where(d <= dmax, np.reciprocal(alpha*r*dr), 0)
+    w = (w + w.T)/2.0
+    ind = np.triu_indices(positions.shape[0], 1)
+    ret = np.histogram(r[ind], bins=nbins, range=(0, rmax), weights=w[ind])
+    if do_error:
+        return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax))
+    else:
+        return ret
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
@@ -125,36 +114,45 @@ def avg_hists(gs, rgs):
     dg_avg = gs.std(0)/np.sqrt(gs.shape[0])
     return g_avg, dg_avg, rg
 
-def build_gs(data, prefix, framestep=10, dr=None, rmax=None):
-    """ build_gs(data, prefix, framestep=10)
+def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_error=False):
+    """ build_gs(data, framestep=10)
         calculates and builds g(r) for each (framestep) frames
         Takes:
             data: the structued array of data
-            prefix: which n to use, in string form 'n416', e.g.
             framestep=10: how many frames to skip
         Returns:
             gs: an array of g(r) for several frames
             rgs: their associated r values
     """
     frames = np.arange(data['f'].min(), data['f'].max()+1, framestep)
-    if dr is None:
-        dr = .1*ss
-    elif dr:
-        dr *= ss
-    if rmax is None:
-        rmax = rr - ss*3
-    elif rmax:
-        rmax = rr - ss*rmax
-    nbins  = rmax/dr
-    gs = np.zeros((frames.size, nbins))
-    rgs = np.copy(gs)
+    dr = ss*(.1 if dr is None else dr)
+    #if rmax is None:
+        #rmax = rr - ss*3
+    #elif rmax:
+        #rmax = rr - ss*rmax
+    nbins = rmax/dr if rmax and dr else None
+    gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
-        g, rg = pair_corr_hist(positions, dr=dr, rmax=rmax, nbins=nbins)
+        g, rg = pair_corr_hist(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
+                               boundary=boundary, do_error=do_error)
+        if do_error:
+            (g, rg), (eg, erg) = g, rg
+            erg = erg[1:]
         rg = rg[1:]
+        if gs is None:
+            nbins = g.size
+            gs = np.zeros((frames.size, nbins))
+            rgs = gs.copy()
+            if do_error:
+                egs = np.zeros((frames.size, nbins))
+                ergs = gs.copy()
         gs[nf,:len(g)]  = g
         rgs[nf,:len(g)] = rg
-    return gs,rgs
+        if do_error:
+            egs[nf, :len(eg)] = eg
+            ergs[nf, :len(eg)] = erg
+    return (gs, rgs), (egs, ergs) if do_error else (gs, rgs)
 
 def global_particle_orientational(orientations, m=4, ret_complex=True):
     """ global_particle_orientational(orientations, m=4)
@@ -387,7 +385,7 @@ def apply_hilbert(a, sig=None, full=False):
     if sig:
         a_smoothed = gaussian_filter(a, sig, mode='reflect')
     else:
-        a_smoothed = 0
+        a_smoothed = a.mean()
     h = hilbert(a - a_smoothed)
     if full:
         return h, a_smoothed
@@ -438,8 +436,8 @@ def exp_decay(s, sig=1., a=1., c=0):
             s,  independent variable
         Params:
             sigma,  decay constant
-            c,  constant offset
             a,  prefactor
+            c,  constant offset
 
         Returns:
             exp value at s
@@ -454,8 +452,8 @@ def powerlaw(t, b=1., a=1., c=0):
             t,  independent variable
         Params:
             b,  exponent (power)
-            c,  constant offset
             a,  prefactor
+            c,  constant offset
         Returns:
             power law value at t
     """
@@ -597,7 +595,7 @@ if __name__ == '__main__':
         data['id'] -= 1 # data from imagej is 1-indexed
         print "\t...loaded"
         print "loading positions"
-        gs, rgs = build_gs(data, prefix)
+        gs, rgs = build_gs(data)
         print "\t...gs,rgs built"
         print "averaging over all frames..."
         g, dg, rg = avg_hists(gs, rgs)
