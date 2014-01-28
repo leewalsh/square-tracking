@@ -3,8 +3,8 @@
 from __future__ import division
 
 from operator import itemgetter
-from itertools import combinations, chain
 
+from math import sqrt
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import pdist, cdist
@@ -98,10 +98,10 @@ def avg_hists(gs, rgs):
             rg: r for the avgs (just uses rgs[0] for now) 
     """
     assert np.all([np.allclose(rgs[i], rgs[j])
-        for i in xrange(rgs.shape[0]) for j in xrange(rgs.shape[0])])
+        for i in xrange(len(rgs)) for j in xrange(len(rgs))])
     rg = rgs[0]
     g_avg = gs.mean(0)
-    dg_avg = gs.std(0)/np.sqrt(gs.shape[0])
+    dg_avg = gs.std(0)/sqrt(len(gs))
     return g_avg, dg_avg, rg
 
 def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_error=False):
@@ -178,7 +178,7 @@ def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
     center = (positions.max(0) + positions.min(0))/2
     loc_mask = np.hypot(*(positions - center).T) < rmax
     distances = pdist(positions[loc_mask])
-    pairs = orientations[loc_mask][np.column_stack(np.triu_indices(loc_mask.sum(), 1))]
+    pairs = orientations[loc_mask][np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))]
     diffs = np.cos(m*dtheta(pairs))
     return distances, diffs
 
@@ -262,10 +262,10 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
         n_dist = None
     elif n_dist is True:
         print "hm haven't figured that out yet"
-        n_dist = ss*np.sqrt(2)
+        n_dist = ss*sqrt(2)
     elif n_dist is None and delauney is not True:
         print "hm haven't figured that out yet"
-        n_dist = ss*np.sqrt(2)
+        n_dist = ss*sqrt(2)
     elif delauney is True:
         print "hm haven't figured that out yet"
         return data
