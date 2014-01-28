@@ -60,21 +60,28 @@ def pair_corr_hist(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=
     #radius = np.mean(pmax - pmin)/2
     d = np.hypot(*(positions - center).T)
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
-    radius = np.maximum(r.max()/2, d.max())#TODO accuracy of this is critical
+    radius = np.maximum(r.max()/2, d.max())#TODO accuracy of this is critical  #TODO add ss/2?
     if rmax is None:
         rmax = 2*radius # this will have terrible statistics
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
         dmax = radius - boundary
+    ind = np.triu_indices(len(positions), 1)
     # for weighting, use areas of the annulus, which is:
-    #   arclength * dr = alpha r dr
+    #   number * arclength * dr = N alpha r dr
     #   where alpha = 2 arccos( (r2 + d2 - R2) / 2 r d )
     cosalpha = 0.5 * (r*r + d*d - radius*radius) / (r * d)
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
-    w = np.where(d <= dmax, np.reciprocal(alpha*r*dr), 0)
-    w = (w + w.T)/2.0
-    ind = np.triu_indices(positions.shape[0], 1)
+    dmask = d <= dmax
+    w = np.where(dmask, np.reciprocal(alpha*r*dr), 0)
+    w = 0.5*(w + w.T)
+    assert np.all(np.isfinite(w[ind]))
+    n = np.count_nonzero(dmask) # number of 'inner' particles
+    #n = 0.5*(1 + sqrt(1 + 8*np.count_nonzero(w[ind]))) # effective N from number of pairs
+    #n = len(w) # total number of particles
+    w *= 2/n
+    assert np.allclose(positions.shape[0], [len(r), len(d), len(w), len(positions)])
     ret = np.histogram(r[ind], bins=nbins, range=(0, rmax), weights=w[ind])
     if do_error:
         return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax))
