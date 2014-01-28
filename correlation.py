@@ -33,25 +33,8 @@ x0, y0 = 1375, 2020 # center of disk within image, in pixels
 pi = np.pi
 tau = 2*pi
 
-def count_in_ring(positions,center,r,dr=1):
-    """ count_in_ring(positions,center,r,dr)
-        return number of particles in a ring of
-            centered at center,
-            radius r,
-            thickness dr (defaults to 1.0),
-        normalized by the area of the ring
-    """
-    count = 0
-    for position in positions:
-        if r - dr < norm(np.asarray(position)-np.asarray(center)) < r + dr :
-            count += 1
-        else: continue
-
-    ring_area = tau * r * dr
-    return count / ring_area
-
-def pair_corr_hist(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do_error=False):
-    """ pair_corr_hist(positions):
+def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do_error=False):
+    """ pair_corr(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
     """
@@ -141,7 +124,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
-        g, rg = pair_corr_hist(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
+        g, rg = pair_corr(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
                                boundary=boundary, do_error=do_error)
         if do_error:
             (g, rg), (eg, erg) = g, rg
