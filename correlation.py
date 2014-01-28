@@ -8,7 +8,7 @@ from math import sqrt
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import pdist, cdist
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi, cKDTree
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
 
@@ -208,6 +208,48 @@ def local_particle_orientational(orientations, vor, m=4, ret_complex=True):
         pairs = get_neighbors(vor, p, ret_pairs=True)
         phi[p] = np.exp(1j*m*dtheta(*orientations[pairs.T])).mean()
     return phi
+
+def binder(positions, orientations, bl, m=4, method='ball'):
+    """ Calculate the binder cumulant for a frame, given positions and orientations.
+
+        bl: the binder length scale, such that
+            B(bl) = 1 - .333 * S4 / S2^2
+        where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
+    """
+    if method=='block':
+        left, right, bottom, top = positions[:,0].min(), positions[:,0].max(), positions[:,1].min(), positions[:,1].max()
+        xbins, ybins = np.arange(left, right + bl, bl), np.arange(bottom, top + bl, bl)
+        blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
+        block_ind = np.column_stack([
+                     np.digitize(positions[:,0], xbins),
+                     np.digitize(positions[:,1], ybins)])
+        return
+    elif 'neigh' in method or 'ball' in method:
+        tree = cKDTree(positions)
+        balls = tree.query_ball_tree(tree, bl)
+        balls, ball_mask = pad_uneven(balls, 0, True, int)
+        ball_orient = orientations[balls]
+        ball_orient[~ball_mask] = np.nan
+        phis = np.nanmean(np.exp(m*ball_orient*1j), 1)
+        phi2 = np.dot(phis, phis) / len(phis)
+        phiphi = phis*phis
+        phi4 = np.dot(phiphi, phiphi) / len(phiphi)
+        return 1 - phi4 / (phi2*phi2) / 3
+
+def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
+    """ take uneven list of lists
+        return new 2d array with shorter lists padded with fill value"""
+    if dtype is None:
+        dtype = np.result_type(fill, lst[0][0])
+    shape = len(lst), max(map(len, lst))
+    result = np.zeros(shape, dtype) if fill==0 else np.full(shape, fill, dtype)
+    if return_mask:
+        mask = np.zeros(shape, bool)
+    for i, row in enumerate(lst):
+        result[i, :len(row)] = row
+        if return_mask:
+            mask[i, :len(row)] = True
+    return (result, mask) if return_mask else result
 
 def get_id(data,position,frames=None,tolerance=10e-5):
     """ take a particle's `position' (x,y)
