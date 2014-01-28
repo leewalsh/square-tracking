@@ -142,9 +142,9 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
         if do_error:
             egs[nf, :len(eg)] = eg
             ergs[nf, :len(eg)] = erg
-    return (gs, rgs), (egs, ergs) if do_error else (gs, rgs)
+    return ((gs, rgs), (egs, ergs)) if do_error else (gs, rgs)
 
-def global_particle_orientational(orientations, m=4, ret_complex=True):
+def global_particle_orientational(orientations, m=4, ret_complex=True, do_err=True):
     """ global_particle_orientational(orientations, m=4)
         Returns the global m-fold particle orientational order parameter
 
@@ -152,10 +152,13 @@ def global_particle_orientational(orientations, m=4, ret_complex=True):
         Phi  = --- SUM e          j
            m    N  j=1
     """
-    np.mod(orientations, tau/4, orientations)
+    np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
     phi = np.exp(m*orientations*1j).mean()
-    err = phi.std(ddof=1)/np.sqrt(phi.size)
-    return (phi, err) if ret_complex else (np.abs(phi), err)
+    if do_err:
+        err = phi.std(ddof=1)/sqrt(phi.size)
+        return (phi, err) if ret_complex else (np.abs(phi), err)
+    else:
+        return phi if ret_complex else np.abs(phi)
 
 def dtheta(i, j=None, m=4, sign=False):
     """ given two angles or one array (N,2) of pairs
