@@ -67,9 +67,9 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do
     assert np.allclose(positions.shape[0], [len(r), len(d), len(w), len(positions)])
     ret = np.histogram(r[ind], bins=nbins, range=(0, rmax), weights=w[ind])
     if do_error:
-        return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax))
+        return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax)), n
     else:
-        return ret
+        return ret + (n,)
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
@@ -124,10 +124,10 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
-        g, rg = pair_corr(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
+        g, rg, n = pair_corr(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
                                boundary=boundary, do_error=do_error)
         if do_error:
-            (g, rg), (eg, erg) = g, rg
+            (g, rg), (eg, erg), n = g, rg, n
             erg = erg[1:]
         rg = rg[1:]
         if gs is None:
@@ -142,7 +142,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
         if do_error:
             egs[nf, :len(eg)] = eg
             ergs[nf, :len(eg)] = erg
-    return ((gs, rgs), (egs, ergs)) if do_error else (gs, rgs)
+    return ((gs, rgs), (egs, ergs), n) if do_error else (gs, rgs, n)
 
 def global_particle_orientational(orientations, m=4, ret_complex=True, do_err=True):
     """ global_particle_orientational(orientations, m=4)
@@ -165,7 +165,7 @@ def dtheta(i, j=None, m=4, sign=False):
         returns the _smallest angle between them, modulo m
         if sign is True, retuns a negative angle for i<j, else abs
     """
-    ma = 2*np.pi/m
+    ma = tau/m
     if j is not None:
         diff = i - j
     elif i.shape[1]==2:
@@ -234,7 +234,7 @@ def binder(positions, orientations, bl, m=4, method='ball'):
         phi2 = np.dot(phis, phis) / len(phis)
         phiphi = phis*phis
         phi4 = np.dot(phiphi, phiphi) / len(phiphi)
-        return 1 - phi4 / (phi2*phi2) / 3
+        return 1 - phi4 / (3*phi2*phi2)
 
 def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
