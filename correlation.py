@@ -33,23 +33,24 @@ x0, y0 = 1375, 2020 # center of disk within image, in pixels
 pi = np.pi
 tau = 2*pi
 
-def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do_error=False):
+def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
     """ pair_corr(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
+        excludes pairs in margin of given width
     """
     pmax, pmin = positions.max(0), positions.min(0)
     center = (pmax + pmin)/2   #TODO accuracy of this is critical
     #radius = np.mean(pmax - pmin)/2
     d = np.hypot(*(positions - center).T)
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
-    radius = np.maximum(r.max()/2, d.max())#TODO accuracy of this is critical  #TODO add ss/2?
+    radius = np.maximum(r.max()/2, d.max())#TODO accuracy is critical.. add ss/2?
     if rmax is None:
         rmax = 2*radius # this will have terrible statistics
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
-        dmax = radius - boundary
+        dmax = radius - margin
     ind = np.triu_indices(len(positions), 1)
     # for weighting, use areas of the annulus, which is:
     #   number * arclength * dr = N alpha r dr
@@ -60,13 +61,13 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, boundary=0, do
     w = np.where(dmask, np.reciprocal(alpha*r*dr), 0)
     w = 0.5*(w + w.T)
     assert np.all(np.isfinite(w[ind]))
-    n = np.count_nonzero(dmask) # number of 'inner' particles
-    #n = 0.5*(1 + sqrt(1 + 8*np.count_nonzero(w[ind]))) # effective N from number of pairs
+    n = np.count_nonzero(dmask) # number of 'bulk' (inner) particles
+    #n = 0.5*(1 + sqrt(1 + 8*np.count_nonzero(w[ind]))) # effective N from no. of pairs
     #n = len(w) # total number of particles
     w *= 2/n
     assert np.allclose(positions.shape[0], [len(r), len(d), len(w), len(positions)])
     ret = np.histogram(r[ind], bins=nbins, range=(0, rmax), weights=w[ind])
-    if do_error:
+    if do_err:
         return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax)), n
     else:
         return ret + (n,)
@@ -104,7 +105,7 @@ def avg_hists(gs, rgs):
     dg_avg = gs.std(0)/sqrt(len(gs))
     return g_avg, dg_avg, rg
 
-def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_error=False):
+def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=False):
     """ build_gs(data, framestep=10)
         calculates and builds g(r) for each (framestep) frames
         Takes:
@@ -125,8 +126,8 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
         g, rg, n = pair_corr(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
-                               boundary=boundary, do_error=do_error)
-        if do_error:
+                               margin=margin, do_err=do_err)
+        if do_err:
             (g, rg), (eg, erg), n = g, rg, n
             erg = erg[1:]
         rg = rg[1:]
@@ -134,15 +135,15 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, boundary=0, do_er
             nbins = g.size
             gs = np.zeros((frames.size, nbins))
             rgs = gs.copy()
-            if do_error:
+            if do_err:
                 egs = np.zeros((frames.size, nbins))
                 ergs = gs.copy()
         gs[nf,:len(g)]  = g
         rgs[nf,:len(g)] = rg
-        if do_error:
+        if do_err:
             egs[nf, :len(eg)] = eg
             ergs[nf, :len(eg)] = erg
-    return ((gs, rgs), (egs, ergs), n) if do_error else (gs, rgs, n)
+    return ((gs, rgs), (egs, ergs), n) if do_err else (gs, rgs, n)
 
 def global_particle_orientational(orientations, m=4, ret_complex=True, do_err=True):
     """ global_particle_orientational(orientations, m=4)
@@ -173,26 +174,24 @@ def dtheta(i, j=None, m=4, sign=False):
     diff = (diff + ma/2)%ma - ma/2
     return diff if sign else np.abs(diff)
 
-def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss, nbins=None):
+def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
     """
-    center = (positions.max(0) + positions.min(0))/2
+    center = 0.5*(positions.max(0) + positions.min(0))
     loc_mask = np.hypot(*(positions - center).T) < rmax
     distances = pdist(positions[loc_mask])
-    pairs = orientations[loc_mask][np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))]
-    diffs = np.cos(m*dtheta(pairs))
+    ind = np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))
+    pairs = orientations[loc_mask][ind]
+    diffs = np.cos(m*dtheta(pairs, m=m))
     return distances, diffs
 
 def get_neighbors(v, p, pm=None, ret_pairs=False):
     """ give neighbors in voronoi tessellation v of point id p
         if already calculated, pm is point mask
     """
-    if pm is None:
-        pm = v.ridge_points == p
-    else:
-        pm = pm[p]
+    pm = v.ridge_points == p if pm is None else pm[p]
     pm = np.any(pm, 1)
     pairs = v.ridge_points[pm]
     return pairs if ret_pairs else pairs[pairs != p]
@@ -200,7 +199,6 @@ def get_neighbors(v, p, pm=None, ret_pairs=False):
 def local_particle_orientational(orientations, vor, m=4, ret_complex=True):
     """ local m-fold particle orientational order parameter
         THIS IS WRONG :-( but unnecessary :-/
-
         phi(r_i) = mean(exp(i*m*(theta_i -theta_j)))
     """
     phi = np.empty(orientations.shape, complex)
@@ -217,7 +215,8 @@ def binder(positions, orientations, bl, m=4, method='ball'):
         where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
     """
     if method=='block':
-        left, right, bottom, top = positions[:,0].min(), positions[:,0].max(), positions[:,1].min(), positions[:,1].max()
+        left, right, bottom, top = (positions[:,0].min(), positions[:,0].max(),
+                                    positions[:,1].min(), positions[:,1].max())
         xbins, ybins = np.arange(left, right + bl, bl), np.arange(bottom, top + bl, bl)
         blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
         block_ind = np.column_stack([
@@ -273,21 +272,6 @@ def get_angle(posi,posj):
     dx = vecij[0]
     dy = vecij[1]
     return np.arctan2(dy,dx) % tau
-
-def merge_data(data,ndata,**kw):
-    if data is None:
-        if ndata is not None:
-            print "Returning ndata"
-            return ndata
-        elif ndata is None:
-            print "Returning None"
-            return None
-    elif ndata is None:
-        print "Returning data"
-        return data
-    else:
-        return merge_arrays([data,ndata], flatten=True, **kw)
-
 
 def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
     """ add_neighbors(data)
@@ -388,7 +372,7 @@ def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
     pl.figure()
     for k in peaks:
         try:
-            pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',-',label=k)
+            pl.plot(gdata[k]['rg'][:binmax]/22.,gdata[k]['g'][:binmax]/22.,',-',label=k)
             #pl.scatter(*np.asarray(peaks[k][0]).T,
             #        marker='o', label=k, c = cm.jet((int(k[1:])-200)*255/300))
             #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
@@ -505,8 +489,10 @@ def domyfits():
         pl.figure()
         pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
         pl.scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
-        pexps[k],cexp = curve_fit(corr.exp_decay,*np.array(fixedpeaks[k]).T,p0=(3,.0005,.0001))
-        ppows[k],cpow = curve_fit(corr.powerlaw,*np.array(fixedpeaks[k]).T,p0=(-.5,.0005,.0001))
+        pexps[k],cexp = curve_fit(corr.exp_decay,
+                                  *np.array(fixedpeaks[k]).T, p0=(3,.0005,.0001))
+        ppows[k],cpow = curve_fit(corr.powerlaw,
+                                  *np.array(fixedpeaks[k]).T, p0=(-.5,.0005,.0001))
         xs = np.arange(0.8,10.4,0.2)
         pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
@@ -605,19 +591,15 @@ def domyneighbors(prefix):
 
 
 if __name__ == '__main__':
-
     prefix = 'n400'
 
     ss = 92#22  # side length of square in pixels
     rmax = ss*10.
-
     try:
         datapath = locdir+prefix+"_GR.npz"
         print "loading data from",datapath
         grnpz = np.load(datapath)
-        g  = grnpz['g']
-        dg = grnpz['dg']
-        rg = grnpz['rg']
+        g, dg, rg   = grnpz['g'], grnpz['dg'], grnpz['rg']
     except:
         print "NPZ file not found for n =",prefix[1:]
         datapath = locdir+prefix+'_results.txt'
