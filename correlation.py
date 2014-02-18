@@ -23,8 +23,7 @@ elif 'rock' in hostname:
     import matplotlib.cm as cm
     locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
 else:
-    print "computer not defined"
-    print "where are you working?"
+    print "computer not defined\nwhere are you working?"
 
 ss = 92   # side length of square in pixels
 rr = 1255 # radius of disk in pixels
@@ -214,16 +213,7 @@ def binder(positions, orientations, bl, m=4, method='ball'):
             B(bl) = 1 - .333 * S4 / S2^2
         where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
     """
-    if method=='block':
-        left, right, bottom, top = (positions[:,0].min(), positions[:,0].max(),
-                                    positions[:,1].min(), positions[:,1].max())
-        xbins, ybins = np.arange(left, right + bl, bl), np.arange(bottom, top + bl, bl)
-        blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
-        block_ind = np.column_stack([
-                     np.digitize(positions[:,0], xbins),
-                     np.digitize(positions[:,1], ybins)])
-        return
-    elif 'neigh' in method or 'ball' in method:
+    if 'neigh' in method or 'ball' in method:
         tree = cKDTree(positions)
         balls = tree.query_ball_tree(tree, bl)
         balls, ball_mask = pad_uneven(balls, 0, True, int)
@@ -234,6 +224,16 @@ def binder(positions, orientations, bl, m=4, method='ball'):
         phiphi = phis*phis
         phi4 = np.dot(phiphi, phiphi) / len(phiphi)
         return 1 - phi4 / (3*phi2*phi2)
+    else:
+        raise ValueError, "method {} not implemented".format(method)
+    #elif method=='block':
+        left, right, bottom, top = (positions[:,0].min(), positions[:,0].max(),
+                                    positions[:,1].min(), positions[:,1].max())
+        xbins, ybins = np.arange(left, right + bl, bl), np.arange(bottom, top + bl, bl)
+        blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
+        block_ind = np.column_stack([
+                     np.digitize(positions[:,0], xbins),
+                     np.digitize(positions[:,1], ybins)])
 
 def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
@@ -250,7 +250,7 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
-def get_id(data,position,frames=None,tolerance=10e-5):
+def get_id(data, position, frames=None, tolerance=10e-5):
     """ take a particle's `position' (x,y)
         optionally limit search to one or more `frames'
 
@@ -264,14 +264,12 @@ def get_id(data,position,frames=None,tolerance=10e-5):
     xmatch = data[abs(data['x']-position[0])<tolerance]
     return xmatch['id'][abs(xmatch['y']-position[1])<tolerance]
 
-def get_norm((posi,posj)):
+def get_norm((posi, posj)):
     return norm(np.asarray(posj) - np.asarray(posi))
 
-def get_angle(posi,posj):
-    vecij = np.asarray(posi) - np.asarray(posj)
-    dx = vecij[0]
-    dy = vecij[1]
-    return np.arctan2(dy,dx) % tau
+def pair_angle(posi, posj=None):
+    dx, dy = np.asarray(posi) - np.asarray(posj)
+    return np.arctan2(dy, dx) % tau
 
 def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
     """ add_neighbors(data)
@@ -313,14 +311,71 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
             ineighbors = [ (
                         posj,           #to become get_id(data,posj,frame),
                         get_norm((posi,posj)),
-                        (posi,posj)     #to become get_angle(posi,posj)
+                        (posi,posj)     #to become pair_angle(posi,posj)
                         ) for posj in positions ]
             ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
             ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi itself
-            ineighbors = [ (get_id(data,nposj,frame),nnorm,get_angle(*npos)) 
-                    for (nposj,nnorm,npos) in ineighbors]
+            ineighbors = [ (get_id(data,nposj,frame), nnorm, pair_angle(*npos)) 
+                    for (nposj, nnorm, npos) in ineighbors]
             ndata['n'][data['id']==idi] = ineighbors
     return ndata
+
+def pair_angles(data, neighborhood=None, ang_type='relative', margin=0, max_dist=2*S):
+    """ do something with the angles a given particle makes with its neighbors
+
+        `ang_type` can be 'relative', 'delta', or 'absolute'
+        `neighborhood` may be:
+            an integer (probably 4, 6, or 8), giving that many nearest neighbors,
+            or None (which gives voronoi)
+        `margin` is the width of excluded boundary margin
+    """
+    # filter out margin?
+    '''xmax, xmin, ymax, ymin = (data['x'].max(), data['x'].min(),
+                              data['y'].max(), data['y'].min())
+    x0, y0 = 0.5*(xmax + xmin), 0.5*(ymax + ymin)
+    d = np.hypot(data['x'] - x0, data['y'] - y0)
+    radius = 0.5*max(xmax-xmin, ymax-ymin)
+    dmax = radius - margin'''
+    if neighborhood is None:
+        #method = 'voronoi'
+        raise ValueError, ("Voronoi not yet implemented, "
+                           "please give neighborhood as integer")
+        tess = Voronoi(positions)
+        neighbors = tess.ridge_points
+    elif isinstance(neighborhood, int):
+        #method = 'nearest'
+        tree = cKDTree(positions)
+        # tree.query(P, N) returns query particle and N-1 neighbors
+        distances, neighbors = tree.query(positions, 1 + neighborhood,
+                                          distance_upper_bound=max_dist)
+        assert np.allclose(distances[:,0], 0), "distance to self not zero"
+        distances = distances[:,1:]
+        assert np.allclose(neighbors[:,0], np.arange(len(distances))), "first neighbor not self"
+        neighbors = neighbors[:,1:]
+        mask = np.isinf(distances)
+        assert np.count_nonzero(mask) == mask.size, "some particles have insufficient neighbors"
+        #TODO neighbors[mask] = 0 # or itself: np.arange(len(distances))[np.where(mask)[0]]
+    dx, dy = (positions[neighbors] - positions[:, None, :]).T
+    angles = np.arctan2(dy, dx).T % tau
+    assert angles.shape == neighbors.shape
+    if ang_type == 'relative':
+        # subtract off angle to closest neighbor
+        angles -= angles[:, 0]
+    elif ang_type == 'delta':
+        # sort by angle then take diff
+        angles.sort(-1)
+        angles -= np.roll(angles, 1, -1)
+    elif ang_type == 'absolute':
+        pass
+    else:
+        raise ValueError "unknown ang_type {}".format(ang_type)
+    return angles % tau
+
+def domyneighbors(prefix):
+    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+    data = tracksnpz['data']
+    ndata = add_neighbors(data)
+    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
 
 def get_gdata(locdir,ns):
     return dict([
@@ -496,98 +551,7 @@ def domyfits():
         xs = np.arange(0.8,10.4,0.2)
         pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
         pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
-    return pexps,ppows
-
-def delta_distro(n,histlim):
-    """ delta_distro(n, histlim)
-        returns a delta distribution of angles for n-fold order
-    """
-    return list(np.arange(0,1,1./n)*tau)*histlim
-
-def domyhists(nbins=180, ang_type='relative',boundaries=True,ns=None,nn=None):
-    """ ang_type can be 'relative', 'delta', or 'absolute'
-
-        if boundaries is True: boundaries are included, else: excluded
-            boundary width is assumed to be 0.3*r
-            if boundaries is false, data must be loaded to find positions
-    """
-    if computer is 'foppl':
-        print "cant do this on foppl"
-        return
-    if ns is None:
-        ns = np.arange(320,464,16)
-    if not np.iterable(ns):
-        ns = [ns]
-    if nn is None:
-        nn = 6
-    for n in ns:
-        print 'n=',n
-        prefix = 'n'+str(n)
-        ndatanpz = np.load(locdir+prefix+'_NEIGHBORS.npz')
-        ndata = ndatanpz['ndata']
-        histlim = nn*len(ndata)/nbins/2
-        if ang_type is not 'delta':
-            histlim /= 2
-        if boundaries is False:
-            histlim /= 6
-            datanpz = np.load(locdir+prefix+'_TRACKS.npz')
-            #alldata = merge_data(datanpz['data'],ndata)
-            alldata = datanpz['data']
-            x0 = np.mean([max(alldata['x']),min(alldata['x'])])
-            y0 = np.mean([max(alldata['y']),min(alldata['y'])])
-            r0 = 0.5*np.mean([
-                max(alldata['x']) - min(alldata['x']),
-                max(alldata['y']) - min(alldata['y'])])
-            center = (x0,y0)
-            is_bulk = np.asarray(
-                    map(get_norm,zip(zip(alldata['x'],alldata['y']),list(center)*len(alldata)))
-                        < r0*0.7,
-                        dtype=bool)
-            if len(is_bulk) == len(ndata):
-                ndata = ndata[is_bulk]
-                #ndata = alldata.view(dtype = [('n',alldata['n'].dtype,(nn,))])
-            else:
-                print "length mismatch"
-        # remove data without neighbor info:
-        ndata = ndata[np.any(ndata['n']['nid'],axis=1)]
-        if ang_type is 'relative':
-            allangles = np.array([
-                    (ndata['n']['angle'][:,i] - ndata['n']['angle'][:,0])%tau
-                    for i in np.arange(nn) ])
-        elif ang_type is 'delta':
-            allangles = []
-            for i in range(len(ndata['n'])):
-                ineighbors = ndata['n'][i][:nn]
-                ineighbors.sort(order='angle')
-                allangles.append(list([
-                        (ineighbors['angle'][i] - ineighbors['angle'][i-1])%tau
-                        for i in range(len(ineighbors))
-                        ]))
-        elif ang_type is 'absolute':
-            allangles = ndata['n']['angle']
-        else:
-            print "uknown ang_type:",ang_type
-            continue
-        allangles = np.asarray(allangles).flatten() % tau
-
-        pl.figure(figsize=(12,9))
-        for nfold in [8,6,4]:
-            pl.hist(delta_distro(nfold,histlim), bins = nbins,label="%d-fold"%nfold)
-        pl.hist(allangles, bins = nbins,label=ang_type+' theta')
-        pl.ylim([0,histlim])
-        pl.xlim([0, pi if ang_type is 'delta' else tau])
-        pl.title("%s, %s theta, %d neighbors, boundaries %scluded"%\
-                (prefix,ang_type,nn,"in" if boundaries else "ex"))
-        pl.legend()
-        pl.savefig("%s%s_ang_%s_%d%s_hist.png"%\
-                    (locdir,prefix,ang_type,nn,'' if boundaries else '_nobndry'))
-
-def domyneighbors(prefix):
-    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-    data = tracksnpz['data']
-    ndata = add_neighbors(data)
-    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
-
+    return pexps, ppows
 
 
 if __name__ == '__main__':
