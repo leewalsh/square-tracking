@@ -320,7 +320,7 @@ def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
             ndata['n'][data['id']==idi] = ineighbors
     return ndata
 
-def pair_angles(data, neighborhood=None, ang_type='relative', margin=0, max_dist=2*S):
+def pair_angles(positions, neighborhood=None, ang_type='relative', margin=0, max_dist=2*ss):
     """ do something with the angles a given particle makes with its neighbors
 
         `ang_type` can be 'relative', 'delta', or 'absolute'
@@ -368,7 +368,7 @@ def pair_angles(data, neighborhood=None, ang_type='relative', margin=0, max_dist
     elif ang_type == 'absolute':
         pass
     else:
-        raise ValueError "unknown ang_type {}".format(ang_type)
+        raise ValueError, "unknown ang_type {}".format(ang_type)
     return angles % tau
 
 def domyneighbors(prefix):
