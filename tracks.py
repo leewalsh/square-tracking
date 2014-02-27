@@ -37,7 +37,7 @@ if __name__=='__main__':
     if dotfix:
         print 'using dotfix', dotfix
 
-loaddata   = True    # Create and save structured array from data txt file?
+loaddata   = False    # Create and save structured array from data txt file?
 
 findtracks = False   # Connect the dots and save in 'trackids' field of data
 plottracks = False   # plot their tracks
@@ -47,6 +47,8 @@ loadmsd = False      # load previoius MSD from npz file
 plotmsd = False      # plot the MSD
 
 verbose = False
+
+S = 22 # side length of particle
 
 if plottracks:
     bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
@@ -61,7 +63,7 @@ def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
         if verbose:
-            print "New track:",newtrackid
+            print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
@@ -267,51 +269,52 @@ elif loadmsd:
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=0, prefix=''):
+def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', title=None, ylim=None):
     """ Plots the MSDs"""
-    nframes = max(data['f'])
+    pl.figure(figsize=(5,4))
+    nframes = data['f'].max()
     if isinstance(dtau, float):
         taus = farange(dt0, nframes, dtau)
-        msd = np.transpose([taus, np.zeros_like(taus)])
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
-        msd = np.transpose([taus, np.zeros(-(-nframes/dtau) - 1)])
-    pl.figure()
+    msd = np.zeros(len(taus))
     added = np.zeros(len(msd), float)
     for tmsd in msds:
         if tmsd:
-            tmsd = np.asarray(tmsd)
-            tmsd[:,1] /= 22**2 # convert to unit "particle area"
-            if tnormalize:
-                tmsdt, tmsdd = zip(*tmsd)
-                tmsdt = np.asarray(tmsdt)
-                tmsdd = np.asarray(tmsdd)
-                pl.semilogx(tmsdt, tmsdd/tmsdt)
-            else:
-                pl.loglog(*zip(*tmsd))
-            lim = min(len(msd), len(tmsd))
-            msd[:lim,1] += np.array(tmsd)[:lim,1]
-            added[:lim] += 1.
-    #assert not np.any(added==0), "no tmsd for some value of tau!"
-    #TODO FIX THIS!  don't just divide these by one: -- why not?
-    added[added==0]=1
-    msd[:,1] /= added
+            tmsdt, tmsdd =  np.asarray(tmsd).T
+            tmsdd /= S**2 # convert to unit "particle area"
+            if show_tracks:
+                if tnormalize:
+                    pl.semilogx(tmsdt, tmsdd/tmsdt**tnormalize)
+                else:
+                    pl.loglog(tmsdt, tmsdd)
+            tau_match = np.searchsorted(taus, tmsdt)
+            msd[tau_match] += tmsdd
+            added[tau_match] += 1
+    tau_mask = added > 0
+    assert np.all(tau_mask), "no tmsd for tau =\n" + str(np.where(~tau_mask))
+    #msd = msd[tau_mask]
+    #taus = taus[tau_mask]
+    #added = added[tau_mask]
+    msd /= added
     if tnormalize:
-        pl.semilogx(msd[:,0],msd[:,1]/msd[:,0]**tnormalize,'ko',label="Mean Sq Disp/Time")
-        pl.semilogx(taus, msd[0,1]*taus**(1-tnormalize)/dtau,
-                'k-',label="ref slope = 1",lw=4)
+        pl.semilogx(taus, msd/taus**tnormalize,'k', lw=2, label="Mean Sq Disp/Time")
+        pl.semilogx(taus, msd[0]*taus**(1-tnormalize)/dtau,
+                'k-',label="ref slope = 1")#,lw=4)
         pl.semilogx(taus, 1.*taus**(0)/taus**(tnormalize),
                 'k--',label="One particle area",lw=2)
-        pl.ylim([0,1.5*np.max(msd[:,1]/msd[:,0]**tnormalize)])
+        pl.ylim([0,1.5*np.max(msd/taus**tnormalize)])
     else:
-        pl.loglog(msd[:,0],msd[:,1],'ko',label="Mean Sq Disp")
-        pl.loglog(taus, msd[0,1]*taus/dtau,
-                'k-',label="ref slope = 1",lw=4)
-    pl.legend(loc=2 if tnormalize else 4)
-    pl.title(prefix)
-    pl.xlabel('Time tau (Image frames)')
-    pl.ylabel('Squared Displacement (particle area '+r'$s^2$'+')')
-    pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau))
+        pl.loglog(taus, msd,'k.', label="Mean Sq Disp")
+        pl.loglog(taus, msd[0]*taus/dtau, 'k-', label="slope = 1")
+    pl.legend(loc='lower right')# 2 if tnormalize else 4)
+    pl.title(prefix if title is None else title)
+    pl.xlabel('Time (Image frames)')
+    pl.ylabel('Displacement (particle area)')# '+r'$s^2$'+')')
+    if ylim is not None:
+        pl.ylim(*ylim)
+    pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.pdf"%(dt0,dtau))#, dpi=180)
+    #print 'saved to '+locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau)
     pl.show()
 
 if plotmsd and computer is 'rock':
