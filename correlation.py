@@ -8,7 +8,7 @@ from math import sqrt
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import pdist, cdist
-from scipy.spatial import Voronoi, cKDTree
+from scipy.spatial import Voronoi, cKDTree, Delaunay
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
 
@@ -173,38 +173,39 @@ def dtheta(i, j=None, m=4, sign=False):
     diff = (diff + ma/2)%ma - ma/2
     return diff if sign else np.abs(diff)
 
-def orient_corr(positions, orientations, m=4, dr=ss, rmax=10*ss):
+def correlate(r, f, bins=10):
+    n, bins = np.histogram(r, bins)
+    return np.histogram(r, bins, weights=f)[0]/n, bins
+
+def orient_corr(positions, orientations, m=4, rmax=10*ss):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
     """
     center = 0.5*(positions.max(0) + positions.min(0))
     loc_mask = np.hypot(*(positions - center).T) < rmax
-    distances = pdist(positions[loc_mask])
+    r = pdist(positions[loc_mask])
     ind = np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
-    return distances, diffs
+    return r, diffs
 
-def get_neighbors(v, p, pm=None, ret_pairs=False):
+def get_neighbors(tess, p, pm=None, ret_pairs=False):
     """ give neighbors in voronoi tessellation v of point id p
         if already calculated, pm is point mask
     """
-    pm = v.ridge_points == p if pm is None else pm[p]
-    pm = np.any(pm, 1)
-    pairs = v.ridge_points[pm]
-    return pairs if ret_pairs else pairs[pairs != p]
-
-def local_particle_orientational(orientations, vor, m=4, ret_complex=True):
-    """ local m-fold particle orientational order parameter
-        THIS IS WRONG :-( but unnecessary :-/
-        phi(r_i) = mean(exp(i*m*(theta_i -theta_j)))
-    """
-    phi = np.empty(orientations.shape, complex)
-    for p in xrange(orientations.size):
-        pairs = get_neighbors(vor, p, ret_pairs=True)
-        phi[p] = np.exp(1j*m*dtheta(*orientations[pairs.T])).mean()
-    return phi
+    if isinstance(tess, Delaunay):
+        indices, indptr = tess.vertex_neighbor_vertices
+        if np.iterable(p):
+            return [indptr[indices[q]:indices[q+1]] for q in p]
+        return indptr[indices[p]:indices[p+1]]
+    elif isinstance(tess, Voronoi):
+        if np.iterable(p):
+            raise ValueError, "cannot find neighbors of multiple points with Voronoi"
+        pm = tess.ridge_points == p if pm is None else pm[p]
+        pm = np.any(pm, 1)
+        pairs = tess.ridge_points[pm]
+        return pairs if ret_pairs else pairs[pairs != p]
 
 def binder(positions, orientations, bl, m=4, method='ball'):
     """ Calculate the binder cumulant for a frame, given positions and orientations.
@@ -250,77 +251,7 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
-def get_id(data, position, frames=None, tolerance=10e-5):
-    """ take a particle's `position' (x,y)
-        optionally limit search to one or more `frames'
-
-        return that particle's id
-    """
-    if frames is not None:
-        if np.iterable(frames):
-            data = data[np.in1d(data['f'], frames)]
-        else:
-            data = data[data['f']==frames]
-    xmatch = data[abs(data['x']-position[0])<tolerance]
-    return xmatch['id'][abs(xmatch['y']-position[1])<tolerance]
-
-def get_norm((posi, posj)):
-    return norm(np.asarray(posj) - np.asarray(posi))
-
-def pair_angle(posi, posj=None):
-    dx, dy = np.asarray(posi) - np.asarray(posj)
-    return np.arctan2(dy, dx) % tau
-
-def add_neighbors(data, nn=6, n_dist=None, delauney=None, ss=22):
-    """ add_neighbors(data)
-        takes data structured array, adds field of neighbors
-        which is a list of nearest neighbors
-        returns new array with neighbors field
-    """
-    from multiprocessing import Pool
-    if 'n' in data.dtype.names:
-        print "It's your lucky day, neighbors have already been added to this data"
-        return data
-    if 's' in data.dtype.names:
-        fieldnames = np.array(data.dtype.names)
-        fieldnames[fieldnames == 's'] = 'f'
-        data.dtype.names = tuple(fieldnames)
-    if nn is not None:
-        n_dist = None
-    elif n_dist is True:
-        print "hm haven't figured that out yet"
-        n_dist = ss*sqrt(2)
-    elif n_dist is None and delauney is not True:
-        print "hm haven't figured that out yet"
-        n_dist = ss*sqrt(2)
-    elif delauney is True:
-        print "hm haven't figured that out yet"
-        return data
-    nsdtype = [('nid',int),('norm',float),('angle',float)]
-    ndata = np.zeros(len(data), dtype=[('n',nsdtype,(nn,))] )
-    nthreads = 2
-    #TODO p = Pool(nthreads)
-    framestep = 50 # large for testing purposes.
-    frames = np.arange(min(data['f']),max(data['f']),framestep)
-    #def f(frame,data):
-    for frame in frames:
-        positions = get_positions(data,frame)
-        ineighbors = []
-        for posi in positions:
-            idi = get_id(data,posi,frame)
-            ineighbors = [ (
-                        posj,           #to become get_id(data,posj,frame),
-                        get_norm((posi,posj)),
-                        (posi,posj)     #to become pair_angle(posi,posj)
-                        ) for posj in positions ]
-            ineighbors.sort(key=itemgetter(1))      # sort by element 1 of tuple (norm)
-            ineighbors = ineighbors[1:nn+1]         # the first neighbor is posi itself
-            ineighbors = [ (get_id(data,nposj,frame), nnorm, pair_angle(*npos)) 
-                    for (nposj, nnorm, npos) in ineighbors]
-            ndata['n'][data['id']==idi] = ineighbors
-    return ndata
-
-def pair_angles(positions, neighborhood=None, ang_type='relative', margin=0, max_dist=2*ss):
+def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub=2*ss):
     """ do something with the angles a given particle makes with its neighbors
 
         `ang_type` can be 'relative', 'delta', or 'absolute'
@@ -330,46 +261,51 @@ def pair_angles(positions, neighborhood=None, ang_type='relative', margin=0, max
         `margin` is the width of excluded boundary margin
     """
     # filter out margin?
-    '''xmax, xmin, ymax, ymin = (data['x'].max(), data['x'].min(),
-                              data['y'].max(), data['y'].min())
-    x0, y0 = 0.5*(xmax + xmin), 0.5*(ymax + ymin)
-    d = np.hypot(data['x'] - x0, data['y'] - y0)
-    radius = 0.5*max(xmax-xmin, ymax-ymin)
-    dmax = radius - margin'''
+    #xmax, xmin, ymax, ymin = (data['x'].max(), data['x'].min(),
+    #                          data['y'].max(), data['y'].min())
+    #x0, y0 = 0.5*(xmax + xmin), 0.5*(ymax + ymin)
+    #d = np.hypot(data['x'] - x0, data['y'] - y0)
+    #radius = 0.5*max(xmax-xmin, ymax-ymin)
+    #dmax = radius - margin
     if neighborhood is None:
         #method = 'voronoi'
-        raise ValueError, ("Voronoi not yet implemented, "
-                           "please give neighborhood as integer")
-        tess = Voronoi(positions)
-        neighbors = tess.ridge_points
+        tess = Delaunay(positions)
+        neighbors = get_neighbors(tess, xrange(tess.npoints))
+        neighbors, mask = pad_uneven(neighbors, 0, True, int)
     elif isinstance(neighborhood, int):
         #method = 'nearest'
         tree = cKDTree(positions)
         # tree.query(P, N) returns query particle and N-1 neighbors
         distances, neighbors = tree.query(positions, 1 + neighborhood,
-                                          distance_upper_bound=max_dist)
+                                          distance_upper_bound=dub)
         assert np.allclose(distances[:,0], 0), "distance to self not zero"
         distances = distances[:,1:]
-        assert np.allclose(neighbors[:,0], np.arange(len(distances))), "first neighbor not self"
+        assert np.allclose(neighbors[:,0], np.arange(tree.n)), "first neighbor not self"
         neighbors = neighbors[:,1:]
-        mask = np.isinf(distances)
-        assert np.count_nonzero(mask) == mask.size, "some particles have insufficient neighbors"
-        #TODO neighbors[mask] = 0 # or itself: np.arange(len(distances))[np.where(mask)[0]]
+        mask = np.isfinite(distances)
+        neighbors[~mask] = np.where(~mask)[0]
     dx, dy = (positions[neighbors] - positions[:, None, :]).T
     angles = np.arctan2(dy, dx).T % tau
     assert angles.shape == neighbors.shape
     if ang_type == 'relative':
         # subtract off angle to closest neighbor
-        angles -= angles[:, 0]
+        angles -= angles[:, :1]
     elif ang_type == 'delta':
         # sort by angle then take diff
+        angles[~mask] = np.inf
         angles.sort(-1)
         angles -= np.roll(angles, 1, -1)
-    elif ang_type == 'absolute':
-        pass
-    else:
+    elif ang_type != 'absolute':
         raise ValueError, "unknown ang_type {}".format(ang_type)
-    return angles % tau
+    return angles % tau, mask
+
+def pair_angle_corr(positions, angles, mask=None, m=4, ret_psim=False):
+    if mask is not None:
+        angles[~mask] = np.nan
+    psim = np.nanmean(np.exp(m*angles*1j), 1)
+    i, j = np.triu_indices(len(positions), 1)
+    return (pdist(positions), psim[i].conj() * psim[j]) + \
+            ((psim,) if ret_psim else ())
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
