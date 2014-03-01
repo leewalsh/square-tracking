@@ -338,11 +338,11 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
     else:
         pl.loglog(taus, msd, 'k.', label="Mean Sq Angular Disp")
         pl.loglog(taus, msd[0]*taus/dtau, 'k-', label="slope = 1")#, lw=2)
-        pl.axhline(4*np.pi**2, ls='--', c='k', label=r"$(2\pi)^2$")
-    pl.legend(loc='lower right')
+        #pl.axhline(4*np.pi**2, ls='--', c='k', label=r"$(2\pi)^2$")
+    #pl.legend(loc='lower right')
     pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau) if title is None else title)
     pl.xlabel('Time (Image frames)')
-    pl.ylabel('Angular Displacement ($rad^2$)')
+    pl.ylabel('Squared Angular Displacement ($rad^2$)')
     if ylim is not None:
         pl.ylim(*ylim)
     pl.savefig(locdir+prefix+"_MSAD.pdf")#,dpi=180)
