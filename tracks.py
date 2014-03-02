@@ -309,8 +309,8 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
         pl.loglog(taus, msd[0]*taus/dtau, 'k-', label="slope = 1")
     #pl.legend(loc='lower right')# 2 if tnormalize else 4)
     pl.title(prefix if title is None else title)
-    pl.xlabel('Time (Image frames)')
-    pl.ylabel('Squared Displacement (particle area)')# '+r'$s^2$'+')')
+    pl.xlabel('Time (Image frames)', fontsize='x-large')
+    pl.ylabel('Squared Displacement (particle area)', fontsize='x-large')# '+r'$s^2$'+')')
     if ylim is not None:
         pl.ylim(*ylim)
     pl.savefig(locdir+prefix+"_dt0=%d_dtau=%d.pdf"%(dt0,dtau))#, dpi=180)

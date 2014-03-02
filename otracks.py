@@ -341,8 +341,8 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
         #pl.axhline(4*np.pi**2, ls='--', c='k', label=r"$(2\pi)^2$")
     #pl.legend(loc='lower right')
     pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau) if title is None else title)
-    pl.xlabel('Time (Image frames)')
-    pl.ylabel('Squared Angular Displacement ($rad^2$)')
+    pl.xlabel('Time (Image frames)', fontsize='x-large')
+    pl.ylabel('Squared Angular Displacement ($rad^2$)', fontsize='x-large')
     if ylim is not None:
         pl.ylim(*ylim)
     pl.savefig(locdir+prefix+"_MSAD.pdf")#,dpi=180)
