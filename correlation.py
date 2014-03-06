@@ -38,9 +38,7 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_e
         calculated using a histogram of distances between particle pairs
         excludes pairs in margin of given width
     """
-    pmax, pmin = positions.max(0), positions.min(0)
-    center = (pmax + pmin)/2   #TODO accuracy of this is critical
-    #radius = np.mean(pmax - pmin)/2
+    center = 0.5*(positions.max(0) + positions.min(0))
     d = np.hypot(*(positions - center).T)
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
     radius = np.maximum(r.max()/2, d.max())#TODO accuracy is critical.. add ss/2?
@@ -144,7 +142,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
             ergs[nf, :len(eg)] = erg
     return ((gs, rgs), (egs, ergs), n) if do_err else (gs, rgs, n)
 
-def global_particle_orientational(orientations, m=4, ret_complex=True, do_err=True):
+def global_particle_orientational(orientations, positions, m=4, margin=0, ret_complex=True, do_err=False):
     """ global_particle_orientational(orientations, m=4)
         Returns the global m-fold particle orientational order parameter
 
@@ -153,6 +151,12 @@ def global_particle_orientational(orientations, m=4, ret_complex=True, do_err=Tr
            m    N  j=1
     """
     np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
+    if margin:
+        if margin < ss:
+            margin *= ss
+        center = 0.5*(positions.max(0) + positions.min(0))
+        d = np.hypot(*(positions - center).T)
+        orientations = orientations[d < d.max() - margin]
     phi = np.exp(m*orientations*1j).mean()
     if do_err:
         err = phi.std(ddof=1)/sqrt(phi.size)
@@ -177,13 +181,15 @@ def correlate(r, f, bins=10):
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def orient_corr(positions, orientations, m=4, rmax=10*ss):
+def orient_corr(positions, orientations, m=4, margin=0):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    loc_mask = np.hypot(*(positions - center).T) < rmax
+    d = np.hypot(*(positions - center).T)
+    if margin < ss: margin *= ss
+    loc_mask = d < d.max() - margin
     r = pdist(positions[loc_mask])
     ind = np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))
     pairs = orientations[loc_mask][ind]
@@ -207,13 +213,21 @@ def get_neighbors(tess, p, pm=None, ret_pairs=False):
         pairs = tess.ridge_points[pm]
         return pairs if ret_pairs else pairs[pairs != p]
 
-def binder(positions, orientations, bl, m=4, method='ball'):
+def binder(positions, orientations, bl, m=4, method='ball', margin=0):
     """ Calculate the binder cumulant for a frame, given positions and orientations.
 
         bl: the binder length scale, such that
             B(bl) = 1 - .333 * S4 / S2^2
         where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
     """
+    if margin:
+        if margin < ss:
+            margin *= ss
+        center = 0.5*(positions.max(0) + positions.min(0))
+        d = np.hypot(*(positions - center).T)
+        dmask = d < d.max() - margin
+        positions = positions[dmask]
+        orientations = orientations[dmask]
     if 'neigh' in method or 'ball' in method:
         tree = cKDTree(positions)
         balls = tree.query_ball_tree(tree, bl)
@@ -260,14 +274,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
             or None (which gives voronoi)
         `margin` is the width of excluded boundary margin
     """
-    # filter out margin?
-    #xmax, xmin, ymax, ymin = (data['x'].max(), data['x'].min(),
-    #                          data['y'].max(), data['y'].min())
-    #x0, y0 = 0.5*(xmax + xmin), 0.5*(ymax + ymin)
-    #d = np.hypot(data['x'] - x0, data['y'] - y0)
-    #radius = 0.5*max(xmax-xmin, ymax-ymin)
-    #dmax = radius - margin
-    if neighborhood is None:
+    if neighborhood is None or str(neighborhood).lower() in ['voronoi', 'delauney']:
         #method = 'voronoi'
         tess = Delaunay(positions)
         neighbors = get_neighbors(tess, xrange(tess.npoints))
@@ -295,14 +302,26 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         angles[~mask] = np.inf
         angles.sort(-1)
         angles -= np.roll(angles, 1, -1)
+        mask = np.all(mask, 1)
     elif ang_type != 'absolute':
         raise ValueError, "unknown ang_type {}".format(ang_type)
-    return angles % tau, mask
+    if margin:
+        if margin < ss:
+            margin *= ss
+        center = 0.5*(positions.max(0) + positions.min(0))
+        d = np.hypot(*(positions - center).T)
+        dmask = d < d.max() - margin
+        assert np.allclose(len(dmask), map(len, [angles, mask]))
+        angles = angles[dmask]
+        mask = mask[dmask]
+    return (angles % tau, mask) + ((dmask,) if margin else ())
 
-def pair_angle_corr(positions, angles, mask=None, m=4, ret_psim=False):
+def pair_angle_corr(positions, angles, mask=None, dmask=None, m=4, ret_psim=False):
     if mask is not None:
         angles[~mask] = np.nan
     psim = np.nanmean(np.exp(m*angles*1j), 1)
+    if dmask is not None:
+        positions = positions[dmask]
     i, j = np.triu_indices(len(positions), 1)
     return (pdist(positions), psim[i].conj() * psim[j]) + \
             ((psim,) if ret_psim else ())
