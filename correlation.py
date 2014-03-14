@@ -32,6 +32,20 @@ x0, y0 = 1375, 2020 # center of disk within image, in pixels
 pi = np.pi
 tau = 2*pi
 
+def pair_indices(n):
+    """ pairs of indices to a 1d array of objects.
+        equivalent to but faster than `np.triu_indices(n, 1)`
+        from: http://stackoverflow.com/questions/22390418/pairwise-displacement-vectors-among-set-of-points/
+
+        To index the upper triangle of a matrix, just use the returned tuple.
+        Otherwise, use `i` and `j` separately to index the first then second of
+        the pair
+    """
+    rng = np.arange(1, n)
+    i = np.repeat(rng - 1, rng[::-1])
+    j = np.arange(n*(n-1)//2) + np.repeat(n - np.cumsum(rng[::-1]), rng[::-1])
+    return i, j
+
 def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
     """ pair_corr(positions):
         the pair correlation function g(r)
@@ -48,7 +62,7 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_e
         nbins = rmax/dr
     if dmax is None:
         dmax = radius - margin
-    ind = np.triu_indices(len(positions), 1)
+    ind = pair_indices(len(positions))
     # for weighting, use areas of the annulus, which is:
     #   number * arclength * dr = N alpha r dr
     #   where alpha = 2 arccos( (r2 + d2 - R2) / 2 r d )
@@ -152,8 +166,7 @@ def global_particle_orientational(orientations, positions, m=4, margin=0, ret_co
     """
     np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
     if margin:
-        if margin < ss:
-            margin *= ss
+        if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
         d = np.hypot(*(positions - center).T)
         orientations = orientations[d < d.max() - margin]
@@ -191,7 +204,7 @@ def orient_corr(positions, orientations, m=4, margin=0):
     if margin < ss: margin *= ss
     loc_mask = d < d.max() - margin
     r = pdist(positions[loc_mask])
-    ind = np.column_stack(np.triu_indices(np.count_nonzero(loc_mask), 1))
+    ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
     return r, diffs
@@ -322,7 +335,7 @@ def pair_angle_corr(positions, angles, mask=None, dmask=None, m=4, ret_psim=Fals
     psim = np.nanmean(np.exp(m*angles*1j), 1)
     if dmask is not None:
         positions = positions[dmask]
-    i, j = np.triu_indices(len(positions), 1)
+    i, j = pair_indices(len(positions))
     return (pdist(positions), psim[i].conj() * psim[j]) + \
             ((psim,) if ret_psim else ())
 
