@@ -283,22 +283,22 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False
     print "\t...saved"
     return msds
 
-if findmsd:
-    dt0  = 100 # small for better statistics, larger for faster calc
-    dtau = 10 # int for stepwise, float for factorwise
-    msds = find_msds(dt0, dtau, data, trackids, odata, omask)
-            
-elif loadmsd:
-    print "loading msd data from npz files"
-    msdnpz = np.load(locdir+prefix+"_MSAD.npz")
-    msds = msdnpz['msds']
-    if msdnpz['dt0']:
-        dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
-        dtau = msdnpz['dtau'][()]
-    else:
-        dt0  = 10 # here's assuming...
-        dtau = 10 #  should be true for all from before dt* was saved
-    print "\t...loaded"
+if __name__=='__main__':
+    if findmsd:
+        dt0  = 100 # small for better statistics, larger for faster calc
+        dtau = 10 # int for stepwise, float for factorwise
+        msds = find_msds(dt0, dtau, data, trackids, odata, omask)
+    elif loadmsd:
+        print "loading msd data from npz files"
+        msdnpz = np.load(locdir+prefix+"_MSAD.npz")
+        msds = msdnpz['msds']
+        if msdnpz['dt0']:
+            dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
+            dtau = msdnpz['dtau'][()]
+        else:
+            dt0  = 10 # here's assuming...
+            dtau = 10 #  should be true for all from before dt* was saved
+        print "\t...loaded"
 
 # Mean Squared Displacement:
 
