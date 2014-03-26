@@ -5,6 +5,7 @@ from __future__ import division
 from operator import itemgetter
 
 from math import sqrt
+from cmath import phase, polar
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import pdist, cdist
@@ -291,7 +292,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         #method = 'voronoi'
         tess = Delaunay(positions)
         neighbors = get_neighbors(tess, xrange(tess.npoints))
-        neighbors, mask = pad_uneven(neighbors, 0, True, int)
+        neighbors, nmask = pad_uneven(neighbors, 0, True, int)
     elif isinstance(neighborhood, int):
         #method = 'nearest'
         tree = cKDTree(positions)
@@ -302,42 +303,45 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         distances = distances[:,1:]
         assert np.allclose(neighbors[:,0], np.arange(tree.n)), "first neighbor not self"
         neighbors = neighbors[:,1:]
-        mask = np.isfinite(distances)
-        neighbors[~mask] = np.where(~mask)[0]
+        nmask = np.isfinite(distances)
+        neighbors[~nmask] = np.where(~nmask)[0]
     dx, dy = (positions[neighbors] - positions[:, None, :]).T
     angles = np.arctan2(dy, dx).T % tau
     assert angles.shape == neighbors.shape
     if ang_type == 'relative':
-        # subtract off angle to closest neighbor
-        angles -= angles[:, :1]
+        # subtract off angle to nearest neighbor
+        angles -= angles[:, 0, None] # None to keep dims
     elif ang_type == 'delta':
         # sort by angle then take diff
-        angles[~mask] = np.inf
+        angles[~nmask] = np.inf
         angles.sort(-1)
         angles -= np.roll(angles, 1, -1)
-        mask = np.all(mask, 1)
+        nmask = np.all(nmask, 1)
     elif ang_type != 'absolute':
         raise ValueError, "unknown ang_type {}".format(ang_type)
+    angles[~nmask] = np.nan
     if margin:
-        if margin < ss:
-            margin *= ss
+        if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
         d = np.hypot(*(positions - center).T)
         dmask = d < d.max() - margin
-        assert np.allclose(len(dmask), map(len, [angles, mask]))
+        assert np.allclose(len(dmask), map(len, [angles, nmask]))
         angles = angles[dmask]
-        mask = mask[dmask]
-    return (angles % tau, mask) + ((dmask,) if margin else ())
+        nmask = nmask[dmask]
+    return (angles % tau, nmask) + ((dmask,) if margin else ())
 
-def pair_angle_corr(positions, angles, mask=None, dmask=None, m=4, ret_psim=False):
-    if mask is not None:
-        angles[~mask] = np.nan
-    psim = np.nanmean(np.exp(m*angles*1j), 1)
-    if dmask is not None:
-        positions = positions[dmask]
+def pair_angle_op(angles, nmask=None, m=4):
+    if nmask is not None:
+        angles[~nmask] = np.nan
+    psims = np.nanmean(np.exp(m*angles*1j), 1)
+    psim = np.nanmean(psims)
+    return abs(psim), phase(psim)/m, psims
+
+def pair_angle_corr(positions, psims, rbins=10):
+    assert len(positions) == len(psims), "positions does not match psi_m(r)"
     i, j = pair_indices(len(positions))
-    return (pdist(positions), psim[i].conj() * psim[j]) + \
-            ((psim,) if ret_psim else ())
+    psi2 = psim[i].conj() * psim[j]
+    return correlate(pdist(positions), psi2, rbins)
 
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
