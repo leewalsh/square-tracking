@@ -48,8 +48,8 @@ def pair_indices(n):
     j = np.arange(n*(n-1)//2) + np.repeat(n - np.cumsum(rng[::-1]), rng[::-1])
     return i, j
 
-def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
-    """ pair_corr(positions):
+def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
+    """ radial_distribution(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
         excludes pairs in margin of given width
@@ -59,7 +59,7 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_e
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
     radius = np.maximum(r.max()/2, d.max())#TODO accuracy is critical.. add ss/2?
     if rmax is None:
-        rmax = 2*radius # this will have terrible statistics
+        rmax = 2*radius # this will have terrible statistics at large r
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
@@ -84,6 +84,41 @@ def pair_corr(positions, dr=ss, dmax=None, rmax=None, nbins=None, margin=0, do_e
         return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax)), n
     else:
         return ret + (n,)
+
+def distribution(positions, rmax=10, bins=10, margin=0, rectify=0):
+    if margin < ss: margin *= ss
+    center = 0.5*(positions.max(0) + positions.min(0))
+    d = np.hypot(*(positions - center).T)
+    dmask = d < d.max() - margin
+    r = cdist(positions, positions[dmask])#.ravel()
+    radius = np.maximum(r.max()/2, d.max())
+    cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
+    alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
+    dr = radius / bins
+    w = dr**-2 * tau/alpha
+    w[~np.isfinite(w)] = 0
+    if rmax < ss: rmax *= ss
+    rmask = r < rmax
+    displacements = positions[:, None] - positions[None, dmask] #origin must be within margin
+    if rectify:
+        if rectify is True:
+            angles, nmask, dmask = pair_angles(positions, margin=margin)
+            rectify = -pair_angle_op(angles, nmask, m=4)[1]
+        rotate2d(displacements, rectify)
+    return np.histogramdd(displacements[rmask], bins=bins, weights=w[rmask])
+
+def rotate2d(vectors, angles):
+    """ rotate vectors by angles
+        *** beware *** modifies vectors in place ***
+
+        vectors must have shape (..., 2)
+        angles broadcast to shape (...)
+    """
+    assert vectors.shape[-1] == 2, "must be two dimensional vectors"
+    c, s = np.cos(angles), np.sin(angles)
+    x, y = vectors[..., 0], vectors[..., 1]
+    x[:], y[:] = x*c - y*s, y*c + x*s
+    return vectors
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
@@ -138,7 +173,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
-        g, rg, n = pair_corr(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
+        g, rg, n = radial_distribution(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
                                margin=margin, do_err=do_err)
         if do_err:
             (g, rg), (eg, erg), n = g, rg, n
@@ -167,8 +202,8 @@ def structure_factor(positions, m=4, margin=0):
     f = binary_dilation(f, disk(ss/2))
     return fft2(f, overwrite_x=True)
 
-def global_particle_orientational(orientations, positions, m=4, margin=0, ret_complex=True, do_err=False):
-    """ global_particle_orientational(orientations, m=4)
+def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=False):
+    """ orient_op(orientations, m=4)
         Returns the global m-fold particle orientational order parameter
 
                 1   N    i m theta
