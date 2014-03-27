@@ -12,7 +12,8 @@ from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi, cKDTree, Delaunay
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
-
+from scipy.fftpack import fft2
+from skimage.morphology import disk, binary_dilation
 
 from socket import gethostname
 hostname = gethostname()
@@ -156,6 +157,15 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
             egs[nf, :len(eg)] = eg
             ergs[nf, :len(eg)] = erg
     return ((gs, rgs), (egs, ergs), n) if do_err else (gs, rgs, n)
+
+def structure_factor(positions, m=4, margin=0):
+    """return the 2d structure factor"""
+    #center = 0.5*(positions.max(0) + positions.min(0))
+    inds = np.round(positions - positions.min()).astype(int)
+    f = np.zeros(inds.max(0)+1)
+    f[inds[:,0], inds[:,1]] = 1
+    f = binary_dilation(f, disk(ss/2))
+    return fft2(f, overwrite_x=True)
 
 def global_particle_orientational(orientations, positions, m=4, margin=0, ret_complex=True, do_err=False):
     """ global_particle_orientational(orientations, m=4)
