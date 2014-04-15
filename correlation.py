@@ -13,6 +13,8 @@ from scipy.spatial import Voronoi, cKDTree, Delaunay
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert
 from scipy.fftpack import fft2
+from scipy.stats import rv_continuous, vonmises
+from scipy.optimize import curve_fit
 from skimage.morphology import disk, binary_dilation
 
 from socket import gethostname
@@ -388,6 +390,68 @@ def pair_angle_corr(positions, psims, rbins=10):
     psi2 = psim[i].conj() * psim[j]
     return correlate(pdist(positions), psi2, rbins)
 
+class vonmises_m(rv_continuous):
+    def __init__(self, m):
+        self.shapes = ''
+        for i in range(m):
+            self.shapes += 'k%d,l%d' % (i,i)
+        self.shapes += ',scale'
+        rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
+        self.numargs = 2*m
+
+    def _pdf(self, x, *lks):
+        print 'lks', lks
+        locs, kappas= lks[:len(lks)/2], lks[len(lks)/2:]
+        print 'x', x
+        print 'locs', locs
+        print 'kapps', kappas
+        #return np.sum([vonmises.pdf(x, l, k) for l, k in zip(locs, kappas)], 0)
+        ret = np.zeros_like(x)
+        for l, k in zip(locs, kappas):
+            ret += vonmises.pdf(x, l, k)
+        return ret / len(locs)
+
+class vonmises_4(rv_continuous):
+    def __init__(self):
+        rv_continuous.__init__(self, a=-np.inf, b=np.inf)
+
+    def _pdf(self, x,
+             l1, l2, l3, l4,
+             k1, k2, k3, k4,
+             a1, a2, a3, a4):
+        return a1*vonmises.pdf(x, k1, l1) + \
+               a2*vonmises.pdf(x, k2, l2) + \
+               a3*vonmises.pdf(x, k3, l3) + \
+               a4*vonmises.pdf(x, k4, l4) + c
+
+def vm4_pdf(x,
+            l1, l2, l3, l4,
+            k1, k2, k3, k4,
+            a1, a2, a3, a4, c):
+    return a1*vonmises.pdf(x, k1, l1) + \
+           a2*vonmises.pdf(x, k2, l2) + \
+           a3*vonmises.pdf(x, k3, l3) + \
+           a4*vonmises.pdf(x, k4, l4) + c
+
+def primary_angles(angles, m=4, bins=720, ret_hist=False):
+    angles = angles[angles!=0].ravel()
+    h, t = np.histogram(angles, bins, (0, tau), True)
+    t = 0.5*(t[1:] + t[:-1])
+
+    l0 = tuple((np.arange(0, tau, tau/m)+t[h.argmax()]) % tau)
+    k0 = (100.,) * m
+    a0 = (.02,) * m
+    c0 = 1e-3,
+    guess = l0 + k0 + a0 + c0
+    vm_fit = curve_fit(vm4_pdf, t, h, guess)[0]
+    l = vm_fit[:m]
+    k = vm_fit[m:2*m]
+    a = vm_fit[2*m:3*m]
+    c = vm_fit[-1]
+    if ret_hist:
+        return l, k, a, c, h, t
+    return l, k, a, c
+
 def domyneighbors(prefix):
     tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
     data = tracksnpz['data']
@@ -498,7 +562,6 @@ def gpeak_decay(peaks,f,pksonly=False):
     if computer is 'foppl':
         print "cant do this on foppl"
         return
-    from scipy.optimize import curve_fit
     if pksonly is False:
         maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
         minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
