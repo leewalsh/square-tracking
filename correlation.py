@@ -87,7 +87,22 @@ def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, ma
     else:
         return ret + (n,)
 
-def distribution(positions, rmax=10, bins=10, margin=0, rectify=0):
+def rectify(positions, margin=0, dangonly=False):
+    angles, nmask, dmask = pair_angles(positions, margin=margin)
+    try:
+        # find four modal angles and gaps
+        # rotate by angle of greater of first two gaps
+        # so that first gap is larger of two, last gap is smaller
+        pang = primary_angles(angles, m=4, bins=720, ret_hist=False)[0]
+        dang = dtheta(pang, np.roll(pang, -1), m=1) # dang[i] = pang[i] - pang[i-1]
+        rectang = np.nan if dangonly else -pang[np.argmax(dang[:2])]
+    except RuntimeError:
+        print "Can't find four peaks, using one"
+        rectang = np.nan if dangonly else -pair_angle_op(angles, nmask, m=4)[1]
+        dang = np.array([np.nan, np.nan, np.nan, np.nan])
+    return rectang, dang
+
+def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
     if margin < ss: margin *= ss
     center = 0.5*(positions.max(0) + positions.min(0))
     d = np.hypot(*(positions - center).T)
@@ -102,12 +117,11 @@ def distribution(positions, rmax=10, bins=10, margin=0, rectify=0):
     if rmax < ss: rmax *= ss
     rmask = r < rmax
     displacements = positions[:, None] - positions[None, dmask] #origin must be within margin
-    if rectify:
-        if rectify is True:
-            angles, nmask, dmask = pair_angles(positions, margin=margin)
-            rectify = -pair_angle_op(angles, nmask, m=4)[1]
-        rotate2d(displacements, rectify)
-    return np.histogramdd(displacements[rmask], bins=bins, weights=w[rmask])
+    if rectang:
+        if rectang is True:
+            rectang = rectify(positions, margin=margin)[0]
+        rotate2d(displacements, rectify(positions, margin=margin))
+    return np.histogramdd(displacements[rmask], bins=bins, weights=w[rmask])[0]
 
 def rotate2d(vectors, angles):
     """ rotate vectors by angles
@@ -120,7 +134,7 @@ def rotate2d(vectors, angles):
     c, s = np.cos(angles), np.sin(angles)
     x, y = vectors[..., 0], vectors[..., 1]
     x[:], y[:] = x*c - y*s, y*c + x*s
-    return vectors
+    return
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
