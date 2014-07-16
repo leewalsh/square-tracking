@@ -3,7 +3,8 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import filter, measure, segmentation
-from skimage.morphology import label, square, binary_closing, skeletonize
+from skimage.measure import label
+from skimage.morphology import square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
 from collections import namedtuple
 
@@ -78,22 +79,25 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
     """
     pts = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
+    #rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
+    rprops = measure.regionprops(labels, intensity)
     for props in rprops:
         label = props['Label']
-        if min_area > props['Area']:
-            #print 'too small:',props['Area']
+        area = props['Area']
+        ecc = props['Eccentricity']
+        if min_area > area:
+            #print 'too small:', area
             pass
-        elif props['Area'] > max_area:
-            #print 'too big:',props['Area']
+        elif area > max_area:
+            #print 'too big:', area
             pass
-        elif props['Eccentricity'] > max_ecc:
-            #print 'too eccentric:',props['Eccentricity']
+        elif ecc > max_ecc:
+            #print 'too eccentric:', ecc
             #labels[labels==label] = np.ma.masked
             pass
         else:
             x, y = props[centroid]
-            pts.append(Segment(x, y, label, props['Eccentricity'], props['Area']))
+            pts.append(Segment(x, y, label, ecc, area))
     return pts
 
 def find_particles(im, method='edge', **kwargs):
@@ -197,19 +201,43 @@ if __name__ == '__main__':
                         help='Also find small corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
+    parser.add_argument('--ecc', default=1.0, type=float,
+                        help='Maximum eccentricity')
+    parser.add_argument('--min', default=0, type=int,
+                        help='Minimum area')
+    parser.add_argument('--max', default=np.inf, type=int,
+                        help='Maximum area')
+    parser.add_argument('--kern', default=0, type=int,
+                        help='Kernel size for convolution')
+    parser.add_argument('--cecc', default=1.0, type=float,
+                        help='Maximum eccentricity')
+    parser.add_argument('--cmin', default=0, type=int,
+                        help='Minimum area for corner dots')
+    parser.add_argument('--cmax', default=np.inf, type=int,
+                        help='Maximum area for corner dots')
+    parser.add_argument('--ckern', default=0, type=int,
+                        help='Kernel size for convolution for corner dots')
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
-    threshargs = {'max_ecc' :   .7 if args.slr else  .7, # .6
-                  'min_area':  800 if args.slr else  15, # 870
-                  'max_area': 1600 if args.slr else 200, # 1425
-                  'csize'   :   22 if args.slr else  10}
-    cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
-                   'min_area':  80 if args.slr else  3, # 92
-                   'max_area': 200 if args.slr else 36, # 180
-                   'csize'   :   5 if args.slr else  2}
+    threshargs = {'max_ecc' : args.ecc,
+                  'min_area': args.min,
+                  'max_area': args.max,
+                  'csize'   : args.kern}
+    cthreshargs = {'max_ecc' : args.cecc,
+                   'min_area': args.cmin,
+                   'max_area': args.cmax,
+                   'csize'   : args.ckern}
+    #threshargs = {'max_ecc' :   .7 if args.slr else  .7, # .6
+    #              'min_area':  800 if args.slr else  15, # 870
+    #              'max_area': 1600 if args.slr else 200, # 1425
+    #              'csize'   :   22 if args.slr else  10}
+    #cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
+    #               'min_area':  80 if args.slr else  3, # 92
+    #               'max_area': 200 if args.slr else 36, # 180
+    #               'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
         pts, labels = find_particles_in_image(filename,
