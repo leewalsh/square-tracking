@@ -228,11 +228,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     cm = pl.cm.prism_r
 
-    kern_area = args.kern**2
+    kern_area = np.pi*args.kern**2
     if args.min == -1: args.min = kern_area/2
     if args.max == np.inf: args.max = 2*kern_area
 
-    ckern_area = args.ckern**2
+    ckern_area = np.pi*args.ckern**2
     if args.cmin == -1: args.cmin = ckern_area/2
     if args.cmax == np.inf: args.cmax = 2*ckern_area
 
