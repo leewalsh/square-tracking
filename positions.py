@@ -211,7 +211,7 @@ if __name__ == '__main__':
                         help='Full resolution SLR was used')
     parser.add_argument('--kern', default=0, type=int,
                         help='Kernel size for convolution')
-    parser.add_argument('--min', default=0, type=int,
+    parser.add_argument('--min', default=-1, type=int,
                         help='Minimum area')
     parser.add_argument('--max', default=np.inf, type=int,
                         help='Maximum area')
@@ -219,7 +219,7 @@ if __name__ == '__main__':
                         help='Maximum eccentricity')
     parser.add_argument('--ckern', default=0, type=int,
                         help='Kernel size for convolution for corner dots')
-    parser.add_argument('--cmin', default=0, type=int,
+    parser.add_argument('--cmin', default=-1, type=int,
                         help='Minimum area for corner dots')
     parser.add_argument('--cmax', default=np.inf, type=int,
                         help='Maximum area for corner dots')
@@ -229,11 +229,11 @@ if __name__ == '__main__':
     cm = pl.cm.prism_r
 
     kern_area = args.kern**2
-    if args.min == 0: args.min = kern_area/2
+    if args.min == -1: args.min = kern_area/2
     if args.max == np.inf: args.max = 2*kern_area
 
     ckern_area = args.ckern**2
-    if args.cmin == 0: args.cmin = ckern_area/2
+    if args.cmin == -1: args.cmin = ckern_area/2
     if args.cmax == np.inf: args.cmax = 2*ckern_area
 
     if args.plot:
