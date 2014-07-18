@@ -59,7 +59,13 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
         im = remove_disks(im, rmv, disk(8.5))
     if csize == 0:
         print 'csize not set'
-    convolved = convolve(im, gdisk(csize))
+    elif csize < 0:
+        #print "negative kernel"
+        convolved = convolve(im, -gdisk(-csize))
+    else:
+        #print "positive kernel"
+        convolved = convolve(im, gdisk(csize))
+
     convolved -= convolved.min()
     convolved /= convolved.max()
 
@@ -146,11 +152,13 @@ def gdisk(n, w=None):
     """
     if w is None:
         w = 2*n
+    circ = ((np.indices([2*w+1, 2*w+1]) - w)**2).sum(0) <= (w+1)**2
     g = np.arange(-w, w+1)
     g = np.exp(-.5 * g**2 / n**2)
     g = np.outer(g, g)  # or g*g[...,None]
-    g -= g.mean()
-    g /= g.std()
+    g -= g[circ].mean()
+    g /= g[circ].std()
+    g[~circ] = 0
     assert np.allclose(g.sum(),0), 'sum is nonzero: {}'.format(g.sum())
     return g
 
@@ -201,24 +209,32 @@ if __name__ == '__main__':
                         help='Also find small corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
-    parser.add_argument('--ecc', default=1.0, type=float,
-                        help='Maximum eccentricity')
+    parser.add_argument('--kern', default=0, type=int,
+                        help='Kernel size for convolution')
     parser.add_argument('--min', default=0, type=int,
                         help='Minimum area')
     parser.add_argument('--max', default=np.inf, type=int,
                         help='Maximum area')
-    parser.add_argument('--kern', default=0, type=int,
-                        help='Kernel size for convolution')
-    parser.add_argument('--cecc', default=1.0, type=float,
+    parser.add_argument('--ecc', default=.8, type=float,
                         help='Maximum eccentricity')
+    parser.add_argument('--ckern', default=0, type=int,
+                        help='Kernel size for convolution for corner dots')
     parser.add_argument('--cmin', default=0, type=int,
                         help='Minimum area for corner dots')
     parser.add_argument('--cmax', default=np.inf, type=int,
                         help='Maximum area for corner dots')
-    parser.add_argument('--ckern', default=0, type=int,
-                        help='Kernel size for convolution for corner dots')
+    parser.add_argument('--cecc', default=.8, type=float,
+                        help='Maximum eccentricity for corner dots')
     args = parser.parse_args()
     cm = pl.cm.prism_r
+
+    kern_area = args.kern**2
+    if args.min == 0: args.min = kern_area/2
+    if args.max == np.inf: args.max = 2*kern_area
+
+    ckern_area = args.ckern**2
+    if args.cmin == 0: args.cmin = ckern_area/2
+    if args.cmax == np.inf: args.cmax = 2*ckern_area
 
     if args.plot:
         pdir = path.split(path.abspath(args.output))[0]
