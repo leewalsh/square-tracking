@@ -10,45 +10,81 @@ if 'rock' in hostname:
     computer = 'rock'
     locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
+    plot_capable = True
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/diffusion/'
     extdir = '/media/bhavari/Squares/diffusion/still/'
     import matplotlib
     matplotlib.use("agg")
+    plot_capable = False
 else:
     print "computer not defined"
-    print "where are you working?"
+    locdir = extdir = ''
+    plot_capable = bool_input("Are you able to plot?")
+    if plot_capable:
+        import matplotlib
 
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
 
+def bool_input(question):
+    "Returns True or False from yes/no user-input question"
+    answer = raw_input(question)
+    return answer.lower().startswith('y') or answer.lower().startswith('t')
+
 if __name__=='__main__':
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
-    parser.add_argument('prefix')
+    parser.add_argument('--prefix', 
+                        help="Filename prefix with full or relative path (filenames "
+                             "prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
+    parser.add_argument('-c', '--corner', action='store_true', 
+                        help='Track corners instead of centers')
+    parser.add_argument('-l','--load', action='store_true', 
+                        help='Create and save structured array from prefix[_CORNER]_POSITIONS.txt file')
+    parser.add_argument('-t','--track', action='store_true', 
+                        help='Connect the dots and save in the array')
+    parser.add_argument('-p', '--plot', action='store_true',
+                        help='Plot the tracks')
+    parser.add_argument('-d', '--msd', action='store_true',
+                        help='Calculate the MSD')
+    parser.add_argument('-s', '--side', type=int, default=1,
+                        help='Particle size in pixels, for unit normalization')
+
     args = parser.parse_args()
 
-    prefix = args.prefix#'n32_100mv_50hz'
+
+    prefix = args.prefix
+    print 'using prefix', prefix
+    dotfix = '_CORNER' if args.corner else ''
+
+    loaddata = args.load
+    findtracks = args.track
+    plottracks = args.plot
+    findmsd = args.msd
+    loadmsd = plotmsd = False
+
+    s = args.side
+
+else:
+    loaddata   = False    # Create and save structured array from data txt file?
+
+    findtracks = False   # Connect the dots and save in 'trackids' field of data
+    plottracks = False   # plot their tracks
+
+    findmsd = False      # Calculate the MSD
+    loadmsd = False      # load previoius MSD from npz file
+    plotmsd = False      # plot the MSD
+    prefix = 'n32_100mv_50hz'
     print 'using prefix', prefix
     dotfix = ''#_CORNER'
-    if dotfix:
-        print 'using dotfix', dotfix
-
-loaddata   = False    # Create and save structured array from data txt file?
-
-findtracks = False   # Connect the dots and save in 'trackids' field of data
-plottracks = False   # plot their tracks
-
-findmsd = False      # Calculate the MSD
-loadmsd = False      # load previoius MSD from npz file
-plotmsd = False      # plot the MSD
+    S = 22 # side length of particle
 
 verbose = False
 
-S = 22 # side length of particle
 
 if plottracks:
     bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
@@ -160,7 +196,7 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.savefig(locdir+prefix+"_tracks.png")
     pl.show()
 
-if plottracks and computer is 'rock':
+if plottracks and plot_capable:
     try:
         bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
     except IOError:
@@ -318,7 +354,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
     #print 'saved to '+locdir+prefix+"_dt0=%d_dtau=%d.png"%(dt0,dtau)
     pl.show()
 
-if plotmsd and computer is 'rock':
+if plotmsd and plot_capable:
     print 'plotting now!'
     plot_msd(data, msds)
 
