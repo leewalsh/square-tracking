@@ -127,7 +127,7 @@ def find_particles(im, method='edge', **kwargs):
         raise RuntimeError('Undefined method "%s"' % method)
 
     segments = filter_segments(labels, intensity=intensity, **kwargs)
-    return (segments, labels)
+    return (segments, labels) + ((intensity,) if return_image else ())
 
 def find_particles_in_image(f, **kwargs):
     """ find_particles_in_image(im, **kwargs)
@@ -199,8 +199,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('files', metavar='FILE', nargs='+',
                         help='Images to process')
-    parser.add_argument('-p', '--plot', action='store_true',
-                        help='Produce a plot for each image')
+    parser.add_argument('-p', '--plot', action='count',
+                        help="Produce a plot for each image. Use more p's for more images")
     parser.add_argument('-o', '--output', default='POSITIONS',
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
@@ -256,16 +256,30 @@ if __name__ == '__main__':
     #               'csize'   :   5 if args.slr else  2}
 
     def f((n,filename)):
-        pts, labels = find_particles_in_image(filename,
-                            method='convolve', **threshargs)
+        out = find_particles_in_image(filename, method='convolve',
+                return_image = (args.plot > 2), **threshargs)
+        if args.plot > 2:
+            pts, labels, intensity = out
+        else:
+            pts, labels = out
         centers = np.hstack([n*np.ones((len(pts),1)), pts])
         print '%20s: Found %d particles' % ('', len(pts))
         if args.plot:
             pl.clf()
             pl.imshow(labels, cmap=cm)
-            ptsarr = np.asarray(pts)
-            pl.scatter(ptsarr[:,1], ptsarr[:,0], c='r')#ptsarr[:,2], cmap=cm)
+            if args.plot > 1:
+                ptsarr = np.asarray(pts)
+                pl.scatter(ptsarr[:,1], ptsarr[:,0], c='r')#ptsarr[:,2], cmap=cm)
             savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_POSITIONS.png'
+            #print 'saving to',savename
+            pl.savefig(savename, dpi=300)
+        if args.plot > 2:
+            pl.clf()
+            pl.imshow(intensity, cmap=cm)
+            if args.plot > 3:
+                ptsarr = np.asarray(pts)
+                pl.scatter(ptsarr[:,1], ptsarr[:,0], c='r')#ptsarr[:,2], cmap=cm)
+            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_CONVOLVED.png'
             #print 'saving to',savename
             pl.savefig(savename, dpi=300)
 
