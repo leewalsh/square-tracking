@@ -209,7 +209,7 @@ if __name__ == '__main__':
                         help='Also find small corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
-    parser.add_argument('--kern', default=0, type=int,
+    parser.add_argument('--kern', default=0, type=float,
                         help='Kernel size for convolution')
     parser.add_argument('--min', default=-1, type=int,
                         help='Minimum area')
@@ -217,7 +217,7 @@ if __name__ == '__main__':
                         help='Maximum area')
     parser.add_argument('--ecc', default=.8, type=float,
                         help='Maximum eccentricity')
-    parser.add_argument('--ckern', default=0, type=int,
+    parser.add_argument('--ckern', default=0, type=float,
                         help='Kernel size for convolution for corner dots')
     parser.add_argument('--cmin', default=-1, type=int,
                         help='Minimum area for corner dots')
