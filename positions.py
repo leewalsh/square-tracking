@@ -262,8 +262,12 @@ if __name__ == '__main__':
             pts, labels, intensity = out
         else:
             pts, labels = out
-        centers = np.hstack([n*np.ones((len(pts),1)), pts])
-        print '%20s: Found %d particles' % ('', len(pts))
+        nfound = len(pts)
+        if nfound < 1:
+            print 'Found no particles in ', path.split(filename)[-1]
+            return
+        centers = np.hstack([n*np.ones((nfound,1)), pts])
+        print '%20s: Found %d particles' % (path.split(filename)[-1], nfound)
         if args.plot:
             pl.clf()
             pl.imshow(labels, cmap=cm)
@@ -286,26 +290,33 @@ if __name__ == '__main__':
         if args.corner:
             cpts, clabels = find_particles_in_image(filename,
                                     method='convolve', rmv=None, **cthreshargs)
-            print '%20s: Found %d corners' % ('', len(cpts))
+            nfound = len(cpts)
+            if nfound < 1:
+                print 'Found no corners, returning only centers'
+                return centers
+            print '%20s: Found %d corners' % (path.split(filename)[-1], nfound))
             if args.plot:
                 #pl.imshow(clabels, cmap=cm)
                 cpts = np.asarray(cpts)
                 pl.scatter(cpts[:,1], cpts[:,0], c='w')#cpts[:,2], cmap=cm)
                 #print 'saving corners to',savename
                 pl.savefig(savename, dpi=300)
-
-            corners = np.hstack([n*np.ones((len(cpts),1)), cpts])
+            corners = np.hstack([n*np.ones((nfound,1)), cpts])
             return centers, corners
 
         return centers
 
-    filenames = sorted(args.files)
+    if '*' in args.files[0] or '?' in args.files[0]:
+        from glob import glob
+        filenames = sorted(glob(args.files))
+    else:
+        filenames = sorted(args.files)
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
-        points = p.map(f, enumerate(filenames))
+        points = filter(None, p.map(f, enumerate(filenames)))
     else:
-        points = map(f, enumerate(filenames))
+        points = filter(None, map(f, enumerate(filenames)))
 
     if args.corner:
         points, corners = map(np.vstack, zip(*points))
