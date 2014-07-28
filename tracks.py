@@ -21,6 +21,7 @@ elif 'foppl' in hostname:
 elif 'peregrine' in hostname:
     computer = 'peregrine'
     locdir = extdir = ''
+    plot_capable = True
 else:
     print "computer not defined"
     locdir = extdir = ''
@@ -54,8 +55,14 @@ if __name__=='__main__':
                         help='Plot the tracks')
     parser.add_argument('-d', '--msd', action='store_true',
                         help='Calculate the MSD')
+    parser.add_argument('--plotmsd', action='store_true',
+                        help='Calculate the MSD')
     parser.add_argument('-s', '--side', type=int, default=1,
                         help='Particle size in pixels, for unit normalization')
+    parser.add_argument('--dt0', type=int, default=1,
+                        help='Stepsize for time-averaging of a single track at different time starting points')
+    parser.add_argument('--dtau', type=int, default=1,
+                        help='Stepsize for values of tau at which to calculate MSD(tau)')
 
     args = parser.parse_args()
 
@@ -68,9 +75,11 @@ if __name__=='__main__':
     findtracks = args.track
     plottracks = args.plot
     findmsd = args.msd
-    loadmsd = plotmsd = False
+    loadmsd = plotmsd = args.plotmsd
 
-    s = args.side
+    S = args.side
+    dtau = args.dtau
+    dt0 = args.dt0
 
 else:
     loaddata   = False    # Create and save structured array from data txt file?
@@ -295,8 +304,8 @@ def find_msds(dt0, dtau, tracks=None):
 
 if  __name__=='__main__':
     if findmsd:
-        dt0  = 100 # small for better statistics, larger for faster calc
-        dtau = 10 # int for stepwise, float for factorwise
+        dt0  = 1 # small for better statistics, larger for faster calc
+        dtau = 1 # int for stepwise, float for factorwise
         msds = find_msds(dt0, dtau)
 
     elif loadmsd:
@@ -315,6 +324,7 @@ if  __name__=='__main__':
 
 def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', title=None, ylim=None):
     """ Plots the MSDs"""
+    print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     pl.figure(figsize=(5,4))
     nframes = data['f'].max()
     if isinstance(dtau, float):
@@ -322,9 +332,10 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
     msd = np.zeros(len(taus))
+    print 'msdshape', msd.shape
     added = np.zeros(len(msd), float)
     for tmsd in msds:
-        if tmsd:
+        if len(tmsd) > 0:
             tmsdt, tmsdd =  np.asarray(tmsd).T
             tmsdd /= S**2 # convert to unit "particle area"
             if show_tracks:
@@ -336,7 +347,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
             msd[tau_match] += tmsdd
             added[tau_match] += 1
     tau_mask = added > 0
-    assert np.all(tau_mask), "no tmsd for tau =\n" + str(np.where(~tau_mask))
+    #assert np.all(tau_mask), "no tmsd for tau =\n" + str(np.where(~tau_mask))
     #msd = msd[tau_mask]
     #taus = taus[tau_mask]
     #added = added[tau_mask]
@@ -363,5 +374,5 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
 
 if plotmsd and plot_capable:
     print 'plotting now!'
-    plot_msd(data, msds)
+    plot_msd(data, msds, dtau, dt0, prefix=prefix)
 
