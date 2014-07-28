@@ -8,7 +8,7 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    locdir = ''#/Users/leewalsh/Physics/Squares/orientation/'
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
     plot_capable = True
 elif 'foppl' in hostname:
@@ -18,6 +18,9 @@ elif 'foppl' in hostname:
     import matplotlib
     matplotlib.use("agg")
     plot_capable = False
+elif 'peregrine' in hostname:
+    computer = 'peregrine'
+    locdir = extdir = ''
 else:
     print "computer not defined"
     locdir = extdir = ''
@@ -38,14 +41,14 @@ if __name__=='__main__':
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
-    parser.add_argument('--prefix', 
+    parser.add_argument('prefix', metavar='PRE',
                         help="Filename prefix with full or relative path (filenames "
                              "prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
-    parser.add_argument('-c', '--corner', action='store_true', 
+    parser.add_argument('-c', '--corner', action='store_true',
                         help='Track corners instead of centers')
-    parser.add_argument('-l','--load', action='store_true', 
+    parser.add_argument('-l','--load', action='store_true',
                         help='Create and save structured array from prefix[_CORNER]_POSITIONS.txt file')
-    parser.add_argument('-t','--track', action='store_true', 
+    parser.add_argument('-t','--track', action='store_true',
                         help='Connect the dots and save in the array')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Plot the tracks')
@@ -86,8 +89,6 @@ else:
 verbose = False
 
 
-if plottracks:
-    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 if loaddata:
     datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
@@ -147,9 +148,6 @@ def load_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-if loaddata:
-    data = load_data(datapath)
-    print "\t...loaded"
 
 
 def find_tracks(data, giveup=1000):
@@ -170,7 +168,12 @@ def find_tracks(data, giveup=1000):
     return trackids
 
 if __name__=='__main__':
+    if loaddata:
+        data = load_data(datapath)
+        print "\t...loaded"
     if findtracks:
+        if not loaddata:
+            data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         trackids = find_tracks(data)
     elif loaddata:
         print "saving data only (no tracks)"
@@ -190,7 +193,8 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.figure()
     pl.scatter( data['y'], data['x'],
             c=np.array(trackids)%12, marker='o')
-    pl.imshow(bgimage,cmap=cm.gray,origin='upper')
+    if bgimage:
+        pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
     print "saving tracks image"
     pl.savefig(locdir+prefix+"_tracks.png")
@@ -200,7 +204,10 @@ if plottracks and plot_capable:
     try:
         bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
     except IOError:
-        bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
+        try:
+            bgimage = Im.open(locdir+prefix+'_001.tif') # for bkground in plot
+        except IOError:
+            bgimage = None
     plot_tracks(data, trackids, bgimage)
 
 # Mean Squared Displacement
