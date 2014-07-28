@@ -2,7 +2,8 @@
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
-from skimage import filter, measure, segmentation
+from skimage import measure, segmentation
+from skimage.filter import canny
 from skimage.measure import label
 from skimage.morphology import square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
@@ -18,7 +19,7 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
         sigma        -- The size of the Canny filter
         closing_size -- The size of the closing filter
     """
-    edges = filter.canny(im, sigma=sigma)
+    edges = skimage.filter.canny(im, sigma=sigma)
     if closing_size > 0:
         edges = binary_closing(edges, square(closing_size))
     edges = skeletonize(edges)
@@ -294,7 +295,7 @@ if __name__ == '__main__':
             if nfound < 1:
                 print 'Found no corners, returning only centers'
                 return centers
-            print '%20s: Found %d corners' % (path.split(filename)[-1], nfound))
+            print '%20s: Found %d corners' % (path.split(filename)[-1], nfound)
             if args.plot:
                 #pl.imshow(clabels, cmap=cm)
                 cpts = np.asarray(cpts)
