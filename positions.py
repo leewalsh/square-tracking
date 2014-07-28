@@ -107,7 +107,7 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
             pts.append(Segment(x, y, label, ecc, area))
     return pts
 
-def find_particles(im, method='edge', **kwargs):
+def find_particles(im, method='edge', return_image=False, **kwargs):
     """ find_particles(im, gaussian_size=3, **kwargs) -> [Segment],labels
         Find the particles in image im. The arguments in kwargs is
         passed to label_particles and filter_segments.
@@ -309,15 +309,15 @@ if __name__ == '__main__':
 
     if '*' in args.files[0] or '?' in args.files[0]:
         from glob import glob
-        filenames = sorted(glob(args.files))
+        filenames = sorted(glob(args.files[0]))
     else:
         filenames = sorted(args.files)
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
-        points = filter(None, p.map(f, enumerate(filenames)))
+        points = filter(lambda x: len(x) > 0, p.map(f, enumerate(filenames)))
     else:
-        points = filter(None, map(f, enumerate(filenames)))
+        points = filter(lambda x: len(x) > 0, map(f, enumerate(filenames)))
 
     if args.corner:
         points, corners = map(np.vstack, zip(*points))
