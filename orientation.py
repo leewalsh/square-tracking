@@ -2,19 +2,20 @@ import numpy as np
 #from scipy.stats import nanmean
 from PIL import Image as Im
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
-    computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/orientation/'
-elif 'rock' in hostname:
-    computer = 'rock'
-    import matplotlib.pyplot as pl
-    import matplotlib.cm as cm
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
-else:
-    print "computer not defined"
-    print "where are you working?"
+if __name__=='__main__':
+    from socket import gethostname
+    hostname = gethostname()
+    if 'foppl' in hostname:
+        computer = 'foppl'
+        locdir = '/home/lawalsh/Granular/Squares/orientation/'
+    elif 'rock' in hostname:
+        computer = 'rock'
+        import matplotlib.pyplot as pl
+        import matplotlib.cm as cm
+        locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    else:
+        print "computer not defined"
+        print "where are you working?"
 
 def field_rename(a, old, new):
     a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]

@@ -17,17 +17,18 @@ from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
 from skimage.morphology import disk, binary_dilation
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
-    locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-elif 'rock' in hostname:
-    computer = 'rock'
-    import matplotlib.pyplot as pl
-    import matplotlib.cm as cm
-    locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-else:
-    print "computer not defined\nwhere are you working?"
+if __name__=='__main__':
+    from socket import gethostname
+    hostname = gethostname()
+    if 'foppl' in hostname:
+        locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
+    elif 'rock' in hostname:
+        computer = 'rock'
+        import matplotlib.pyplot as pl
+        import matplotlib.cm as cm
+        locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
+    else:
+        print "computer not defined\nwhere are you working?"
 
 ss = 92   # side length of square in pixels
 rr = 1255 # radius of disk in pixels
@@ -345,6 +346,7 @@ def get_id(data, position, frames=None, tolerance=10e-5):
         optionally limit search to one or more `frames'
 
         return that particle's id
+        THIS FUNCTION IS IMPORTED BY otracks.py AND orientation.py
         """
     if frames is not None:
         if np.iterable(frames):
