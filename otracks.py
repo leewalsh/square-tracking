@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+from math import sqrt
 from PIL import Image as Im
 import sys
 
@@ -57,6 +58,10 @@ if __name__=='__main__':
                         help='Find the orientations and save')
     parser.add_argument('-n', '--ncorners', type=int, default=3,
                         help='Number of corner dots per particle. Default is 3')
+    parser.add_argument('-r', '--rcorner', type=int, default=10,
+                        help='Distance to corner dot from central dot, in pixels.')
+    parser.add_argument('--drcorner', type=int, default=-1,
+                        help='Allowed error in r (rcorner), in pixels. Default is sqrt(r)')
     parser.add_argument('-p', '--plottracks', action='store_true',
                         help='Plot the tracks')
     parser.add_argument('-d', '--msd', action='store_true',
@@ -93,6 +98,9 @@ if __name__=='__main__':
     if fps > 1:
         fps = float(fps)
     nc = args.ncorners
+    rc = args.rcorner
+    drc = args.drcorner
+    if drc == -1: drc = sqrt(rc)
     dtau = args.dtau
     dt0 = args.dt0
 
@@ -221,7 +229,7 @@ if __name__=='__main__':
     if findorient:
         print "calculating orientation data"
         from orientation import get_angles_loop
-        odata, omask = get_angles_loop(data, cdata, nc=nc)
+        odata, omask = get_angles_loop(data, cdata, nc=nc, rc=rc, drc=drc)
         np.savez(locdir+prefix+'_ORIENTATION.npz',
                 odata=odata,
                 omask=omask)

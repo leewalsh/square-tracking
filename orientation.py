@@ -180,7 +180,7 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
+def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=True):
     """ get_angles(data, cdata, framestep=1, nc=3, do_average=True)
         
         arguments:
@@ -222,7 +222,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, do_average=True):
             find_corner(np.asarray(posi),
                         np.column_stack((cdata['x'][cdata['f']==frame],
                                          cdata['y'][cdata['f']==frame])),
-                        n=nc, do_average=do_average)
+                        n=nc, rc=rc, drc=drc, do_average=do_average)
         iid = get_id(data, posi, frame)
         imask = data['id']==iid
         odata['corner'][imask] = icorner
