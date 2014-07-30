@@ -340,6 +340,20 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
+def get_id(data, position, frames=None, tolerance=10e-5):
+    """ take a particle's `position' (x,y)
+        optionally limit search to one or more `frames'
+
+        return that particle's id
+        """
+    if frames is not None:
+        if np.iterable(frames):
+            data = data[np.in1d(data['f'], frames)]
+        else:
+            data = data[data['f']==frames]
+    xmatch = data[abs(data['x']-position[0])<tolerance]
+    return xmatch['id'][abs(xmatch['y']-position[1])<tolerance]
+
 def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub=2*ss):
     """ do something with the angles a given particle makes with its neighbors
 
