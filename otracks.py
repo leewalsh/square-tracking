@@ -391,7 +391,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
     taus /= fps
-    msd = np.zeros(len(taus))
+    msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
     pl.figure(figsize=(5,4))
     for tmsd in msds:
@@ -407,8 +407,19 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
             tau_match = np.searchsorted(taus, tmsdt)
             msd[tau_match] += tmsdd
             added[tau_match] += 1
-    assert not np.any(msd==0), "zero msd for some value of tau!"
-    assert np.all(added > 0), "no tmsd for some value of tau!"
+    #assert not np.any(msd==0), "zero msd for tau = {}".format(taus[np.where(msd==0)])
+    if np.any(msd==0):
+        msd[msd==0] = np.nan
+        try:
+            print "zero msd for tau = {}, using np.nan".format(taus[msd==0])
+        except:
+            print "zero msd for some tau, using np.nan"
+    tau_mask = added > 0
+    if not np.all(tau_mask):
+        print "no tmsd for tau = {}; not using that tau".format(np.where(~tau_mask))
+    msd = msd[tau_mask]
+    taus = taus[tau_mask]
+    added = added[tau_mask]
     msd /= added
     if tnormalize:
         plfunc(taus, msd/taus**tnormalize, 'ko',

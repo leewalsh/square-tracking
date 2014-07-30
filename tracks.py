@@ -348,7 +348,8 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
             msd[tau_match] += tmsdd
             added[tau_match] += 1
     tau_mask = added > 0
-    #assert np.all(tau_mask), "no tmsd for tau =\n" + str(np.where(~tau_mask))
+    if not np.all(tau_mask):
+        print "no tmsd for tau = {}; not using that tau".format(np.where(~tau_mask))
     msd = msd[tau_mask]
     taus = taus[tau_mask]
     added = added[tau_mask]
