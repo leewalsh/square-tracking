@@ -68,6 +68,8 @@ if __name__=='__main__':
                         help='Calculate the MSD')
     parser.add_argument('--plotmsd', action='store_true',
                         help='Plot the MSD (requires --msd first)')
+    parser.add_argument('--plotorient', action='store_true',
+                        help='Plot the orientational trajectories')
     parser.add_argument('-s', '--side', type=int, default=1,
                         help='Particle size in pixels, for unit normalization')
     parser.add_argument('-f', '--fps', type=int, default=1,
@@ -88,6 +90,7 @@ if __name__=='__main__':
     plottracks = args.plottracks
     findmsd = args.msd
     plotmsd = args.plotmsd
+    plotorient = args.plotorient
     loadmsd = plotmsd and not findmsd
     findorient = args.orient
 
@@ -442,7 +445,11 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
     pl.savefig(locdir+prefix+"_MSAD.pdf")
     pl.show()
 
-if __name__=='__main__' and plotmsd and plot_capable:
-    print 'plotting now!'
-    plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix)
+if __name__=='__main__' and plot_capable:
+    if plotmsd:
+        print 'plotting now!'
+        plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix)
+    if plotorient:
+        from orientation import plot_orient_time
+        plot_orient_time(data, odata, trackids)
 

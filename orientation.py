@@ -2,6 +2,8 @@ import numpy as np
 #from scipy.stats import nanmean
 from PIL import Image as Im
 
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
 if __name__=='__main__':
     from socket import gethostname
     hostname = gethostname()
@@ -10,8 +12,6 @@ if __name__=='__main__':
         locdir = '/home/lawalsh/Granular/Squares/orientation/'
     elif 'rock' in hostname:
         computer = 'rock'
-        import matplotlib.pyplot as pl
-        import matplotlib.cm as cm
         locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     else:
         print "computer not defined"
@@ -279,6 +279,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
     cb.set_label('time')
+    pl.show()
     return qq, cb
 
 def track_orient(data, odata, track, tracks, omask=None):
@@ -296,10 +297,6 @@ def track_orient(data, odata, track, tracks, omask=None):
     return odata['orient'][mask] + crossings
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, simplify=False):
-    if computer is not 'rock':
-        print 'computer must be on rock'
-        return False
-
     if omask is None:
         omask = np.isfinite(odata['orient'])
     goodtracks = set(tracks[omask])
@@ -336,11 +333,9 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, simplify=Fals
     pl.xlabel('frame (120fps)')
     pl.ylabel('orientation')
     #pl.savefig('orient_tracking.png',dpi=180,figsize=(6,4))
+    pl.show()
 
 def plot_orient_location(data,odata,tracks):
-    if computer is not 'rock':
-        print 'computer must be on rock'
-        return False
     import correlation as corr
 
     omask = np.isfinite(odata['orient'])
@@ -366,5 +361,6 @@ def plot_orient_location(data,odata,tracks):
                 #color = cm.jet(1.*data['f'][fullmask]/1260.))
         print "track",goodtrack
     pl.legend()
+    pl.show()
     return True
 
