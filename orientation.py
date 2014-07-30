@@ -16,7 +16,7 @@ else:
     print "computer not defined"
     print "where are you working?"
 
-def field_rename(a,old,new):
+def field_rename(a, old, new):
     a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
 
 def get_fft(ifile=None,location=None):
@@ -130,7 +130,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=True, do_average=True)
         cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
         pcorner = cdisp + particle
     else:
-        porient = np.arctan2(cdisp[...,1],cdisp[...,0]) % (2*np.pi)
+        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % (2*np.pi)
 
     return pcorner, porient, cdisp
 
@@ -140,10 +140,9 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=True, do_average=True)
 
 def get_angle((datum, cdata)):
     corner = find_corner(
-            np.asarray((datum['x'],datum['y'])),
-            np.column_stack((cdata['x'][cdata['f']==datum['f']],
-                             cdata['y'][cdata['f']==datum['f']]))
-            )
+                np.asarray((datum['x'],datum['y'])),
+                np.column_stack((cdata['x'][cdata['f']==datum['f']],
+                                 cdata['y'][cdata['f']==datum['f']])))
     dt = np.dtype([('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
     return np.array([corner], dtype=dt)
 

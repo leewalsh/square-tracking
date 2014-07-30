@@ -8,52 +8,116 @@ from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
     computer = 'rock'
-    locdir = '/Users/leewalsh/Physics/Squares/orientation/'
+    locdir = ''#/Users/leewalsh/Physics/Squares/orientation/'
     extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
+    plot_capable = True
 elif 'foppl' in hostname:
     computer = 'foppl'
     locdir = '/home/lawalsh/Granular/Squares/diffusion/'
     extdir = '/media/bhavari/Squares/diffusion/still/'
     import matplotlib
     matplotlib.use("agg")
+    plot_capable = False
+elif 'peregrine' in hostname:
+    computer = 'peregrine'
+    locdir = extdir = ''
+    plot_capable = True
 else:
     print "computer not defined"
-    print "where are you working?"
+    locdir = extdir = ''
+    plot_capable = bool_input("Are you able to plot?")
+    if plot_capable:
+        import matplotlib
 
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
+pi = np.pi
+twopi = 2*pi
+
+def bool_input(question):
+    "Returns True or False from yes/no user-input question"
+    answer = raw_input(question)
+    return answer.lower().startswith('y') or answer.lower().startswith('t')
 
 if __name__=='__main__':
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
-    parser.add_argument('prefix')
+    parser.add_argument('prefix', metavar='PRE',
+                        help="Filename prefix with full or relative path (filenames "
+                             "prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
+    parser.add_argument('-c', '--corner', action='store_true',
+                        help='Track corners instead of centers')
+    parser.add_argument('-l','--load', action='store_true',
+                        help='Create and save structured array from prefix[_CORNER]_POSITIONS.txt file')
+    parser.add_argument('-t','--track', action='store_true',
+                        help='Connect the dots and save in the array')
+    parser.add_argument('-o','--orient', action='store_true',
+                        help='Find the orientations and save')
+    parser.add_argument('-n', '--ncorners', type=int, default=3,
+                        help='Number of corner dots per particle. Default is 3')
+    parser.add_argument('-p', '--plottracks', action='store_true',
+                        help='Plot the tracks')
+    parser.add_argument('-d', '--msd', action='store_true',
+                        help='Calculate the MSD')
+    parser.add_argument('--plotmsd', action='store_true',
+                        help='Plot the MSD (requires --msd first)')
+    parser.add_argument('-s', '--side', type=int, default=1,
+                        help='Particle size in pixels, for unit normalization')
+    parser.add_argument('-f', '--fps', type=int, default=1,
+                        help='Number of frames per second (or per shake) for unit normalization')
+    parser.add_argument('--dt0', type=int, default=10,
+                        help='Stepsize for time-averaging of a single track at different time starting points')
+    parser.add_argument('--dtau', type=int, default=1,
+                        help='Stepsize for values of tau at which to calculate MSD(tau)')
+
     args = parser.parse_args()
 
-    prefix = args.prefix#'n32_100mv_50hz'
+    prefix = args.prefix
+    print 'using prefix', prefix
+    dotfix = '_CORNER' if args.corner else ''
+
+    loaddata = args.load
+    findtracks = args.track
+    plottracks = args.plottracks
+    findmsd = args.msd
+    plotmsd = args.plotmsd
+    loadmsd = plotmsd and not findmsd
+    findorient = args.orient
+
+    S = args.side
+    if S > 1:
+        S = float(S)
+    fps = args.fps
+    if fps > 1:
+        fps = float(fps)
+    nc = args.ncorners
+    dtau = args.dtau
+    dt0 = args.dt0
+
+else:
+    loaddata   = False    # Create and save structured array from data txt file?
+
+    findtracks = False   # Connect the dots and save in 'trackids' field of data
+    plottracks = False   # plot their tracks
+
+    findmsd = False      # Calculate the MSD
+    loadmsd = False      # load previoius MSD from npz file
+    plotmsd = False      # plot the MSD
+    prefix = 'n32_100mv_50hz'
     print 'using prefix', prefix
     dotfix = ''#_CORNER'
-    if dotfix:
-        print 'using dotfix', dotfix
-
-loaddata   = False   # Create and save structured array from data txt file?
-
-findtracks = False   # Connect the dots and save in 'trackids' field of data
-plottracks = False   # plot their tracks
-
-findmsd = False      # Calculate the MSD
-loadmsd = False      # load previoius MSD from npz file
-plotmsd = False      # plot the MSD
+    dtau = 10
+    dt0 = 10
+    S = 22 # side length of particle
 
 verbose = False
 
-if plottracks:
-    bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
 if loaddata:
     datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
 
-def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
+def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
@@ -61,7 +125,7 @@ def find_closest(thisdot,trackids,n=1,maxdist=25.,giveup=1000):
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
         if verbose:
-            print "New track:",newtrackid
+            print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
@@ -109,11 +173,6 @@ def load_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-if loaddata:
-    data = load_data(datapath)
-    print "\t...loaded"
-
-
 def find_tracks(data, giveup=1000):
     sys.setrecursionlimit(2*giveup)
 
@@ -132,7 +191,12 @@ def find_tracks(data, giveup=1000):
     return trackids
 
 if __name__=='__main__':
+    if loaddata:
+        data = load_data(datapath)
+        print "\t...loaded"
     if findtracks:
+        if not loaddata:
+            data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         trackids = find_tracks(data)
     elif loaddata:
         print "saving data only (no tracks)"
@@ -148,28 +212,34 @@ if __name__=='__main__':
         except IOError:
             tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
         data = tracksnpz['data']
-        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
-        cdata = cdatanpz['data']
+        try:
+            cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
+            cdata = cdatanpz['data']
+        except IOError:
+            print "_CORNER_POSITIONS.npz file not found, have you run `tracks -lc` yet?"
         print "\t...loaded"
-    try:
-        odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
-        odata = odatanpz['odata']
-        omask = odatanpz['omask']
-    except IOError:
+    if findorient:
         print "calculating orientation data"
         from orientation import get_angles_loop
-        odata, omask = get_angles_loop(data, cdata)
+        odata, omask = get_angles_loop(data, cdata, nc=nc)
         np.savez(locdir+prefix+'_ORIENTATION.npz',
                 odata=odata,
                 omask=omask)
         print '\t...saved'
+    else:
+        try:
+            odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
+            odata = odatanpz['odata']
+            omask = odatanpz['omask']
+        except IOError:
+            print "Cannot find ORIENTATION.npz file, have you run `otracks -o` yet?"
 
-from os import getcwd
 def load_from_npz(prefix, locdir=None):
     """ given a prefix, returns:
         data, cdata, odata, omask
         """
     if locdir is None:
+        from os import getcwd
         locdir = getcwd() +'/'
     odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
     return (np.load(locdir+prefix+'_POSITIONS.npz')['data'],
@@ -181,17 +251,21 @@ def plot_tracks(data, trackids, bgimage=None):
     pl.figure()
     pl.scatter( data['y'], data['x'],
             c=np.array(trackids)%12, marker='o')
-    pl.imshow(bgimage,cmap=cm.gray,origin='upper')
+    if bgimage:
+        pl.imshow(bgimage,cmap=cm.gray,origin='upper')
     pl.title(prefix)
     print "saving tracks image"
-    pl.savefig(locdir+prefix+"_tracks.png",dpi=180)
+    pl.savefig(locdir+prefix+"_tracks.png")
     pl.show()
 
-if plottracks and computer is 'rock':
+if plottracks and plot_capable:
     try:
         bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
     except IOError:
-        bgimage = Im.open(locdir+prefix+'_0001.tif') # for bkground in plot
+        try:
+            bgimage = Im.open(locdir+prefix+'_001.tif') # for bkground in plot
+        except IOError:
+            bgimage = None
     plot_tracks(data, trackids, bgimage)
 
 # Mean Squared Displacement
@@ -201,7 +275,7 @@ if plottracks and computer is 'rock':
 def farange(start,stop,factor):
     start_power = np.log(start)/np.log(factor)
     stop_power = np.log(stop)/np.log(factor)
-    return factor**np.arange(start_power,stop_power)
+    return factor**np.arange(start_power,stop_power, dtype=type(factor))
 
 from orientation import track_orient
 def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
@@ -224,7 +298,7 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
         taus = xrange(dtau, tracklen, dtau)
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =",tau
-        avg = t0avg(trackdots,tracklen,tau,trackodata,dt0,mod_2pi=mod_2pi)
+        avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=mod_2pi)
         #print "avg =",avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]]) 
@@ -243,20 +317,20 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
         if len(newdot) != 1 or len(olddot) != 1:
             continue
         if mod_2pi:
-            disp = (newdot - olddot)%(2*np.pi)
-            if disp > np.pi:
-                disp -= 2*np.pi
+            disp = (newdot - olddot) % twopi
+            if disp > pi:
+                disp -= twopi
         else:
             disp = newdot - olddot
         sqdisp  = disp**2
         if len(sqdisp) == 1:
-            #print 'unflattened'
+            if verbose > 1: print 'unflattened'
             totsqdisp += sqdisp
         elif len(sqdisp[0]) == 1:
-            print 'flattened once'
+            if verbose: print 'flattened once'
             totsqdisp += sqdisp[0]
         else:
-            print "fail"
+            if verbose: print "fail"
             continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
@@ -285,8 +359,6 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False
 
 if __name__=='__main__':
     if findmsd:
-        dt0  = 100 # small for better statistics, larger for faster calc
-        dtau = 10 # int for stepwise, float for factorwise
         msds = find_msds(dt0, dtau, data, trackids, odata, omask)
     elif loadmsd:
         print "loading msd data from npz files"
@@ -310,12 +382,15 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
         taus = farange(dt0, nframes, dtau)
     elif isinstance(dtau, int):
         taus = np.arange(dtau, nframes, dtau)
+    taus /= fps
     msd = np.zeros(len(taus))
     added = np.zeros(len(msd), float)
     pl.figure(figsize=(5,4))
     for tmsd in msds:
         if len(tmsd) > 0:
             tmsdt, tmsdd = np.asarray(tmsd).T
+            tmsdd /= S**2 # convert to unit "particle area"
+            tmsdt /= fps  # convert to unit seconds or shakes
             if show_tracks:
                 if tnormalize:
                     plfunc(tmsdt, tmsdd/tmsdt**tnormalize)
@@ -329,26 +404,26 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
     msd /= added
     if tnormalize:
         plfunc(taus, msd/taus**tnormalize, 'ko',
-                label="Mean Sq Angular Disp/Time{}".format(
-                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau, 'k-',
-               label="ref slope = 1", lw=2)
-        plfunc(taus, 4*np.pi**2/taus**tnormalize, 'k--', label=r"$(2\pi)^2$", lw=2)
+               label="Mean Sq Angular Disp/Time{}".format(
+                     "^{}".format(tnormalize) if tnormalize != 1 else ''))
+        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
+               'k-', label="ref slope = 1", lw=2)
+        plfunc(taus, twopi**2/taus**tnormalize, 'k--', label=r"$(2\pi)^2$", lw=2)
         pl.ylim([0, 1.1*np.max(msd/taus**tnormalize)])
     else:
         pl.loglog(taus, msd, 'k.', label="Mean Sq Angular Disp")
-        pl.loglog(taus, msd[0]*taus/dtau, 'k-', label="slope = 1")#, lw=2)
-        #pl.axhline(4*np.pi**2, ls='--', c='k', label=r"$(2\pi)^2$")
+        pl.loglog(taus, msd[0]*taus/dtau, 'k-', label="slope = 1")
+        #pl.axhline(twopi**2, ls='--', c='k', label=r"$(2\pi)^2$")
     #pl.legend(loc='lower right')
     pl.title(prefix+'\ndt0=%d dtau=%d'%(dt0,dtau) if title is None else title)
-    pl.xlabel('Time (Image frames)', fontsize='x-large')
+    pl.xlabel('Time', fontsize='x-large')
     pl.ylabel('Squared Angular Displacement ($rad^2$)', fontsize='x-large')
     if ylim is not None:
         pl.ylim(*ylim)
-    pl.savefig(locdir+prefix+"_MSAD.pdf")#,dpi=180)
+    pl.savefig(locdir+prefix+"_MSAD.pdf")
     pl.show()
 
-if plotmsd and computer is 'rock':
+if __name__=='__main__' and plotmsd and plot_capable:
     print 'plotting now!'
-    plot_msd(data, msds)
+    plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix)
 
