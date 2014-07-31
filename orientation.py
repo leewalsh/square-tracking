@@ -79,7 +79,7 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=4, slr=True, do_average=True):
+def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -250,9 +250,6 @@ def plot_orient_hist(odata, figtitle=''):
 def plot_orient_quiver(data, odata, mask=None, imfile=''):
     """ plot_orient_quiver(data, odata, mask=None, imfile='')
     """
-    if computer is not 'rock':
-        print 'computer must be on rock'
-        return False
     import matplotlib.colors as mcolors
     import matplotlib.colorbar as mcolorbar
     pl.figure()
@@ -274,7 +271,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask])),
-            scale=1000.)
+            scale=2000.)
     pl.title(imfile.split('/')[-1].split('_')[:-1] if imfile else '')
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)

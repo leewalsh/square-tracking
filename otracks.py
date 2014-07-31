@@ -289,7 +289,7 @@ def farange(start,stop,factor):
     return factor**np.arange(start_power,stop_power, dtype=type(factor))
 
 from orientation import track_orient
-def trackmsd(track, dt0, dtau, data, trackids, odata, omask,mod_2pi=False):
+def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
     """ trackmsd(track,dt0,dtau,odata,omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
     """
@@ -451,5 +451,5 @@ if __name__=='__main__' and plot_capable:
         plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix)
     if plotorient:
         from orientation import plot_orient_time
-        plot_orient_time(data, odata, trackids)
+        plot_orient_time(data, odata, trackids, omask)
 
