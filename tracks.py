@@ -65,6 +65,8 @@ if __name__=='__main__':
                         help='Stepsize for time-averaging of a single track at different time starting points')
     parser.add_argument('--dtau', type=int, default=1,
                         help='Stepsize for values of tau at which to calculate MSD(tau)')
+    parser.add_argument('--killflat', type=int, default=0,
+                        help='Minimum growth factor for a single MSD track for it to be included')
 
     args = parser.parse_args()
 
@@ -87,6 +89,8 @@ if __name__=='__main__':
         fps = float(fps)
     dtau = args.dtau
     dt0 = args.dt0
+
+    kill_flats = args.killflat
 
 else:
     loaddata   = False    # Create and save structured array from data txt file?
@@ -297,7 +301,13 @@ def find_msds(dt0, dtau, tracks=None):
         if verbose:
             print "calculating msd for track", trackid
         tmsd = trackmsd(trackid, dt0, dtau)
-        msds.append(tmsd)
+        if len(tmsd) > 1:
+            if kill_flats:
+                tmsdarr = np.asarray(tmsd)
+                if np.mean(tmsd[-10:]) > kill_flats*np.mean(tmsd[:10]):
+                    msds.append(tmsd)
+            else:
+                msds.append(tmsd)
 
     msds = np.asarray(msds)
     print "saving msd data"
