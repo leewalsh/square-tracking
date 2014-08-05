@@ -386,5 +386,5 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=0, show_tracks=False, prefix='', 
 
 if __name__=='__main__' and plotmsd and plot_capable:
     print 'plotting now!'
-    plot_msd(data, msds, dtau, dt0, prefix=prefix, show_tracks=plottracks)
+    plot_msd(data, msds, dtau, dt0, prefix=prefix, show_tracks=True)
 

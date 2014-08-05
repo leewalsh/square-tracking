@@ -80,6 +80,8 @@ if __name__=='__main__':
                         help='Stepsize for values of tau at which to calculate MSD(tau)')
     parser.add_argument('--killflat', type=int, default=0,
                         help='Minimum growth factor for a single MSD track for it to be included')
+    parser.add_argument('--singletracks', type=int, nargs='*',
+                        help='identify single track ids to plot')
 
     args = parser.parse_args()
 
@@ -110,6 +112,7 @@ if __name__=='__main__':
     dt0 = args.dt0
 
     kill_flats = args.killflat
+    singletracks = args.singletracks
 
 else:
     loaddata   = False    # Create and save structured array from data txt file?
@@ -231,7 +234,7 @@ if __name__=='__main__':
             cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
             cdata = cdatanpz['data']
         except IOError:
-            print "_CORNER_POSITIONS.npz file not found, have you run `tracks -lc` yet?"
+            print prefix+"_CORNER_POSITIONS.npz file not found, have you run `tracks -lc` yet?"
         print "\t...loaded"
     if findorient:
         print "calculating orientation data"
@@ -272,16 +275,6 @@ def plot_tracks(data, trackids, bgimage=None):
     print "saving tracks image"
     pl.savefig(locdir+prefix+"_tracks.png")
     pl.show()
-
-if plottracks and plot_capable:
-    try:
-        bgimage = Im.open(extdir+prefix+'_0001.tif') # for bkground in plot
-    except IOError:
-        try:
-            bgimage = Im.open(locdir+prefix+'_001.tif') # for bkground in plot
-        except IOError:
-            bgimage = None
-    plot_tracks(data, trackids, bgimage)
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -350,7 +343,7 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None,mod_2pi=False):
+def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
     print locdir
@@ -406,7 +399,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
     taus /= fps
     msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
-    pl.figure(figsize=(5,4))
+    pl.figure(figsize=(8,6))
     for tmsd in msds:
         if len(tmsd) > 0:
             tmsdt, tmsdd = np.asarray(tmsd).T
@@ -429,7 +422,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='',
             print "zero msd for some tau, using np.nan"
     tau_mask = added > 0
     if not np.all(tau_mask):
-        print "no tmsd for tau = {}; not using that tau".format(np.where(~tau_mask))
+        print "no tmsd for tau = {}; not using that tau".format(taus[~tau_mask])
     msd = msd[tau_mask]
     taus = taus[tau_mask]
     added = added[tau_mask]
@@ -461,5 +454,16 @@ if __name__=='__main__' and plot_capable:
         plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix)
     if plotorient:
         from orientation import plot_orient_time
-        plot_orient_time(data, odata, trackids, omask)
-
+        plot_orient_time(data, odata, trackids, omask, singletracks=singletracks, save=locdir+prefix+'_ORIENTATION.pdf')
+    if plottracks:
+        from orientation import plot_orient_quiver
+        try:
+            bgimage = Im.open(extdir+prefix+'_0001.tif')
+        except IOError:
+            try:
+                bgimage = Im.open(locdir+prefix+'_001.tif')
+            except IOError:
+                bgimage = None
+        if singletracks:
+            mask = np.in1d(trackids, singletracks)
+        plot_orient_quiver(data, odata, mask=mask, imfile=bgimage)
