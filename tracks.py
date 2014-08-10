@@ -70,7 +70,7 @@ if __name__=='__main__':
                         help='Minimum growth factor for a single MSD track for it to be included')
     parser.add_argument('--killjump', type=int, default=100000,
                         help='Maximum initial jump for a single MSD track at smallest time step')
-    parser.add_argument('--singletracks', type=int, nargs='*',
+    parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
                         help='Show individual tracks')
@@ -93,6 +93,7 @@ if __name__=='__main__':
     S = args.side
     if S > 1:
         S = float(S)
+    A = S**2
     fps = args.fps
     if fps > 1:
         fps = float(fps)
@@ -356,9 +357,9 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
             continue
         if show_tracks and msdid in singletracks:
             if tnormalize:
-                plfunc(tmsdt/fps, tmsdd/S**2/(tmsdt/fps)**tnormalize)
+                plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/S**2)
+                pl.loglog(tmsdt/fps, tmsdd/A)
         tau_match = np.searchsorted(taus, tmsdt)
         msd[tau_match] += tmsdd
         added[tau_match] += 1
@@ -370,16 +371,16 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
     added = added[tau_mask]
     msd /= added
     if tnormalize:
-        plfunc(taus/fps, msd/S**2/(taus/fps)**tnormalize, 'ko',
+        plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
                label="Mean Sq Disp/Time{}".format(
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
         plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
         plfunc(taus/fps, (taus/fps)**-tnormalize,
                'k--', label="One particle area" if S>1 else "One Pixel", lw=2)
-        pl.ylim([0, 1.3*np.max(msd/S**2/(taus/fps)**tnormalize)])
+        pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
     else:
-        pl.loglog(taus, msd, meancol+'.', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+        pl.loglog(taus, msd/A, meancol+'.', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
         pl.loglog(taus, msd[0]*taus/dtau, meancol+'-', label="slope = 1")
     pl.title("Mean Sq Disp" if title is None else title)
     pl.xlabel('Time', fontsize='x-large')

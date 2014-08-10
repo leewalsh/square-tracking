@@ -77,7 +77,7 @@ if __name__=='__main__':
                         help='Minimum growth factor for a single MSD track for it to be included')
     parser.add_argument('--killjump', type=int, default=100000,
                         help='Maximum initial jump for a single MSD track at smallest time step')
-    parser.add_argument('--singletracks', type=int, nargs='*',
+    parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
                         help='Show individual tracks')
