@@ -364,6 +364,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
             an integer (probably 4, 6, or 8), giving that many nearest neighbors,
             or None (which gives voronoi)
         `margin` is the width of excluded boundary margin
+        `dub` is the distance upper bound (won't use pairs farther apart)
     """
     if neighborhood is None or str(neighborhood).lower() in ['voronoi', 'delauney']:
         #method = 'voronoi'
@@ -417,7 +418,7 @@ def pair_angle_op(angles, nmask=None, m=4):
 def pair_angle_corr(positions, psims, rbins=10):
     assert len(positions) == len(psims), "positions does not match psi_m(r)"
     i, j = pair_indices(len(positions))
-    psi2 = psim[i].conj() * psim[j]
+    psi2 = psims[i].conj() * psims[j]
     return correlate(pdist(positions), psi2, rbins)
 
 class vonmises_m(rv_continuous):
