@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 import numpy as np
 from math import sqrt
 from PIL import Image as Im
@@ -384,9 +385,10 @@ if __name__=='__main__':
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=True,
-             plfunc=pl.semilogx, meancol='', title=None, ylim=None, fignum=None,
-             fps=1, S=1, kill_flats=0, kill_jumps=1e9):
+def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
+        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
+        title=None, xlim=None, ylim=None, fignum=None, save='',
+        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9):
     """ Plots the MSDs"""
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     nframes = data['f'].max()
@@ -400,7 +402,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
         taus = np.arange(dtau, nframes, dtau)
     msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
-    pl.figure(fignum, figsize=(8,6))
+    pl.figure(fignum, figsize)
     for tmsd, msdid in izip(msds, msdids):
         if len(tmsd) < 2:
             continue
@@ -411,9 +413,9 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
             continue
         if show_tracks and msdid in singletracks:
             if tnormalize:
-                plfunc(tmsdt/fps, tmsdd/S**2/(tmsdt/fps)**tnormalize)
+                plfunc(tmsdt/fps, tmsdd/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/S**2)
+                pl.loglog(tmsdt/fps, tmsdd, lw=0.5, alpha=.5)
         tau_match = np.searchsorted(taus, tmsdt)
         msd[tau_match] += tmsdd
         added[tau_match] += 1
@@ -422,36 +424,44 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
         msd[msd==0] = np.nan
         print "zero msd for tau = {}, using np.nan".format(taus[msd==0]/fps)
     if not np.all(tau_mask):
-        if verbose: print "no tmsd for tau = {}; not using that tau".format(taus[~tau_mask]/fps)
+        if verbose: print "no tmsd for tau = {}".format(taus[~tau_mask]/fps)
     msd = msd[tau_mask]
     taus = taus[tau_mask]
     added = added[tau_mask]
     msd /= added
+    print "Rough coefficient of diffusion:", msd[np.searchsorted(taus, fps)]
+    print "Rough diffusion timescale:", taus[np.searchsorted(msd, 1)]/fps
     if tnormalize:
-        plfunc(taus/fps, msd/S**2/(taus/fps)**tnormalize, 'ko',
+        plfunc(taus/fps, msd/(taus/fps)**tnormalize, 'ko',
                label="Mean Sq Angular Disp/Time{}".format(
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
+        plfunc(taus/fps, msd[0]*(taus/fps)**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
         plfunc(taus/fps, twopi**2/(taus/fps)**tnormalize,
                'k--', label=r"$(2\pi)^2$", lw=2)
-        pl.ylim([0, 1.3*np.max(msd/S**2/(taus/fps)**tnormalize)])
+        pl.ylim([0, 1.3*np.max(msd/(taus/fps)**tnormalize)])
     else:
-        pl.loglog(taus, msd, meancol+'.', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
-        pl.loglog(taus, msd[0]*taus/dtau, meancol+'-', label="slope = 1")
+        pl.loglog(taus/fps, msd, meancol+'o', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+        pl.loglog(taus/fps, msd[0]*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
     pl.title("Mean Sq Angular Disp" if title is None else title)
-    pl.xlabel('Time', fontsize='x-large')
+    pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     pl.ylabel('Squared Angular Displacement ($rad^2$)',
               fontsize='x-large')
+    if xlim is not None:
+        pl.xlim(*xlim)
     if ylim is not None:
         pl.ylim(*ylim)
-    pl.savefig(locdir+prefix+"_MSAD.pdf")
+    if save is None:
+        save = locdir + prefix + "_MSAD.pdf"
+    if save:
+        print "saving to", save
+        pl.savefig(save)
     pl.show()
 
 if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
-        plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix, show_tracks=show_tracks,
+        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix, show_tracks=show_tracks,
                  singletracks=singletracks, fps=fps, S=S, kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plotorient:
         from orientation import plot_orient_time

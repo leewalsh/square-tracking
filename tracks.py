@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 import numpy as np
 from PIL import Image as Im
 from itertools import izip
@@ -330,11 +331,14 @@ if __name__=='__main__':
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=True,
-             plfunc=pl.semilogx, meancol='', title=None, ylim=None, fignum=None,
-             singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9):
+def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
+        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
+        title=None, xlim=None, ylim=None, fignum=None, save='',
+        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9):
     """ Plots the MSDs"""
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
+    A = S**2
+    print "using S = {} pixels, thus A = {} px^2".format(S, A)
     nframes = data['f'].max()
     try:
         dtau = np.asscalar(dtau)
@@ -346,7 +350,7 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
         taus = np.arange(dtau, nframes, dtau)
     msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
-    pl.figure(fignum, figsize=(8,6))
+    pl.figure(fignum, figsize)
     for tmsd, msdid in izip(msds, msdids):
         if len(tmsd) < 2:
             continue
@@ -359,42 +363,50 @@ def plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix='', show_tracks=Tru
             if tnormalize:
                 plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/A)
+                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=.5)
         tau_match = np.searchsorted(taus, tmsdt)
         msd[tau_match] += tmsdd
         added[tau_match] += 1
     tau_mask = added > 0
     if not np.all(tau_mask):
-        if verbose: print "no tmsd for tau = {}; not using that tau".format(taus[~tau_mask]/fps)
+        if verbose: print "no tmsd for tau = {}".format(taus[~tau_mask]/fps)
     msd = msd[tau_mask]
     taus = taus[tau_mask]
     added = added[tau_mask]
     msd /= added
+    print "Rough coefficient of diffusion:", msd[np.searchsorted(taus, fps)]/A
+    print "Rough diffusion timescale:", taus[np.searchsorted(msd, A)]/fps
     if tnormalize:
         plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
                label="Mean Sq Disp/Time{}".format(
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
+        plfunc(taus/fps, msd[0]/A*(taus/fps)**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
         plfunc(taus/fps, (taus/fps)**-tnormalize,
                'k--', label="One particle area" if S>1 else "One Pixel", lw=2)
         pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
     else:
-        pl.loglog(taus, msd/A, meancol+'.', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
-        pl.loglog(taus, msd[0]*taus/dtau, meancol+'-', label="slope = 1")
+        pl.loglog(taus/fps, msd/A, meancol+'o', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+        pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
     pl.title("Mean Sq Disp" if title is None else title)
-    pl.xlabel('Time', fontsize='x-large')
+    pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     pl.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
               fontsize='x-large')# '+r'$s^2$'+')')
     if ylim is not None:
         pl.ylim(*ylim)
-    pl.savefig(locdir+prefix+"_MSD.pdf")
+    if xlim is not None:
+        pl.xlim(*xlim)
+    if save is None:
+        save = locdir + prefix + "_MSD.pdf"
+    if save:
+        print "saving to", save
+        pl.savefig(save)
     pl.show()
 
 if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
-        plot_msd(data, msds, dtau, dt0, tnormalize=False, prefix=prefix, show_tracks=show_tracks,
+        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix, show_tracks=show_tracks,
                  singletracks=singletracks, fps=fps, S=S, kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plottracks:
         try:

@@ -1,3 +1,5 @@
+
+from __future__ import division
 import numpy as np
 #from scipy.stats import nanmean
 from PIL import Image as Im
@@ -247,12 +249,12 @@ def plot_orient_hist(odata, figtitle=''):
     pl.title('orientation histogram' if figtitle is '' else figtitle)
     return True
 
-def plot_orient_quiver(data, odata, mask=None, imfile=''):
+def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', figsize=None):
     """ plot_orient_quiver(data, odata, mask=None, imfile='')
     """
     import matplotlib.colors as mcolors
     import matplotlib.colorbar as mcolorbar
-    pl.figure()
+    pl.figure(tight_layout=False, figsize=figsize)
     if imfile is not None:
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
         pl.imshow(bgimage, cmap=cm.gray, origin='upper')
@@ -266,16 +268,19 @@ def plot_orient_quiver(data, odata, mask=None, imfile=''):
     n = odata.shape[-1] if odata.ndim > 1 else 1
     ndex = np.repeat(np.arange(mask.sum()), n)
     nz = mcolors.Normalize()
-    nz.autoscale(data['f'][mask])
+    nz.autoscale(data['f'][mask]/fps)
     qq = pl.quiver(
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
-            color=cm.jet(nz(data['f'][mask])),
+            color=cm.jet(nz(data['f'][mask]/fps)),
             scale=1000.)
-    pl.title(imfile.split('/')[-1].split('_')[:-1] if imfile else '')
+    #pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]) if imfile else '')
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
-    cb.set_label('time')
+    cb.set_label('time '+('(s)'if fps > 1 else '(frame)'))
+    if savename:
+        print "saving to", savename
+        pl.savefig(savename)
     pl.show()
     return qq, cb
 
@@ -293,7 +298,7 @@ def track_orient(data, odata, track, tracks, omask=None):
     crossings = crossings.cumsum() * 2 * np.pi
     return odata['orient'][mask] + crossings
 
-def plot_orient_time(data, odata, tracks, omask=None, delta=False, save='', singletracks=False):
+def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
     if omask is None:
         omask = np.isfinite(odata['orient'])
     goodtracks = set(tracks[omask])
@@ -304,7 +309,7 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, save='', sing
             goodtracks = singletracks
     print 'tracks used are', goodtracks
     #tmask = np.in1d(tracks, goodtracks)
-    pl.figure(figsize=(8,6))
+    pl.figure(figsize=(6,5))
     colors = ['red','green','blue','cyan','black','magenta','yellow']
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
@@ -314,14 +319,14 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, save='', sing
         plotrange = slice(None, 600 if singletracks is True else None)
         if delta:
             c = colors[goodtrack%7]
-            pl.plot(data['f'][fullmask][plotrange],
+            pl.plot(data['f'][fullmask][plotrange]/fps,
                     odata['orient'][fullmask][plotrange],
                     c=c,label="Track {}".format(goodtrack))
-            pl.plot(data['f'][fullmask][plotrange][0 if singletracks else 1:],
+            pl.plot(data['f'][fullmask][plotrange][0 if singletracks else 1:]/fps,
                     np.diff(odata['orient'][fullmask])[plotrange],
                     'o', c=c,label='delta {}'.format(goodtrack))
         else:
-            pl.plot(data['f'][fullmask][plotrange],
+            pl.plot(data['f'][fullmask][plotrange]/fps,
                     track_orient(data, odata, goodtrack, tracks, omask)[plotrange],
                     '--', label='tracked {}'.format(goodtrack))
     if delta:
@@ -329,9 +334,10 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, save='', sing
             pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*np.pi,'k--')
     if len(goodtracks) < 10:
         pl.legend()
-    pl.title('Orientation over time')#\ninitial orientation = 0')
-    pl.xlabel('frame (120fps)')
-    pl.ylabel('orientation')
+    #pl.title('Orientation over time')#\ninitial orientation = 0')
+    pl.xlabel('Time ({})'.format('s' if fps > 1 else 'frame'), fontsize='x-large')
+    pl.ylabel('orientation', fontsize='x-large')
+    pl.xlim(0, data['f'].max()/fps)
     if save:
         pl.savefig(save)
     pl.show()
