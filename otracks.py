@@ -388,7 +388,7 @@ if __name__=='__main__':
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, save='',
-        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9):
+        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9, show_legend=False):
     """ Plots the MSDs"""
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     nframes = data['f'].max()
@@ -403,7 +403,12 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
     msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
     pl.figure(fignum, figsize)
-    for tmsd, msdid in izip(msds, msdids):
+    looper = izip(msds, msdids) if msdids is not None else msds
+    for loopee in looper:
+        if msdids is not None:
+            tmsd, msdid = loopee
+        else:
+            tmsd = loopee
         if len(tmsd) < 2:
             continue
         tmsdt, tmsdd = np.asarray(tmsd).T
@@ -411,11 +416,13 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
             continue
         if tmsdd[0] > kill_jumps:
             continue
-        if show_tracks and msdid in singletracks:
+        if show_tracks:
+            if msdids is not None and msdid not in singletracks:
+                continue
             if tnormalize:
                 plfunc(tmsdt/fps, tmsdd/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd, lw=0.5, alpha=.5)
+                pl.loglog(tmsdt/fps, tmsdd, lw=0.5, alpha=.5, label=msdid if msdids is not None else '')
         tau_match = np.searchsorted(taus, tmsdt)
         msd[tau_match] += tmsdd
         added[tau_match] += 1
@@ -444,6 +451,7 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.loglog(taus/fps, msd, meancol+'o', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
         pl.loglog(taus/fps, msd[0]*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
     pl.title("Mean Sq Angular Disp" if title is None else title)
+    if show_legend: pl.legend(loc='best')
     pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     pl.ylabel('Squared Angular Displacement ($rad^2$)',
               fontsize='x-large')

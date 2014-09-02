@@ -334,7 +334,8 @@ if __name__=='__main__':
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, save='',
-        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9):
+        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9,
+        show_legend=False):
     """ Plots the MSDs"""
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     A = S**2
@@ -351,7 +352,12 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
     msd = np.zeros(len(taus), float)
     added = np.zeros(len(msd), float)
     pl.figure(fignum, figsize)
-    for tmsd, msdid in izip(msds, msdids):
+    looper = izip(msds, msdids) if msdids is not None else msds
+    for loopee in looper:
+        if msdids is not None:
+            tmsd, msdid = loopee
+        else:
+            tmsd = loopee
         if len(tmsd) < 2:
             continue
         tmsdt, tmsdd = np.asarray(tmsd).T
@@ -359,11 +365,13 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
             continue
         if tmsdd[0] > kill_jumps:
             continue
-        if show_tracks and msdid in singletracks:
+        if show_tracks:
+            if msdids is not None and msdid not in singletracks:
+                continue
             if tnormalize:
                 plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=.5)
+                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=.5, label=msdid if msdids is not None else '')
         tau_match = np.searchsorted(taus, tmsdt)
         msd[tau_match] += tmsdd
         added[tau_match] += 1
@@ -396,6 +404,7 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.ylim(*ylim)
     if xlim is not None:
         pl.xlim(*xlim)
+    if show_legend: pl.legend(loc='best')
     if save is None:
         save = locdir + prefix + "_MSD.pdf"
     if save:
