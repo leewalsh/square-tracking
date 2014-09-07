@@ -22,12 +22,13 @@ def powerlaw(t,d):
 def diff_const(msd):
     popt,pcov = curve_fit(powerlaw,*msd.transpose())
     #print "popt,pcov =",popt,',',pcov
-    return popt[0], pcov[0]
+    return popt[0], pcov[0,0]
 
 dmin, dmax = ns.min()/N, ns.max()/N
 col = lambda dens: cm.jet((dens - dmin)/(dmax - dmin))
 
 ds = []
+dds = []
 dsd = 0**2 # uncert in squared disp
 pl.figure(figsize=(6,5))
 MSDS = np.load(locdir + 'MSDS.npz')
@@ -40,6 +41,7 @@ for n in ns:
                   c=col(n/N), lw=2)
         d,dd = diff_const(msd/np.array([fps, A]))
         ds.append(d)
+        dds.append(dd)
         continue
     prefix = 'n'+str(n)
     print "loading from", prefix+"_MSD.npz"
@@ -86,11 +88,14 @@ for n in ns:
                 )
         d,dd = diff_const(msd/np.array([fps, A]))
         ds.append(d)
+        dds.append(dd)
     else:
         print "no msd for n =", n
         ds.append(np.nan)
+        dds.append(np.nan)
 
-ds = np.array(ds)
+#ds = np.asarray(ds)
+#dds = np.asarray(dds)
 #pl.loglog(
 #        np.arange(dtau,nframes,dtau)/fps,
 #        10*np.arange(dtau,nframes,dtau)/fps/dtau,
@@ -103,7 +108,7 @@ for n, d in zip(ns, ds):
     pl.loglog(np.arange(dtau, nframes, dtau)/fps,
               3*powerlaw(np.arange(dtau, nframes, dtau)/fps, d), 'k--')
               #lw=.5, c=col(n/N))
-    break
+    break # just plot the first one, times three, to show 'slope=1' guideline
 #pl.legend(loc=4)
 #pl.title("MSD v N, uncert in sq disp = "+str(dsd))
 pl.xlabel(r'Time ({})'.format('s' if fps > 1 else 'image frames'), fontsize='x-large')
@@ -118,11 +123,13 @@ if raw_input('save figure at {}? y/[n]'.format(savename)).startswith('y'):
 plotD = raw_input('Plot D? y/[n]').startswith('y')
 if plotD:
     pl.figure(figsize=(6,5))
-    pl.plot(ns/N, ds, 'o')
+    #pl.plot(ns/N, ds, 'o')
+    pl.errorbar(ns/N, ds, np.sqrt(np.sqrt(dds))*A/fps, fmt='.') #really?
     #pl.title("Constant of diffusion vs. density")
     pl.xlabel(r"Density $\rho$", fontsize='x-large')
     pl.ylabel("$D$ "+('(particle area / s)' if fps > 1 else r"$pix^2/frame$"), fontsize='x-large')
     #pl.savefig(locdir+"DvN_dt0=%d_dtau=%d.png"%(dt0,dtau))
+    pl.ylim(0,np.max(ds)*1.2)
     pl.savefig(locdir+"DvN.pdf")
 
 #pl.show()
