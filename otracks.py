@@ -386,8 +386,8 @@ if __name__=='__main__':
 # Mean Squared Displacement:
 
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
-        title=None, xlim=None, ylim=None, fignum=None, save='',
+        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='', lw=1,
+        title=None, xlim=None, ylim=None, fignum=None, save='', errorbars=False,
         singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9, show_legend=False):
     """ Plots the MSDs"""
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
@@ -400,15 +400,15 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         taus = farange(dt0, nframes, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes, dtau)
-    msd = np.zeros(len(taus), float)
-    added = np.zeros(len(msd), float)
+    msd = np.full((len(msds),len(taus)), np.nan, float)
+    added = np.zeros(len(taus), float)
     pl.figure(fignum, figsize)
-    looper = izip(msds, msdids) if msdids is not None else msds
+    looper = izip(range(len(msds)), msds, msdids) if msdids is not None else enumerate(msds)
     for loopee in looper:
         if msdids is not None:
-            tmsd, msdid = loopee
+            ti, tmsd, msdid = loopee
         else:
-            tmsd = loopee
+            ti, tmsd = loopee
         if len(tmsd) < 2:
             continue
         tmsdt, tmsdd = np.asarray(tmsd).T
@@ -424,18 +424,11 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
             else:
                 pl.loglog(tmsdt/fps, tmsdd, lw=0.5, alpha=.5, label=msdid if msdids is not None else '')
         tau_match = np.searchsorted(taus, tmsdt)
-        msd[tau_match] += tmsdd
-        added[tau_match] += 1
-    tau_mask = added > 0
-    if np.any(msd==0):
-        msd[msd==0] = np.nan
-        print "zero msd for tau = {}, using np.nan".format(taus[msd==0]/fps)
-    if not np.all(tau_mask):
-        if verbose: print "no tmsd for tau = {}".format(taus[~tau_mask]/fps)
-    msd = msd[tau_mask]
-    taus = taus[tau_mask]
-    added = added[tau_mask]
-    msd /= added
+        msd[ti, tau_match] = tmsdd
+    if errorbars:
+        added = np.sum(np.isfinite(msd), 0)
+        msd_err = np.nanstd(msd, 0) / np.sqrt(added)
+    msd = np.nanmean(msd, 0)
     print "Rough coefficient of diffusion:", msd[np.searchsorted(taus, fps)]
     print "Rough diffusion timescale:", taus[np.searchsorted(msd, 1)]/fps
     if tnormalize:
@@ -448,10 +441,11 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
                'k--', label=r"$(2\pi)^2$", lw=2)
         pl.ylim([0, 1.3*np.max(msd/(taus/fps)**tnormalize)])
     else:
-        pl.loglog(taus/fps, msd, meancol+'o', label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+        pl.loglog(taus/fps, msd, meancol, label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau), lw=lw)
         pl.loglog(taus/fps, msd[0]*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
+    if errorbars:
+        pl.errorbar(taus/fps, msd, msd_err, fmt=meancol, errorevery=errorbars)
     pl.title("Mean Sq Angular Disp" if title is None else title)
-    if show_legend: pl.legend(loc='best')
     pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     pl.ylabel('Squared Angular Displacement ($rad^2$)',
               fontsize='x-large')
@@ -459,6 +453,7 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.xlim(*xlim)
     if ylim is not None:
         pl.ylim(*ylim)
+    if show_legend: pl.legend(loc='best')
     if save is None:
         save = locdir + prefix + "_MSAD.pdf"
     if save:
