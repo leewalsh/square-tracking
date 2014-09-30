@@ -387,9 +387,10 @@ if __name__=='__main__':
 
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='', lw=1,
-        title=None, xlim=None, ylim=None, fignum=None, save='', errorbars=False,
-        singletracks=xrange(1000), fps=1, S=1, kill_flats=0, kill_jumps=1e9, show_legend=False):
-    """ Plots the MSDs"""
+        title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
+        singletracks=xrange(1000), fps=1, S=1, sys_size=0,
+        kill_flats=0, kill_jumps=1e9, show_legend=False, save=''):
+    """ Plots the MSADs """
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     nframes = data['f'].max()
     try:
@@ -445,6 +446,8 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.loglog(taus/fps, msd[0]*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
     if errorbars:
         pl.errorbar(taus/fps, msd, msd_err, fmt=meancol, errorevery=errorbars)
+    if sys_size:
+        pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     pl.title("Mean Sq Angular Disp" if title is None else title)
     pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     pl.ylabel('Squared Angular Displacement ($rad^2$)',
