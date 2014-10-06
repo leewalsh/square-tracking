@@ -59,7 +59,7 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
     if rmv is not None:
         im = remove_disks(im, rmv, disk(8.5))
     if csize == 0:
-        print 'csize not set'
+        raise ValueError('csize not set')
     elif csize < 0:
         #print "negative kernel"
         convolved = convolve(im, -gdisk(-csize))
@@ -75,7 +75,7 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
 
     labels = label(convolved > thresh)
     #print "found {} segments above thresh".format(labels.max())
-    return labels
+    return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
@@ -107,42 +107,38 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=No
             pts.append(Segment(x, y, label, ecc, area))
     return pts
 
-def find_particles(im, method='edge', return_image=False, **kwargs):
-    """ find_particles(im, gaussian_size=3, **kwargs) -> [Segment],labels
+def find_particles(imfile, method='edge', return_image=False, **kwargs):
+    """ find_particles(imfile, gaussian_size=3, **kwargs) -> [Segment],labels
         Find the particles in image im. The arguments in kwargs is
         passed to label_particles and filter_segments.
 
         Returns the list of found particles and the label image.
     """
-    labels = None
+    if args.verbose: print "opening", imfile
+    im = imread(imfile).astype(float)
+    if imfile.lower().endswith('tif'):
+        # clean pixel noise from phantom images
+        pass #im = median_filter(im, size=2)
+    elif imfile.lower().endswith('jpg') and im.ndim == 3:
+        # use just the green channel from color slr images
+        im = im[..., 1]
+    im /= im.max()
+
     intensity = None
+
     #print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
     elif method == 'edge':
         labels = label_particles_edge(im, **kwargs)
     elif method == 'convolve':
-        labels = label_particles_convolve(im, **kwargs)
+        labels, convolved = label_particles_convolve(im, **kwargs)
         intensity = im
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
-    segments = filter_segments(labels, intensity=intensity, **kwargs)
-    return (segments, labels) + ((intensity,) if return_image else ())
-
-def find_particles_in_image(f, **kwargs):
-    """ find_particles_in_image(im, **kwargs)
-    """
-    print "opening", f
-    im = imread(f).astype(float)
-    if f.lower().endswith('tif'):
-        # clean pixel noise from phantom images
-        im = median_filter(im, size=2)
-    elif f.lower().endswith('jpg') and im.ndim == 3:
-        # use just the green channel from color slr images
-        im = im[...,1]
-    im /= im.max()
-    return find_particles(im, **kwargs)
+    pts = filter_segments(labels, intensity=intensity, **kwargs)
+    return (pts, labels) + ((convolved,) if return_image else ())
 
 def disk(n):
     return _disk(n).astype(int)
@@ -154,7 +150,7 @@ def gdisk(n, w=None):
     if w is None:
         w = 2*n
     circ = ((np.indices([2*w+1, 2*w+1]) - w)**2).sum(0) <= (w+1)**2
-    g = np.arange(-w, w+1)
+    g = np.arange(-w, w+1, dtype=float)
     g = np.exp(-.5 * g**2 / n**2)
     g = np.outer(g, g)  # or g*g[...,None]
     g -= g[circ].mean()
@@ -202,6 +198,8 @@ if __name__ == '__main__':
                         help='Images to process')
     parser.add_argument('-p', '--plot', action='count',
                         help="Produce a plot for each image. Use more p's for more images")
+    parser.add_argument('-v', '--verbose', action='count',
+                        help="Control verbosity")
     parser.add_argument('-o', '--output', default='POSITIONS',
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
@@ -210,7 +208,7 @@ if __name__ == '__main__':
                         help='Also find small corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
-    parser.add_argument('--kern', default=0, type=float,
+    parser.add_argument('-k', '--kern', default=0, type=float,
                         help='Kernel size for convolution')
     parser.add_argument('--min', default=-1, type=int,
                         help='Minimum area')
@@ -227,40 +225,70 @@ if __name__ == '__main__':
     parser.add_argument('--cecc', default=.8, type=float,
                         help='Maximum eccentricity for corner dots')
     args = parser.parse_args()
-    cm = pl.cm.prism_r
+
 
     kern_area = np.pi*args.kern**2
-    if args.min == -1: args.min = kern_area/2
-    if args.max == np.inf: args.max = 2*kern_area
+    if args.min == -1:
+        args.min = kern_area/2
+        if args.verbose: print "using min =", args.min
+    if args.max == np.inf:
+        args.max = 2*kern_area
+        if args.verbose: print "using max =", args.max
 
     ckern_area = np.pi*args.ckern**2
     if args.cmin == -1: args.cmin = ckern_area/2
     if args.cmax == np.inf: args.cmax = 2*ckern_area
 
     if args.plot:
+        cm = pl.cm.prism_r
         pdir = path.split(path.abspath(args.output))[0]
-    threshargs = {'max_ecc' : args.ecc,
-                  'min_area': args.min,
-                  'max_area': args.max,
-                  'csize'   : args.kern}
+    threshargs =  {'max_ecc' : args.ecc,
+                   'min_area': args.min,
+                   'max_area': args.max,
+                   'csize'   : args.kern}
     cthreshargs = {'max_ecc' : args.cecc,
                    'min_area': args.cmin,
                    'max_area': args.cmax,
                    'csize'   : args.ckern}
-    #threshargs = {'max_ecc' :   .7 if args.slr else  .7, # .6
-    #              'min_area':  800 if args.slr else  15, # 870
-    #              'max_area': 1600 if args.slr else 200, # 1425
-    #              'csize'   :   22 if args.slr else  10}
+    #threshargs =  {'max_ecc' :   .7 if args.slr else  .7, # .6
+    #               'min_area':  800 if args.slr else  15, # 870
+    #               'max_area': 1600 if args.slr else 200, # 1425
+    #               'csize'   :   22 if args.slr else  10}
     #cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
     #               'min_area':  80 if args.slr else  3, # 92
     #               'max_area': 200 if args.slr else 36, # 180
     #               'csize'   :   5 if args.slr else  2}
 
-    def f((n,filename)):
-        out = find_particles_in_image(filename, method='convolve',
-                return_image = (args.plot > 2), **threshargs)
+    def plot_positions(savebase, level, pts, labels, convolved=None,):
+        pl.clf()
+        labels_mask = labels.astype(float)
+        labels_mask[labels_mask==0] = np.nan
+        pl.imshow(labels_mask, cmap=cm)
+        ax = pl.gca()
+        xl, yl = ax.get_xlim(), ax.get_ylim()
+        if level > 1:
+            ptsarr = np.asarray(pts)
+            pl.scatter(ptsarr[:,1], ptsarr[:,0], s=10, c='r')#ptsarr[:,2], cmap=cm)
+            pl.xlim(xl); pl.ylim(yl)
+        savename = savebase + '_POSITIONS.png'
+        if args.verbose: print 'saving positions image to', savename
+        pl.savefig(savename, dpi=300)
+        if level > 2:
+            pl.clf()
+            pl.imshow(convolved, cmap='gray')
+            if args.plot > 3:
+                ptsarr = np.asarray(pts)
+                pl.scatter(ptsarr[:,1], ptsarr[:,0], s=10, c='r')#ptsarr[:,2], cmap=cm)
+                pl.xlim(xl); pl.ylim(yl)
+            savename = savebase + '_CONVOLVED.png'
+            if args.verbose: print 'saving positions with background to', savename
+            pl.savefig(savename, dpi=300)
+
+    def get_positions((n,filename)):
+        out = find_particles(filename, method='convolve',
+                            return_image=args.plot>2, **threshargs)
         if args.plot > 2:
-            pts, labels, intensity = out
+            pts, labels, convolved = out
         else:
             pts, labels = out
         nfound = len(pts)
@@ -270,38 +298,23 @@ if __name__ == '__main__':
         centers = np.hstack([n*np.ones((nfound,1)), pts])
         print '%20s: Found %d particles' % (path.split(filename)[-1], nfound)
         if args.plot:
-            pl.clf()
-            pl.imshow(labels, cmap=cm)
-            if args.plot > 1:
-                ptsarr = np.asarray(pts)
-                pl.scatter(ptsarr[:,1], ptsarr[:,0], c='r')#ptsarr[:,2], cmap=cm)
-            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_POSITIONS.png'
-            #print 'saving to',savename
-            pl.savefig(savename, dpi=300)
-        if args.plot > 2:
-            pl.clf()
-            pl.imshow(intensity, cmap=cm)
-            if args.plot > 3:
-                ptsarr = np.asarray(pts)
-                pl.scatter(ptsarr[:,1], ptsarr[:,0], c='r')#ptsarr[:,2], cmap=cm)
-            savename = path.join(pdir,path.split(filename)[-1].split('.')[-2])+'_CONVOLVED.png'
-            #print 'saving to',savename
-            pl.savefig(savename, dpi=300)
+            savebase = path.join(pdir, path.split(filename)[-1].split('.')[-2])
+            plot_positions(savebase, args.plot, *out)
 
         if args.corner:
-            cpts, clabels = find_particles_in_image(filename,
-                                    method='convolve', rmv=None, **cthreshargs)
+            out = find_particles(filename, method='convolve',
+                                return_image=args.plot>2, rmv=None, **cthreshargs)
+            if args.plot > 2:
+                cpts, clabels, cconvolved = out
+            else:
+                cpts, clabels = out
             nfound = len(cpts)
             if nfound < 1:
                 print 'Found no corners, returning only centers'
                 return centers
             print '%20s: Found %d corners' % (path.split(filename)[-1], nfound)
             if args.plot:
-                #pl.imshow(clabels, cmap=cm)
-                cpts = np.asarray(cpts)
-                pl.scatter(cpts[:,1], cpts[:,0], c='w')#cpts[:,2], cmap=cm)
-                #print 'saving corners to',savename
-                pl.savefig(savename, dpi=300)
+                plot_positions(savebase+'_CORNER', args.plot, *out)
             corners = np.hstack([n*np.ones((nfound,1)), cpts])
             return centers, corners
 
@@ -315,18 +328,24 @@ if __name__ == '__main__':
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
-        points = filter(lambda x: len(x) > 0, p.map(f, enumerate(filenames)))
+        mapper = p.map
     else:
-        points = filter(lambda x: len(x) > 0, map(f, enumerate(filenames)))
+        mapper = map
+    points = filter(lambda x: len(x) > 0, mapper(get_positions, enumerate(filenames)))
 
     if args.corner:
         points, corners = map(np.vstack, zip(*points))
-        if 'POSITIONS' in args.output:
-            coutput = args.output.replace('POSITIONS','CORNER_POSITIONS')
+        if 'CORNER' in args.output:
+            coutput = args.output
         else:
-            coutput = ''.join(args.output.split('.')[:-1]+['_CORNER.']+args.output.split('.')[-1:])
+            if 'POSITIONS' in args.output:
+                coutput = args.output.replace('POS','CORNER_POS')
+            else:
+                outnames = args.output.split('.')
+                outnames.insert(-1, '_CORNER.')
+                coutput = ''.join(outnames)
         with open(coutput, 'w') as coutput:
-            print "Saving corner positions to ", coutput
+            print "Saving corner positions to ", coutput.name
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
