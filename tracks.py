@@ -15,7 +15,7 @@ if 'rock' in hostname:
     plot_capable = True
 elif 'foppl' in hostname:
     computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/diffusion/'
+    locdir = '/home/lawalsh/Granular/Squares/diffusion/orientational/'
     extdir = '/media/bhavari/Squares/diffusion/still/'
     import matplotlib
     matplotlib.use("agg")
@@ -223,10 +223,13 @@ def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
     pl.figure(fignum)
     data = data[mask]
     trackids = trackids[mask]
-    pl.scatter( data['y'], data['x'],
-            c=np.array(trackids)%12, marker='o')
+    pl.scatter(data['y'], data['x'],
+            c=np.array(trackids)%12, marker='o', alpha=.5, lw=0)
     if bgimage:
-        pl.imshow(bgimage,cmap=cm.gray,origin='upper')
+        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
+    pl.gca().set_aspect('equal')
+    pl.xlim(data['y'].min()-10, data['y'].max()+10)
+    pl.ylim(data['x'].min()-10, data['x'].max()+10)
     pl.title(prefix)
     print "saving tracks image to", prefix+"_tracks.png"
     pl.savefig(locdir+prefix+"_tracks.png")
