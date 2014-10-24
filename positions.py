@@ -7,7 +7,9 @@ from skimage.filter import canny
 from skimage.measure import label
 from skimage.morphology import square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
+from skimage.viewer import ImageViewer
 from collections import namedtuple
+from matplotlib import pyplot as plt
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
@@ -224,8 +226,15 @@ if __name__ == '__main__':
                         help='Maximum area for corner dots')
     parser.add_argument('--cecc', default=.8, type=float,
                         help='Maximum eccentricity for corner dots')
+    parser.add_argument('--circ', action='store_true',
+                        help='Open the first image and specify the circle of interest')
     args = parser.parse_args()
 
+    if '*' in args.files[0] or '?' in args.files[0]:
+        from glob import glob
+        filenames = sorted(glob(args.files[0]))
+    else:
+        filenames = sorted(args.files)
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
@@ -238,6 +247,29 @@ if __name__ == '__main__':
     ckern_area = np.pi*args.ckern**2
     if args.cmin == -1: args.cmin = ckern_area/2
     if args.cmax == np.inf: args.cmax = 2*ckern_area
+
+    if args.circ:
+        first_img = imread(filenames[0])
+        x = []
+        y = []
+        origin = []
+        viewer = ImageViewer(first_img)
+
+        def on_click(event):
+            x.append(event.x)
+            y.append(event.y)
+            if len(x) == 3:
+                C = [x1**2 + y1**2 for x1, y1 in zip(x, y)]
+                top = ((C[2] - C[0])*(x[1] - x[0]) + (C[1] - C[0])*(x[0] - x[2]))
+                Y = top / 2 / ((y[2] - y[0])*(x[1] - x[0]) + (y[1] - y[0]) * (x[0] - x[2]))
+                X = (C[1] - C[0] + 2*Y*(y[0] - y[1])) / 2 / (x[1] - x[0])
+                origin.append((X, Y))
+                event.canvas.close()
+
+        viewer.canvas.mpl_connect('button_press_event', on_click)
+        viewer.show()
+        origin = origin[0]
+        r2 = (x[0] - origin[0])**2 + (y[0] - origin[1])**2
 
     if args.plot:
         cm = pl.cm.prism_r
@@ -291,6 +323,11 @@ if __name__ == '__main__':
             pts, labels, convolved = out
         else:
             pts, labels = out
+
+        if args.circ:
+            pts = [p for p in pts if (p.x - origin[0])**2 + (p.y - origin[1])**2 < r2]
+            out = (pts,) + out[1:]
+
         nfound = len(pts)
         if nfound < 1:
             print 'Found no particles in ', path.split(filename)[-1]
@@ -320,11 +357,6 @@ if __name__ == '__main__':
 
         return centers
 
-    if '*' in args.files[0] or '?' in args.files[0]:
-        from glob import glob
-        filenames = sorted(glob(args.files[0]))
-    else:
-        filenames = sorted(args.files)
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
