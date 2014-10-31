@@ -345,6 +345,12 @@ if __name__ == '__main__':
                 cpts, clabels, cconvolved = out
             else:
                 cpts, clabels = out
+
+            if args.circ:
+                cpts = [p for p in cpts if (p.x - origin[0])**2 + \
+                        (p.y - origin[1])**2 < r2]
+                out = (cpts,) + out[1:]
+
             nfound = len(cpts)
             if nfound < 1:
                 print 'Found no corners, returning only centers'
@@ -378,6 +384,9 @@ if __name__ == '__main__':
                 coutput = ''.join(outnames)
         with open(coutput, 'w') as coutput:
             print "Saving corner positions to ", coutput.name
+            coutput.write('# Kern     Min area    Max area      Max eccen\n')
+            coutput.write('#%5.2f%7d%13d%15.2f\n' % (args.ckern, args.cmin, args.cmax, args.cecc))
+            coutput.write('#\n')
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
@@ -390,6 +399,9 @@ if __name__ == '__main__':
         args.output = args.output.replace('CORNER','')
     with open(args.output, 'w') as output:
         print "Saving positions to ", args.output
+        output.write('# Kern     Min area    Max area      Max eccen\n')
+        output.write('#%5.2f%7d%13d%15.2f\n' % (args.kern, args.min, args.max, args.ecc))
+        output.write('#\n')
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
