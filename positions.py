@@ -47,7 +47,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return segmentation.random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
+def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -58,8 +58,9 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
             pos     if given, the positions at which to remove large dots
             thresh  the threshold above which pixels are included
     """
-    if rmv is not None:
-        im = remove_disks(im, rmv, disk(8.5))
+    from matplotlib import pyplot as plt
+    #plt.hist(im.flatten(), bins=100)
+    #plt.show()
     if csize == 0:
         raise ValueError('csize not set')
     elif csize < 0:
@@ -68,6 +69,9 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
     else:
         #print "positive kernel"
         convolved = convolve(im, gdisk(csize))
+
+    if rmv is not None:
+        convolved = remove_disks(convolved, rmv[0], disk(6))
 
     convolved -= convolved.min()
     convolved /= convolved.max()
@@ -124,6 +128,8 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
     elif imfile.lower().endswith('jpg') and im.ndim == 3:
         # use just the green channel from color slr images
         im = im[..., 1]
+    x = im.mean() -  im.std()
+    im[im > x] = x
     im /= im.max()
 
     intensity = None
@@ -135,7 +141,7 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
         labels = label_particles_edge(im, **kwargs)
     elif method == 'convolve':
         labels, convolved = label_particles_convolve(im, **kwargs)
-        intensity = im
+        intensity = 1 - im
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
@@ -340,7 +346,8 @@ if __name__ == '__main__':
 
         if args.corner:
             out = find_particles(filename, method='convolve',
-                                return_image=args.plot>2, rmv=None, **cthreshargs)
+                                return_image=args.plot>2, rmv=(pts, abs(args.kern)),
+                                 **cthreshargs)
             if args.plot > 2:
                 cpts, clabels, cconvolved = out
             else:
