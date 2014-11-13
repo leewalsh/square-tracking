@@ -273,7 +273,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask]/fps)),
-            scale=1000.)
+            scale=1, scale_units='xy')
     #pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]) if imfile else '')
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
