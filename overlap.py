@@ -37,7 +37,7 @@ corners = np.genfromtxt("CORNER_POSITIONS", dtype='i,f,f,i,f,i', names=True, ski
 
 if len(sys.argv) > 1:
     if sys.argv[1].upper() == 'T':
-        side = get_length([(row['X'], row['Y']) for row in particle_data if row['Frame'] == 0])
+        side = get_length([(row['X'], row['Y']) for row in particles if row['Frame'] == 0])
     else:
         side = float(sys.argv[1])
 else:
