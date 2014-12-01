@@ -260,22 +260,29 @@ if __name__ == '__main__':
         y = []
         origin = []
         viewer = ImageViewer(first_img)
+        r2 = []
+        ax = viewer.canvas.figure.add_subplot(111)
 
         def on_click(event):
-            x.append(event.x)
-            y.append(event.y)
+            eventx = (event.x - 15) * 600. / 548
+            x.append(eventx)
+            eventy = (600 - event.y - 52) * 598. / 546
+            y.append(eventy)
             if len(x) == 3:
                 C = [x1**2 + y1**2 for x1, y1 in zip(x, y)]
                 top = ((C[2] - C[0])*(x[1] - x[0]) + (C[1] - C[0])*(x[0] - x[2]))
                 Y = top / 2 / ((y[2] - y[0])*(x[1] - x[0]) + (y[1] - y[0]) * (x[0] - x[2]))
                 X = (C[1] - C[0] + 2*Y*(y[0] - y[1])) / 2 / (x[1] - x[0])
                 origin.append((X, Y))
-                event.canvas.close()
+                r2.append((eventx - X)**2 + (eventy - Y)**2)
+                circ = matplotlib.patches.Circle((X, Y), radius=r2[0]**.5, color='g', fill=False)
+                ax.add_patch(circ)
+                viewer.canvas.draw()
 
         viewer.canvas.mpl_connect('button_press_event', on_click)
         viewer.show()
         origin = origin[0]
-        r2 = (x[0] - origin[0])**2 + (y[0] - origin[1])**2
+        r2 = r2[0]
 
     if args.plot:
         cm = pl.cm.prism_r

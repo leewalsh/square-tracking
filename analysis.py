@@ -7,28 +7,31 @@ from matplotlib import pyplot as plt
 def analyze(input_file, output_file, label):
     particles = np.genfromtxt(input_file, dtype='i,f,f,i,f,i', names=True,
                           skip_header=3)
-    variances = []
+    variances = {}
 
     if os.path.isfile(output_file):
-        variances = np.load(output_file)
-        plt.plot(variances, label=label)
+        variances = np.load(output_file).item()
+        plt.plot(variances.keys(), variances.values(), label=label)
         return
+    num_particles = len([row for row in particles if row[0] == 0])
     for frame in range(particles[-1][0] + 1):
         print('Frame {0}'.format(frame))
         frame_particles = [row for row in particles if row[0] == frame]
+        if len(frame_particles) != num_particles:
+            continue
         positions = [(row[1], row[2]) for row in frame_particles]
-        center = (sum(p[0] for p in positions) / len(positions),
-                  sum(p[1] for p in positions) / len(positions))
+        center = (sum(p[0] for p in positions) / num_particles,
+                  sum(p[1] for p in positions) / num_particles)
         distances = [math.sqrt((p[0] - center[0])**2 + (p[1] - center[1])**2)
                      for p in positions]
-        avg_distance = sum(distances) / len(distances)
+        avg_distance = sum(distances) / num_particles
         variance = sum([(r - avg_distance)**2 for r in distances])
-        variances.append(variance)
+        variances[frame] = variance
     np.save(output_file, variances)
-    plt.plot(variances, label=label)
+    plt.plot(variances.keys(), variances.values(), label=label)
 
 if len(sys.argv) > 1:
-    input_files = [("POSITIONS_{0}.txt".format(x), "ANALYSIS_{0}.npy".format(x),
+    input_files = [("{0}.txt".format(x), "ANALYSIS_{0}.npy".format(x),
                     x) for x in sys.argv[1:]]
 else:
     input_files = [("POSITIONS", "ANALYSIS.npy", "Data")]
