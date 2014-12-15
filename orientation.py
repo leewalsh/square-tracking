@@ -1,7 +1,9 @@
 
 from __future__ import division
+from itertools import izip
 import numpy as np
 #from scipy.stats import nanmean
+from scipy.spatial import cKDTree
 from PIL import Image as Im
 
 import matplotlib.pyplot as pl
@@ -81,7 +83,8 @@ def get_orientation(b):
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True):
+def find_corner(particle, corners, tree=None,
+                nc=1, rc=11, drc=4, slr=False, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -91,42 +94,49 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
             particle - is particle position as [x,y] array of shape (2,)
             corners  - is shape (N,2) array of positions of corner dots
                         as [x,y] pairs
-            n        - number of corner dots
+            tree     - a KDTree of the `corners`, if available
+            nc        - number of corner dots
             rc       - is the expected distance to corner from particle position
             drc      - delta r_c is the tolerance on rc
             slr      - whether to use slr resolution
-            do_average - whether to average the n corners to one value for return
+            do_average - whether to average the nc corners to one value for return
 
         returns:
             pcorner - (mean) position(s) (x,y) of corner that belongs to particle
             porient - (mean) particle orientation(s) (% 2pi)
             cdisp   - (mean) vector(s) (x,y) from particle center to corner(s)
     """
-    from numpy.linalg import norm
 
     if slr:
         rc = 43 # 56 ?
         drc = 10
 
-    cdisps = corners - particle
-    cdists = np.sqrt((cdisps**2).sum(axis=1))
+    # displacements from center to corners
+    if tree:
+        # if kdtree is available, only consider nearby corners
+        icnear = tree.query_ball_point(particle, rc + drc)
+        corners = corners[icnear]
 
-    legal = abs(cdists-rc) < drc
-    N = legal.sum() # number of corners found
-    if N == n:
+    cdisps = corners - particle
+    cdists = np.hypot(*cdisps.T)    # distances corner to center
+    legal = abs(cdists - rc) < drc  # within acceptable range
+    nfound = np.count_nonzero(legal)     # number of corners found
+    if nfound == nc:
+        # good.
         pass
-    elif N < n:
+    elif nfound < nc:
+        # too few, skip.
         return (None,)*3
-    elif N > n:
-        # keep only the n closest to rc
-        #legal[np.argsort(abs(cdists-rc))[n:]] = False
+    elif nfound > nc:
+        # too many, keep only the nc closest to rc away
+        #legal[np.argsort(abs(cdists-rc))[nc:]] = False
         # the following is marginally faster than the above:
-        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[n:]]] = False
+        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[nc:]]] = False
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
 
-    if do_average and n > 1:
+    if do_average and nc > 1:
         amps = np.hypot(*cdisp.T)[...,None]
         ndisp = cdisp/amps
         porient = np.arctan2(*ndisp.mean(0)[::-1]) % (2*np.pi)
@@ -193,7 +203,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
                 but both must have 'f' field for the image frame)
             framestep - only analyze every `framestep` frames
             nc      - number of corner dots
-            do_average - whether to average the n corners to one value for return
+            do_average - whether to average the nc corners to one value for return
             
         returns:
             odata   - array with fields:
@@ -213,25 +223,22 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
               ('orient',float,(nc,)),
               ('cdisp',float,(nc,2,))]
     odata = np.zeros(len(data), dtype=dt)
-    frame = 0
-    for datum in data:
-        if datum['f'] % framestep != 0:
-            continue
-        #if frame != datum['f']:
-        #    print 'frame',frame
-        frame = datum['f']
-        posi = (datum['x'], datum['y'])
-        icorner, iorient, idisp = \
-            find_corner(np.asarray(posi),
-                        np.column_stack((cdata['x'][cdata['f']==frame],
-                                         cdata['y'][cdata['f']==frame])),
-                        n=nc, rc=rc, drc=drc, do_average=do_average)
-        iid = get_id(data, posi, frame)
-        imask = data['id']==iid
-        odata['corner'][imask] = icorner
-        odata['orient'][imask] = iorient
-        odata['cdisp'][imask] = idisp
-
+    for fdata, fcdata in izip(np.split(data, np.where(np.diff(data['f']))[0]+1),
+                              np.split(cdata, np.where(np.diff(cdata['f']))[0]+1)):
+        frame = fdata['f'][0]
+        positions = np.column_stack([fdata['x'], fdata['y']])
+        cpositions = np.column_stack([fcdata['x'], fcdata['y']])
+        tree = cKDTree(cpositions)
+        for iid, posi in izip(fdata['id'], positions):
+            icorner, iorient, idisp = \
+                find_corner(posi, cpositions, tree=tree,
+                            nc=nc, rc=rc, drc=drc, do_average=do_average)
+            #iid = get_id(data, posi, frame) # what was this even for?
+            #imask = np.nonzero(data['id']==iid) # faster than using the boolean mask directly
+            imask = np.searchsorted(data['id'], iid) # much faster than above
+            odata['corner'][imask] = icorner
+            odata['orient'][imask] = iorient
+            odata['cdisp'][imask] = idisp
 
     if do_average or nc == 1:
         mask = np.isfinite(odata['orient'])
