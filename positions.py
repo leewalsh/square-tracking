@@ -263,7 +263,7 @@ if __name__ == '__main__':
         pl.clf()
         labels_mask = labels.astype(float)
         labels_mask[labels_mask==0] = np.nan
-        pl.imshow(labels_mask, cmap=cm)
+        pl.imshow(labels_mask, cmap=cm, interpolation='nearest')
         ax = pl.gca()
         xl, yl = ax.get_xlim(), ax.get_ylim()
         if level > 1:

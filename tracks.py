@@ -45,12 +45,14 @@ if __name__=='__main__':
 
     parser = ArgumentParser()
     parser.add_argument('prefix', metavar='PRE',
-                        help="Filename prefix with full or relative path (filenames "
-                             "prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
+                        help="Filename prefix with full or relative path "
+                             "(filenames prefix_POSITIONS.txt, "
+                              "prefix_CORNER_POSITIONS.txt, etc)")
     parser.add_argument('-c', '--corner', action='store_true',
                         help='Track corners instead of centers')
     parser.add_argument('-l','--load', action='store_true',
-                        help='Create and save structured array from prefix[_CORNER]_POSITIONS.txt file')
+                        help='Create and save structured array from '
+                             'prefix[_CORNER]_POSITIONS.txt file')
     parser.add_argument('-t','--track', action='store_true',
                         help='Connect the dots and save in the array')
     parser.add_argument('-p', '--plottracks', action='store_true',
@@ -62,15 +64,20 @@ if __name__=='__main__':
     parser.add_argument('-s', '--side', type=int, default=1,
                         help='Particle size in pixels, for unit normalization')
     parser.add_argument('-f', '--fps', type=int, default=1,
-                        help='Number of frames per second (or per shake) for unit normalization')
+                        help='Number of frames per second (or per shake) '
+                             'for unit normalization')
     parser.add_argument('--dt0', type=int, default=10,
-                        help='Stepsize for time-averaging of a single track at different time starting points')
+                        help='Stepsize for time-averaging of a single '
+                             'track at different time starting points')
     parser.add_argument('--dtau', type=int, default=1,
-                        help='Stepsize for values of tau at which to calculate MSD(tau)')
+                        help='Stepsize for values of tau '
+                             'at which to calculate MSD(tau)')
     parser.add_argument('--killflat', type=int, default=0,
-                        help='Minimum growth factor for a single MSD track for it to be included')
+                        help='Minimum growth factor for a single MSD track '
+                             'for it to be included')
     parser.add_argument('--killjump', type=int, default=100000,
-                        help='Maximum initial jump for a single MSD track at smallest time step')
+                        help='Maximum initial jump for a single MSD track '
+                             'at smallest time step')
     parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
@@ -119,7 +126,7 @@ else:
 
     verbose = False
 
-def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
+def find_closest(thisdot, trackids, n=1, maxdist=100., giveup=1000):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
@@ -132,19 +139,20 @@ def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
         return newtrackid
     else:
         oldframe = data[data['f']==frame-n]
-        dists = (thisdot['x']-oldframe['x'])**2 + (thisdot['y']-oldframe['y'])**2
+        dists = ((thisdot['x'] - oldframe['x'])**2 +
+                 (thisdot['y'] - oldframe['y'])**2)
         closest = oldframe[np.argmin(dists)]
         if min(dists) < maxdist:
             return trackids[closest['id']]
         elif n < giveup:
-            return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
+            return find_closest(thisdot, trackids, n=n+1,
+                                maxdist=maxdist, giveup=giveup)
         else: # give up after giveup frames
-            if verbose:
-                print "Recursed {} times, giving up. frame = {} ".format(n,frame)
             newtrackid = max(trackids) + 1
             if verbose:
+                print "Recursed {} times, giving up.".format(n)
                 print "New track:",newtrackid
-                print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
+                print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
             return newtrackid
 
 # Tracking
@@ -246,7 +254,8 @@ def farange(start,stop,factor):
 
 def trackmsd(track, dt0, dtau):
     """ trackmsd(track, dt0, dtau)
-        finds the track msd, as function of tau, averaged over t0, for one track (worldline)
+        finds the track msd, as function of tau,
+        averaged over t0, for one track (worldline)
     """
     tmsd = []
     trackdots = data[trackids==track]
@@ -264,7 +273,7 @@ def trackmsd(track, dt0, dtau):
         avg = t0avg(trackdots, tracklen, tau)
         #print "avg =", avg
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]]) 
+            tmsd.append([tau,avg[0]])
     if verbose:
         print "\t...actually", len(tmsd)
     return tmsd
@@ -308,10 +317,10 @@ def find_msds(dt0, dtau, tracks=None):
             msds.append(tmsd)
             msdids.append(trackid)
     np.savez(locdir+prefix+"_MSD",
-            msds = np.asarray(msds),
-            msdids = np.asarray(msdids),
-            dt0  = np.asarray(dt0),
-            dtau = np.asarray(dtau))
+             msds = np.asarray(msds),
+             msdids = np.asarray(msdids),
+             dt0  = np.asarray(dt0),
+             dtau = np.asarray(dtau))
     print "saved msd data to", prefix+"_MSD.npz"
     return msds, msdids
 
@@ -374,7 +383,8 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
             if tnormalize:
                 plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=.5, label=msdid if msdids is not None else '')
+                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.5,
+                          label=msdid if msdids is not None else '')
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
     if errorbars:
@@ -393,8 +403,10 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
                'k--', label="One particle area" if S>1 else "One Pixel", lw=2)
         pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
     else:
-        pl.loglog(taus/fps, msd/A, meancol, label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau), lw=lw)
-        pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', label="slope = 1", lw=2)
+        pl.loglog(taus/fps, msd/A, meancol, lw=lw,
+                  label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+        pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
+                  label="slope = 1")
     if errorbars:
         pl.errorbar(taus/fps, msd/A, msd_err/A, fmt=meancol, errorevery=errorbars)
     if sys_size:
@@ -418,8 +430,9 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
 if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
-        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix, show_tracks=show_tracks,
-                 singletracks=singletracks, fps=fps, S=S, kill_flats=kill_flats, kill_jumps=kill_jumps)
+        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix,
+                 show_tracks=show_tracks, singletracks=singletracks, fps=fps,
+                 S=S, kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plottracks:
         try:
             bgimage = Im.open(extdir+prefix+'_0001.tif')
@@ -431,4 +444,3 @@ if __name__=='__main__' and plot_capable:
         if singletracks:
             mask = np.in1d(trackids, singletracks)
         plot_tracks(data, trackids, bgimage, mask=mask)
-

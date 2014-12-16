@@ -240,8 +240,7 @@ if __name__=='__main__':
         from orientation import get_angles_loop
         odata, omask = get_angles_loop(data, cdata, nc=nc, rc=rc, drc=drc)
         np.savez(locdir+prefix+'_ORIENTATION.npz',
-                odata=odata,
-                omask=omask)
+                odata=odata, omask=omask)
         print '\t...saved'
     else:
         try:
@@ -346,7 +345,7 @@ def t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=False):
 
 def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=False):
     """ Calculates the MSDs"""
-    print "Begin calculating MSDs"
+    print "Begin calculating MSADs"
     msds = []
     msdids = []
     if tracks is None:
@@ -363,7 +362,7 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=Fals
             msdids = np.asarray(msdids),
             dt0  = np.asarray(dt0),
             dtau = np.asarray(dtau))
-    print "saved msd data to", prefix+"_MSAD.npz"
+    print "saved msad data to", prefix+"_MSAD.npz"
     return msds, msdids
 
 if __name__=='__main__':
