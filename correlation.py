@@ -37,6 +37,34 @@ x0, y0 = 1375, 2020 # center of disk within image, in pixels
 pi = np.pi
 tau = 2*pi
 
+def bulk(positions, margin=0, full_N=None, center=None, radius=None):
+    """ Filter marginal particles from bulk particles to reduce boundary effects
+            positions:  (N, 2) array of particle positions
+            margin:     width of margin, in units of pixels or particle sides
+            full_N:     actual number of particles, to renormalize in case of
+                        undetected particles
+            center:     if known, (2,) array of center position
+            radius:     if known, radius of system in pixels
+
+        returns
+            bulk_N:     the number particles in the bulk
+            bulk_mask:  a mask the shape of `positions`
+    """
+    raise StandardError, "not yet tested"
+    if center is None:
+        center = 0.5*(positions.max(0) + positions.min(0))
+    if margin < ss: margin *= ss
+    d = np.hypot(*(positions - center).T) # distances to center
+    r = cdist(positions, positions)       # distances between all pairs
+    if radius is None:
+        radius = np.maximum(r.max()/2, d.max())
+    dmax = radius - margin
+    bulk_mask = d <= dmax # mask of particles in the bulk
+    bulk_N = np.count_nonzero(bulk_mask)
+    if full_N:
+        bulk_N *= full_N/len(positions)
+    return bulk_N, bulk_mask
+
 def pair_indices(n):
     """ pairs of indices to a 1d array of objects.
         equivalent to but faster than `np.triu_indices(n, 1)`
