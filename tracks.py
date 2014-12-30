@@ -177,7 +177,8 @@ def load_data(datapath):
                 skip_header = 1,
                 names = "f,x,y,lab,ecc,area",
                 dtype = [int,float,float,int,float,int])
-        data = append_fields(data,'id',np.arange(data.shape[0]), usemask=False)
+        ids = np.arange(data.shape[0])
+        data = append_fields(data, 'id', ids, usemask=False)
     else:
         print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
@@ -343,33 +344,21 @@ if __name__=='__main__':
 
 # Mean Squared Displacement:
 
-def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='', lw=1,
-        title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
-        singletracks=xrange(1000), fps=1, S=1, sys_size=0,
-        kill_flats=0, kill_jumps=1e9, show_legend=False, save=''):
-    """ Plots the MSDs """
-    print "using dtau = {}, dt0 = {}".format(dtau, dt0)
-    A = S**2
-    print "using S = {} pixels, thus A = {} px^2".format(S, A)
-    nframes = data['f'].max()
-    try:
-        dtau = np.asscalar(dtau)
-    except AttributeError:
-        pass
-    if isinstance(dtau, (float, np.float)):
-        taus = farange(dt0, nframes, dtau)
-    elif isinstance(dtau, (int, np.int)):
-        taus = np.arange(dtau, nframes, dtau)
+def mean_msd(msds, taus, msdids, kill_flats, kill_jumps, errorbars):
+    """ return the mean of several track msds """
+
     msd = np.full((len(msds),len(taus)), np.nan, float)
     added = np.zeros(len(taus), float)
-    pl.figure(fignum, figsize)
-    looper = izip(range(len(msds)), msds, msdids) if msdids is not None else enumerate(msds)
-    for loopee in looper:
+
+    if msdids:
+        allmsds = izip(range(len(msds)), msds, msdids)
+    elif msdids is None:
+        allmsds = enumerate(msds)
+    for thismsd in allmsds:
         if msdids is not None:
-            ti, tmsd, msdid = loopee
+            ti, tmsd, msdid = thismsd
         else:
-            ti, tmsd = loopee
+            ti, tmsd = thismsd
         if len(tmsd) < 2:
             continue
         tmsdt, tmsdd = np.asarray(tmsd).T
@@ -391,8 +380,37 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         added = np.sum(np.isfinite(msd), 0)
         msd_err = np.nanstd(msd, 0) / np.sqrt(added)
     msd = np.nanmean(msd, 0)
-    print "Rough coefficient of diffusion:", msd[np.searchsorted(taus, fps)]/A
-    print "Rough diffusion timescale:", taus[np.searchsorted(msd, A)]/fps
+    print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
+    print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
+    return (msd, msd_err) if errorbars else msd
+
+def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
+        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
+        title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
+        lw=1, singletracks=xrange(1000), fps=1, S=1, sys_size=0,
+        kill_flats=0, kill_jumps=1e9, show_legend=False, save=''):
+    """ Plots the MSDs """
+    print "using dtau = {}, dt0 = {}".format(dtau, dt0)
+    A = S**2
+    print "using S = {} pixels, thus A = {} px^2".format(S, A)
+    nframes = data['f'].max()
+    try:
+        dtau = np.asscalar(dtau)
+    except AttributeError:
+        pass
+    if isinstance(dtau, (float, np.float)):
+        taus = farange(dt0, nframes, dtau)
+    elif isinstance(dtau, (int, np.int)):
+        taus = np.arange(dtau, nframes, dtau)
+    msd = np.full((len(msds),len(taus)), np.nan, float)
+    added = np.zeros(len(taus), float)
+    pl.figure(fignum, figsize)
+
+    # Get the mean of msds
+    msd = mean_msd(msds, taus, msdids,
+            kill_flats=kill_flats, kill_jumps=kill_jumps, errorbars=errorbars)
+    if errorbars: msd, msd_err = msd
+
     if tnormalize:
         plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
                label="Mean Sq Disp/Time{}".format(
