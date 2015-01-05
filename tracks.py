@@ -344,7 +344,7 @@ if __name__=='__main__':
 
 # Mean Squared Displacement:
 
-def mean_msd(msds, taus, msdids, kill_flats, kill_jumps, errorbars):
+def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9, show_tracks=False, errorbars=False):
     """ return the mean of several track msds """
 
     msd = np.full((len(msds),len(taus)), np.nan, float)
@@ -359,16 +359,12 @@ def mean_msd(msds, taus, msdids, kill_flats, kill_jumps, errorbars):
             ti, tmsd, msdid = thismsd
         else:
             ti, tmsd = thismsd
-        if len(tmsd) < 2:
-            continue
+        if len(tmsd) < 2: continue
         tmsdt, tmsdd = np.asarray(tmsd).T
-        if np.mean(tmsdd[-5:]) < kill_flats:
-            continue
-        if tmsdd[0] > kill_jumps:
-            continue
+        if np.mean(tmsdd[-5:]) < kill_flats: continue
+        if tmsdd[0] > kill_jumps: continue
         if show_tracks:
-            if msdids is not None and msdid not in singletracks:
-                continue
+            if msdids is not None and msdid not in singletracks: continue
             if tnormalize:
                 plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
@@ -380,8 +376,6 @@ def mean_msd(msds, taus, msdids, kill_flats, kill_jumps, errorbars):
         added = np.sum(np.isfinite(msd), 0)
         msd_err = np.nanstd(msd, 0) / np.sqrt(added)
     msd = np.nanmean(msd, 0)
-    print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
-    print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
     return (msd, msd_err) if errorbars else msd
 
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
@@ -402,14 +396,15 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         taus = farange(dt0, nframes, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes, dtau)
-    msd = np.full((len(msds),len(taus)), np.nan, float)
-    added = np.zeros(len(taus), float)
     pl.figure(fignum, figsize)
 
     # Get the mean of msds
     msd = mean_msd(msds, taus, msdids,
-            kill_flats=kill_flats, kill_jumps=kill_jumps, errorbars=errorbars)
+            kill_flats=kill_flats, kill_jumps=kill_jumps,
+            show_tracks=show_tracks, errorbars=errorbars)
     if errorbars: msd, msd_err = msd
+    print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
+    print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
 
     if tnormalize:
         plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
