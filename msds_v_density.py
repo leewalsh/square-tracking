@@ -11,26 +11,44 @@ ns = np.array([ 16,  32,  48,  64,  80,  96, 112, 128, 144, 160, 176, 192, 208,
                224, 240, 256, 264, 272, 280, 288, 296, 304, 312, 320, 328, 336,
                344, 352, 360, 368, 376, 384, 392, 400, 408, 416, 424, 432, 440,
                448, 456, 464])
-#nframes = 3000
-S = 22 # side length in pixels
+
+# Physical measurements
+R_inch = 4.0           # as machined
+S_measured = np.array([4,3,6,7,9,1,9,0,0,4,7,5,3,6,2,6,0,8,8,4,3,4,0,-1,0,1,7,7,5,7])*1e-4 + .309
+S_inch = S_measured.mean()
+
+# Digital measurements
+R_pix = 585.5 / 2
+#S_pix = 22 #ish
+
+# What we'll use:
+R = R_inch / S_inch # radius in particle units
+S = R_pix/R # particle side length in pixels
 A = S**2
-N = 520
-fps = 120#150
+N = np.pi * R**2
+
+# Time
+fps = 120 #150
+#nframes = 3000
 #locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'  #rock
 locdir = '/Users/leewalsh/Physics/Squares/diffusion/orientational/'  #rock
-Ang = 'A' # 'A' if angular, '' otherwise, converts between MSD and MSAD
+Ang = '' # 'A' if angular, '' otherwise, converts between MSD and MSAD
 A = 1 if Ang else S**2
+msd_file = raw_input('load, save, or anything else to do neither: ').lower()
 
-def powerlaw(t,d):
+def powerlaw(t, d):
     # to allow fits for b and/or c,
     # then add them as args to function and delete them below.
     b = 1
     c = 0
-    return c + d * t ** b
+    return c + d * t**b
 
 def diff_const(taus, msd):
-    popt,pcov = curve_fit(powerlaw, taus, msd)
-    #print "popt,pcov =",popt,',',pcov
+    msd_p = np.convolve
+    # find plateau
+    # fit to constant (just find its mean)
+    popt, pcov = curve_fit(powerlaw, taus, msd)
+    #print "popt, pcov = {}, {}".format(popt, pcov)
     return popt[0], pcov[0,0]
 
 dmin, dmax = ns.min()/N, ns.max()/N
@@ -40,49 +58,49 @@ ds = []
 dds = []
 dsd = 0**2 # uncert in squared disp
 pl.figure(figsize=(6,5))
-# If run before, load from saved MSDS (for all n):
-#MSDS = np.load(locdir + 'MS'+Ang+'DS.npz')
-# Otherwise, make an empty dict to fill
-MSDS = {}
-# If run interactively, save the results thus:
-# np.savez(locdir + 'MS'+Ang+'DS', **MSDS)
-#MSDS = { n: np.load(locdir+"n{:03d}_MS".format(n)+Ang+"D.npz") for n in ns }
+if msd_file=='load':
+    #MSDS = np.load(locdir + 'MS'+Ang+'DS.npz')
+    #msd_loadname = locdir + "n{:03d}_MS{}D.npz".format(n, Ang)
+    msd_loadname = locdir + "MS{}DS.npz".format(Ang)
+    print "loading all averaged MS{}DS from {}".format(Ang, msd_loadname)
+    #MSDS = { n: np.load(msd_loadname) for n in ns }
+    MSDS = np.load(msd_loadname)
+else:
+    print "Will average all MS{}DS".format(Ang)
+    MSDS = {}
 for n in ns:
     if str(n) in (MSDS.files if hasattr(MSDS, 'files') else MSDS.keys()):
         print "using dict saved for ", n
         taus, msd = MSDS[str(n)].T
-        pl.loglog(taus/fps, (msd-dsd)/A/taus,
-                  c=col(n/N), lw=2)
-        d,dd = diff_const(taus/fps, msd/A)
-        ds.append(d)
-        dds.append(dd)
-        continue
-    prefix = 'n{:03d}'.format(n)
-    print "loading from", prefix+"_MS"+Ang+"D.npz"
-    msdnpz = np.load(locdir+prefix+"_MS"+Ang+"D.npz")
-    msds = msdnpz['msds']
-    if 'dt0' in msdnpz.keys():
-        dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
-        dtau = msdnpz['dtau'][()]
     else:
-        print "assuming dt0 = dtau = 10"
-        #  should be true for all from before dt* was saved
-        dt0  = 10
-        dtau = 10
+        prefix = 'n{:03d}'.format(n)
+        print "loading from", prefix+"_MS"+Ang+"D.npz"
+        msdnpz = np.load(locdir+prefix+"_MS"+Ang+"D.npz")
+        msds = msdnpz['msds']
+        if 'dt0' in msdnpz.keys():
+            dt0  = msdnpz['dt0'][()] # [()] gets element from 0D array
+            dtau = msdnpz['dtau'][()]
+        else:
+            print "assuming dt0 = dtau = 10" #  should be true for all from before dt* was saved
+            dt0  = 10
+            dtau = 10
+        print "averaging track MS"+Ang+"Ds"
+        nframes = max([np.array(msd)[:,0].max() for msd in msds]) + 1
+        taus = np.arange(dtau, nframes, dtau)
+        msd = mean_msd(msds, taus)
+        MSDS[str(n)] = msd
 
-    print "averaging track MS"+Ang+"Ds"
-    nframes = max([np.array(msd)[:,0].max() for msd in msds]) + 1
-    taus = np.arange(dtau, nframes, dtau)
-    msd = mean_msd(msds, taus)
-    MSDS[str(n)] = msd
-
-    pl.loglog(taus/fps, (msd-dsd)/A,
-            c = col(n/N)#, label="%.1f%s" % (n/5.2,'%')
-            )
+    pl.loglog(taus/fps, (msd-dsd)/A, c = col(n/N))#, label="%.1f%s" % (n/5.2,'%'))
+    pl.loglog(taus/fps, (msd-dsd)/A/taus, c=col(n/N), lw=2)
     d, dd = diff_const(taus/fps, msd/A)
     ds.append(d)
     dds.append(dd)
 
+if msd_file=='save':
+    #msd_savename = locdir + "n{:03d}_MS{}D.npz".format(n, Ang)
+    msd_savename = locdir + 'MS'+Ang+'DS'
+    print 'saving MS{}DS to {}'.format(Ang, msd_savename)
+    np.savez(msd_savename, **MSDS)
 #pl.loglog(taus/fps, 10*taus/fps/dtau,
 #          'k-', label="ref slope = 1")
 try:
