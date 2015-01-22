@@ -30,9 +30,8 @@ if __name__=='__main__':
     else:
         print "computer not defined\nwhere are you working?"
 
-ss = 92   # side length of square in pixels
-rr = 1255 # radius of disk in pixels
-x0, y0 = 1375, 2020 # center of disk within image, in pixels
+ss = 95     # side length of square in pixels, see equilibrium.ipynb
+rr = 1229.5 # radius of disk in pixels, see equilibrium.ipynb
 
 pi = np.pi
 tau = 2*pi
@@ -41,8 +40,8 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None):
     """ Filter marginal particles from bulk particles to reduce boundary effects
             positions:  (N, 2) array of particle positions
             margin:     width of margin, in units of pixels or particle sides
-            full_N:     actual number of particles, to renormalize in case of
-                        undetected particles
+            full_N:     actual number of particles, to renormalize assuming
+                        uniform distribution of undetected particles.
             center:     if known, (2,) array of center position
             radius:     if known, radius of system in pixels
 
@@ -50,15 +49,21 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None):
             bulk_N:     the number particles in the bulk
             bulk_mask:  a mask the shape of `positions`
     """
-    raise StandardError, "not yet tested"
+    #raise StandardError, "not yet tested"
     if center is None:
         center = 0.5*(positions.max(0) + positions.min(0))
     if margin < ss: margin *= ss
     d = np.hypot(*(positions - center).T) # distances to center
-    r = cdist(positions, positions)       # distances between all pairs
     if radius is None:
-        radius = np.maximum(r.max()/2, d.max())
+        if len(positions) > 1e5: raise ValueError, "too many points to calculate radius"
+        r = cdist(positions, positions)       # distances between all pairs
+        radius = np.maximum(r.max()/2, d.max()) + ss/2
+    elif radius < ss:
+        radius *= ss
     dmax = radius - margin
+    #print 'radius: ', radius/ss
+    #print 'margin: ', margin/ss
+    #print 'max r: ', dmax/ss
     bulk_mask = d <= dmax # mask of particles in the bulk
     bulk_N = np.count_nonzero(bulk_mask)
     if full_N:
@@ -88,12 +93,13 @@ def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, ma
     center = 0.5*(positions.max(0) + positions.min(0))
     d = np.hypot(*(positions - center).T)
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
-    radius = np.maximum(r.max()/2, d.max())#TODO accuracy is critical.. add ss/2?
+    radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
         rmax = 2*radius # this will have terrible statistics at large r
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
+        if margin < ss: margin *= ss
         dmax = radius - margin
     ind = pair_indices(len(positions))
     # for weighting, use areas of the annulus, which is:
@@ -137,7 +143,7 @@ def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
     d = np.hypot(*(positions - center).T)
     dmask = d < d.max() - margin
     r = cdist(positions, positions[dmask])#.ravel()
-    radius = np.maximum(r.max()/2, d.max())
+    radius = np.maximum(r.max()/2, d.max()) + ss/2
     cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
     dr = radius / bins
@@ -240,6 +246,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
 
 def structure_factor(positions, m=4, margin=0):
     """return the 2d structure factor"""
+    raise StandardError, "um this isn't finished"
     #center = 0.5*(positions.max(0) + positions.min(0))
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)

@@ -325,13 +325,16 @@ if __name__ == '__main__':
         filenames = sorted(glob(args.files[0]))
     else:
         filenames = sorted(args.files)
+    if len(filenames) < 1:
+        raise ValueError, "no matching files"
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
         mapper = p.map
     else:
         mapper = map
-    points = filter(lambda x: len(x) > 0, mapper(get_positions, enumerate(filenames)))
+    points = mapper(get_positions, enumerate(filenames))
+    points = filter(lambda x: len(x) > 0, points)
 
     if args.corner:
         points, corners = map(np.vstack, zip(*points))
