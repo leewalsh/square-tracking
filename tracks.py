@@ -344,14 +344,16 @@ if __name__=='__main__':
 
 # Mean Squared Displacement:
 
-def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9, show_tracks=False, errorbars=False):
+def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
+             show_tracks=False, singletracks=xrange(1000), tnormalize=False,
+             errorbars=False, fps=1, A=1):
     """ return the mean of several track msds """
 
     msd = np.full((len(msds),len(taus)), np.nan, float)
     added = np.zeros(len(taus), float)
 
-    if msdids:
-        allmsds = izip(range(len(msds)), msds, msdids)
+    if msdids is not None:
+        allmsds = izip(xrange(len(msds)), msds, msdids)
     elif msdids is None:
         allmsds = enumerate(msds)
     for thismsd in allmsds:
@@ -361,12 +363,12 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9, show_tracks=
             ti, tmsd = thismsd
         if len(tmsd) < 2: continue
         tmsdt, tmsdd = np.asarray(tmsd).T
-        if np.mean(tmsdd[-5:]) < kill_flats: continue
-        if tmsdd[0] > kill_jumps: continue
+        if tmsdd[-50:].mean() < kill_flats: continue
+        if tmsdd[:2].mean() > kill_jumps: continue
         if show_tracks:
             if msdids is not None and msdid not in singletracks: continue
             if tnormalize:
-                plfunc(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
+                pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
                 pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.5,
                           label=msdid if msdids is not None else '')
@@ -375,6 +377,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9, show_tracks=
     if errorbars:
         added = np.sum(np.isfinite(msd), 0)
         msd_err = np.nanstd(msd, 0) / np.sqrt(added)
+    pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A)
     msd = np.nanmean(msd, 0)
     return (msd, msd_err) if errorbars else msd
 
@@ -400,11 +403,12 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
 
     # Get the mean of msds
     msd = mean_msd(msds, taus, msdids,
-            kill_flats=kill_flats, kill_jumps=kill_jumps,
-            show_tracks=show_tracks, errorbars=errorbars)
+            kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
+            singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars,
+            fps=fps, A=A)
     if errorbars: msd, msd_err = msd
-    print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
-    print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
+    #print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
+    #print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
 
     if tnormalize:
         plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
@@ -421,7 +425,7 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
                   label="slope = 1")
     if errorbars:
-        pl.errorbar(taus/fps, msd/A, msd_err/A, fmt=meancol, errorevery=errorbars)
+        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize, msd_err/A/(taus/fps)**tnormalize, fmt=meancol, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     pl.title("Mean Sq Disp" if title is None else title)
