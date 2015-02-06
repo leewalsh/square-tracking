@@ -211,7 +211,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
-    from correlation import get_id
+    #from correlation import get_id
     field_rename(data,'s','f')
     field_rename(cdata,'s','f')
     if do_average or nc == 1:
@@ -234,7 +234,7 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
                 find_corner(posi, cpositions, tree=tree,
                             nc=nc, rc=rc, drc=drc, do_average=do_average)
             #iid = get_id(data, posi, frame) # what was this even for?
-            #imask = np.nonzero(data['id']==iid) # faster than using the boolean mask directly
+            #imask = np.nonzero(data['id']==iid) # faster than using boolean mask directly
             imask = np.searchsorted(data['id'], iid) # much faster than above
             odata['corner'][imask] = icorner
             odata['orient'][imask] = iorient
