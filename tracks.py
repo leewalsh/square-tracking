@@ -377,7 +377,8 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     if errorbars:
         added = np.sum(np.isfinite(msd), 0)
         msd_err = np.nanstd(msd, 0) / np.sqrt(added)
-    pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A)
+    if show_tracks:
+        pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A)
     msd = np.nanmean(msd, 0)
     return (msd, msd_err) if errorbars else msd
 

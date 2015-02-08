@@ -5,7 +5,7 @@ import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 from collections import defaultdict
 
-from tracks import mean_msd
+from tracks import mean_msd, diff_const
 
 ### SETTINGS ###
 Ang = 'A'           # 'A' if angular, '' otherwise, converts between MSD and MSAD
@@ -34,9 +34,9 @@ R_pix = 585.5 / 2
 
 # What we'll use:
 R = R_inch / S_inch # radius in particle units
-S = R_pix/R # particle side length in pixels
-A = 1 if Ang else S**2
-N = np.pi * R**2
+S = R_pix/R         # particle side length in pixels
+A = 1 if Ang else S**2 # particle area
+N = np.pi * R**2    # maximum number of particles
 
 # Time
 fps = 120 #150
@@ -44,21 +44,22 @@ fps = 120 #150
 locdir = '/Users/leewalsh/Physics/Squares/diffusion/orientational/'  #rock
 
 def powerlaw(t, d, b=1, c=0):
-    return c + d * t**b
+    return c + d * np.power(t, b)
 
-def diff_const(taus, msd, msd_err=None, constant=False):
-    #tau_min = np.argmin(msd/taus)
-    tau_start = None if Ang else 10
-    tau_end =   2    if Ang else None
+def diff_const(taus, msd, tau_start=None, tau_end=None, msd_err=None, fit=True, nargs=1):
+    if tau_start == 'min': tau_start = np.argmin(msd/taus)
+    if tau_end  ==  'min': tau_end  =  np.argmin(msd/taus)
     start = np.searchsorted(taus, tau_start) if tau_start else None
     end = np.searchsorted(taus, tau_end) if tau_end else None
-    if constant:
+    if fit:
+        return curve_fit(powerlaw, taus[start:end], msd[start:end],
+                         [1]*nargs, msd_err[start:end], True)
+    else:
         mt = msd[start:end]/taus[start:end]
         w = 1/msd_err[start:end] if msd_err is not None else None
         d  = np.average(mt, weights=w)
         dd = np.average((mt - d)**2, weights=w)
-    popt, pcov = curve_fit(powerlaw, taus[start:end], msd[start:end], [1], msd_err[start:end], True)
-    return popt, pcov
+        return d, dd
 
 dmin, dmax = ns.min()/N, ns.max()/N
 col = lambda dens: cm.jet((dens - dmin)/(dmax - dmin))
@@ -118,7 +119,9 @@ for n in ns:
 
     # find coeffient of diffusion
     if plotD:
-        d, dd = diff_const(taus/fps, msd/A, msd_err/A)
+        tau_start = None if Ang else 10
+        tau_end   = 2    if Ang else None
+        d, dd = diff_const(taus/fps, msd/A, tau_start, tau_end, msd_err/A, fit=True)
         if len(np.atleast_1d(d)) > 1:
             d, b = d
             dd, db = np.diag(dd)
