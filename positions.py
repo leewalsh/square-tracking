@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import cv2
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import measure, segmentation
@@ -10,6 +11,9 @@ from skimage.morphology import disk as _disk
 from skimage.viewer import ImageViewer
 from collections import namedtuple
 from matplotlib import pyplot as plt
+import matplotlib.cm
+
+DIST_THRESH = 100.
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
@@ -47,7 +51,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return segmentation.random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
+def label_particles_convolve(im, thresh=4, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -71,15 +75,19 @@ def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
         convolved = convolve(im, gdisk(csize))
 
     if rmv is not None:
-        convolved = remove_disks(convolved, rmv[0], disk(6))
+        convolved = remove_disks(convolved, rmv[0], disk(rmv[1]))
 
+    #convolved[convolved < 0.] = 0.
     convolved -= convolved.min()
     convolved /= convolved.max()
 
     if isinstance(thresh, int):
+        if rmv is not None:
+            thresh -= 1
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
+    
     #print "found {} segments above thresh".format(labels.max())
     return labels, convolved
 
@@ -128,9 +136,15 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
     elif imfile.lower().endswith('jpg') and im.ndim == 3:
         # use just the green channel from color slr images
         im = im[..., 1]
-    x = im.mean() -  im.std()
+    im[im < im.mean() - 2*im.std()] = 0.
+    #im = gaussian_filter(im, 1)
+    x = im.mean()# + im.std()
     im[im > x] = x
     im /= im.max()
+
+    pl.clf()
+    pl.imshow(im, cmap=matplotlib.cm.Greys_r)
+    pl.savefig("a.png", dpi=300)
 
     intensity = None
 
@@ -363,7 +377,14 @@ if __name__ == '__main__':
             if args.circ:
                 cpts = [p for p in cpts if (p.x - origin[0])**2 + \
                         (p.y - origin[1])**2 < r2]
-                out = (cpts,) + out[1:]
+            old_cpts = cpts[:]
+            cpts = []
+            for pt in old_cpts:
+                for bigpt in pts:
+                    if (pt[0]-bigpt[0])**2 + (pt[1]-bigpt[1])**2 < DIST_THRESH:
+                        cpts.append(pt)
+                        break
+            out = (cpts,) + out[1:]
 
             nfound = len(cpts)
             if nfound < 1:
