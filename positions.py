@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import cv2
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import measure, segmentation
