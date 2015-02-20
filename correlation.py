@@ -73,7 +73,7 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None):
 def pair_indices(n):
     """ pairs of indices to a 1d array of objects.
         equivalent to but faster than `np.triu_indices(n, 1)`
-        from: http://stackoverflow.com/questions/22390418/pairwise-displacement-vectors-among-set-of-points/
+        stackoverflow.com/questions/22390418
 
         To index the upper triangle of a matrix, just use the returned tuple.
         Otherwise, use `i` and `j` separately to index the first then second of
@@ -288,11 +288,16 @@ def dtheta(i, j=None, m=4, sign=False):
     diff = (diff + ma/2)%ma - ma/2
     return diff if sign else np.abs(diff)
 
-def correlate(r, f, bins=10):
+def bin_average(r, f, bins=10):
+    """ Binned average of function f(r)
+        r : independent variable to be binned over
+        f : function to be averaged
+        bins (default 10): can be number of bins or bin edges len(nbins)+1
+    """
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def orient_corr(positions, orientations, m=4, margin=0):
+def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
@@ -305,7 +310,7 @@ def orient_corr(positions, orientations, m=4, margin=0):
     ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
-    return r, diffs
+    return bin_average(r, diffs, bins)
 
 def get_neighbors(tess, p, pm=None, ret_pairs=False):
     """ give neighbors in voronoi tessellation v of point id p
@@ -455,7 +460,7 @@ def pair_angle_corr(positions, psims, rbins=10):
     assert len(positions) == len(psims), "positions does not match psi_m(r)"
     i, j = pair_indices(len(positions))
     psi2 = psims[i].conj() * psims[j]
-    return correlate(pdist(positions), psi2, rbins)
+    return bin_average(pdist(positions), psi2, rbins)
 
 class vonmises_m(rv_continuous):
     def __init__(self, m):
