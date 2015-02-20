@@ -82,7 +82,7 @@ def label_particles_convolve(im, thresh=4, rmv=None, csize=0, **extra_args):
 
     if isinstance(thresh, int):
         if rmv is not None:
-            thresh -= 1
+            thresh -= 1 # smaller threshold for corners
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
@@ -140,10 +140,6 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
     x = im.mean()# + im.std()
     im[im > x] = x
     im /= im.max()
-
-    pl.clf()
-    pl.imshow(im, cmap=matplotlib.cm.Greys_r)
-    pl.savefig("a.png", dpi=300)
 
     intensity = None
 
