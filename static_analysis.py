@@ -2,12 +2,13 @@
 import sys
 import numpy as np
 from scipy.spatial import KDTree, Voronoi
+from math import sqrt
 
 import math
 
 def get_angle(p, q):
     # angle of (q - p) from the horizontal
-    r = (q[1] - p[1], q[0] - p[0])
+    r = (q[0] - p[0], q[1] - p[1])
     return math.atan2(r[1], r[0])
 
 def exp(C):
@@ -24,6 +25,10 @@ def poly_area(corners):
         area -= corners[j][0] * corners[i][1]
     return abs(area) / 2.0
 
+def find_COM(frame):
+    return (sum([p[0] for p in frame]) / len(frame),
+            sum([p[1] for p in frame]) / len(frame))
+
 M = 4 # number of neighbors
 
 if len(sys.argv) < 2:
@@ -31,24 +36,66 @@ if len(sys.argv) < 2:
     sys.exit(0)
 
 fname = sys.argv[1]
-data = np.loadtxt(fname + "_POSITIONS.txt", dtype="i,f,f,i,f,i")
-frames = [[(row[1], row[2]) for row in data if row[0] == i] for i in
+data = np.genfromtxt(fname + "_POSITIONS.txt", dtype="i,f,f,i,f,i",
+                     names="f,x,y,lab,ecc,area")
+frames = [[(row[1], row[2]) for row in data[data['f']==i]] for i in
           range(data[-1][0] + 1)]
+frame_IDs = [[row[3] for row in data[data['f']==i]] for i in
+             range(data[-1][0] + 1)]
 psi_data = []
 frame_densities = []
+radial_psi = []
+radial_densities = []
+radial_r = []
+valencies = {}
 
-for frame in frames:
+# Calculate valency for each ID based on first frame
+COM = find_COM(frames[0])
+dists = [((row[1]-COM[0])**2 + (row[2]-COM[1])**2, row[3])
+         for row in data[data['f']==0]]
+sorted_dists = sorted(dists)
+n = 0
+i = 0
+while True:
+    n += 1
+    box_size = 8 * (n - 1) if n > 1 else 1
+    for j in range(box_size):
+        valencies[sorted_dists[i][1]] = n
+        i += 1
+        if i >= len(frames[0]):
+            break
+    else:
+        continue
+    break
+
+max_valency = max(valencies.values())
+
+for j, frame in enumerate(frames):
     vor = Voronoi(frame)
     areas = []
-    for region in vor.regions:
+    r_densities = []
+    r_psi = []
+    r_r = []
+    for v in range(max_valency + 1): # each list contains all s=k
+        r_densities.append([])
+        r_psi.append([])
+        r_r.append([])
+
+    for i, p in enumerate(vor.points):
+        region = vor.regions[vor.point_region[i]]
         if -1 in region: # infinite Voronoi cell
             continue
-        areas.append(poly_area([vor.vertices[i] for i in region]))
+        areas.append(poly_area([vor.vertices[q] for q in region]))
+        if areas[-1] > 0.:
+            r_densities[valencies[frame_IDs[j][i]]].append(1. / areas[-1])
+        
     areas = np.asarray(areas)
     densities = 1. / areas[areas > 0.]
     frame_densities.append(densities)
+    radial_densities.append(r_densities)
 
     tree = KDTree(frame)
+    COM = find_COM(frame)
     psi_frame = []
     for i, p in enumerate(frame):
         query_ret = tree.query([p], k=M+1)
@@ -57,14 +104,36 @@ for frame in frames:
         neighbors = [tree.data[x] for x in query_ret[1][0]][1:]
         # if p is an edge or corner, remove extra neighbors
         min_dist = min((n[0]-p[0])**2 + (n[1]-p[1])**2 for n in neighbors)
-        thresh = min_dist * math.sqrt(2) * .95 # slightly less than a diagonal
+        thresh = min_dist * 2 * .9 # slightly less than a diagonal
         neighbors = [n for n in neighbors if (n[0]-p[0])**2 + (n[1]-p[1])**2 < thresh]
         N = len(neighbors)
         psi = sum(exp(M * get_angle(p, n) * 1j) for n in neighbors) / N
-        psi_frame.append(abs(psi))
+        valency = valencies[frame_IDs[j][i]]
+        if N > 1: # if N=1, |psi| will trivially be 1
+            psi_frame.append(abs(psi))
+            r_psi[valency].append(abs(psi))
+        r = sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
+        r_r[valency].append(r)
 
     psi_data.append(psi_frame)
+    radial_psi.append(r_psi)
+    radial_r.append(r_r)
 
 max_density = max([max(densities) for densities in frame_densities])
 frame_densities = [densities / max_density for densities in frame_densities]
-np.savez(fname + "_DATA.npz", psi=psi_data, densities=frame_densities)
+
+#take averages
+def take_avg(stat):
+    return [[sum(l)/max(len(l),1) for l in frame[1:]] for frame in stat]
+# TODO: find a better way to handle case when l is empty (no valid
+# particles with valence=s)
+
+radial_psi = take_avg(radial_psi)
+radial_densities = take_avg(radial_densities)
+radial_r = take_avg(radial_r)
+
+m = max([max(x) for x in radial_densities])
+radial_densities /= m
+np.savez(fname + "_DATA.npz", psi=psi_data, densities=frame_densities,
+         radial_psi=radial_psi, radial_densities=radial_densities,
+         radial_r=radial_r)
