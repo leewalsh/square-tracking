@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# encoding: utf-8
 
 from __future__ import division
 
@@ -8,10 +9,11 @@ from math import sqrt
 from cmath import phase, polar
 import numpy as np
 from numpy.linalg import norm
+from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi, cKDTree, Delaunay
-from scipy.ndimage import gaussian_filter
-from scipy.signal import hilbert
+from scipy.ndimage import gaussian_filter, gaussian_filter1d
+from scipy.signal import hilbert, correlate
 from scipy.fftpack import fft2
 from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
@@ -296,6 +298,63 @@ def bin_average(r, f, bins=10):
     """
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
+
+def autocorr(f, mode='same'):
+    """ The autocorrelation function of f(x)
+        f: 1d array, as function of x
+        mode: passed to scipy.signal.correlate
+        returns the autocorration function
+        <f(x') f(x + x')> averaged over x'
+    """
+    l = len(f)
+    m = f.mean()
+    df = f - m
+    df2 = np.dot(df, df)
+    a = correlate(df, df, mode=mode) / df2
+    h = {'same': l/2, 'full': l}
+    return a[h[mode]:]
+
+def poly_exp(x, *coeffs):#, return_poly=False):
+    """ exponential decay with a polynomial decay scale
+
+                 - x
+           ------------------
+           a + b x + c x² ...
+        e
+    """
+    return_poly=False
+    if len(coeffs) == 0: coeffs = (1,)
+    d = poly.polyval(x, coeffs)
+    f = np.exp(-x/d)
+    return (f, d) if return_poly else f
+
+def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
+    """ Find the decay scale of a function f(x)
+        f: a decaying 1d array
+        x: independent variable, default is range(len(f))
+        method: how to calculate
+            'integrate': integral of f(t) assuming exp'l form
+            'mean': mean lifetime < t > = integral of t*f(t)
+        smooth: smooth data first using poly_exp
+    """
+    l = len(f)
+    if x is None: x = np.arange(l)
+
+    if smooth=='fit':
+        p, _ = curve_fit(poly_exp, x, f, [1,0,0])
+        f = poly_exp(x, *p)
+    elif smooth.startswith('gauss'):
+        g = [gaussian_filter(f, sig, mode='constant', cval=f[sig])
+                for sig in (1, 10, 100, 1000)]
+        f = np.choose(np.repeat([0,1,2,3], [10,90,900,len(f)-1000]), g)
+
+    if rectify:
+        np.maximum(f, 0, f)
+
+    if method.startswith('m'):
+        return np.dot(x, f) / f.sum()
+    elif method.startswith('i'):
+        return f.sum()
 
 def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     """ orient_corr():
