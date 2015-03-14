@@ -314,7 +314,7 @@ def autocorr(f, mode='same'):
     h = {'same': l/2, 'full': l}
     return a[h[mode]:]
 
-def poly_exp(x, *coeffs):#, return_poly=False):
+def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
     """ exponential decay with a polynomial decay scale
 
                  - x
@@ -325,7 +325,7 @@ def poly_exp(x, *coeffs):#, return_poly=False):
     return_poly=False
     if len(coeffs) == 0: coeffs = (1,)
     d = poly.polyval(x, coeffs)
-    f = np.exp(-x/d)
+    f = a*np.exp(-x**gamma/d)
     return (f, d) if return_poly else f
 
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
@@ -341,7 +341,7 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     if x is None: x = np.arange(l)
 
     if smooth=='fit':
-        p, _ = curve_fit(poly_exp, x, f, [1,0,0])
+        p, _ = curve_fit(poly_exp, x, f, [1,1,1])
         f = poly_exp(x, *p)
     elif smooth.startswith('gauss'):
         g = [gaussian_filter(f, sig, mode='constant', cval=f[sig])
