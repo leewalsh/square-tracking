@@ -328,6 +328,41 @@ def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
     f = a*np.exp(-x**gamma/d)
     return (f, d) if return_poly else f
 
+def vary_gauss(a, sig=1, verbose=False):
+    n = len(a)
+    b = np.empty_like(a)
+
+    if np.isscalar(sig):
+        sig *= np.arange(n)
+    elif isinstance(sig, tuple):
+        sig = poly.polyval(np.arange(n), sig)
+    elif callable(sig):
+        sig = sig(np.arange(n))
+    elif hasattr(sig, '__getitem__'):
+        assert len(a) == len(sig)
+    else: raise TypeError('`sig` is neither callable nor arraylike')
+
+    for i, s in enumerate(sig):
+        # build the kernel:
+        w = round(2*s) # kernel half-width, must be integer
+        if s == 0: s = 1
+        k = np.arange(-w, w+1, dtype=float)
+        k = np.exp(-.5 * k**2 / s**2)
+
+        # slice the array (min/max prevent going past ends)
+        al = max(i - w,     0)
+        ar = min(i + w + 1, n)
+        ao = a[al:ar]
+
+        # and the kernel
+        kl = max(w - i,     0)
+        kr = min(w - i + n, 2*w+1)
+        ko = k[kl:kr]
+        b[i] = np.dot(ao, ko)/ko.sum()
+
+    return b
+
+
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     """ Find the decay scale of a function f(x)
         f: a decaying 1d array
@@ -351,10 +386,13 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     if rectify:
         np.maximum(f, 0, f)
 
-    if method.startswith('m'):
+    method = method.lower()
+    if method.startswith('mean'):
         return np.dot(x, f) / f.sum()
-    elif method.startswith('i'):
+    elif method.startswith('int'):
         return f.sum()
+    elif method.startswith('inv'):
+        return f.sum() / np.dot(1/(x+1), f)
 
 def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     """ orient_corr():
