@@ -25,9 +25,8 @@ elif 'peregrine' in hostname:
     locdir = extdir = ''
     plot_capable = True
 else:
-    print "computer not defined"
     locdir = extdir = ''
-    plot_capable = bool_input("Are you able to plot?")
+    plot_capable = True
     if plot_capable:
         import matplotlib
 
@@ -119,10 +118,11 @@ else:
 
     verbose = False
 
-def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
+def find_closest(thisdot,trackids,n=1,maxdist=50.,giveup=5):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
-        returns the trackid for that nearest dot, else returns new trackid"""
+        returns the trackid for that nearest dot, else returns new trackid
+        also returns the nearest previous dot (possibly None)"""
     frame = thisdot['f']
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = max(trackids) + 1
@@ -134,7 +134,15 @@ def find_closest(thisdot,trackids,n=1,maxdist=100.,giveup=1000):
         oldframe = data[data['f']==frame-n]
         dists = (thisdot['x']-oldframe['x'])**2 + (thisdot['y']-oldframe['y'])**2
         closest = oldframe[np.argmin(dists)]
-        if min(dists) < maxdist:
+        mindist = min(dists)
+        minindex = np.where(dists == mindist)
+        if mindist < maxdist:
+            cur_frame = data[data['f']==frame]
+            for line in cur_frame:
+                if (line['x']-oldframe[minindex]['x'])**2 + \
+                   (line['y']-oldframe[minindex]['y'])**2 < mindist:
+                    return max(trackids) + 1 # create new trackid to be deleted
+                    break
             return trackids[closest['id']]
         elif n < giveup:
             return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
@@ -179,16 +187,27 @@ def find_tracks(data, giveup=1000):
     sys.setrecursionlimit(2*giveup)
 
     trackids = -np.ones(data.shape, dtype=int)
+    num_dots = 0
+    for line in data:
+        if line[0] != 0:
+            break
+        num_dots += 1
 
+    print "number of particles: {0}".format(num_dots)
     print "seeking tracks"
     for i in range(len(data)):
         trackids[i] = find_closest(data[i], trackids)
 
     # save the data record array and the trackids array
     print "saving track data"
+    new_data = []
+    for i, line in enumerate(data):
+        line[3] = trackids[i]
+        if line[3] < num_dots: # crop out extra tracks
+            new_data.append(line)
+
     np.savez(locdir+prefix+dotfix+"_TRACKS",
-            data = data,
-            trackids = trackids)
+            data=new_data)
 
     return trackids
 

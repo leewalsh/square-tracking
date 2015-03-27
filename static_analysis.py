@@ -48,6 +48,7 @@ radial_psi = []
 radial_densities = []
 radial_r = []
 valencies = {}
+initial_pos = {}
 
 # Calculate valency for each ID based on first frame
 COM = find_COM(frames[0])
@@ -69,6 +70,8 @@ while True:
     break
 
 max_valency = max(valencies.values())
+# Find initial positions for each ID
+import pdb; pdb.set_trace()
 
 for j, frame in enumerate(frames):
     vor = Voronoi(frame)
@@ -76,10 +79,12 @@ for j, frame in enumerate(frames):
     r_densities = []
     r_psi = []
     r_r = []
+    r_msd = []
     for v in range(max_valency + 1): # each list contains all s=k
         r_densities.append([])
         r_psi.append([])
         r_r.append([])
+        r_msd.append([])
 
     for i, p in enumerate(vor.points):
         region = vor.regions[vor.point_region[i]]
@@ -123,14 +128,18 @@ max_density = max([max(densities) for densities in frame_densities])
 frame_densities = [densities / max_density for densities in frame_densities]
 
 #take averages
-def take_avg(stat):
-    return [[sum(l)/max(len(l),1) for l in frame[1:]] for frame in stat]
-# TODO: find a better way to handle case when l is empty (no valid
-# particles with valence=s)
+def take_avg(stat, ignore_first):
+    if ignore_first:
+        for frame in stat:
+            frame[2].extend(frame[1])
+            frame[1] = []
+    ret = [[sum(l)/len(l) if len(l)>0 else -1.
+            for l in frame[1:]] for frame in stat]
+    return [x[1:] for x in ret] if ignore_first else ret
 
-radial_psi = take_avg(radial_psi)
-radial_densities = take_avg(radial_densities)
-radial_r = take_avg(radial_r)
+radial_psi = take_avg(radial_psi, True)
+radial_densities = take_avg(radial_densities, True)
+radial_r = take_avg(radial_r, False)
 
 m = max([max(x) for x in radial_densities])
 radial_densities /= m

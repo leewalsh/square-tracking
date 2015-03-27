@@ -113,6 +113,7 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
 
     legal = abs(cdists-rc) < drc
     N = legal.sum() # number of corners found
+
     if N == n:
         pass
     elif N < n:
@@ -123,8 +124,8 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
         # the following is marginally faster than the above:
         legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[n:]]] = False
 
-    pcorner = corners[legal]
-    cdisp = cdisps[legal]
+    pcorner = [x for i, x in enumerate(corners) if legal[i]]
+    cdisp = [x for i, x in enumerate(cdisps) if legal[i]]
 
     if do_average and n > 1:
         amps = np.hypot(*cdisp.T)[...,None]
@@ -133,7 +134,8 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
         cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
         pcorner = cdisp + particle
     else:
-        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % (2*np.pi)
+        porient = np.arctan2([x[0] for x in cdisp], [x[1] for x in cdisp]) \
+                  % (2*np.pi)
 
     return pcorner, porient, cdisp
 

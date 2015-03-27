@@ -44,10 +44,10 @@ frame_IDs = [[row[3] for row in data[data['f']==i]] for i in
              range(data[-1][0] + 1)]
 psi_data = []
 frame_densities = []
+MSDs = []
 radial_psi = []
 radial_densities = []
 radial_r = []
-radial_speed = []
 valencies = {}
 initial_pos = {}
 
@@ -128,31 +128,35 @@ for j, frame in enumerate(frames):
     radial_psi.append(r_psi)
     radial_r.append(r_r)
 
-# Calculate radial speed (not MSD!)
-tau = 1
+def calc_MSD(tau, squared):
+    ret = []
+    for t, frame in enumerate(frames[:-tau]):
+        disps = []
+        for v in range(max_valency + 1): # contains all s=k
+            disps.append([])
+        other_frame = frames[t + tau]
+        # range over all particles in frames t, t+tau
+        for i, p in enumerate(frames[t]):
+            for j, q in enumerate(other_frame):
+                if frame_IDs[t + tau][j] == frame_IDs[t][i]:
+                    break
+            else:
+                print("ID {0} not found in frame {1}!".format(
+                    frame_IDs[t][i],t+tau))
+                continue
+            # found corresponding particle q in other frame
+            valency = valencies[frame_IDs[t][i]]
+            x = (p[0]-q[0])**2 + (p[1]-q[1])**2
+            disps[valency].append(x if squared else math.sqrt(x))
+        ret.append(disps)
+    return ret
 
-for t, frame in enumerate(frames[:-tau]):
-    disps = []
-    for v in range(max_valency + 1): # contains all s=k
-        disps.append([])
-    other_frame = frames[t + tau]
-    # range over all particles in frames t, t+tau
-    for i, p in enumerate(frames[t]):
-        for j, q in enumerate(other_frame):
-            if frame_IDs[t + tau][j] == frame_IDs[t][i]:
-                break
-        else:            
-            print("ID {0} not found in frame {1}!".format(
-                frame_IDs[t][i],t+tau))
-            continue
-        # found corresponding particle q in other frame
-        valency = valencies[frame_IDs[t][i]]
-        disps[valency].append(math.sqrt((p[0]-q[0])**2 + (p[1]-q[1])**2))
-    radial_speed.append(disps)
+# Calculate radial speed (not MSD!)
+radial_speed = calc_MSD(1, False)
+radial_MSD = calc_MSD(5, True)
 
 max_density = max([max(densities) for densities in frame_densities])
 frame_densities = [densities / max_density for densities in frame_densities]
-frame_densities=[]
 
 #take averages
 def take_avg(stat, ignore_first):
@@ -168,9 +172,11 @@ radial_psi = take_avg(radial_psi, True)
 radial_densities = take_avg(radial_densities, True)
 radial_r = take_avg(radial_r, True)
 radial_speed = take_avg(radial_speed, True)
+radial_MSD = take_avg(radial_MSD, True)
 
 m = max([max(x) for x in radial_densities])
 radial_densities /= m
 np.savez(fname + "_DATA.npz", psi=psi_data, densities=frame_densities,
          radial_psi=radial_psi, radial_densities=radial_densities,
-         radial_r=radial_r, radial_speed=radial_speed)
+         radial_r=radial_r, radial_speed=radial_speed,
+         radial_msd=radial_MSD)
