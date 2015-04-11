@@ -5,6 +5,9 @@ def splitter(data, frame, method='diff'):
     """ Splits a dataset into subarrays with unique frame value
         `data` : the dataset (will be split along first axis)
         `frame`: the values to group by
+        `method`: 'diff' or 'unique'
+            diff is faster, but
+            unique returns the `frame` value
     """
     if method.lower().startswith('d'):
         return np.split(data, np.diff(frame).nonzero()[0] + 1)

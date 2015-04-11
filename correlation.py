@@ -19,6 +19,8 @@ from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
 from skimage.morphology import disk, binary_dilation
 
+import helpy
+
 if __name__=='__main__':
     from socket import gethostname
     hostname = gethostname()
@@ -750,6 +752,27 @@ def gpeak_decay(peaks,f,pksonly=False):
         else:
             print "maximak empty:",maximak
     return popt,pcov
+
+def gauss_peak(x, c=0., a=1., x0=0., sig=1.):
+    x2 = np.square(x-x0)
+    s2 = sig*sig
+    return c + a*np.exp(-x2/s2)
+
+def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
+    l = np.searchsorted(xdata, x0-w/2)
+    r = np.searchsorted(xdata, x0+w/2)
+    x = xdata[l:r+1]
+    y = ydata[l:r+1]
+    form = form.lower()
+    if form.startswith('p'):
+        c = poly.polyfit(x, y, 2)
+        loc = -0.5*c[1]/c[2]
+        height = c[0] - 0.25 * c[1]**2 / c[2]
+    elif form.startswith('g'):
+        c, _ = curve_fit(gauss_peak, x, y, p0=[0, y0, x0, w])
+        loc = c[2]
+        height = c[0] + c[1]
+    return loc, height, x, y, c
 
 def exp_decay(s, sig=1., a=1., c=0):
     """ exp_decay(s,sigma,c,a)
