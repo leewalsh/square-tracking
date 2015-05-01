@@ -156,7 +156,7 @@ radial_speed = calc_MSD(1, False)
 radial_MSD = calc_MSD(5, True)
 
 max_density = max([max(densities) for densities in frame_densities])
-frame_densities = [densities / max_density for densities in frame_densities]
+frame_densities = [densities / (max_density*6.5**2) for densities in frame_densities]
 
 #take averages
 def take_avg(stat, ignore_first):
@@ -169,7 +169,7 @@ def take_avg(stat, ignore_first):
     return [x[1:] for x in ret] if ignore_first else ret
 
 radial_psi = take_avg(radial_psi, True)
-radial_densities = take_avg(radial_densities, True)
+radial_densities = [[y*6.5**2 for y in x] for x in take_avg(radial_densities, True)]
 radial_r = take_avg(radial_r, True)
 radial_speed = take_avg(radial_speed, True)
 radial_MSD = take_avg(radial_MSD, True)

@@ -80,19 +80,19 @@ def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
     convolved -= convolved.min()
     convolved /= convolved.max()
 
-    # allow thresh to be float
-    if True: #isinstance(thresh, int):
+    if isinstance(thresh, int):
         if rmv is not None:
             thresh -= 1 # smaller threshold for corners
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
+    
     #print "found {} segments above thresh".format(labels.max())
     return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
-def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, max_detect=155, circ=None, intensity=None, **extra_args):
+def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=None, **extra_args):
     """ filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Segment]
         Returns a list of Particles and masks out labels for
         particles not meeting acceptance criteria.
@@ -105,7 +105,6 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, max_detect=1
         label = props['Label']
         area = props['Area']
         ecc = props['Eccentricity']
-        intens = props['mean_intensity']
         if min_area > area:
             #print 'too small:', area
             pass
@@ -118,15 +117,10 @@ def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, max_detect=1
             pass
         else:
             x, y = props[centroid]
-            if circ:
-                origin, r = circ
-                if (x - origin[0])**2 + (y - origin[1])**2 > r2:
-                    continue
-            pts.append((Segment(x, y, label, ecc, area), intens))
-    pts = sorted(pts, key=lambda x:x[1])
-    return [x[0] for x in pts[-max_detect:]]
+            pts.append(Segment(x, y, label, ecc, area))
+    return pts
 
-def find_particles(imfile, method='edge', return_image=False, circ=None, **kwargs):
+def find_particles(imfile, method='edge', return_image=False, **kwargs):
     """ find_particles(imfile, gaussian_size=3, **kwargs) -> [Segment],labels
         Find the particles in image im. The arguments in kwargs is
         passed to label_particles and filter_segments.
@@ -160,7 +154,7 @@ def find_particles(imfile, method='edge', return_image=False, circ=None, **kwarg
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
-    pts = filter_segments(labels, intensity=intensity, circ=circ, **kwargs)
+    pts = filter_segments(labels, intensity=intensity, **kwargs)
     return (pts, labels) + ((convolved,) if return_image else ())
 
 def disk(n):
@@ -345,14 +339,16 @@ if __name__ == '__main__':
             pl.savefig(savename, dpi=300)
 
     def get_positions((n,filename)):
-        circ = (origin, r2) if args.circ else None
         out = find_particles(filename, method='convolve',
-                            return_image=args.plot>2,
-                            circ=circ, **threshargs)
+                            return_image=args.plot>2, **threshargs)
         if args.plot > 2:
             pts, labels, convolved = out
         else:
             pts, labels = out
+
+        if args.circ:
+            pts = [p for p in pts if (p.x - origin[0])**2 + (p.y - origin[1])**2 < r2]
+            out = (pts,) + out[1:]
 
         nfound = len(pts)
         if nfound < 1:
@@ -367,12 +363,15 @@ if __name__ == '__main__':
         if args.corner:
             out = find_particles(filename, method='convolve',
                                 return_image=args.plot>2, rmv=(pts, abs(args.kern)),
-                                circ=circ, **cthreshargs)
+                                 **cthreshargs)
             if args.plot > 2:
                 cpts, clabels, cconvolved = out
             else:
                 cpts, clabels = out
 
+            if args.circ:
+                cpts = [p for p in cpts if (p.x - origin[0])**2 + \
+                        (p.y - origin[1])**2 < r2]
             old_cpts = cpts[:]
             cpts = []
             for pt in old_cpts:

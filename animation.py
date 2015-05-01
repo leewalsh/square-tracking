@@ -65,7 +65,6 @@ max_valency = max(valencies.values())
 
 running = True
 simulate = False
-t = 0
 speed = 1.
 paused = False
 if len(sys.argv) > 2:
@@ -74,13 +73,19 @@ font = pygame.font.Font(None, 36)
 font2 = pygame.font.Font(None, 15)
 COLORS = {}
 COLORS2 = {}
-for ID in valencies:
+'''for ID in valencies:
     s = valencies[ID]
     COLORS[ID] = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 255, 255),
-                  (255, 255, 0), (255, 0, 255), (255, 255, 255)][s-1]
-    COLORS2[ID] = np.asarray(COLORS[ID]) / 2.
+                  (255, 255, 0), (255, 0, 255), (0, 0, 0)][s-1]
+    COLORS2[ID] = np.asarray(COLORS[ID]) / 2.'''
+
+for i in range(10000):
+    COLORS[i]=(0,0,0)
+    COLORS2[i]=(0,0,0)
+
 tau = 1
 
+t = 0
 while running and t < len(frames):
     draw = simulate and not paused
     for event in pygame.event.get():
@@ -89,6 +94,8 @@ while running and t < len(frames):
             break
         elif event.type == pygame.MOUSEBUTTONUP:
             simulate = True
+            pos = pygame.mouse.get_pos()
+            print(pos)
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 paused = not paused
@@ -103,7 +110,6 @@ while running and t < len(frames):
     screen.fill((255, 255, 255))
     text = font.render("Time: {0}".format(t), 1, (10, 10, 10))
     screen.blit(text, text.get_rect())
-    
     for x, y, ID in frames[t]:
         pygame.draw.rect(screen, COLORS[ID], (k*x-L-DX, k*y-L-DY,k*L,k*L), 0)
 
@@ -125,3 +131,8 @@ while running and t < len(frames):
     if not paused:
         t += 1
     pygame.time.delay(int(10 / speed))
+
+
+
+
+

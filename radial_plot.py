@@ -22,9 +22,10 @@ all_s_plots = []
 TRIALS = {"aligned": 3,
           "inward": 3,
           "outward": 3,
-          "random": 4}
+          "random": 4} # TODO: change this for non-7x7
+orientation = sys.argv[1][sys.argv[1].rfind('_')+1:]
 fnames = [sys.argv[1] + ("_trial{0}".format(i+1) if i > 0 else "")
-          for i in range(TRIALS[sys.argv[1][4:]] if avg else 1)]
+          for i in range(TRIALS[orientation] if avg else 1)]
 stat = 'radial_{0}'.format(sys.argv[2])
 fig = plt.figure()
 ax = plt.subplot(111)
@@ -58,16 +59,25 @@ extra = False #(stat in ('radial_r', 'radial_speed'))
 if not avg_test:
     for i, plot in enumerate(avg_s_plots):
         l = plot
+        if stat=='densities':
+            l*=6.5**2
+        elif stat in ('speed', 'msd'):
+            l/=6.5
         if log:
             l = np.log(l)
-        ax.plot(l, label="Valency {0}".format(i if extra else i+1))
+        #import pdb;pdb.set_trace()
+        ax.plot(np.linspace(0,len(l),num=len(l))/120, l, label="Valency {0}".format(i if extra else i+1))
 
 box = ax.get_position()
 ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-plt.xlabel("Time (frames)")
+plt.xlabel("Time (s)")
 ax.legend(loc='center left', bbox_to_anchor=(1,.5))
 name = 'R'+stat[1:].replace('_', ' ')
-plt.title("{0} vs time".format(name))
+if 'densities' in stat:
+    name += ' (particle length^-2)'
+elif 'msd' in stat or 'speed' in stat:
+    name += ' (particle length/s)'
+plt.title("{0} vs time for {1}".format(name, sys.argv[1]))
 if log:
     name = 'Log [{0}]'.format(name)
 if normalize:

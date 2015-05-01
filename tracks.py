@@ -118,7 +118,7 @@ else:
 
     verbose = False
 
-def find_closest(thisdot,trackids,n=1,maxdist=50.,giveup=5):
+def find_closest(thisdot,trackids,n=1,maxdist=30.,giveup=3):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid
@@ -135,14 +135,7 @@ def find_closest(thisdot,trackids,n=1,maxdist=50.,giveup=5):
         dists = (thisdot['x']-oldframe['x'])**2 + (thisdot['y']-oldframe['y'])**2
         closest = oldframe[np.argmin(dists)]
         mindist = min(dists)
-        minindex = np.where(dists == mindist)
         if mindist < maxdist:
-            cur_frame = data[data['f']==frame]
-            for line in cur_frame:
-                if (line['x']-oldframe[minindex]['x'])**2 + \
-                   (line['y']-oldframe[minindex]['y'])**2 < mindist:
-                    return max(trackids) + 1 # create new trackid to be deleted
-                    break
             return trackids[closest['id']]
         elif n < giveup:
             return find_closest(thisdot,trackids,n=n+1,maxdist=maxdist,giveup=giveup)
@@ -197,14 +190,51 @@ def find_tracks(data, giveup=1000):
     print "seeking tracks"
     for i in range(len(data)):
         trackids[i] = find_closest(data[i], trackids)
+        data[i][3]=trackids[i]
+
+    # make sure IDs in each frame are unique
+    giveup = 5
+    for i in range(data['f'].max()):
+        first_line = np.nonzero(data['f']==i)[0][0]
+        frame = data[data['f']==i]
+        for ID in set([x[3] for x in frame]):
+            matches = [x for x in enumerate(frame) if x[1][3]==ID]
+            best_match = None
+            if len(matches) > 1: # not unique
+                print("Frame {0}, ID {1} has {2} matches".format(i, ID, len(matches)))
+                for j in range(i - 1, i - giveup - 1, -1):
+                    prev = [x for x in data[data['f']==j] if x[3]==ID]
+                    if len(prev)==0:
+                        continue
+                    best_dist = 100000000.
+                    for k,match in matches:
+                        dist = (match['x']-prev[0]['x'])**2+\
+                               (match['y']-prev[0]['y'])**2
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_match = match
+                    if i==14 and ID==110:
+                        import pdb;pdb.set_trace()
+                    break
+                for j,match in matches:
+                    if match != best_match:
+                        trackids[first_line + j] = max(trackids) + 1
+                        data[first_line+j][3]=trackids[first_line+j]
 
     # save the data record array and the trackids array
     print "saving track data"
     new_data = []
-    for i, line in enumerate(data):
-        line[3] = trackids[i]
-        if line[3] < num_dots: # crop out extra tracks
-            new_data.append(line)
+
+    '''save IDs in order'''
+    for frame in range(data['f'].max()):
+        first_line = np.nonzero(data['f']==frame)[0][0]
+        new_frame = []
+        for i, line in enumerate(data[data['f']==frame]):
+            line[3] = trackids[i+first_line]
+            if line[3] < num_dots: # crop out extra tracks
+                new_frame.append(line)
+        new_frame = sorted(new_frame, key=lambda x:x[3])
+        new_data.extend(new_frame)
 
     np.savez(locdir+prefix+dotfix+"_TRACKS",
             data=new_data)

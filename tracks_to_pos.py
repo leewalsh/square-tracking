@@ -9,19 +9,23 @@ if len(sys.argv) < 2:
 fname = sys.argv[1]
 data = np.load(fname + "_TRACKS.npz")["data"]
 
-# cut out still frames at beginning
-nframes = data[-1][0] + 1
-original = {}
-for row in data[data['f']==0]:
-    original[row[3]] = (row[1], row[2])
+CUT_STILL = False
+frame = 1
 
-for frame in range(nframes):
-    disp = 0
-    for row in data[data['f']==frame]:
-        ID = row[3]
-        disp += (row[1]-original[ID][0])**2 + (row[2]-original[ID][1])**2
-    if disp > 0.04 * len(original): # avg 0.04 squared displacement
-        break
+if CUT_STILL:
+    # cut out still frames at beginning
+    nframes = data[-1][0] + 1
+    original = {}
+    for row in data[data['f']==0]:
+        original[row[3]] = (row[1], row[2])
+
+    for frame in range(nframes):
+        disp = 0
+        for row in data[data['f']==frame]:
+            ID = row[3]
+            disp += (row[1]-original[ID][0])**2 + (row[2]-original[ID][1])**2
+        if disp > 0.04 * len(original): # avg 0.04 squared displacement
+            break
 
 data = [(row[0]-frame+1,)+tuple(row)[1:-1] for row in data if \
         row[0] >= frame - 1]

@@ -42,6 +42,10 @@ for orient, extra_trials in ORIENTATIONS:
 plt.title("{0} crystal".format(fname))
 plt.xlabel("Time (frames)")
 name = stat.replace("_", " ")
+if name=='psi':
+    name='Psi'
+elif name=='densities':
+    name='Densities (particle lengths^-2)'
 if 'log' in sys.argv:
     plt.ylabel('Log [{0}]'.format(name))
 else:
