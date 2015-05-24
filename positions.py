@@ -1,10 +1,16 @@
 #!/usr/bin/env python
 
+from socket import gethostname
+hostname = gethostname()
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import measure, segmentation
-from skimage.filter import canny
-from skimage.measure import label
+if 'foppl' in hostname:
+    from skimage.filter import canny
+    from skimage.morphology import label
+else:
+    from skimage.filters import canny
+    from skimage.measure import label
 from skimage.morphology import square, binary_closing, skeletonize
 from skimage.morphology import disk as _disk
 from collections import namedtuple
@@ -45,7 +51,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return segmentation.random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
+def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -53,24 +59,29 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
 
         Input:
             image   the original image
-            pos     if given, the positions at which to remove large dots
             thresh  the threshold above which pixels are included
+                        if integer, in units of intensity std dev
+                        if float, in absolute units of intensity
+            rmv     if given, the positions at which to remove large dots
+            csize   kernel size
     """
+    # Michael removed disks post-convolution
     if rmv is not None:
-        im = remove_disks(im, rmv, disk(8.5))
+        im = remove_disks(im, *rmv)
     if csize == 0:
-        raise ValueError('csize not set')
+        raise ValueError('kernel size `csize` not set')
     elif csize < 0:
-        #print "negative kernel"
-        convolved = convolve(im, -gdisk(-csize))
+        ckern = -gdisk(-csize)
     else:
-        #print "positive kernel"
-        convolved = convolve(im, gdisk(csize))
+        ckern = gdisk(csize)
+    convolved = convolve(im, ckern)
 
     convolved -= convolved.min()
     convolved /= convolved.max()
 
     if isinstance(thresh, int):
+        if rmv is not None:
+            thresh -= 1 # smaller threshold for corners
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = label(convolved > thresh)
@@ -79,35 +90,46 @@ def label_particles_convolve(im, thresh=2, rmv=None, csize=0, **extra_args):
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
-def filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200, intensity=None, **extra_args):
+def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
+                    circ=None, intensity=None, **extra_args):
     """ filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Segment]
         Returns a list of Particles and masks out labels for
         particles not meeting acceptance criteria.
     """
     pts = []
+    strengths = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    #rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
-    rprops = measure.regionprops(labels, intensity)
+    if 'foppl' in hostname:
+        rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
+    else:
+        rprops = measure.regionprops(labels, intensity)
     for props in rprops:
         label = props['Label']
         area = props['Area']
         ecc = props['Eccentricity']
-        if min_area > area:
+        if area < min_area:
             #print 'too small:', area
-            pass
+            continue
         elif area > max_area:
             #print 'too big:', area
-            pass
+            continue
         elif ecc > max_ecc:
             #print 'too eccentric:', ecc
             #labels[labels==label] = np.ma.masked
-            pass
-        else:
-            x, y = props[centroid]
-            pts.append(Segment(x, y, label, ecc, area))
-    return pts
+            continue
+        x, y = props[centroid]
+        if circ:
+            co, ro = circ
+            if (x - co[0])**2 + (y - co[1])**2 > ro**2:
+                continue
+        pts.append(Segment(x, y, label, ecc, area))
+        if max_detect is not None:
+            strengths.append(props['mean_intensity'])
+    if max_detect is not None:
+        pts = pts[np.argsort(-strengths)]
+    return pts[:max_detect]
 
-def find_particles(imfile, method='edge', return_image=False, **kwargs):
+def find_particles(imfile, method='edge', return_image=False, circ=None, **kwargs):
     """ find_particles(imfile, gaussian_size=3, **kwargs) -> [Segment],labels
         Find the particles in image im. The arguments in kwargs is
         passed to label_particles and filter_segments.
@@ -121,8 +143,16 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
         pass #im = median_filter(im, size=2)
     elif imfile.lower().endswith('jpg') and im.ndim == 3:
         # use just the green channel from color slr images
+        raise StandardError, "Only do this for red lego's"
         im = im[..., 1]
-    im /= im.max()
+
+    # clip to two standard deviations about the mean
+    # and normalize to [0, 1]
+    s = 2*im.std()
+    m = im.mean()
+    im -= m - s
+    im /= 2*s
+    np.clip(im, 0, 1, out=im)
 
     intensity = None
 
@@ -133,11 +163,11 @@ def find_particles(imfile, method='edge', return_image=False, **kwargs):
         labels = label_particles_edge(im, **kwargs)
     elif method == 'convolve':
         labels, convolved = label_particles_convolve(im, **kwargs)
-        intensity = im
+        intensity = im if kwargs['csize'] > 0 else 1 - im
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
-    pts = filter_segments(labels, intensity=intensity, **kwargs)
+    pts = filter_segments(labels, intensity=intensity, circ=circ, **kwargs)
     return (pts, labels) + ((convolved,) if return_image else ())
 
 def disk(n):
@@ -145,7 +175,7 @@ def disk(n):
 
 def gdisk(n, w=None):
     """ gdisk(n):
-        return a gaussian kernel
+        return a gaussian kernel with zero integral and unity std dev.
     """
     if w is None:
         w = 2*n
@@ -165,7 +195,7 @@ def remove_segments(orig, particles, labels):
     """
     return
 
-def remove_disks(orig, particles, dsk=disk(6)):
+def remove_disks(orig, particles, dsk):
     """ remove_disks(method=['disk' or 'segment'])
         removes a disk of given size centered at dot location
         inputs:
@@ -176,18 +206,19 @@ def remove_disks(orig, particles, dsk=disk(6)):
         output:
             the original image with big dots removed
     """
+    if np.isscalar(dsk): dsk = disk(dsk)
     disks = np.ones(orig.shape, int)
     if isinstance(particles[0], Segment):
-        xys = zip(*(map(int,(p.x,p.y)) for p in particles))
+        xys = zip(*(map(int, (p.x, p.y)) for p in particles))
     elif 'X' in particles.dtype.names:
-        xys = np.round(particles['X']).astype(int),np.round(particles['Y']).astype(int)
+        xys = np.round(particles['X']).astype(int), np.round(particles['Y']).astype(int)
     disks[xys] = 0
-    disks = binary_erosion(disks,dsk)
+    disks = binary_erosion(disks, dsk)
     return orig*disks
 
 if __name__ == '__main__':
     import matplotlib
-    matplotlib.use('Agg')
+    if 'foppl' in hostname: matplotlib.use('Agg')
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
     from argparse import ArgumentParser
@@ -204,8 +235,10 @@ if __name__ == '__main__':
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
-    parser.add_argument('-c', '--corner', action='store_true',
-                        help='Also find small corner dots')
+    parser.add_argument('-s', '--select', action='store_true',
+                        help='Open the first image and specify the circle of interest')
+    parser.add_argument('-b', '--both', action='store_true',
+                        help='find both center and corner dots')
     parser.add_argument('--slr', action='store_true',
                         help='Full resolution SLR was used')
     parser.add_argument('-k', '--kern', default=0, type=float,
@@ -216,7 +249,7 @@ if __name__ == '__main__':
                         help='Maximum area')
     parser.add_argument('--ecc', default=.8, type=float,
                         help='Maximum eccentricity')
-    parser.add_argument('--ckern', default=0, type=float,
+    parser.add_argument('-c', '--ckern', default=0, type=float,
                         help='Kernel size for convolution for corner dots')
     parser.add_argument('--cmin', default=-1, type=int,
                         help='Minimum area for corner dots')
@@ -226,6 +259,11 @@ if __name__ == '__main__':
                         help='Maximum eccentricity for corner dots')
     args = parser.parse_args()
 
+    if '*' in args.files[0] or '?' in args.files[0]:
+        from glob import glob
+        filenames = sorted(glob(args.files[0]))
+    else:
+        filenames = sorted(args.files)
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
@@ -235,9 +273,57 @@ if __name__ == '__main__':
         args.max = 2*kern_area
         if args.verbose: print "using max =", args.max
 
-    ckern_area = np.pi*args.ckern**2
-    if args.cmin == -1: args.cmin = ckern_area/2
-    if args.cmax == np.inf: args.cmax = 2*ckern_area
+    if args.both:
+        ckern_area = np.pi*args.ckern**2
+        if args.cmin == -1: args.cmin = ckern_area/2
+        if args.cmax == np.inf: args.cmax = 2*ckern_area
+
+    if args.select:
+        first_img = imread(filenames[0])
+        xs = []
+        ys = []
+        if False:   # Using Qt and skimage.ImageViewer
+            viewer = ImageViewer(first_img)
+            ax = viewer.canvas.figure.add_subplot(111)
+        else:       # Using matplotlib
+            viewer = pl.figure()
+            ax = viewer.add_subplot(111)
+            ax.imshow(first_img)
+
+        def circle_click(click):
+            """ saves points as they are clicked
+                once three points have been saved, calculate the center and
+                radius of the circle pass through them all. Draw it and save it.
+                To use:
+                    when image is shown, click three non-co-linear points along
+                    the perimeter.  neither should be vertically nor
+                    horizontally aligned (gives divide by zero) when three
+                    points have been clicked, a circle should appear. Then
+                    close the figure to allow the script to continue.
+            """
+            print 'you clicked', click.xdata, '\b,', click.ydata
+            xs.append(click.xdata)
+            ys.append(click.ydata)
+            if len(xs) == 3:
+                # With three points, calculate circle
+                # http://paulbourke.net/geometry/circlesphere/
+                print 'got three points'
+                x1, x2, x3 = xs
+                y1, y2, y3 = ys
+                ma = (y2-y1)/(x2-x1)
+                mb = (y3-y2)/(x3-x2)
+                xo = ma*mb*(y1-y3) + mb*(x1+x2) - ma*(x2+x3)
+                xo /= 2*(mb-ma)
+                yo = (y1+y2)/2 - (xo - (x1+x2)/2)/ma
+                global co, ro # can't access function's returned value
+                co = np.array([xo, yo])
+                ro = np.hypot(*(co -[x1, y1]))
+                cpatch = matplotlib.patches.Circle(co, radius=ro, color='g', fill=False)
+                ax.add_patch(cpatch)
+                viewer.canvas.draw()
+
+        viewer.canvas.mpl_connect('button_press_event', circle_click)
+        pl.show()
 
     if args.plot:
         cm = pl.cm.prism_r
@@ -285,12 +371,15 @@ if __name__ == '__main__':
             pl.savefig(savename, dpi=300)
 
     def get_positions((n,filename)):
+        circ = (co, ro) if args.select else None
         out = find_particles(filename, method='convolve',
-                            return_image=args.plot>2, **threshargs)
+                            return_image=args.plot>2,
+                            circ=circ, **threshargs)
         if args.plot > 2:
             pts, labels, convolved = out
         else:
             pts, labels = out
+
         nfound = len(pts)
         if nfound < 1:
             print 'Found no particles in ', path.split(filename)[-1]
@@ -301,32 +390,37 @@ if __name__ == '__main__':
             savebase = path.join(pdir, path.split(filename)[-1].split('.')[-2])
             plot_positions(savebase, args.plot, *out)
 
-        if args.corner:
-            out = find_particles(filename, method='convolve',
-                                return_image=args.plot>2, rmv=None, **cthreshargs)
+        if args.both:
+            out = find_particles(filename, method='convolve', return_image=args.plot>2,
+                    rmv=(pts, abs(args.kern)), circ=circ, **cthreshargs)
             if args.plot > 2:
                 cpts, clabels, cconvolved = out
             else:
                 cpts, clabels = out
+
+            #Keep only cpts that are near at least one big point
+            # TODO: this may be a waste of time (michael added it)
+            # Much faster now with cdist, not nested loops
+            # Still it's not the point of this function.
+            #dist_thresh = 20
+            #from scipy.spatial.distance import cdist
+            ## TODO: cpts and pts are lists of Segments, not arrays of x,y
+            #close = (cdist(cpts, pts) < dist_thresh).any(axis=1)
+            #cpts = cpts[close] #TODO: cant index a list with bools
+            #clabels = clabels[close]
+
             nfound = len(cpts)
             if nfound < 1:
                 print 'Found no corners, returning only centers'
                 return centers
             print '%20s: Found %d corners' % (path.split(filename)[-1], nfound)
             if args.plot:
-                plot_positions(savebase+'_CORNER', args.plot, *out)
+                plot_positions(savebase+'_CORNER', args.plot, cpts, clabels)
             corners = np.hstack([n*np.ones((nfound,1)), cpts])
             return centers, corners
 
         return centers
 
-    if '*' in args.files[0] or '?' in args.files[0]:
-        from glob import glob
-        filenames = sorted(glob(args.files[0]))
-    else:
-        filenames = sorted(args.files)
-    if len(filenames) < 1:
-        raise ValueError, "no matching files"
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
@@ -336,7 +430,7 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = filter(lambda x: len(x) > 0, points)
 
-    if args.corner:
+    if args.both:
         points, corners = map(np.vstack, zip(*points))
         if 'CORNER' in args.output:
             coutput = args.output
@@ -349,6 +443,9 @@ if __name__ == '__main__':
                 coutput = ''.join(outnames)
         with open(coutput, 'w') as coutput:
             print "Saving corner positions to ", coutput.name
+            coutput.write('# Kern     Min area    Max area      Max eccen\n')
+            coutput.write('#%5.2f%7d%13d%15.2f\n' % (args.ckern, args.cmin, args.cmax, args.cecc))
+            coutput.write('#\n')
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
                     fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
@@ -361,6 +458,9 @@ if __name__ == '__main__':
         args.output = args.output.replace('CORNER','')
     with open(args.output, 'w') as output:
         print "Saving positions to ", args.output
+        output.write('# Kern     Min area    Max area      Max eccen\n')
+        output.write('#%5.2f%7d%13d%15.2f\n' % (args.kern, args.min, args.max, args.ecc))
+        output.write('#\n')
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
