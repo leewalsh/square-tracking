@@ -47,9 +47,11 @@ if __name__=='__main__':
     parser.add_argument('prefix', metavar='PRE',
                         help="Filename prefix with full or relative path "
                              "(filenames prefix_POSITIONS.txt, "
-                              "prefix_CORNER_POSITIONS.txt, etc)")
+                             "prefix_CORNER_POSITIONS.txt, etc)")
     parser.add_argument('-c', '--corner', action='store_true',
                         help='Track corners instead of centers')
+    parser.add_argument('-n', '--number', type=int, default=-1,
+                        help='Total number of particles')
     parser.add_argument('-l','--load', action='store_true',
                         help='Create and save structured array from '
                              'prefix[_CORNER]_POSITIONS.txt file')
@@ -64,8 +66,8 @@ if __name__=='__main__':
     parser.add_argument('-s', '--side', type=int, default=1,
                         help='Particle size in pixels, for unit normalization')
     parser.add_argument('-f', '--fps', type=int, default=1,
-                        help='Number of frames per second (or per shake) '
-                             'for unit normalization')
+                        help="Number of frames per second (or per shake) "
+                             "for unit normalization")
     parser.add_argument('--dt0', type=int, default=10,
                         help='Stepsize for time-averaging of a single '
                              'track at different time starting points')
@@ -126,7 +128,7 @@ else:
 
     verbose = False
 
-def find_closest(thisdot, trackids, n=1, maxdist=100., giveup=1000):
+def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
@@ -138,11 +140,27 @@ def find_closest(thisdot, trackids, n=1, maxdist=100., giveup=1000):
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
-        oldframe = data[data['f']==frame-n]
-        dists = ((thisdot['x'] - oldframe['x'])**2 +
-                 (thisdot['y'] - oldframe['y'])**2)
-        closest = oldframe[np.argmin(dists)]
-        if min(dists) < maxdist:
+        olddots = data[data['f']==frame-n]
+        dists = ((thisdot['x'] - olddots['x'])**2 +
+                 (thisdot['y'] - olddots['y'])**2)
+        mini = np.argmin(dists)
+        mindist = dists[mini]
+        closest = olddots[mini]
+        if mindist < maxdist:
+            # a close one! Is there another dot in the current frame that's closer though?
+            curdots = data[data['f']==frame]
+            curdists = ((curdots['x'] - closest['x'])**2 +
+                        (curdots['y'] - closest['y'])**2)
+            mini2 = np.argmin(curdists)
+            mindist2 = curdists[mini2]
+            if mindist2 < mindist:
+                # create new trackid to be deleted (or overwritten?)
+                newtrackid = max(trackids) + 1
+                if verbose:
+                    print "found a closer child dot to the this dot's parent"
+                    print "New track:", newtrackid
+                    print '\tframe:', frame,'n:', n,'dot:', thisdot['id'], 'closer:', curdots[mini2]['id']
+                return newtrackid
             return trackids[closest['id']]
         elif n < giveup:
             return find_closest(thisdot, trackids, n=n+1,
@@ -151,13 +169,13 @@ def find_closest(thisdot, trackids, n=1, maxdist=100., giveup=1000):
             newtrackid = max(trackids) + 1
             if verbose:
                 print "Recursed {} times, giving up.".format(n)
-                print "New track:",newtrackid
+                print "New track:", newtrackid
                 print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
             return newtrackid
 
 # Tracking
 def load_data(datapath):
-    print "loading data from",datapath
+    print "loading positions data from", datapath
     if  datapath.endswith('results.txt'):
         shapeinfo = False
         # imagej output (called *_results.txt)
@@ -171,33 +189,43 @@ def load_data(datapath):
         data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
         data['id'] -= 1 # data from imagej is 1-indexed
     elif datapath.endswith('POSITIONS.txt'):
-        from numpy.lib.recfunctions import append_fields
         # positions.py output (called *_POSITIONS.txt)
+        from numpy.lib.recfunctions import append_fields
         data = np.genfromtxt(datapath,
-                skip_header = 1,
-                names = "f,x,y,lab,ecc,area",
-                dtype = [int,float,float,int,float,int])
-        ids = np.arange(data.shape[0])
+                             skip_header = 1,
+                             names = "f,x,y,lab,ecc,area",
+                             dtype = [int,float,float,int,float,int])
+        ids = np.arange(len(data))
         data = append_fields(data, 'id', ids, usemask=False)
     else:
         print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-def find_tracks(data, giveup=1000):
-    sys.setrecursionlimit(2*giveup)
+def find_tracks(data, n=-1, giveup=10):
+    sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
+    if n==-1:
+        n = len(data['f']==0)
+        print "number of particles:", n
 
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i], trackids)
+        trackids[i] = find_closest(data[i], trackids, giveup=giveup)
 
     # save the data record array and the trackids array
     print "saving track data"
+    # Michael used the data['lab'] field (as line[3] for line in data) to store
+    # trackids. I'll keep doing that:
+    assert len(data) == len(trackids), "too few/many trackids"
+    assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
+    data['lab'] = trackids
+    #data = data[trackids < n] # michael did this to "crop out extra tracks"
+
+
     np.savez(locdir+prefix+dotfix+"_TRACKS",
-            data = data,
-            trackids = trackids)
+            data=data, trackids=trackids)
 
     return trackids
 
@@ -209,7 +237,7 @@ if __name__=='__main__':
     if findtracks:
         if not loaddata:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
-        trackids = find_tracks(data)
+        trackids = find_tracks(data, n=args.number)
     elif loaddata:
         print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
@@ -426,7 +454,8 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
                   label="slope = 1")
     if errorbars:
-        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize, msd_err/A/(taus/fps)**tnormalize, fmt=meancol, errorevery=errorbars)
+        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize, msd_err/A/(taus/fps)**tnormalize,
+                    fmt=meancol, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     pl.title("Mean Sq Disp" if title is None else title)
