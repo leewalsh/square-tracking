@@ -31,14 +31,12 @@ else:
     if plot_capable:
         import matplotlib
 
+from helpy import farange, bool_input
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
-
-def bool_input(question):
-    "Returns True or False from yes/no user-input question"
-    answer = raw_input(question)
-    return answer.lower().startswith('y') or answer.lower().startswith('t')
+pi = np.pi
+twopi = 2*pi
 
 if __name__=='__main__':
     from argparse import ArgumentParser
@@ -93,7 +91,7 @@ if __name__=='__main__':
     print 'using prefix', prefix
     dotfix = '_CORNER' if args.corner else ''
 
-    loaddata = args.load
+    loaddata =   args.load
     findtracks = args.track
     plottracks = args.plottracks
     findmsd = args.msd
@@ -117,15 +115,6 @@ if __name__=='__main__':
     verbose = args.verbose
 
 else:
-    loaddata   = False   # Create and save structured array from data txt file?
-
-    findtracks = False   # Connect the dots and save in 'trackids' field of data
-    plottracks = False   # plot their tracks
-
-    findmsd = False      # Calculate the MSD
-    loadmsd = False      # load previoius MSD from npz file
-    plotmsd = False      # plot the MSD
-
     verbose = False
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
@@ -251,7 +240,7 @@ if __name__=='__main__':
             print "loading data and tracks from "+prefix+"_TRACKS.npz"
         except IOError:
             tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            print "loading data from "+prefix+"_POSITIONS.npz"
+            print "loading positions data from "+prefix+"_POSITIONS.npz"
         data = tracksnpz['data']
         print "\t...loaded"
 
@@ -275,11 +264,6 @@ def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
-
-def farange(start,stop,factor):
-    start_power = np.log(start)/np.log(factor)
-    stop_power = np.log(stop)/np.log(factor)
-    return factor**np.arange(start_power,stop_power, dtype=type(factor))
 
 def trackmsd(track, dt0, dtau):
     """ trackmsd(track, dt0, dtau)
@@ -413,11 +397,11 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
 def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
-        lw=1, singletracks=xrange(1000), fps=1, S=1, sys_size=0,
+        lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save=''):
-    """ Plots the MSDs """
+    """ Plots the MS(A)Ds """
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
-    A = S**2
+    A = 1 if ang else S**2
     print "using S = {} pixels, thus A = {} px^2".format(S, A)
     nframes = data['f'].max()
     try:
@@ -441,12 +425,14 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
 
     if tnormalize:
         plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
-               label="Mean Sq Disp/Time{}".format(
+               label="Mean Sq {}Disp/Time{}".format(
+                     "Angular " if ang else "",
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
         plfunc(taus/fps, msd[0]/A*(taus/fps)**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
-        plfunc(taus/fps, (taus/fps)**-tnormalize,
-               'k--', label="One particle area" if S>1 else "One Pixel", lw=2)
+        plfunc(taus/fps, (twopi**2 if ang else 1)/(taus/fps)**tnormalize,
+               'k--', lw=2, label=r"$(2\pi)^2$" if ang else
+               ("One particle area" if S>1 else "One Pixel"))
         pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
     else:
         pl.loglog(taus/fps, msd/A, meancol, lw=lw,
@@ -458,17 +444,21 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
                     fmt=meancol, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
-    pl.title("Mean Sq Disp" if title is None else title)
+    pl.title("Mean Sq {}Disp".format("Angular " if ang else "") if title is None else title)
     pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
-    pl.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
-              fontsize='x-large')# '+r'$s^2$'+')')
+    if ang:
+        pl.ylabel('Squared Angular Displacement ($rad^2$)',
+              fontsize='x-large')
+    else:
+        pl.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
+              fontsize='x-large')
     if xlim is not None:
         pl.xlim(*xlim)
     if ylim is not None:
         pl.ylim(*ylim)
     if show_legend: pl.legend(loc='best')
     if save is None:
-        save = locdir + prefix + "_MSD.pdf"
+        save = locdir + prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
         print "saving to", save
         pl.savefig(save)

@@ -1,20 +1,61 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
 from itertools import izip
 import numpy as np
 
-def splitter(data, frame, method='diff'):
+def splitter(data, frame=None, method=None, ret_dict=False):
     """ Splits a dataset into subarrays with unique frame value
         `data` : the dataset (will be split along first axis)
-        `frame`: the values to group by
+        `frame`: the values to group by. Uses `data['f']` if `None`
         `method`: 'diff' or 'unique'
-            diff is faster, but
+            diff is faster*, but
             unique returns the `frame` value
+
+        returns a list of subarrays of `data` split by unique values of `frame`
+        if `method` is 'unique', returns tuples of (f, sect)
+        if `ret_dict` is True, returns a dict of the form { f : section } is desired
+        *if method is 'diff', assumes frame is sorted and not missing values
+
+        examples:
+
+            for f, fdata in splitter(data, method='unique'):
+                do stuff
+
+            for fdata in splitter(data):
+                do stuff
+
+            fsets = splitter(data, method='unique', ret_dict=True)
+            fset = fsets[f]
     """
+    if frame is None:
+        frame = data['f']
+    if method is None:
+        method = 'unique' if ret_dict else 'diff'
     if method.lower().startswith('d'):
-        return np.split(data, np.diff(frame).nonzero()[0] + 1)
+        sects = np.split(data, np.diff(frame).nonzero()[0] + 1)
+        if ret_dict:
+            return dict(enumerate(sects))
+        else:
+            return sects
     elif method.lower().startswith('u'):
         u, i = np.unique(frame, return_index=True)
-        return izip(u, np.split(data, i[1:]))
+        sects = np.split(data, i[1:])
+        if ret_dict:
+            return dict(izip(u, sects))
+        else:
+            return izip(u, sects)
 
+
+def bool_input(question):
+    "Returns True or False from yes/no user-input question"
+    answer = raw_input(question)
+    return answer.lower().startswith('y') or answer.lower().startswith('t')
+
+def farange(start,stop,factor):
+    start_power = np.log(start)/np.log(factor)
+    stop_power = np.log(stop)/np.log(factor)
+    return factor**np.arange(start_power,stop_power, dtype=type(factor))
 
 # Pixel-Physical Unit Conversions
 # Physical measurements
@@ -38,4 +79,12 @@ S_vid_m = 22 #ish
 R = R_S         # radius in particle units
 S_vid = R_vid/R # particle in video pixels
 S_slr = R_slr/R # particle in still pixels
+A_slr = S_slr**2 # particle area in still pixels
+A_vid = S_vid**2 # particle area in still pixels
 
+pi = np.pi
+# N = max number of particles (πR^2)/S^2 where S = 1
+Nb = lambda margin: pi * (R - margin)**2
+N = Nb(0)
+
+bobby = 10
