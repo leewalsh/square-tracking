@@ -40,7 +40,7 @@ rr = 1229.5 # radius of disk in pixels, see equilibrium.ipynb
 pi = np.pi
 tau = 2*pi
 
-def bulk(positions, margin=0, full_N=None, center=None, radius=None):
+def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
     """ Filter marginal particles from bulk particles to reduce boundary effects
             positions:  (N, 2) array of particle positions
             margin:     width of margin, in units of pixels or particle sides
@@ -301,20 +301,78 @@ def bin_average(r, f, bins=10):
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def autocorr(f, mode='same'):
+def autocorr(f, mode='same', side='right', cumulant=True,
+             normalize=True, verbose=False, shift=False):
     """ The autocorrelation function of f(x)
         f: 1d array, as function of x
         mode: passed to scipy.signal.correlate
-        returns the autocorration function
+        returns the autocorrelation function
         <f(x') f(x + x')> averaged over x'
     """
+    #l = len(f)
+    #df = f - f.mean()
+    #df2 = np.dot(df, df.conj())
+    #a = correlate(df, df.conj(), mode=mode) / df2
+    #h = {'same': l/2, 'full': l}
+    #return a[h[mode]:]
+    return crosscorr(f, f, mode=mode, side=side, cumulant=cumulant,
+                     normalize=normalize, verbose=verbose, shift=shift)
+
+def crosscorr(f, g, mode='same', side='both', cumulant=True, normalize=False, verbose=False, shift=False):
+    """ The cross-correlation function of f(x) and g(x)
+        f, g: 1d arrays, as function of x, with same lengths
+        mode: passed to scipy.signal.correlate
+        side: 'right', 'left', or 'both'
+              indicates whether x > x' or x < x'
+        returns the cross-correlation function
+        <f(x') g(x + x')> averaged over x'
+    """
     l = len(f)
-    m = f.mean()
-    df = f - m
-    df2 = np.dot(df, df)
-    a = correlate(df, df, mode=mode) / df2
-    h = {'same': l/2, 'full': l}
-    return a[h[mode]:]
+    o = l%2 # oddness
+    m = l//2 if mode=='same' else l-1
+    assert l == len(g), ("len(f) = {:d}, len(g) = {:d}\n"
+                         "right now only properly normalized "
+                         "for matching lengths").format(l, len(g))
+
+    if cumulant:
+        f -= f.mean()
+        g -= g.mean()
+
+    c = correlate(f, g, mode=mode)
+
+    # Normalize by overlap
+    dx = np.arange(l)[:m+o]   # shift
+    nr = l - dx
+    nl = m + o + dx[:m]
+    n = np.concatenate([nl, nr])
+    #assert n[m]==1, "overlap normalizer not 1 at m"
+    c /= n              # normalize it!
+
+    if normalize or shift:
+        # Normalize by no-shift value
+        fg = c[m]
+        if verbose:
+            fgs = c[m], np.dot(f, g), c.max()
+            assert np.allclose(fg, fgs), (
+                    "normalization calculations don't all match:"
+                    "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
+    elif verbose:
+        print 'central value:', c[m]
+    if normalize:
+        c /= fg
+        if verbose:
+            print "normalizing by scaler:", fg
+    if shift:
+        c -= fg/l
+        if verbose:
+            print "shifting by scaler:", fg
+
+    if side=='both':
+        return c
+    elif side=='left':
+        return c[m::-1]
+    elif side=='right':
+        return c[m:]
 
 def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
     """ exponential decay with a polynomial decay scale
@@ -793,6 +851,8 @@ def exp_decay(s, sig=1., a=1., c=0):
 def powerlaw(t, b=1., a=1., c=0):
     """ powerlaw(t,b,c,a)
         power law function for fitting
+                                      -b
+        powerlaw(t, b, c, a) = c + a t
 
         Args:
             t,  independent variable
