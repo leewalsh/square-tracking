@@ -394,7 +394,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     msd = np.nanmean(msd, 0)
     return (msd, msd_err) if errorbars else msd
 
-def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
+def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
         lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
@@ -403,15 +403,14 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     A = 1 if ang else S**2
     print "using S = {} pixels, thus A = {} px^2".format(S, A)
-    nframes = data['f'].max()
     try:
         dtau = np.asscalar(dtau)
     except AttributeError:
         pass
     if isinstance(dtau, (float, np.float)):
-        taus = farange(dt0, nframes, dtau)
+        taus = farange(dt0, nframes-1, dtau)
     elif isinstance(dtau, (int, np.int)):
-        taus = np.arange(dtau, nframes, dtau)
+        taus = np.arange(dtau, nframes-1, dtau)
     pl.figure(fignum, figsize)
 
     # Get the mean of msds
@@ -440,7 +439,8 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
         pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
                   label="slope = 1")
     if errorbars:
-        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize, msd_err/A/(taus/fps)**tnormalize,
+        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize,
+                    msd_err/A/(taus/fps)**tnormalize,
                     fmt=meancol, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
@@ -467,9 +467,10 @@ def plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix='',
 if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
-        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix,
-                 show_tracks=show_tracks, singletracks=singletracks, fps=fps,
-                 S=S, kill_flats=kill_flats, kill_jumps=kill_jumps)
+        plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
+                 prefix=prefix, show_tracks=show_tracks,
+                 singletracks=singletracks, fps=fps, S=S,
+                 kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plottracks:
         try:
             bgimage = Im.open(extdir+prefix+'_0001.tif')

@@ -51,9 +51,9 @@ if __name__=='__main__':
                         help='Find the orientations and save')
     parser.add_argument('-n', '--ncorners', type=int, default=3,
                         help='Number of corner dots per particle. Default is 3')
-    parser.add_argument('-r', '--rcorner', type=int, default=10,
+    parser.add_argument('-r', '--rcorner', type=float, default=10,
                         help='Distance to corner dot from central dot, in pixels.')
-    parser.add_argument('--drcorner', type=int, default=-1,
+    parser.add_argument('--drcorner', type=float, default=-1,
                         help='Allowed error in r (rcorner), in pixels. Default is sqrt(r)')
     parser.add_argument('-p', '--plottracks', action='store_true',
                         help='Plot the tracks and orientations as vectors')
@@ -63,7 +63,7 @@ if __name__=='__main__':
                         help='Plot the MSAD (requires --msd first)')
     parser.add_argument('--plotorient', action='store_true',
                         help='Plot the orientational trajectories')
-    parser.add_argument('-s', '--side', type=int, default=1,
+    parser.add_argument('-s', '--side', type=float, default=1,
                         help='Particle size in pixels, for unit normalization')
     parser.add_argument('-f', '--fps', type=int, default=1,
                         help="Number of frames per second (or per shake) "
@@ -272,7 +272,7 @@ if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
         from tracks import plot_msd
-        plot_msd(data, msds, msdids, dtau, dt0, tnormalize=False, prefix=prefix,
+        plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False, prefix=prefix,
                  show_tracks=show_tracks, singletracks=singletracks, fps=fps,
                  S=S, ang=True, kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plotorient:

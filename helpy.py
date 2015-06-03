@@ -46,6 +46,50 @@ def splitter(data, frame=None, method=None, ret_dict=False):
         else:
             return izip(u, sects)
 
+def load_MSD(fullprefix, pos=True, ang=True):
+    """ Given `fullprefix`
+        Returns `msds`, `msdids`, `msads`, `msadids`, `dtau`, `dt0`
+    """
+    ret = ()
+    if pos:
+        msdnpz = np.load(fullprefix+'_MSD.npz')
+        ret += msdnpz['msds'], msdnpz['msdids']
+        dtau = msdnpz['dtau'][()]
+        dt0 = msdnpz['dt0'][()]
+    if ang:
+        msadnpz = np.load(fullprefix+'_MSAD.npz')
+        ret += msadnpz['msds'], msadnpz['msdids']
+        if pos:
+            assert dtau == msadnpz['dtau'][()]\
+                and dt0 == msadnpz['dt0'][()],\
+                   'dt mismatch'
+        else:
+            dtau = msadnpz['dtau'][()]
+            dt0 = msadnpz['dt0'][()]
+    ret += dtau, dt0
+    print 'loading MSDs for', fullprefix
+    return ret
+
+def load_data(fullprefix, ret_odata=True, ret_cdata=False):
+    """ Given `fullprefix`
+        returns: `data`, `trackids`,[ `odata`,] `omask`,[ `cdata`]
+    """
+    ret = ()
+
+    datanpz = np.load(fullprefix+'_TRACKS.npz')
+    ret += datanpz['data'], datanpz['trackids']
+
+    odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
+    if ret_odata:
+        ret += (odatanpz['odata'],)
+    ret += (odatanpz['omask'],)
+
+    if ret_cdata:
+        cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
+        ret += (cdatanpz['data'],)
+
+    print 'loaded data for', fullprefix
+    return ret
 
 def bool_input(question):
     "Returns True or False from yes/no user-input question"

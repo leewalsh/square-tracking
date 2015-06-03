@@ -1,3 +1,4 @@
+# coding: utf-8
 
 from __future__ import division
 from itertools import izip
@@ -20,6 +21,9 @@ if __name__=='__main__':
     else:
         print "computer not defined"
         print "where are you working?"
+
+pi = np.pi
+twopi = 2*pi
 
 def field_rename(a, old, new):
     a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
@@ -62,9 +66,9 @@ def get_orientation(b):
             ang = np.arctan2(mi - hght/2, ni - wdth/2)
             p.append([ang,abs(n)])
     p = np.asarray(p)
-    p[:,0] = p[:,0] + np.pi
+    p[:,0] = p[:,0] + pi
     slices = 45
-    slicewidth = 2*np.pi/slices
+    slicewidth = 2*pi/slices
     s = []
     for sl in range(slices):
         si = np.nonzero(abs(p[:,0] - sl*slicewidth) < slicewidth)
@@ -75,8 +79,8 @@ def get_orientation(b):
         pl.figure()
         #pl.plot(p[:,0],p[:,1],'.',label='p')
         #pl.plot(s[:,0],s[:,1],'o',label='s')
-        pl.plot(p[:,0]%(np.pi/2),p[:,1],'.',label='p')
-        pl.plot(s[:,0]%(np.pi/2),s[:,1],'o',label='s')
+        pl.plot(p[:,0]%(pi/2),p[:,1],'.',label='p')
+        pl.plot(s[:,0]%(pi/2),s[:,1],'o',label='s')
         pl.legend()
         pl.show()
     elif do_plots and computer is 'foppl':
@@ -139,11 +143,11 @@ def find_corner(particle, corners, tree=None,
     if do_average and nc > 1:
         amps = np.hypot(*cdisp.T)[...,None]
         ndisp = cdisp/amps
-        porient = np.arctan2(*ndisp.mean(0)[::-1]) % (2*np.pi)
+        porient = np.arctan2(*ndisp.mean(0)[::-1]) % twopi
         cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
         pcorner = cdisp + particle
     else:
-        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % (2*np.pi)
+        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % twopi
 
     return pcorner, porient, cdisp
 
@@ -291,19 +295,23 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     pl.show()
     return qq, cb
 
-def track_orient(data, odata, track, tracks, omask=None):
+def track_orient(odata, track=None, tracks=None, omask=None, onetrack=False):
     """ tracks branch cut crossings for orientation data
         assumes that dtheta << pi for each frame
     """
-    cutoff = 3*np.pi/2
-    if omask is None:
-        omask = np.isfinite(odata['orient'])
-    mask = (track == tracks) & omask
-    deltas = np.diff(odata['orient'][mask])
+    cutoff = 3*pi/2
+    if onetrack:
+        orients = odata
+    else:
+        if omask is None:
+            omask = np.isfinite(odata['orient'])
+        mask = (track == tracks) & omask
+        orients = odata['orient'][mask]
+    deltas = np.diff(orients)
     deltas = np.concatenate(([0], deltas))
     crossings = (deltas < -cutoff).astype(int) - (deltas > cutoff).astype(int)
-    crossings = crossings.cumsum() * 2 * np.pi
-    return odata['orient'][mask] + crossings
+    crossings = crossings.cumsum() * twopi
+    return orients + crossings
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
     if omask is None:
@@ -334,11 +342,11 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
                     'o', c=c,label='delta {}'.format(goodtrack))
         else:
             pl.plot(data['f'][fullmask][plotrange]/fps,
-                    track_orient(data, odata, goodtrack, tracks, omask)[plotrange],
+                    track_orient(odata, goodtrack, tracks, omask)[plotrange],
                     '--', label='tracked {}'.format(goodtrack))
     if delta:
         for n in np.arange(-2 if delta else 0,2.5,0.5):
-            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*np.pi,'k--')
+            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*pi,'k--')
     if len(goodtracks) < 10:
         pl.legend()
     #pl.title('Orientation over time')#\ninitial orientation = 0')
@@ -364,7 +372,7 @@ def plot_orient_location(data,odata,tracks):
         loc_start = (data['x'][fullmask][0],data['y'][fullmask][0])
         orient_start = odata['orient'][fullmask][0]
         sc = pl.scatter(
-                (odata['orient'][fullmask] - orient_start + np.pi) % (2*np.pi),
+                (odata['orient'][fullmask] - orient_start + pi) % twopi,
                 np.asarray(map(corr.get_norm,
                     zip([loc_start]*fullmask.sum(),
                         zip(data['x'][fullmask],data['y'][fullmask]))
