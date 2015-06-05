@@ -308,17 +308,15 @@ def autocorr(f, mode='same', side='right', cumulant=True,
 
         The cross-correlation of f and g
         returns the cross-correlation function
-            <f(x) g(x + dx)> averaged over x
+            <f(x) g(x - dx)> averaged over x
 
         f, g:   1d arrays, as function of x, with same lengths
-        side:   'right' returns only dx > 0, as function of dx
-                'left'  returns only dx < 0, as function of -dx
-                'both'  returns entire correlation, as function of dx
+        side:   'right' returns only dx > 0, (x' < x)
+                'left'  returns only dx < 0, (x < x')
+                'both'  returns entire correlation
         cumulant: if True, subtracts mean of the function before correlation
-                  may be a tuple to independently choose for f, g
-        shift:  if True subtract out the independent parts: <f><g>
-                that is, return <f(x) g(x+dx)> - <f> <g>
-        mode:   passed to scipy.signal.correlate, has little effect here.
+        mode:   passed to scipy.signal.correlate, has little effect here, but
+                returns shorter correlation array
     """
     return crosscorr(f, f, mode=mode, side=side, cumulant=cumulant,
                      normalize=normalize, verbose=verbose, ret_dx=ret_dx)
@@ -329,21 +327,21 @@ def crosscorr(f, g, side='both', cumulant=False, normalize=False,
                   normalize=False, verbose=False):
         The cross-correlation of f and g
         returns the cross-correlation function
-            <f(x) g(x + dx)> averaged over x
+            <f(x) g(x - dx)> averaged over x
 
         f, g:   1d arrays, as function of x, with same lengths
-        side:   'right' returns only dx > 0, indexed by dx
-                'left'  returns only dx < 0, indexed by -dx
-                'both'  returns entire correlation, indexed by dx + m
-        cumulant: if True, subtracts mean of the function before correlation
-        mode:   passed to scipy.signal.correlate, has little effect here.
-        normalize: if True, normalize by the correlation at no shift,
+        side:   'right' returns only dx > 0, (x' < x)
+                'left'  returns only dx < 0, (x < x')
+                'both'  returns entire correlation
+        cumulant:   if True, subtracts mean of the function before correlation
+        mode:       passed to scipy.signal.correlate, has little effect here.
+        normalize:  if True, normalize by the correlation at no shift,
                     that is, by <f(x) g(x) >
         ret_dx: if True, return the dx shift between f and g
                 that is, if we are looking at <f(x) g(x')>
-                then dx = x' - x
-        reverse: if True, flip g relative to f,
-                    that is, calculate <f(x) g(dx - x)>
+                then dx = x - x'
+        reverse:    if True, flip g relative to f, that is,
+                    calculate <f(x) g(dx - x)> ?could be f(x) g(-dx-x)
     """
     l = len(f)
     m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
@@ -391,7 +389,8 @@ def crosscorr(f, g, side='both', cumulant=False, normalize=False,
         if side=='both':
             return np.arange(-m, L-m), c
         elif side=='left':
-            return np.arange(0, -m-1, -1), c[m::-1]
+            #return np.arange(0, -m-1, -1), c[m::-1]
+            return np.arange(-m, 1,), c[:m+1]
         elif side=='right':
             return np.arange(0, L-m), c[m:]
 
