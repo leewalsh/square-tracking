@@ -13,7 +13,7 @@ from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi, cKDTree, Delaunay
 from scipy.ndimage import gaussian_filter, gaussian_filter1d
-from scipy.signal import hilbert, correlate
+from scipy.signal import hilbert, correlate, convolve
 from scipy.fftpack import fft2
 from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
@@ -302,70 +302,98 @@ def bin_average(r, f, bins=10):
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
 def autocorr(f, mode='same', side='right', cumulant=True,
-             normalize=True, verbose=False, shift=False):
-    """ The autocorrelation function of f(x)
-        f: 1d array, as function of x
-        mode: passed to scipy.signal.correlate
-        returns the autocorrelation function
-        <f(x') f(x + x')> averaged over x'
-    """
-    #l = len(f)
-    #df = f - f.mean()
-    #df2 = np.dot(df, df.conj())
-    #a = correlate(df, df.conj(), mode=mode) / df2
-    #h = {'same': l/2, 'full': l}
-    #return a[h[mode]:]
-    return crosscorr(f, f, mode=mode, side=side, cumulant=cumulant,
-                     normalize=normalize, verbose=verbose, shift=shift)
+             normalize=True, verbose=False, ret_dx=False):
+    """ autocorr(f, mode='same', side='right', cumulant=True,
+             normalize=True, verbose=False, ret_dx=False)
 
-def crosscorr(f, g, mode='same', side='both', cumulant=True, normalize=False, verbose=False, shift=False):
-    """ The cross-correlation function of f(x) and g(x)
-        f, g: 1d arrays, as function of x, with same lengths
-        mode: passed to scipy.signal.correlate
-        side: 'right', 'left', or 'both'
-              indicates whether x > x' or x < x'
+        The cross-correlation of f and g
         returns the cross-correlation function
-        <f(x') g(x + x')> averaged over x'
+            <f(x) g(x + dx)> averaged over x
+
+        f, g:   1d arrays, as function of x, with same lengths
+        side:   'right' returns only dx > 0, as function of dx
+                'left'  returns only dx < 0, as function of -dx
+                'both'  returns entire correlation, as function of dx
+        cumulant: if True, subtracts mean of the function before correlation
+                  may be a tuple to independently choose for f, g
+        shift:  if True subtract out the independent parts: <f><g>
+                that is, return <f(x) g(x+dx)> - <f> <g>
+        mode:   passed to scipy.signal.correlate, has little effect here.
+    """
+    return crosscorr(f, f, mode=mode, side=side, cumulant=cumulant,
+                     normalize=normalize, verbose=verbose, ret_dx=ret_dx)
+
+def crosscorr(f, g, side='both', cumulant=False, normalize=False,
+              verbose=False, mode='same', reverse=False, ret_dx=False):
+    """ crosscorr(f, g, mode='same', side='both', cumulant=False,
+                  normalize=False, verbose=False):
+        The cross-correlation of f and g
+        returns the cross-correlation function
+            <f(x) g(x + dx)> averaged over x
+
+        f, g:   1d arrays, as function of x, with same lengths
+        side:   'right' returns only dx > 0, indexed by dx
+                'left'  returns only dx < 0, indexed by -dx
+                'both'  returns entire correlation, indexed by dx + m
+        cumulant: if True, subtracts mean of the function before correlation
+        mode:   passed to scipy.signal.correlate, has little effect here.
+        normalize: if True, normalize by the correlation at no shift,
+                    that is, by <f(x) g(x) >
+        ret_dx: if True, return the dx shift between f and g
+                that is, if we are looking at <f(x) g(x')>
+                then dx = x' - x
+        reverse: if True, flip g relative to f,
+                    that is, calculate <f(x) g(dx - x)>
     """
     l = len(f)
-    o = l%2 # oddness
-    m = l//2 if mode=='same' else l-1
+    m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
+    L = l    if mode=='same' else 2*l-1 # length of correlation
+    if verbose:
+        print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
     assert l == len(g), ("len(f) = {:d}, len(g) = {:d}\n"
                          "right now only properly normalized "
                          "for matching lengths").format(l, len(g))
 
     if cumulant:
-        f -= f.mean()
-        g -= g.mean()
+        f = f - f.mean()
+        g = g - g.mean()
 
-    c = correlate(f, g, mode=mode)
+    c = convolve(f, g, mode=mode) if reverse else correlate(f, g, mode=mode)
+    if verbose:
+        assert c.argmax() == m, "m not at max!"
 
-    # Normalize by overlap
-    dx = np.arange(l)[:m+o]   # shift
-    nr = l - dx
-    nl = m + o + dx[:m]
+    # divide by overlap
+    nl = np.arange(l - m, l)
+    nr = np.arange(l, m - (L - l) , -1)
     n = np.concatenate([nl, nr])
-    #assert n[m]==1, "overlap normalizer not 1 at m"
-    c /= n              # normalize it!
+    if verbose:
+        print nl, nr
+        overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
+        print '      n: {}\noverlap: {}'.format(n, overlap)
+        assert np.allclose(n, overlap),\
+                "overlap miscalculated:\n\t{}\n\t{}".format(n, overlap)
+        assert n[m]==l, "overlap normalizer not l at m"
+    c /= n
 
-    if normalize or shift:
+    if normalize:
         # Normalize by no-shift value
-        fg = c[m]
+        c /= c[m]
         if verbose:
             fgs = c[m], np.dot(f, g), c.max()
+            print "normalizing by scaler:", fgs[0]
             assert np.allclose(fg, fgs), (
                     "normalization calculations don't all match:"
                     "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
     elif verbose:
         print 'central value:', c[m]
-    if normalize:
-        c /= fg
-        if verbose:
-            print "normalizing by scaler:", fg
-    if shift:
-        c -= fg/l
-        if verbose:
-            print "shifting by scaler:", fg
+
+    if ret_dx:
+        if side=='both':
+            return np.arange(-m, L-m), c
+        elif side=='left':
+            return np.arange(0, -m-1, -1), c[m::-1]
+        elif side=='right':
+            return np.arange(0, L-m), c[m:]
 
     if side=='both':
         return c
