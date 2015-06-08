@@ -301,10 +301,10 @@ def bin_average(r, f, bins=10):
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def autocorr(f, mode='same', side='right', cumulant=True,
-             normalize=True, verbose=False, ret_dx=False):
-    """ autocorr(f, mode='same', side='right', cumulant=True,
-             normalize=True, verbose=False, ret_dx=False)
+def autocorr(f, side='right', cumulant=True, norm=True, mode='same',
+             verbose=False, reverse=False, ret_dx=False):
+    """ autocorr(f, side='right', cumulant=True, norm=True, mode='same',
+                 verbose=False, reverse=False, ret_dx=False):
 
         The cross-correlation of f and g
         returns the cross-correlation function
@@ -318,13 +318,14 @@ def autocorr(f, mode='same', side='right', cumulant=True,
         mode:   passed to scipy.signal.correlate, has little effect here, but
                 returns shorter correlation array
     """
-    return crosscorr(f, f, mode=mode, side=side, cumulant=cumulant,
-                     normalize=normalize, verbose=verbose, ret_dx=ret_dx)
+    return crosscorr(f, f, side=side, cumulant=cumulant, norm=norm,
+                    mode=mode, verbose=verbose, reverse=reverse, ret_dx=ret_dx)
 
-def crosscorr(f, g, side='both', cumulant=False, normalize=False,
-              verbose=False, mode='same', reverse=False, ret_dx=False):
-    """ crosscorr(f, g, mode='same', side='both', cumulant=False,
-                  normalize=False, verbose=False):
+def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+              verbose=False, reverse=False, ret_dx=False):
+    """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+                  verbose=False, reverse=False, ret_dx=False):
+
         The cross-correlation of f and g
         returns the cross-correlation function
             <f(x) g(x - dx)> averaged over x
@@ -335,7 +336,7 @@ def crosscorr(f, g, side='both', cumulant=False, normalize=False,
                 'both'  returns entire correlation
         cumulant:   if True, subtracts mean of the function before correlation
         mode:       passed to scipy.signal.correlate, has little effect here.
-        normalize:  if True, normalize by the correlation at no shift,
+        norm:  if True, normalize by the correlation at no shift,
                     that is, by <f(x) g(x) >
         ret_dx: if True, return the dx shift between f and g
                 that is, if we are looking at <f(x) g(x')>
@@ -373,7 +374,7 @@ def crosscorr(f, g, side='both', cumulant=False, normalize=False,
         assert n[m]==l, "overlap normalizer not l at m"
     c /= n
 
-    if normalize:
+    if norm:
         # Normalize by no-shift value
         c /= c[m]
         if verbose:
