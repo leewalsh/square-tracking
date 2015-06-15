@@ -3,8 +3,9 @@
 
 from itertools import izip
 import numpy as np
+import orientation as orient
 
-def splitter(data, frame=None, method=None, ret_dict=False):
+def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
     """ Splits a dataset into subarrays with unique frame value
         `data` : the dataset (will be split along first axis)
         `frame`: the values to group by. Uses `data['f']` if `None`
@@ -27,11 +28,15 @@ def splitter(data, frame=None, method=None, ret_dict=False):
 
             fsets = splitter(data, method='unique', ret_dict=True)
             fset = fsets[f]
+
+            for trackid, trackset in splitter(data, data['lab'], noncontiguous=True)
+            tracksets = splitter(data, data['lab'], noncontiguous=True, ret_dict=True)
+            trackset = tracksets[trackid]
     """
     if frame is None:
         frame = data['f']
     if method is None:
-        method = 'unique' if ret_dict else 'diff'
+        method = 'unique' if ret_dict or noncontiguous else 'diff'
     if method.lower().startswith('d'):
         sects = np.split(data, np.diff(frame).nonzero()[0] + 1)
         if ret_dict:
@@ -40,11 +45,30 @@ def splitter(data, frame=None, method=None, ret_dict=False):
             return sects
     elif method.lower().startswith('u'):
         u, i = np.unique(frame, return_index=True)
-        sects = np.split(data, i[1:])
+        if noncontiguous:
+            # no nicer way to do this:
+            sects = [ data[np.where(frame==fi)] for fi in u ]
+        else:
+            sects = np.split(data, i[1:])
         if ret_dict:
             return dict(izip(u, sects))
         else:
             return izip(u, sects)
+
+def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
+    """ take uneven list of lists
+        return new 2d array with shorter lists padded with fill value"""
+    if dtype is None:
+        dtype = np.result_type(fill, lst[0][0])
+    shape = len(lst), max(map(len, lst))
+    result = np.zeros(shape, dtype) if fill==0 else np.full(shape, fill, dtype)
+    if return_mask:
+        mask = np.zeros(shape, bool)
+    for i, row in enumerate(lst):
+        result[i, :len(row)] = row
+        if return_mask:
+            mask[i, :len(row)] = True
+    return (result, mask) if return_mask else result
 
 def load_MSD(fullprefix, pos=True, ang=True):
     """ Given `fullprefix`
@@ -91,6 +115,24 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
     print 'loaded data for', fullprefix
     return ret
 
+def loadall(fullprefix, do_msd=True):
+    data, trackids, odata, omask = load_data(fullprefix, ret_odata=True, ret_cdata=False)
+    fsets = splitter(data, ret_dict=True)
+    fosets = splitter(odata[omask], data['f'], ret_dict=True)
+    longtracks = np.argwhere(np.bincount(trackids) > 1000).flatten()
+    tracksets  = { track:
+                   data[(data['lab']==track)&omask]
+                   for track in longtracks}
+    otracksets = { track:
+                   orient.track_orient(odata[(data['lab']==track)&omask]['orient'], onetrack=True)
+                   for track in longtracks}
+    if do_msd:
+        msds, msdids, msads, msadids, dtau, dt0 = load_MSD(fullprefix, True, True)
+        return data, tracksets, odata, otracksets, msds, msdids, msads, msadids, dtau, dt0
+    else:
+        return data, tracksets, odata, otracksets
+
+
 def bool_input(question):
     "Returns True or False from yes/no user-input question"
     answer = raw_input(question)
@@ -100,6 +142,16 @@ def farange(start,stop,factor):
     start_power = np.log(start)/np.log(factor)
     stop_power = np.log(stop)/np.log(factor)
     return factor**np.arange(start_power,stop_power, dtype=type(factor))
+
+def loglog_slope(x, y, smooth=0):
+    dx = 0.5*(x[1:] + x[:-1])
+    dy = np.diff(np.log(y)) / np.diff(np.log(x))
+
+    if smooth:
+        from scipy.ndimage import gaussian_filter1d
+        dy = gaussian_filter1d(dy, smooth, mode='reflect')
+    return dx, dy
+
 
 # Pixel-Physical Unit Conversions
 # Physical measurements

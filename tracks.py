@@ -270,8 +270,13 @@ def trackmsd(track, dt0, dtau):
         finds the track msd, as function of tau,
         averaged over t0, for one track (worldline)
     """
-    tmsd = []
     trackdots = data[trackids==track]
+
+    if dt0 == dtau == 1:
+        if verbose: print "Using correlation"
+        xy = np.column_stack([trackdots['x'], trackdots['y']])
+        return corr.msd(xy)
+
     trackbegin, trackend = trackdots['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
     if verbose:
@@ -281,6 +286,8 @@ def trackmsd(track, dt0, dtau):
         taus = farange(dt0, tracklen, dtau)
     elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
+
+    tmsd = []
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =", tau
         avg = t0avg(trackdots, tracklen, tau)
@@ -321,7 +328,7 @@ def find_msds(dt0, dtau, tracks=None):
     msds = []
     msdids = []
     if tracks is None:
-        tracks = set(trackids)
+        tracks = np.unique(trackids)
     for trackid in tracks:
         if verbose: print "calculating msd for track", trackid
         tmsd = trackmsd(trackid, dt0, dtau)

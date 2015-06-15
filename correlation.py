@@ -450,6 +450,52 @@ def vary_gauss(a, sig=1, verbose=False):
 
     return b
 
+def msd(xs, ret_taus=False):
+    """ So far:
+          - only accepts the positions in 1 or 2d array (no data structure)
+          - can only do dt0 = dtau = 1
+
+        msd = < [x(t0 + tau) - x(t0)]**2 >
+            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0+tau) x(t0) >
+            = cumsum
+
+        The first two terms are averaged over all values of t0 that are valid
+        for the current value of tau. Thus, we have sums of x(t0) and x(t0+tau)
+        for all values of t0 in [0, T - tau). For small values of tau, nearly
+        all values of t0 are valid, and vice versa. The averages for increasing
+        values of tau is the reverse of cumsum(x) / (T-tau)
+
+        Time must be axis 0, but any number of dimensions is allowed (along axis 1)
+    """
+
+    d = xs.ndim
+    if d==1 :
+        T = len(xs)
+        xs = xs[:, None]
+    elif d==2:
+        T, d = xs.shape
+        assert T > d, "Are you sure time is axis 0?"
+    else:
+        raise ValueError, "can't handle xs.ndims > 2. xs.shape is {}".format(xs.shape)
+
+    # The last term is an autocorrelation for x(t):
+    xx0 = np.apply_along_axis(autocorr, 0, xs,
+                              side='right', cumulant=False, norm=False, mode='full',
+                              verbose=False, reverse=False, ret_dx=False)
+
+    ntau = np.arange(T, 0, -1) # = T - tau
+    x2 = xs * xs
+    #x0avg = np.cumsum(x2)[::-1] / ntau
+    #xavg = np.cumsum(x2[::-1])[::-1] / ntau
+    # we'll only ever combine these, which can be done with one call:
+    #x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    #assert x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
+
+    msd = x2s - 2*xx0
+    msd = msd.sum(1) # straight sum over dimensions (x2 + y2 + ...)
+
+    return np.column_stack([np.arange(T), msd]) if ret_taus else msd
 
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     """ Find the decay scale of a function f(x)
@@ -532,7 +578,7 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
     if 'neigh' in method or 'ball' in method:
         tree = cKDTree(positions)
         balls = tree.query_ball_tree(tree, bl)
-        balls, ball_mask = pad_uneven(balls, 0, True, int)
+        balls, ball_mask = helpy.pad_uneven(balls, 0, True, int)
         ball_orient = orientations[balls]
         ball_orient[~ball_mask] = np.nan
         phis = np.nanmean(np.exp(m*ball_orient*1j), 1)
@@ -550,21 +596,6 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         block_ind = np.column_stack([
                      np.digitize(positions[:,0], xbins),
                      np.digitize(positions[:,1], ybins)])
-
-def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
-    """ take uneven list of lists
-        return new 2d array with shorter lists padded with fill value"""
-    if dtype is None:
-        dtype = np.result_type(fill, lst[0][0])
-    shape = len(lst), max(map(len, lst))
-    result = np.zeros(shape, dtype) if fill==0 else np.full(shape, fill, dtype)
-    if return_mask:
-        mask = np.zeros(shape, bool)
-    for i, row in enumerate(lst):
-        result[i, :len(row)] = row
-        if return_mask:
-            mask[i, :len(row)] = True
-    return (result, mask) if return_mask else result
 
 def get_id(data, position, frames=None, tolerance=10e-5):
     """ take a particle's `position' (x,y)
@@ -596,7 +627,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         #method = 'voronoi'
         tess = Delaunay(positions)
         neighbors = get_neighbors(tess, xrange(tess.npoints))
-        neighbors, nmask = pad_uneven(neighbors, 0, True, int)
+        neighbors, nmask = helpy.pad_uneven(neighbors, 0, True, int)
     elif isinstance(neighborhood, int):
         #method = 'nearest'
         tree = cKDTree(positions)
@@ -876,6 +907,9 @@ def exp_decay(s, sig=1., a=1., c=0):
     """
     return c + a*np.exp(-s/sig)
 
+def log_decay(t, a=1, l=1., c=0.):
+    return c - a*np.log(t/l)
+
 def powerlaw(t, b=1., a=1., c=0):
     """ powerlaw(t,b,c,a)
         power law function for fitting
@@ -893,8 +927,18 @@ def powerlaw(t, b=1., a=1., c=0):
     """
     return c + a * np.power(t, -b)
 
-def log_decay(t, a=1, l=1., c=0.):
-    return c - a*np.log(t/l)
+def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
+    p1 = powerlaw(t, b1, d1, c1)
+    p2 = powerlaw(t, b2, d2, c2)
+    cp = np.maximum(p1, p2)
+    if ret_crossover:
+        ct = t[np.abs(p1-p2).argmin()]
+        print ct
+        ct = np.power(d1/d2, -np.reciprocal(b2-b1))
+        print ct
+        return cp, ct
+    else:
+        return cp
     
 def domyfits():
     if computer is 'foppl':
