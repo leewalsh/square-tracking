@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+# encoding: utf-8
 
 from __future__ import division
 import numpy as np
 from PIL import Image as Im
 from itertools import izip
 import sys
+
+import helpy
 
 from socket import gethostname
 hostname = gethostname()
@@ -27,11 +30,10 @@ elif 'peregrine' in hostname:
 else:
     print "computer not defined"
     locdir = extdir = ''
-    plot_capable = bool_input("Are you able to plot?")
+    plot_capable = helpy.bool_input("Are you able to plot?")
     if plot_capable:
         import matplotlib
 
-from helpy import farange, bool_input
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
@@ -61,7 +63,7 @@ if __name__=='__main__':
                         help='Calculate the MSD')
     parser.add_argument('--plotmsd', action='store_true',
                         help='Plot the MSD (requires --msd first)')
-    parser.add_argument('-s', '--side', type=int, default=1,
+    parser.add_argument('-s', '--side', type=float, default=1,
                         help='Particle size in pixels, for unit normalization')
     parser.add_argument('-f', '--fps', type=int, default=1,
                         help="Number of frames per second (or per shake) "
@@ -91,20 +93,15 @@ if __name__=='__main__':
     print 'using prefix', prefix
     dotfix = '_CORNER' if args.corner else ''
 
-    loaddata =   args.load
+    gendata  =  args.load
     findtracks = args.track
     plottracks = args.plottracks
     findmsd = args.msd
     plotmsd = args.plotmsd
-    loadmsd = plotmsd and not findmsd
 
     S = args.side
-    if S > 1:
-        S = float(S)
     A = S**2
     fps = args.fps
-    if fps > 1:
-        fps = float(fps)
     dtau = args.dtau
     dt0 = args.dt0
 
@@ -148,7 +145,9 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
                 if verbose:
                     print "found a closer child dot to the this dot's parent"
                     print "New track:", newtrackid
-                    print '\tframe:', frame,'n:', n,'dot:', thisdot['id'], 'closer:', curdots[mini2]['id']
+                    print '\tframe:', frame,'n:', n,
+                    print 'dot:', thisdot['id'],
+                    print 'closer:', curdots[mini2]['id']
                 return newtrackid
             return trackids[closest['id']]
         elif n < giveup:
@@ -163,7 +162,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
             return newtrackid
 
 # Tracking
-def load_data(datapath):
+def gen_data(datapath):
     print "loading positions data from", datapath
     if  datapath.endswith('results.txt'):
         shapeinfo = False
@@ -218,32 +217,6 @@ def find_tracks(data, n=-1, giveup=10):
 
     return trackids
 
-if __name__=='__main__':
-    if loaddata:
-        datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
-        data = load_data(datapath)
-        print "\t...loaded"
-    if findtracks:
-        if not loaddata:
-            data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
-        trackids = find_tracks(data, n=args.number)
-    elif loaddata:
-        print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
-        np.savez(locdir+prefix+dotfix+"_POSITIONS",
-                data = data)
-        print '\t...saved'
-    else:
-        # assume existing tracks.npz
-        try:
-            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-            trackids = tracksnpz['trackids']
-            print "loading data and tracks from "+prefix+"_TRACKS.npz"
-        except IOError:
-            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            print "loading positions data from "+prefix+"_POSITIONS.npz"
-        data = tracksnpz['data']
-        print "\t...loaded"
-
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
     pl.figure(fignum)
@@ -274,8 +247,9 @@ def trackmsd(track, dt0, dtau):
 
     if dt0 == dtau == 1:
         if verbose: print "Using correlation"
+        import correlation.msd
         xy = np.column_stack([trackdots['x'], trackdots['y']])
-        return corr.msd(xy)
+        return correlation.msd(xy, ret_taus=True)
 
     trackbegin, trackend = trackdots['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
@@ -283,7 +257,7 @@ def trackmsd(track, dt0, dtau):
         print "tracklen =",tracklen
         print "\t from %d to %d"%(trackbegin, trackend)
     if isinstance(dtau, float):
-        taus = farange(dt0, tracklen, dtau)
+        taus = helpy.farange(dt0, tracklen, dtau)
     elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
 
@@ -336,30 +310,7 @@ def find_msds(dt0, dtau, tracks=None):
             tmsdarr = np.asarray(tmsd)
             msds.append(tmsd)
             msdids.append(trackid)
-    np.savez(locdir+prefix+"_MSD",
-             msds = np.asarray(msds),
-             msdids = np.asarray(msdids),
-             dt0  = np.asarray(dt0),
-             dtau = np.asarray(dtau))
-    print "saved msd data to", prefix+"_MSD.npz"
     return msds, msdids
-
-if __name__=='__main__':
-    if findmsd:
-        msds, msdids = find_msds(dt0, dtau)
-    elif loadmsd:
-        print "loading msd data from npz files"
-        msdnpz = np.load(locdir+prefix+"_MSD.npz")
-        msds = msdnpz['msds']
-        try: msdids = msdnpz['msdids']
-        except KeyError: msdids = None
-        try:
-            dt0  = np.asscalar(msdnpz['dt0'])
-            dtau = np.asscalar(msdnpz['dtau'])
-        except KeyError:
-            dt0  = 10 # here's assuming...
-            dtau = 10 #  should be true for all from before dt* was saved
-        print "\t...loaded"
 
 # Mean Squared Displacement:
 
@@ -415,7 +366,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     except AttributeError:
         pass
     if isinstance(dtau, (float, np.float)):
-        taus = farange(dt0, nframes-1, dtau)
+        taus = helpy.farange(dt0, nframes-1, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes-1, dtau)
     pl.figure(fignum, figsize)
@@ -470,6 +421,54 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         print "saving to", save
         pl.savefig(save)
     pl.show()
+
+if __name__=='__main__':
+    if findmsd:
+        msds, msdids = find_msds(dt0, dtau)
+        np.savez(locdir+prefix+"_MSD",
+                 msds = np.asarray(msds),
+                 msdids = np.asarray(msdids),
+                 dt0  = np.asarray(dt0),
+                 dtau = np.asarray(dtau))
+        print "saved msd data to", prefix+"_MSD.npz"
+    elif plotmsd:
+        print "loading msd data from npz files"
+        msdnpz = np.load(locdir+prefix+"_MSD.npz")
+        msds = msdnpz['msds']
+        try: msdids = msdnpz['msdids']
+        except KeyError: msdids = None
+        try:
+            dt0  = np.asscalar(msdnpz['dt0'])
+            dtau = np.asscalar(msdnpz['dtau'])
+        except KeyError:
+            dt0  = 10 # here's assuming...
+            dtau = 10 #  should be true for all from before dt* was saved
+        print "\t...loaded"
+
+    if gendata:
+        datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
+        data = gen_data(datapath)
+        print "\t...loaded"
+    if findtracks:
+        if not gendata:
+            data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
+        trackids = find_tracks(data, n=args.number)
+    elif gendata:
+        print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
+        np.savez(locdir+prefix+dotfix+"_POSITIONS",
+                data = data)
+        print '\t...saved'
+    else:
+        # assume existing tracks.npz
+        try:
+            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+            trackids = tracksnpz['trackids']
+            print "loading data and tracks from "+prefix+"_TRACKS.npz"
+        except IOError:
+            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
+            print "loading positions data from "+prefix+"_POSITIONS.npz"
+        data = tracksnpz['data']
+        print "\t...loaded"
 
 if __name__=='__main__' and plot_capable:
     if plotmsd:

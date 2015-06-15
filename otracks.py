@@ -7,6 +7,8 @@ from PIL import Image as Im
 from itertools import izip
 import sys
 
+import helpy
+
 from socket import gethostname
 hostname = gethostname()
 if 'rock' in hostname:
@@ -28,11 +30,10 @@ elif 'peregrine' in hostname:
 else:
     print "computer not defined"
     locdir = extdir = ''
-    plot_capable = bool_input("Are you able to plot?")
+    plot_capable = helpy.bool_input("Are you able to plot?")
     if plot_capable:
         import matplotlib
 
-from helpy import farange, bool_input
 from matplotlib import pyplot as pl
 from matplotlib import cm as cm
 
@@ -96,17 +97,12 @@ if __name__=='__main__':
     plottracks = args.plottracks
     findmsd = args.msd
     plotmsd = args.plotmsd
-    loadmsd = plotmsd and not findmsd
     plotorient = args.plotorient
     findorient = args.orient
 
     S = args.side
-    if S > 1:
-        S = float(S)
     ang = True
     fps = args.fps
-    if fps > 1:
-        fps = float(fps)
     nc = args.ncorners
     rc = args.rcorner
     drc = args.drcorner
@@ -122,39 +118,6 @@ if __name__=='__main__':
 
 else:
     verbose = False
-
-if __name__=='__main__':
-    if True:
-        # assume existing tracks.npz
-        try:
-            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-            trackids = tracksnpz['trackids']
-            print "loading data and tracks from "+prefix+"_TRACKS.npz"
-        except IOError:
-            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            print "loading positions data from "+prefix+"_POSITIONS.npz"
-        data = tracksnpz['data']
-        print "\t...loaded"
-    try:
-        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
-        cdata = cdatanpz['data']
-        print "\t...loaded"
-    except IOError:
-        print prefix+"_CORNER_POSITIONS.npz file not found, have you run `tracks -lc`?"
-    if findorient:
-        print "calculating orientation data"
-        from orientation import get_angles_loop
-        odata, omask = get_angles_loop(data, cdata, nc=nc, rc=rc, drc=drc)
-        np.savez(locdir+prefix+'_ORIENTATION.npz',
-                odata=odata, omask=omask)
-        print '\t...saved'
-    else:
-        try:
-            odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
-            odata = odatanpz['odata']
-            omask = odatanpz['omask']
-        except IOError:
-            print "Cannot find ORIENTATION.npz file, have you run `otracks -o`?"
 
 def load_from_npz(prefix, locdir=None):
     """ given a prefix, returns:
@@ -174,21 +137,30 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
     """ trackmsd(track, dt0, dtau, data, trackids, odata, omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
     """
-    from orientation import track_orient
-    tmsd = []
     tmask = (trackids==track) & omask
     trackdots = data[tmask]
-    trackodata = odata[tmask]['orient'] if mod_2pi \
-            else track_orient(data, odata, track, trackids, omask)
+    if mod_2pi:
+        trackodata = odata[tmask]['orient']
+    else:
+        from orientation import track_orient
+        trackodata = track_orient(data, odata, track, trackids, omask)
+
+        if dt0 == dtau == 1:
+            if verbose: print "Using correlation"
+            import correlation.msd
+            return correlation.msd(trackodata, ret_taus=True)
+
     trackbegin, trackend = trackdots['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
     if verbose:
         print "tracklen =",tracklen
         print "\t from %d to %d"%(trackbegin, trackend)
     if isinstance(dtau, float):
-        taus = farange(dt0, tracklen, dtau)
+        taus = helpy.farange(dt0, tracklen, dtau)
     elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
+
+    tmsd = []
     for tau in taus:  # for tau in T, by factor dtau
         #print "tau =", tau
         avg = t0avg(trackdots, tracklen, tau, trackodata, dt0, mod_2pi=mod_2pi)
@@ -251,9 +223,41 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=Fals
     return msds, msdids
 
 if __name__=='__main__':
+    if True:
+        # assume existing tracks.npz
+        try:
+            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+            trackids = tracksnpz['trackids']
+            print "loading data and tracks from "+prefix+"_TRACKS.npz"
+        except IOError:
+            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
+            print "loading positions data from "+prefix+"_POSITIONS.npz"
+        data = tracksnpz['data']
+        print "\t...loaded"
+    try:
+        cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
+        cdata = cdatanpz['data']
+        print "\t...loaded"
+    except IOError:
+        print prefix+"_CORNER_POSITIONS.npz file not found, have you run `tracks -lc`?"
+    if findorient:
+        print "calculating orientation data"
+        from orientation import get_angles_loop
+        odata, omask = get_angles_loop(data, cdata, nc=nc, rc=rc, drc=drc)
+        np.savez(locdir+prefix+'_ORIENTATION.npz',
+                odata=odata, omask=omask)
+        print '\t...saved'
+    else:
+        try:
+            odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
+            odata = odatanpz['odata']
+            omask = odatanpz['omask']
+        except IOError:
+            print "Cannot find ORIENTATION.npz file, have you run `otracks -o`?"
+
     if findmsd:
         msds, msdids = find_msds(dt0, dtau, data, trackids, odata, omask)
-    elif loadmsd:
+    elif plotmsd:
         print "loading msd data from npz files"
         msdnpz = np.load(locdir+prefix+"_MSAD.npz")
         msds = msdnpz['msds']
@@ -267,14 +271,14 @@ if __name__=='__main__':
             dtau = 10 #  should be true for all from before dt* was saved
         print "\t...loaded"
 
-
 if __name__=='__main__' and plot_capable:
     if plotmsd:
         print 'plotting now!'
         from tracks import plot_msd
-        plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False, prefix=prefix,
-                 show_tracks=show_tracks, singletracks=singletracks, fps=fps,
-                 S=S, ang=True, kill_flats=kill_flats, kill_jumps=kill_jumps)
+        plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
+                 prefix=prefix, show_tracks=show_tracks,
+                 singletracks=singletracks, fps=fps, S=S,
+                 ang=True, kill_flats=kill_flats, kill_jumps=kill_jumps)
     if plotorient:
         from orientation import plot_orient_time
         plot_orient_time(data, odata, trackids, omask, singletracks=singletracks, save=locdir+prefix+'_ORIENTATION.pdf')
