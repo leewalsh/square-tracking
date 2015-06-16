@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+from __future__ import division
 from itertools import izip
 import numpy as np
 import orientation as orient
@@ -115,23 +116,33 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
     print 'loaded data for', fullprefix
     return ret
 
-def loadall(fullprefix, do_msd=True):
-    data, trackids, odata, omask = load_data(fullprefix, ret_odata=True, ret_cdata=False)
+def load_tracksets(data, trackids, odata=None, omask=True, min_length=1000):
+    """ Returns a dict of slices into data based on trackid
+    """
+    longtracks = np.argwhere(np.bincount(trackids) >= min_length).flatten()
+    tracksets  = { track: data[(data['lab']==track) & omask]
+                   for track in longtracks }
+    if odata is not None:
+        otracksets = { track: orient.track_orient(
+               odata[(data['lab']==track) & omask]['orient'], onetrack=True)
+                   for track in longtracks }
+        return tracksets, otracksets
+    else:
+        return tracksets
+
+def loadall(fullprefix, ret_msd=True):
+    """ returns data, tracksets, odata, otracksets,
+         + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
+    """
+    data, trackids, odata, omask = \
+            load_data(fullprefix, ret_odata=True, ret_cdata=False)
     fsets = splitter(data, ret_dict=True)
     fosets = splitter(odata[omask], data['f'], ret_dict=True)
-    longtracks = np.argwhere(np.bincount(trackids) > 1000).flatten()
-    tracksets  = { track:
-                   data[(data['lab']==track)&omask]
-                   for track in longtracks}
-    otracksets = { track:
-                   orient.track_orient(odata[(data['lab']==track)&omask]['orient'], onetrack=True)
-                   for track in longtracks}
-    if do_msd:
-        msds, msdids, msads, msadids, dtau, dt0 = load_MSD(fullprefix, True, True)
-        return data, tracksets, odata, otracksets, msds, msdids, msads, msadids, dtau, dt0
+    tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
+    if ret_msd:
+        return (data, tracksets, odata, otracksets) + load_MSD(fullprefix, True, True)
     else:
         return data, tracksets, odata, otracksets
-
 
 def bool_input(question):
     "Returns True or False from yes/no user-input question"
