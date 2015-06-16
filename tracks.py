@@ -2,12 +2,17 @@
 # encoding: utf-8
 
 from __future__ import division
-import numpy as np
-from PIL import Image as Im
+
 from itertools import izip
+from math import sqrt
 import sys
 
+import numpy as np
+from PIL import Image as Im
+from scipy.optimize import curve_fit
+
 import helpy
+import correlation as corr
 
 from socket import gethostname
 hostname = gethostname()
@@ -65,7 +70,7 @@ if __name__=='__main__':
                         help='Plot the MSD (requires --msd first)')
     parser.add_argument('-s', '--side', type=float, default=1,
                         help='Particle size in pixels, for unit normalization')
-    parser.add_argument('-f', '--fps', type=int, default=1,
+    parser.add_argument('-f', '--fps', type=float, default=1,
                         help="Number of frames per second (or per shake) "
                              "for unit normalization")
     parser.add_argument('--dt0', type=int, default=10,
@@ -84,6 +89,12 @@ if __name__=='__main__':
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
                         help='Show individual tracks')
+    parser.add_argument('--nn', action='store_true',
+                        help='Calculate and plot the <nn> correlation')
+    parser.add_argument('--rn', action='store_true',
+                        help='Calculate and plot the <rn> correlation')
+    parser.add_argument('--rr', action='store_true',
+                        help='Calculate and plot the <rr> correlation')
     parser.add_argument('-v', '--verbose', action='count',
                         help='Print verbosity')
 
@@ -340,7 +351,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
             if tnormalize:
                 pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
-                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.5,
+                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.25,
                           label=msdid if msdids is not None else '')
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
@@ -356,7 +367,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
         lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
-        kill_flats=0, kill_jumps=1e9, show_legend=False, save=''):
+        kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
     """ Plots the MS(A)Ds """
     print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     A = 1 if ang else S**2
@@ -369,7 +380,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         taus = helpy.farange(dt0, nframes-1, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes-1, dtau)
-    pl.figure(fignum, figsize)
+    fig = pl.figure(fignum, figsize)
 
     # Get the mean of msds
     msd = mean_msd(msds, taus, msdids,
@@ -381,7 +392,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     #print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
 
     if tnormalize:
-        plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, 'ko',
+        plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, meancol,
                label="Mean Sq {}Disp/Time{}".format(
                      "Angular " if ang else "",
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
@@ -394,12 +405,12 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     else:
         pl.loglog(taus/fps, msd/A, meancol, lw=lw,
                   label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
-        pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
-                  label="slope = 1")
+        #pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
+        #          label="slope = 1")
     if errorbars:
         pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize,
                     msd_err/A/(taus/fps)**tnormalize,
-                    fmt=meancol, errorevery=errorbars)
+                    fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     pl.title("Mean Sq {}Disp".format("Angular " if ang else "") if title is None else title)
@@ -420,7 +431,8 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if save:
         print "saving to", save
         pl.savefig(save)
-    pl.show()
+    if show: pl.show()
+    return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
     if findmsd:
@@ -431,7 +443,7 @@ if __name__=='__main__':
                  dt0  = np.asarray(dt0),
                  dtau = np.asarray(dtau))
         print "saved msd data to", prefix+"_MSD.npz"
-    elif plotmsd:
+    elif plotmsd or args.rr:
         print "loading msd data from npz files"
         msdnpz = np.load(locdir+prefix+"_MSD.npz")
         msds = msdnpz['msds']
@@ -488,3 +500,150 @@ if __name__=='__main__' and plot_capable:
         if singletracks:
             mask = np.in1d(trackids, singletracks)
         plot_tracks(data, trackids, bgimage, mask=mask)
+
+if __name__=='__main__' and args.nn:
+    # Calculate the <nn> correlation for all the tracks in a given dataset
+    # TODO: fix this to combine multiple datasets (more than one prefix)
+
+    data, trackids, odata, omask = helpy.load_data(prefix, True, False)
+    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
+
+    coscorrs = [ corr.autocorr(np.cos(otrackset), cumulant=False, norm=False)
+                for otrackset in otracksets.values() ]
+    sincorrs = [ corr.autocorr(np.sin(otrackset), cumulant=False, norm=False)
+                for otrackset in otracksets.values() ]
+
+    # Gather all the track correlations and average them
+    allcorr = coscorrs + sincorrs
+    allcorr = helpy.pad_uneven(allcorr, np.nan)
+    tcorr = np.arange(allcorr.shape[1])/fps
+    meancorr = np.nanmean(allcorr, 0)
+    errcorr = np.nanstd(allcorr, 0)/sqrt(len(allcorr))
+    if verbose:
+        print "Merged nn corrs"
+
+    # Fit to exponential decay
+    tmax = 50
+    fmax = np.searchsorted(tcorr, tmax)
+    fitform = lambda *args, **kwargs: 0.5*corr.exp_decay(*args, **kwargs)
+    popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
+                           p0=[1], sigma=errcorr[:fmax].mean() + errcorr[:fmax])
+    D_R = 1/popt[0]
+    print 'D_R: {:.4f}'.format(D_R)
+
+    pl.figure()
+    plot_individual = True
+    if plot_individual:
+        pl.semilogy(tcorr, allcorr.T, 'b', alpha=.25)
+    pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+                 capthick=0, elinewidth=1, errorevery=3)
+    pl.plot(tcorr, fitform(tcorr, *popt), 'r',
+             label=r"$\frac{1}{2}e^{-D_R t}$" + '\n' +\
+                    "$D_R$: {:.4f}, $1/D_R$: {:.3f}".format(D_R, 1/D_R))
+    pl.xlim(0, tmax)
+    pl.ylim(corr.exp_decay(tmax, *popt)/2, 1)
+
+    #pl.yscale('linear'); pl.ylim(-.2, .5)
+    pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
+    pl.xlabel("$tf$")
+    pl.title("Orientation Autocorrelation\n"+prefix)
+    pl.legend()
+
+    if not (args.rn or args.rr): pl.show()
+    save = locdir+prefix+'_nn-corr.pdf'
+    print 'saving to', save
+    pl.savefig(save)
+
+if __name__=='__main__' and args.rn:
+    # Calculate the <rn> correlation for all the tracks in a given dataset
+    # TODO: fix this to combine multiple datasets (more than one prefix)
+
+    if not args.nn:
+        # if args.nn, then these have been loaded already
+        data, trackids, odata, omask = helpy.load_data(prefix, True, False)
+        tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
+
+    corr_args = {'side': 'both', 'ret_dx': True, 'cumulant': True}
+
+    xcoscorrs = [ corr.crosscorr(tracksets[t]['x']/S, np.cos(otracksets[t]),
+                 **corr_args) for t in tracksets ]
+    ysincorrs = [ corr.crosscorr(tracksets[t]['y']/S, np.sin(otracksets[t]),
+                 **corr_args) for t in tracksets ]
+
+    # Align and merge them
+    fmin, fmax = -20, 100
+    rncorrs = xcoscorrs + ysincorrs
+    rncorrs = np.asarray([ rn[np.searchsorted(t, fmin):np.searchsorted(t, fmax)]
+                              for t, rn in rncorrs ])
+    tcorr = np.arange(fmin, fmax)/fps
+    meancorr = rncorrs.mean(0)
+    errcorr = rncorrs.std(0)/sqrt(len(rncorrs))
+    if verbose:
+        print "Merged rn corrs"
+
+    # Fit to capped exponential growth
+    fitform = lambda s, v_D, dx0=0, D=(D_R if args.nn else 1):\
+                     v_D*(1 - corr.exp_decay(s-dx0, 1/D))
+    p0 = [10, 0] if args.nn else [10, 0, 1]
+    popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=errcorr)
+    fit = fitform(tcorr, *popt)
+    if not args.nn: D_R = popt[-1]
+    v0 = D_R*popt[0]
+    dx0 = popt[1]
+    print '\n'.join(['v0/D_R: {:.4f}','  dx_0: {:.4f}',
+                     '   D_R: {:.4f}'][:len(popt)]).format(*popt)
+    print '    v0: {:.4f}'.format(v0)
+
+    pl.figure()
+    plot_individual = True
+    if plot_individual:
+        pl.plot(tcorr, rncorrs.T, 'b', alpha=.25)
+    pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+            capthick=0, elinewidth=1, errorevery=3)
+    pl.plot(tcorr, fit, 'r', lw=2,
+            label=r'$\frac{v_0}{D_R}(1 - e^{D_R(t-t_0)})$'+'\n'+
+                   ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
+                              ][:len(popt)]).format(*(v0, dx0, D_R)[:len(popt)])
+           )
+
+    pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+    pl.text(1/D_R, 1e-2, ' $1/D_R$')
+    pl.axvline(1/v0, 0, 3/4, ls='--', c='k')
+    pl.text(1/v0, 1e-2, ' $1/v_0$')
+
+    pl.ylim(meancorr.min(), meancorr.max())
+    pl.xlim(tcorr.min(), tcorr.max())
+    pl.title("Position - Orientation Correlation")
+    pl.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
+    pl.xlabel("$tf$")
+    pl.legend(loc=0, framealpha=1)
+
+    if not args.rr: pl.show()
+    save = locdir + prefix + '_rn-corr.pdf'
+    print 'saving to', save
+    pl.savefig(save)
+
+if __name__=='__main__' and args.rr:
+    fig, ax, taus, msd, msderr = plot_msd(
+            msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
+            errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
+            singletracks=singletracks, fps=fps, S=S, show=False,
+            kill_flats=kill_flats, kill_jumps=kill_jumps)
+
+    taus /= fps
+    msd /= A
+    if not (args.nn or args.rn): D_R = v0 = 1
+    elif not args.rn: v0 = 1
+    fitform = lambda t, D, v=v0, DR=D_R:\
+              2*(v/DR)**2 * (- 1 + DR*t + np.exp(-DR*t)) + 2*D*t
+    p0 = [0, v0]
+    popt, pcov = curve_fit(fitform, taus, msd, p0=p0, sigma=msderr)
+    D, v0rr = p0
+    print '\n'.join(['   D_T: {:.3f}', 'v0(rr): {:.3f}'][:len(popt)]).format(*popt)
+    fit = fitform(taus, *popt)
+    ax.plot(taus, fit, 'r', lw=2,
+            label="$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$\n" + \
+                  ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt),
+                                                      )
+    pl.legend(loc=0)
+    pl.show()
