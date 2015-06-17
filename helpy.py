@@ -3,7 +3,9 @@
 
 from __future__ import division
 from itertools import izip
+
 import numpy as np
+
 import orientation as orient
 
 def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
@@ -115,6 +117,71 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
 
     print 'loaded data for', fullprefix
     return ret
+
+def circle_three_points(*xs):
+    """ With three points, calculate circle
+        e.g., see paulbourke.net/geometry/circlesphere
+        returns center, radius as (xo, yo), r
+    """
+    xs = np.squeeze(xs)
+    if xs.shape == (3, 2): xs = xs.T
+    (x1, x2, x3), (y1, y2, y3) = xs
+
+    ma = (y2-y1)/(x2-x1)
+    mb = (y3-y2)/(x3-x2)
+    xo = ma*mb*(y1-y3) + mb*(x1+x2) - ma*(x2+x3)
+    xo /= 2*(mb-ma)
+    yo = (y1+y2)/2 - (xo - (x1+x2)/2)/ma
+    c = np.array([xo, yo])         # center
+    r = np.hypot(*(c - [x1, y1]))  # radius
+
+    return c, r
+
+def circle_click(im):
+    """ saves points as they are clicked
+        once three points have been saved, calculate the center and
+        radius of the circle pass through them all. Draw it and save it.
+
+        To implement:
+
+
+        To use:
+            when image is shown, click three non-co-linear points along
+            the perimeter.  neither should be vertically nor
+            horizontally aligned (gives divide by zero) when three
+            points have been clicked, a circle should appear. Then
+            close the figure to allow the script to continue.
+    """
+    import matplotlib
+    from matplotlib import pyplot as plt
+    if isinstance(im, str):
+        im = plt.imread(im)
+    xs = []
+    ys = []
+    if False:   # Using Qt and skimage.ImageViewer
+        fig = ImageViewer(first_img)
+        ax = fig.canvas.figure.add_subplot(111)
+    else:       # Using matplotlib
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.imshow(first_img)
+
+    def circle_click_connector(click):
+        print 'you clicked', click.xdata, '\b,', click.ydata
+        xs.append(click.xdata)
+        ys.append(click.ydata)
+        if len(xs) == 3:
+            # With three points, calculate circle
+            print 'got three points'
+            global c, r # can't access connector function's returned value
+            c, r = helpy.circle_three_points(xs, ys)
+            cpatch = matplotlib.patches.Circle(c, radius=r, color='g', fill=False)
+            ax.add_patch(cpatch)
+            fig.canvas.draw()
+
+    fig.canvas.mpl_connect('button_press_event', circle_click_connector)
+    plt.show()
+    return c, r
 
 def load_tracksets(data, trackids, odata=None, omask=True, min_length=1000):
     """ Returns a dict of slices into data based on trackid

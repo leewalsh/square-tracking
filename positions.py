@@ -279,51 +279,7 @@ if __name__ == '__main__':
         if args.cmax == np.inf: args.cmax = 2*ckern_area
 
     if args.select:
-        first_img = imread(filenames[0])
-        xs = []
-        ys = []
-        if False:   # Using Qt and skimage.ImageViewer
-            viewer = ImageViewer(first_img)
-            ax = viewer.canvas.figure.add_subplot(111)
-        else:       # Using matplotlib
-            viewer = pl.figure()
-            ax = viewer.add_subplot(111)
-            ax.imshow(first_img)
-
-        def circle_click(click):
-            """ saves points as they are clicked
-                once three points have been saved, calculate the center and
-                radius of the circle pass through them all. Draw it and save it.
-                To use:
-                    when image is shown, click three non-co-linear points along
-                    the perimeter.  neither should be vertically nor
-                    horizontally aligned (gives divide by zero) when three
-                    points have been clicked, a circle should appear. Then
-                    close the figure to allow the script to continue.
-            """
-            print 'you clicked', click.xdata, '\b,', click.ydata
-            xs.append(click.xdata)
-            ys.append(click.ydata)
-            if len(xs) == 3:
-                # With three points, calculate circle
-                # http://paulbourke.net/geometry/circlesphere/
-                print 'got three points'
-                x1, x2, x3 = xs
-                y1, y2, y3 = ys
-                ma = (y2-y1)/(x2-x1)
-                mb = (y3-y2)/(x3-x2)
-                xo = ma*mb*(y1-y3) + mb*(x1+x2) - ma*(x2+x3)
-                xo /= 2*(mb-ma)
-                yo = (y1+y2)/2 - (xo - (x1+x2)/2)/ma
-                global co, ro # can't access function's returned value
-                co = np.array([xo, yo])
-                ro = np.hypot(*(co -[x1, y1]))
-                cpatch = matplotlib.patches.Circle(co, radius=ro, color='g', fill=False)
-                ax.add_patch(cpatch)
-                viewer.canvas.draw()
-
-        viewer.canvas.mpl_connect('button_press_event', circle_click)
-        pl.show()
+        co, ro = helpy.circle_click(filenames[0])
 
     if args.plot:
         cm = pl.cm.prism_r
