@@ -2,17 +2,20 @@
 
 from socket import gethostname
 hostname = gethostname()
+
+from distutils.version import StrictVersion as version
+import skimage
+skversion = version(skimage.__version__)
+
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
-from skimage import measure, segmentation
-if 'foppl' in hostname:
-    from skimage.filter import canny
-    from skimage.morphology import label
+from skimage import segmentation
+if skversion < version('10'):
+    from skimage.morphology import label as sklabel
+    from skimage.measure import regionprops
 else:
-    from skimage.filters import canny
-    from skimage.measure import label
-from skimage.morphology import square, binary_closing, skeletonize
-from skimage.morphology import disk as _disk
+    from skimage.measure import regionprops, label as sklabel
+from skimage.morphology import square, binary_closing, skeletonize, disk as _disk
 from collections import namedtuple
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
@@ -25,11 +28,15 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
         sigma        -- The size of the Canny filter
         closing_size -- The size of the closing filter
     """
-    edges = skimage.filter.canny(im, sigma=sigma)
+    if skversion < version('11')
+        from skimage.filter import canny
+    else:
+        from skimage.filters import canny
+    edges = canny(im, sigma=sigma)
     if closing_size > 0:
         edges = binary_closing(edges, square(closing_size))
     edges = skeletonize(edges)
-    labels = label(edges)
+    labels = sklabel(edges)
     print "found {} segments".format(labels.max())
     labels = np.ma.array(labels, mask=edges==0) # in ma.array mask, False is True, and vice versa
     return labels
@@ -84,7 +91,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
             thresh -= 1 # smaller threshold for corners
         thresh = convolved.mean() + thresh*convolved.std()
 
-    labels = label(convolved > thresh)
+    labels = sklabel(convolved > thresh)
     #print "found {} segments above thresh".format(labels.max())
     return labels, convolved
 
@@ -99,14 +106,13 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
     pts = []
     strengths = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    if 'foppl' in hostname:
-        rprops = measure.regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
+    if skversion < version('10'):
+        rprops = regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
     else:
-        rprops = measure.regionprops(labels, intensity)
-    for props in rprops:
-        label = props['Label']
-        area = props['Area']
-        ecc = props['Eccentricity']
+        rprops = regionprops(labels, intensity)
+    for rprop in rprops:
+        area = rprop['area']
+        ecc = rprop['eccentricity']
         if area < min_area:
             #print 'too small:', area
             continue
@@ -115,16 +121,16 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
             continue
         elif ecc > max_ecc:
             #print 'too eccentric:', ecc
-            #labels[labels==label] = np.ma.masked
+            #labels[labels==rprop.label] = np.ma.masked
             continue
-        x, y = props[centroid]
+        x, y = rprop[centroid]
         if circ:
             co, ro = circ
             if (x - co[0])**2 + (y - co[1])**2 > ro**2:
                 continue
-        pts.append(Segment(x, y, label, ecc, area))
+        pts.append(Segment(x, y, rprop.label, ecc, area))
         if max_detect is not None:
-            strengths.append(props['mean_intensity'])
+            strengths.append(rprop['mean_intensity'])
     if max_detect is not None:
         pts = pts[np.argsort(-strengths)]
     return pts[:max_detect]
