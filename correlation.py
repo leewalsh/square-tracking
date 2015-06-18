@@ -468,13 +468,13 @@ def msd(xs, ret_taus=False):
         Time must be axis 0, but any number of dimensions is allowed (along axis 1)
     """
 
+    xs = np.asarray(xs)
     d = xs.ndim
-    if d==1 :
+    if d==1:
         T = len(xs)
         xs = xs[:, None]
     elif d==2:
         T, d = xs.shape
-        assert T > d, "Are you sure time is axis 0?"
     else:
         raise ValueError, "can't handle xs.ndims > 2. xs.shape is {}".format(xs.shape)
 

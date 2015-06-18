@@ -249,40 +249,6 @@ def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
-def trackmsd(track, dt0, dtau):
-    """ trackmsd(track, dt0, dtau)
-        finds the track msd, as function of tau,
-        averaged over t0, for one track (worldline)
-    """
-    trackdots = data[trackids==track]
-
-    if dt0 == dtau == 1:
-        if verbose: print "Using correlation"
-        import correlation.msd
-        xy = np.column_stack([trackdots['x'], trackdots['y']])
-        return correlation.msd(xy, ret_taus=True)
-
-    trackbegin, trackend = trackdots['f'][[0,-1]]
-    tracklen = trackend - trackbegin + 1
-    if verbose:
-        print "tracklen =",tracklen
-        print "\t from %d to %d"%(trackbegin, trackend)
-    if isinstance(dtau, float):
-        taus = helpy.farange(dt0, tracklen, dtau)
-    elif isinstance(dtau, int):
-        taus = xrange(dtau, tracklen, dtau)
-
-    tmsd = []
-    for tau in taus:  # for tau in T, by factor dtau
-        #print "tau =", tau
-        avg = t0avg(trackdots, tracklen, tau)
-        #print "avg =", avg
-        if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]])
-    if verbose:
-        print "\t...actually", len(tmsd)
-    return tmsd
-
 def t0avg(trackdots, tracklen, tau):
     """ t0avg() averages over all t0, for given track, given tau """
     totsqdisp = 0.0
@@ -306,6 +272,39 @@ def t0avg(trackdots, tracklen, tau):
             continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
+
+def trackmsd(track, dt0, dtau):
+    """ trackmsd(track, dt0, dtau)
+        finds the track msd, as function of tau,
+        averaged over t0, for one track (worldline)
+    """
+    trackdots = data[trackids==track]
+
+    if dt0 == dtau == 1:
+        if verbose: print "Using correlation"
+        xy = np.column_stack([trackdots['x'], trackdots['y']])
+        return corr.msd(xy, ret_taus=True)
+
+    trackbegin, trackend = trackdots['f'][[0,-1]]
+    tracklen = trackend - trackbegin + 1
+    if verbose:
+        print "tracklen =",tracklen
+        print "\t from %d to %d"%(trackbegin, trackend)
+    if isinstance(dtau, float):
+        taus = helpy.farange(dt0, tracklen, dtau)
+    elif isinstance(dtau, int):
+        taus = xrange(dtau, tracklen, dtau)
+
+    tmsd = []
+    for tau in taus:  # for tau in T, by factor dtau
+        #print "tau =", tau
+        avg = t0avg(trackdots, tracklen, tau)
+        #print "avg =", avg
+        if avg > 0 and not np.isnan(avg):
+            tmsd.append([tau,avg[0]])
+    if verbose:
+        print "\t...actually", len(tmsd)
+    return tmsd
 
 def find_msds(dt0, dtau, tracks=None):
     """ Calculates the MSDs"""
@@ -435,28 +434,6 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
-    if findmsd:
-        msds, msdids = find_msds(dt0, dtau)
-        np.savez(locdir+prefix+"_MSD",
-                 msds = np.asarray(msds),
-                 msdids = np.asarray(msdids),
-                 dt0  = np.asarray(dt0),
-                 dtau = np.asarray(dtau))
-        print "saved msd data to", prefix+"_MSD.npz"
-    elif plotmsd or args.rr:
-        print "loading msd data from npz files"
-        msdnpz = np.load(locdir+prefix+"_MSD.npz")
-        msds = msdnpz['msds']
-        try: msdids = msdnpz['msdids']
-        except KeyError: msdids = None
-        try:
-            dt0  = np.asscalar(msdnpz['dt0'])
-            dtau = np.asscalar(msdnpz['dtau'])
-        except KeyError:
-            dt0  = 10 # here's assuming...
-            dtau = 10 #  should be true for all from before dt* was saved
-        print "\t...loaded"
-
     if gendata:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
         data = gen_data(datapath)
@@ -480,6 +457,28 @@ if __name__=='__main__':
             tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
             print "loading positions data from "+prefix+"_POSITIONS.npz"
         data = tracksnpz['data']
+        print "\t...loaded"
+
+    if findmsd:
+        msds, msdids = find_msds(dt0, dtau)
+        np.savez(locdir+prefix+"_MSD",
+                 msds = np.asarray(msds),
+                 msdids = np.asarray(msdids),
+                 dt0  = np.asarray(dt0),
+                 dtau = np.asarray(dtau))
+        print "saved msd data to", prefix+"_MSD.npz"
+    elif plotmsd or args.rr:
+        print "loading msd data from npz files"
+        msdnpz = np.load(locdir+prefix+"_MSD.npz")
+        msds = msdnpz['msds']
+        try: msdids = msdnpz['msdids']
+        except KeyError: msdids = None
+        try:
+            dt0  = np.asscalar(msdnpz['dt0'])
+            dtau = np.asscalar(msdnpz['dtau'])
+        except KeyError:
+            dt0  = 10 # here's assuming...
+            dtau = 10 #  should be true for all from before dt* was saved
         print "\t...loaded"
 
 if __name__=='__main__' and plot_capable:

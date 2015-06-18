@@ -10,12 +10,12 @@ skversion = version(skimage.__version__)
 import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
 from skimage import segmentation
-if skversion < version('10'):
+if skversion < version('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
 else:
     from skimage.measure import regionprops, label as sklabel
-from skimage.morphology import square, binary_closing, skeletonize, disk as _disk
+from skimage.morphology import disk as _disk
 from collections import namedtuple
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
@@ -28,7 +28,8 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
         sigma        -- The size of the Canny filter
         closing_size -- The size of the closing filter
     """
-    if skversion < version('11')
+    from skimage.morphology import square, binary_closing, skeletonize
+    if skversion < version('0.11'):
         from skimage.filter import canny
     else:
         from skimage.filters import canny
@@ -106,7 +107,7 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
     pts = []
     strengths = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    if skversion < version('10'):
+    if skversion < version('0.10'):
         rprops = regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
     else:
         rprops = regionprops(labels, intensity)

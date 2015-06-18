@@ -143,12 +143,12 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
         trackodata = odata[tmask]['orient']
     else:
         from orientation import track_orient
-        trackodata = track_orient(data, odata, track, trackids, omask)
+        trackodata = track_orient(odata, track, trackids, omask)
 
         if dt0 == dtau == 1:
             if verbose: print "Using correlation"
-            import correlation.msd
-            return correlation.msd(trackodata, ret_taus=True)
+            from correlation import msd as corrmsd
+            return corrmsd(trackodata, ret_taus=True)
 
     trackbegin, trackend = trackdots['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
