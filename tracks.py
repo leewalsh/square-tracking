@@ -33,10 +33,11 @@ elif 'peregrine' in hostname:
     locdir = extdir = ''
     plot_capable = True
 else:
-    print "computer not defined"
+    print "computer not defined",
     locdir = extdir = ''
-    plot_capable = helpy.bool_input("Are you able to plot?")
+    plot_capable = __name__=='__main__'#helpy.bool_input("Are you able to plot?")
     if plot_capable:
+        print " ... assuming plot capable"
         import matplotlib
 
 from matplotlib import pyplot as pl
