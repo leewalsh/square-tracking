@@ -64,6 +64,11 @@ if __name__=='__main__':
                         help='Connect the dots and save in the array')
     parser.add_argument('-p', '--plottracks', action='store_true',
                         help='Plot the tracks')
+    parser.add_argument('--maxdist', type=int, default=20,
+                        help="maximum single-frame travel distance in "
+                             "pixels for track")
+    parser.add_argument('--giveup', type=int, default=10,
+                        help="maximum number of frames in track gap")
     parser.add_argument('-d', '--msd', action='store_true',
                         help='Calculate the MSD')
     parser.add_argument('--plotmsd', action='store_true',
@@ -85,6 +90,9 @@ if __name__=='__main__':
     parser.add_argument('--killjump', type=int, default=100000,
                         help='Maximum initial jump for a single MSD track '
                              'at smallest time step')
+    parser.add_argument('--short', type=int, default=0,
+                        help='Minimum length (in frames) for a track '
+                             'for it to be included')
     parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
@@ -201,7 +209,7 @@ def gen_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-def find_tracks(data, n=-1, giveup=10):
+def find_tracks(data, n=-1, maxdist=20, giveup=10):
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
@@ -211,7 +219,7 @@ def find_tracks(data, n=-1, giveup=10):
 
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i], trackids, giveup=giveup)
+        trackids[i] = find_closest(data[i], trackids, maxdist=maxdist, giveup=giveup)
 
     # save the data record array and the trackids array
     print "saving track data"
@@ -306,13 +314,17 @@ def trackmsd(track, dt0, dtau):
         print "\t...actually", len(tmsd)
     return tmsd
 
-def find_msds(dt0, dtau, tracks=None):
+def find_msds(dt0, dtau, tracks=None, min_length=None):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
     msds = []
     msdids = []
     if tracks is None:
-        tracks = np.unique(trackids)
+        if min_length:
+            lens = np.bincount(trackids)
+            tracks = np.argwhere(np.bincount(trackids) >= min_length).flatten()
+        else:
+            tracks = np.unique(trackids)
     for trackid in tracks:
         if verbose: print "calculating msd for track", trackid
         tmsd = trackmsd(trackid, dt0, dtau)
@@ -441,7 +453,8 @@ if __name__=='__main__':
     if findtracks:
         if not gendata:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
-        trackids = find_tracks(data, n=args.number)
+        trackids = find_tracks(data, n=args.number,
+                               maxdist=args.maxdist, giveup=args.giveup)
     elif gendata:
         print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
@@ -460,7 +473,7 @@ if __name__=='__main__':
         print "\t...loaded"
 
     if findmsd:
-        msds, msdids = find_msds(dt0, dtau)
+        msds, msdids = find_msds(dt0, dtau, min_length=args.short)
         np.savez(locdir+prefix+"_MSD",
                  msds = np.asarray(msds),
                  msdids = np.asarray(msdids),
