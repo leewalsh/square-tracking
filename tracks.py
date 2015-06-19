@@ -642,6 +642,10 @@ if __name__=='__main__' and args.rr:
             errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
             singletracks=singletracks, fps=fps, S=S, show=False,
             kill_flats=kill_flats, kill_jumps=kill_jumps)
+    isfin = np.isfinite(msd)
+    msd = msd[isfin]
+    taus = taus[isfin]
+    msderr = msderr[isfin]
 
     taus /= fps
     msd /= A

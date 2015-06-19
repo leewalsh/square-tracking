@@ -186,6 +186,8 @@ def circle_click(im):
 def load_tracksets(data, trackids, odata=None, omask=True, min_length=1000):
     """ Returns a dict of slices into data based on trackid
     """
+    if omask is not True:
+        trackids = trackids[omask]
     longtracks = np.argwhere(np.bincount(trackids) >= min_length).flatten()
     tracksets  = { track: data[(data['lab']==track) & omask]
                    for track in longtracks }
