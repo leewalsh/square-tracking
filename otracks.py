@@ -51,7 +51,7 @@ if __name__=='__main__':
                              "prefix_CORNER_POSITIONS.txt, etc)")
     parser.add_argument('-o','--orient', action='store_true',
                         help='Find the orientations and save')
-    parser.add_argument('-n', '--ncorners', type=int, default=3,
+    parser.add_argument('-n', '--ncorners', type=int, default=2,
                         help='Number of corner dots per particle. Default is 3')
     parser.add_argument('-r', '--rcorner', type=float, default=10,
                         help='Distance to corner dot from central dot, in pixels.')
