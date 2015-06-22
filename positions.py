@@ -238,7 +238,7 @@ if __name__ == '__main__':
                         help="Produce a plot for each image. Use more p's for more images")
     parser.add_argument('-v', '--verbose', action='count',
                         help="Control verbosity")
-    parser.add_argument('-o', '--output', default='POSITIONS',
+    parser.add_argument('-o', '--output', default='POSITIONS.txt',
                         help='Output file')
     parser.add_argument('-N', '--threads', default=1, type=int,
                         help='Number of worker threads')
@@ -272,6 +272,11 @@ if __name__ == '__main__':
     else:
         filenames = sorted(args.files)
 
+    if args.plot and len(filenames) > 10:
+        args.plot = helpy.bool_input(
+                    "Are you sure you want to make plots for all {} frames?"
+                    " ".format(len(filenames)))
+
     kern_area = np.pi*args.kern**2
     if args.min == -1:
         args.min = kern_area/2
@@ -288,9 +293,6 @@ if __name__ == '__main__':
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
 
-    if args.plot:
-        cm = pl.cm.prism_r
-        pdir = path.split(path.abspath(args.output))[0]
     threshargs =  {'max_ecc' : args.ecc,
                    'min_area': args.min,
                    'max_area': args.max,
@@ -309,6 +311,7 @@ if __name__ == '__main__':
     #               'csize'   :   5 if args.slr else  2}
 
     def plot_positions(savebase, level, pts, labels, convolved=None,):
+        cm = pl.cm.prism_r
         pl.clf()
         labels_mask = labels.astype(float)
         labels_mask[labels_mask==0] = np.nan
@@ -350,6 +353,7 @@ if __name__ == '__main__':
         centers = np.hstack([n*np.ones((nfound,1)), pts])
         print '%20s: Found %d particles' % (path.split(filename)[-1], nfound)
         if args.plot:
+            pdir = path.split(path.abspath(args.output))[0]
             savebase = path.join(pdir, path.split(filename)[-1].split('.')[-2])
             plot_positions(savebase, args.plot, *out)
 
@@ -393,6 +397,11 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = filter(lambda x: len(x) > 0, points)
 
+    if not args.output.endswith('_POSITIONS.txt'):
+        if args.output.endswith('.txt'):
+            args.output = args.output.replace('.txt', '_POSITIONS.txt')
+        else:
+            args.output += '_POSITIONS.txt'
     if args.both:
         points, corners = map(np.vstack, zip(*points))
         if 'CORNER' in args.output:
@@ -401,9 +410,9 @@ if __name__ == '__main__':
             if 'POSITIONS' in args.output:
                 coutput = args.output.replace('POS','CORNER_POS')
             else:
-                outnames = args.output.split('.')
-                outnames.insert(-1, '_CORNER.')
-                coutput = ''.join(outnames)
+                coutput = args.output.split('.')
+                coutput.insert(-1, '_CORNER.')
+                coutput = ''.join(coutput)
         with open(coutput, 'w') as coutput:
             print "Saving corner positions to ", coutput.name
             coutput.write('# Kern     Min area    Max area      Max eccen\n')
