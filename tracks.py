@@ -65,7 +65,7 @@ if __name__=='__main__':
                         help='Connect the dots and save in the array')
     parser.add_argument('-p', '--plottracks', action='store_true',
                         help='Plot the tracks')
-    parser.add_argument('--maxdist', type=int, default=20,
+    parser.add_argument('--maxdist', type=int, default=0,
                         help="maximum single-frame travel distance in "
                              "pixels for track")
     parser.add_argument('--giveup', type=int, default=10,
@@ -121,6 +121,8 @@ if __name__=='__main__':
 
     S = args.side
     A = S**2
+    if args.maxdist == 0:
+        args.maxdist = S if S>1 else 20
     fps = args.fps
     dtau = args.dtau
     dt0 = args.dt0
@@ -146,7 +148,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
     else:
-        olddots = data[data['f']==frame-n]
+        olddots = fsets[frame-n]
         dists = ((thisdot['x'] - olddots['x'])**2 +
                  (thisdot['y'] - olddots['y'])**2)
         mini = np.argmin(dists)
@@ -154,7 +156,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
         closest = olddots[mini]
         if mindist < maxdist:
             # a close one! Is there another dot in the current frame that's closer though?
-            curdots = data[data['f']==frame]
+            curdots = fsets[frame]
             curdists = ((curdots['x'] - closest['x'])**2 +
                         (curdots['y'] - closest['y'])**2)
             mini2 = np.argmin(curdists)
@@ -210,7 +212,7 @@ def gen_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-def find_tracks(data, n=-1, maxdist=20, giveup=10):
+def find_tracks(n=-1, maxdist=20, giveup=10):
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
@@ -230,7 +232,6 @@ def find_tracks(data, n=-1, maxdist=20, giveup=10):
     assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
     data['lab'] = trackids
     #data = data[trackids < n] # michael did this to "crop out extra tracks"
-
 
     np.savez(locdir+prefix+dotfix+"_TRACKS",
             data=data, trackids=trackids)
@@ -454,8 +455,8 @@ if __name__=='__main__':
     if findtracks:
         if not gendata:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
-        trackids = find_tracks(data, n=args.number,
-                               maxdist=args.maxdist, giveup=args.giveup)
+        fsets = helpy.splitter(data, ret_dict=True)
+        trackids = find_tracks(n=args.number, maxdist=args.maxdist, giveup=args.giveup)
     elif gendata:
         print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
