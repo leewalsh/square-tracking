@@ -147,41 +147,44 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
             print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
-    else:
-        olddots = fsets[frame-n]
-        dists = ((thisdot['x'] - olddots['x'])**2 +
-                 (thisdot['y'] - olddots['y'])**2)
-        mini = np.argmin(dists)
-        mindist = dists[mini]
-        closest = olddots[mini]
-        if mindist < maxdist:
-            # a close one! Is there another dot in the current frame that's closer though?
-            curdots = fsets[frame]
-            curdists = ((curdots['x'] - closest['x'])**2 +
-                        (curdots['y'] - closest['y'])**2)
-            mini2 = np.argmin(curdists)
-            mindist2 = curdists[mini2]
-            if mindist2 < mindist:
-                # create new trackid to be deleted (or overwritten?)
-                newtrackid = max(trackids) + 1
-                if verbose:
-                    print "found a closer child dot to the this dot's parent"
-                    print "New track:", newtrackid
-                    print '\tframe:', frame,'n:', n,
-                    print 'dot:', thisdot['id'],
-                    print 'closer:', curdots[mini2]['id']
-                return newtrackid
-            return trackids[closest['id']]
-        elif n < giveup:
-            return find_closest(thisdot, trackids, n=n+1,
-                                maxdist=maxdist, giveup=giveup)
-        else: # give up after giveup frames
+    olddots = fsets[frame-n]
+    dists = ((thisdot['x'] - olddots['x'])**2 +
+             (thisdot['y'] - olddots['y'])**2)
+    mini = np.argmin(dists)
+    mindist = dists[mini]
+#    oldtree = ftrees[frame-n]
+#    mindist, mini = oldtree.query([thisdot['x'], thisdot['y']])
+    closest = olddots[mini]
+    if mindist < maxdist:
+        # a close one! Is there another dot in the current frame that's closer though?
+        curdots = fsets[frame]
+        curdists = ((curdots['x'] - closest['x'])**2 +
+                    (curdots['y'] - closest['y'])**2)
+        mini2 = np.argmin(curdists)
+        mindist2 = curdists[mini2]
+#        curtree = ftrees[frame]
+#        mindist2, closest2 = curtree.query([closest['x'], closest['y']])
+        if mindist2 < mindist:
+            # create new trackid to be deleted (or overwritten?)
             newtrackid = max(trackids) + 1
             if verbose:
-                print "Recursed {} times, giving up.".format(n)
+                print "found a closer child dot to the this dot's parent"
                 print "New track:", newtrackid
-                print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
+                print '\tframe:', frame,'n:', n,
+                print 'dot:', thisdot['id'],
+                print 'closer:', curdots[mini2]['id']
             return newtrackid
+        return trackids[closest['id']]
+    elif n < giveup:
+        return find_closest(thisdot, trackids, n=n+1,
+                            maxdist=maxdist, giveup=giveup)
+    else: # give up after giveup frames
+        newtrackid = max(trackids) + 1
+        if verbose:
+            print "Recursed {} times, giving up.".format(n)
+            print "New track:", newtrackid
+            print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
+        return newtrackid
 
 # Tracking
 def gen_data(datapath):
@@ -456,6 +459,9 @@ if __name__=='__main__':
         if not gendata:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         fsets = helpy.splitter(data, ret_dict=True)
+#        from scipy.spatial.kdtree import KDTree
+#        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
+#                   for f, fset in fsets.iteritems() }
         trackids = find_tracks(n=args.number, maxdist=args.maxdist, giveup=args.giveup)
     elif gendata:
         print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
