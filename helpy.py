@@ -159,22 +159,22 @@ def circle_click(im):
     xs = []
     ys = []
     if False:   # Using Qt and skimage.ImageViewer
-        fig = ImageViewer(first_img)
+        fig = ImageViewer(im)
         ax = fig.canvas.figure.add_subplot(111)
     else:       # Using matplotlib
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.imshow(first_img)
+        ax.imshow(im)
 
     def circle_click_connector(click):
-        print 'you clicked', click.xdata, '\b,', click.ydata
+        #print 'you clicked', click.xdata, '\b,', click.ydata
         xs.append(click.xdata)
         ys.append(click.ydata)
         if len(xs) == 3:
             # With three points, calculate circle
             print 'got three points'
             global c, r # can't access connector function's returned value
-            c, r = helpy.circle_three_points(xs, ys)
+            c, r = circle_three_points(xs, ys)
             cpatch = matplotlib.patches.Circle(c, radius=r, color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
