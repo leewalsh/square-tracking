@@ -396,7 +396,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if isinstance(dtau, (float, np.float)):
         taus = helpy.farange(dt0, nframes-1, dtau)
     elif isinstance(dtau, (int, np.int)):
-        taus = np.arange(dtau, nframes-1, dtau)
+        taus = np.arange(dtau, nframes-1, dtau, dtype=float)
     fig = pl.figure(fignum, figsize)
 
     # Get the mean of msds
@@ -657,12 +657,19 @@ if __name__=='__main__' and args.rr:
 
     taus /= fps
     msd /= A
+    tmax = 300
+    fmax = np.searchsorted(taus, tmax)
     if not (args.nn or args.rn): D_R = v0 = 1
     elif not args.rn: v0 = 1
     fitform = lambda t, D, v=v0, DR=D_R:\
               2*(v/DR)**2 * (- 1 + DR*t + np.exp(-DR*t)) + 2*D*t
     p0 = [0, v0]
-    popt, pcov = curve_fit(fitform, taus, msd, p0=p0, sigma=msderr)
+    try:
+        popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax], p0=p0, sigma=msderr[:fmax])
+    except RuntimeError:
+        print "RuntimeError, fit not found"
+        print "Using inital guess"
+        popt = p0
     D, v0rr = p0
     print '\n'.join(['   D_T: {:.3f}', 'v0(rr): {:.3f}'][:len(popt)]).format(*popt)
     fit = fitform(taus, *popt)
