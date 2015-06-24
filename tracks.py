@@ -142,7 +142,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
         returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
     if frame < n:  # at (or recursed back to) the first frame
-        newtrackid = max(trackids) + 1
+        newtrackid = trackids.max() + 1
         if verbose:
             print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
@@ -156,7 +156,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
 #    mindist, mini = oldtree.query([thisdot['x'], thisdot['y']])
     closest = olddots[mini]
     if mindist < maxdist:
-        # a close one! Is there another dot in the current frame that's closer though?
+        # a close one! Is there another dot in the current frame that's closer?
         curdots = fsets[frame]
         curdists = ((curdots['x'] - closest['x'])**2 +
                     (curdots['y'] - closest['y'])**2)
@@ -166,7 +166,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
 #        mindist2, closest2 = curtree.query([closest['x'], closest['y']])
         if mindist2 < mindist:
             # create new trackid to be deleted (or overwritten?)
-            newtrackid = max(trackids) + 1
+            newtrackid = trackids.max() + 1
             if verbose:
                 print "found a closer child dot to the this dot's parent"
                 print "New track:", newtrackid
@@ -179,7 +179,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
         return find_closest(thisdot, trackids, n=n+1,
                             maxdist=maxdist, giveup=giveup)
     else: # give up after giveup frames
-        newtrackid = max(trackids) + 1
+        newtrackid = trackids.max() + 1
         if verbose:
             print "Recursed {} times, giving up.".format(n)
             print "New track:", newtrackid
@@ -220,7 +220,7 @@ def find_tracks(n=-1, maxdist=20, giveup=10):
 
     trackids = -np.ones(data.shape, dtype=int)
     if n==-1:
-        n = len(data['f']==0)
+        n = np.count_nonzero(data['f']==0)
         print "number of particles:", n
 
     print "seeking tracks"
@@ -368,7 +368,8 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
                 pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
             else:
                 pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.25,
-                          label=msdid if msdids is not None else '')
+                          #label=msdid if msdids is not None else ''
+                          )
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
     if errorbars:
@@ -380,7 +381,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     return (msd, msd_err) if errorbars else msd
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(5,3), plfunc=pl.semilogx, meancol='',
+        show_tracks=True, figsize=(8,6), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
         lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
@@ -671,3 +672,6 @@ if __name__=='__main__' and args.rr:
                                                       )
     pl.legend(loc=0)
     pl.show()
+    save = locdir + prefix + '_rr-corr.pdf'
+    print 'saving to', save
+    fig.savefig(save)

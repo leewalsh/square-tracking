@@ -67,7 +67,7 @@ if __name__=='__main__':
                         help='Plot the orientational trajectories')
     parser.add_argument('-s', '--side', type=float, default=1,
                         help='Particle size in pixels, for unit normalization')
-    parser.add_argument('-f', '--fps', type=int, default=1,
+    parser.add_argument('-f', '--fps', type=float, default=1,
                         help="Number of frames per second (or per shake) "
                              "for unit normalization")
     parser.add_argument('--dt0', type=int, default=10,
