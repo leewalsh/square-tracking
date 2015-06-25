@@ -98,6 +98,8 @@ if __name__=='__main__':
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
                         help='Show individual tracks')
+    parser.add_argument('--cut', action='store_true',
+                        help='cut individual tracks at collision with boundary')
     parser.add_argument('--nn', action='store_true',
                         help='Calculate and plot the <nn> correlation')
     parser.add_argument('--rn', action='store_true',
@@ -164,11 +166,15 @@ def gen_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
+def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
+                 cut=False):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
+    if cut is False: cut = np.full(len(trackids), False)
+    if cut[thisdot['id']]:
+        return -1
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = trackids.max() + 1
         if verbose:
@@ -202,10 +208,24 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
                 print 'dot:', thisdot['id'],
                 print 'closer:', curdots[mini2]['id']
             return newtrackid
-        return trackids[closest['id']]
+        if cut[closest['id']]:
+            newtrackid = trackids.max() + 1
+            if verbose:
+                print "cutting track:", trackids[closest['id']]
+                print "New track:", newtrackid
+            return newtrackid
+        else:
+            oldtrackid = trackids[closest['id']]
+            if oldtrackid == -1:
+                newtrackid = trackids.max() + 1
+                if verbose:
+                    print "new track since previous was cut", newtrackid
+                return newtrackid
+            else:
+                return oldtrackid
     elif n < giveup:
         return find_closest(thisdot, trackids, n=n+1,
-                            maxdist=maxdist, giveup=giveup)
+                            maxdist=maxdist, giveup=giveup, cut=cut)
     else: # give up after giveup frames
         newtrackid = trackids.max() + 1
         if verbose:
@@ -214,7 +234,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
             print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
         return newtrackid
 
-def find_tracks(n=-1, maxdist=20, giveup=10):
+def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
@@ -222,9 +242,21 @@ def find_tracks(n=-1, maxdist=20, giveup=10):
         n = np.count_nonzero(data['f']==0)
         print "number of particles:", n
 
+    if cut:
+        bgimage = locdir + prefix + '_0001.tif'
+        from os.path import isfile
+        if not isfile(bgimage):
+            bgimage = raw_input('Please give the path to an image '
+                                'from this dataset to identify boundary\n')
+        C, R = helpy.circle_click(bgimage)
+        margin = S if S>1 else R/16.9 # assume 6mm particles if S not specified
+        rs = np.hypot(data['x'] - C[0], data['y'] - C[1])
+        cut = rs > R - margin
+
     print "seeking tracks"
     for i in range(len(data)):
-        trackids[i] = find_closest(data[i], trackids, maxdist=maxdist, giveup=giveup)
+        trackids[i] = find_closest(data[i], trackids,
+                                   maxdist=maxdist, giveup=giveup, cut=cut)
 
     # save the data record array and the trackids array
     print "saving track data"
@@ -464,7 +496,8 @@ if __name__=='__main__':
 #        from scipy.spatial.kdtree import KDTree
 #        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
 #                   for f, fset in fsets.iteritems() }
-        trackids = find_tracks(n=args.number, maxdist=args.maxdist, giveup=args.giveup)
+        trackids = find_tracks(n=args.number, maxdist=args.maxdist,
+                               giveup=args.giveup, cut=args.cut)
         np.savez(locdir+prefix+dotfix+"_TRACKS",
                 data=data, trackids=trackids)
 

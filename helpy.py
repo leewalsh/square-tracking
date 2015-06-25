@@ -141,17 +141,16 @@ def circle_click(im):
     """ saves points as they are clicked
         once three points have been saved, calculate the center and
         radius of the circle pass through them all. Draw it and save it.
-
-        To implement:
-
-
-        To use:
-            when image is shown, click three non-co-linear points along
-            the perimeter.  neither should be vertically nor
-            horizontally aligned (gives divide by zero) when three
-            points have been clicked, a circle should appear. Then
-            close the figure to allow the script to continue.
     """
+
+    print """
+    To use:
+        when image is shown, click three non-co-linear points along the
+        perimeter.  neither should be vertically nor horizontally aligned
+        (gives divide by zero) when three points have been clicked, a circle
+        should appear. Then close the figure to allow the script to continue.
+    """
+
     import matplotlib
     from matplotlib import pyplot as plt
     if isinstance(im, str):
