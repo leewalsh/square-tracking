@@ -91,9 +91,9 @@ if __name__=='__main__':
     parser.add_argument('--killjump', type=int, default=100000,
                         help='Maximum initial jump for a single MSD track '
                              'at smallest time step')
-    parser.add_argument('--short', type=int, default=0,
-                        help='Minimum length (in frames) for a track '
-                             'for it to be included')
+    parser.add_argument('--stub', type=int, default=10,
+                        help='Minimum length (in frames) of a track '
+                             'for it to be included. default = 10')
     parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
                         help='identify single track ids to plot')
     parser.add_argument('--showtracks', action='store_true',
@@ -236,9 +236,10 @@ def find_tracks(n=-1, maxdist=20, giveup=10):
     data['lab'] = trackids
     #data = data[trackids < n] # michael did this to "crop out extra tracks"
 
-    np.savez(locdir+prefix+dotfix+"_TRACKS",
-            data=data, trackids=trackids)
-
+    stubs = np.where(np.bincount(trackids+1)[1:] < args.stub)[0]
+    if verbose: print "removing {} stubs".format(len(stubs))
+    stubs = np.in1d(trackids, stubs)
+    trackids[stubs] = -1
     return trackids
 
 # Plotting tracks:
@@ -319,17 +320,18 @@ def trackmsd(track, dt0, dtau):
         print "\t...actually", len(tmsd)
     return tmsd
 
-def find_msds(dt0, dtau, tracks=None, min_length=None):
+def find_msds(dt0, dtau, tracks=None, min_length=0):
     """ Calculates the MSDs"""
     print "Begin calculating MSDs"
     msds = []
     msdids = []
     if tracks is None:
         if min_length:
-            lens = np.bincount(trackids)
-            tracks = np.argwhere(np.bincount(trackids) >= min_length).flatten()
+            tracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
         else:
             tracks = np.unique(trackids)
+            if tracks[0] == -1:
+                tracks = tracks[1:]
     for trackid in tracks:
         if verbose: print "calculating msd for track", trackid
         tmsd = trackmsd(trackid, dt0, dtau)
@@ -464,6 +466,9 @@ if __name__=='__main__':
 #        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
 #                   for f, fset in fsets.iteritems() }
         trackids = find_tracks(n=args.number, maxdist=args.maxdist, giveup=args.giveup)
+        np.savez(locdir+prefix+dotfix+"_TRACKS",
+                data=data, trackids=trackids)
+
     elif gendata:
         print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
@@ -482,7 +487,7 @@ if __name__=='__main__':
         print "\t...loaded"
 
     if findmsd:
-        msds, msdids = find_msds(dt0, dtau, min_length=args.short)
+        msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
         np.savez(locdir+prefix+"_MSD",
                  msds = np.asarray(msds),
                  msdids = np.asarray(msdids),
@@ -527,7 +532,8 @@ if __name__=='__main__' and args.nn:
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
     data, trackids, odata, omask = helpy.load_data(prefix, True, False)
-    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
+    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
+                                                 min_length=args.stub)
 
     coscorrs = [ corr.autocorr(np.cos(otrackset), cumulant=False, norm=False)
                 for otrackset in otracksets.values() ]
@@ -582,7 +588,8 @@ if __name__=='__main__' and args.rn:
     if not args.nn:
         # if args.nn, then these have been loaded already
         data, trackids, odata, omask = helpy.load_data(prefix, True, False)
-        tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
+        tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
+                                                   min_length=max(100, args.stub))
 
     corr_args = {'side': 'both', 'ret_dx': True, 'cumulant': True}
 
@@ -594,11 +601,12 @@ if __name__=='__main__' and args.rn:
     # Align and merge them
     fmin, fmax = -20, 100
     rncorrs = xcoscorrs + ysincorrs
-    rncorrs = np.asarray([ rn[np.searchsorted(t, fmin):np.searchsorted(t, fmax)]
-                              for t, rn in rncorrs ])
+    rncorrs = helpy.pad_uneven([
+                    rn[np.searchsorted(t, fmin):np.searchsorted(t, fmax)]
+                              for t, rn in rncorrs ], np.nan)
     tcorr = np.arange(fmin, fmax)/fps
-    meancorr = rncorrs.mean(0)
-    errcorr = rncorrs.std(0)/sqrt(len(rncorrs))
+    meancorr = np.nanmean(rncorrs, 0)
+    errcorr = np.nanstd(rncorrs, 0)/sqrt(len(rncorrs))
     if verbose:
         print "Merged rn corrs"
 
