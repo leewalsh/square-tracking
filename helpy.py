@@ -232,6 +232,10 @@ def loglog_slope(x, y, smooth=0):
         dy = gaussian_filter1d(dy, smooth, mode='reflect')
     return dx, dy
 
+def dist(a, b):
+    """ The 2d distance between two arrays of shape (N, 2) or just (2,)
+    """
+    return np.hypot(*(a - b).T)
 
 # Pixel-Physical Unit Conversions
 # Physical measurements

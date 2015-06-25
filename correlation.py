@@ -57,7 +57,7 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
     if center is None:
         center = 0.5*(positions.max(0) + positions.min(0))
     if margin < ss: margin *= ss
-    d = np.hypot(*(positions - center).T) # distances to center
+    d = helpy.dist(positions, center) # distances to center
     if radius is None:
         if len(positions) > 1e5: raise ValueError, "too many points to calculate radius"
         r = cdist(positions, positions)       # distances between all pairs
@@ -95,7 +95,7 @@ def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, ma
         excludes pairs in margin of given width
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
@@ -144,7 +144,7 @@ def rectify(positions, margin=0, dangonly=False):
 def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
     if margin < ss: margin *= ss
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     dmask = d < d.max() - margin
     r = cdist(positions, positions[dmask])#.ravel()
     radius = np.maximum(r.max()/2, d.max()) + ss/2
@@ -270,7 +270,7 @@ def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=F
     if margin:
         if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
+        d = helpy.dist(positions, center) # distances to center
         orientations = orientations[d < d.max() - margin]
     phi = np.exp(m*orientations*1j).mean()
     if do_err:
@@ -534,7 +534,7 @@ def orient_corr(positions, orientations, m=4, margin=0, bins=10):
         given by mean(phi(0)*phi(r))
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     if margin < ss: margin *= ss
     loc_mask = d < d.max() - margin
     r = pdist(positions[loc_mask])
@@ -571,7 +571,6 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         if margin < ss:
             margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
         dmask = d < d.max() - margin
         positions = positions[dmask]
         orientations = orientations[dmask]
@@ -658,7 +657,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
     if margin:
         if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
+        d = helpy.dist(positions, center) # distances to center
         dmask = d < d.max() - margin
         assert np.allclose(len(dmask), map(len, [angles, nmask]))
         angles = angles[dmask]
