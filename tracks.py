@@ -79,12 +79,12 @@ if __name__=='__main__':
     parser.add_argument('-f', '--fps', type=float, default=1,
                         help="Number of frames per second (or per shake) "
                              "for unit normalization")
-    parser.add_argument('--dt0', type=int, default=10,
-                        help='Stepsize for time-averaging of a single '
-                             'track at different time starting points')
+    parser.add_argument('--dt0', type=int, default=1,
+                        help='Stepsize for time-averaging of a single track '
+                             'at different time starting points. default = 1')
     parser.add_argument('--dtau', type=int, default=1,
-                        help='Stepsize for values of tau '
-                             'at which to calculate MSD(tau)')
+                        help='Stepsize for values of tau at which '
+                             'to calculate MSD(tau). default = 1')
     parser.add_argument('--killflat', type=int, default=0,
                         help='Minimum growth factor for a single MSD track '
                              'for it to be included')
@@ -136,6 +136,34 @@ if __name__=='__main__':
 else:
     verbose = False
 
+def gen_data(datapath):
+    print "loading positions data from", datapath
+    if  datapath.endswith('results.txt'):
+        shapeinfo = False
+        # imagej output (called *_results.txt)
+        dtargs = {  'usecols' : [0,2,3,5],
+                    'names'   : "id,x,y,f",
+                    'dtype'   : [int,float,float,int]} \
+            if not shapeinfo else \
+                 {  'usecols' : [0,1,2,3,4,5,6],
+                    'names'   : "id,area,mean,x,y,circ,f",
+                    'dtype'   : [int,float,float,float,float,float,int]}
+        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
+        data['id'] -= 1 # data from imagej is 1-indexed
+    elif datapath.endswith('POSITIONS.txt'):
+        # positions.py output (called *_POSITIONS.txt)
+        from numpy.lib.recfunctions import append_fields
+        data = np.genfromtxt(datapath,
+                             skip_header = 1,
+                             names = "f,x,y,lab,ecc,area",
+                             dtype = [int,float,float,int,float,int])
+        ids = np.arange(len(data))
+        data = append_fields(data, 'id', ids, usemask=False)
+    else:
+        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
+        print "Please rename it to end with _results.txt or _POSITIONS.txt"
+    return data
+
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
@@ -185,35 +213,6 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10):
             print "New track:", newtrackid
             print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
         return newtrackid
-
-# Tracking
-def gen_data(datapath):
-    print "loading positions data from", datapath
-    if  datapath.endswith('results.txt'):
-        shapeinfo = False
-        # imagej output (called *_results.txt)
-        dtargs = {  'usecols' : [0,2,3,5],
-                    'names'   : "id,x,y,f",
-                    'dtype'   : [int,float,float,int]} \
-            if not shapeinfo else \
-                 {  'usecols' : [0,1,2,3,4,5,6],
-                    'names'   : "id,area,mean,x,y,circ,f",
-                    'dtype'   : [int,float,float,float,float,float,int]}
-        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
-        data['id'] -= 1 # data from imagej is 1-indexed
-    elif datapath.endswith('POSITIONS.txt'):
-        # positions.py output (called *_POSITIONS.txt)
-        from numpy.lib.recfunctions import append_fields
-        data = np.genfromtxt(datapath,
-                             skip_header = 1,
-                             names = "f,x,y,lab,ecc,area",
-                             dtype = [int,float,float,int,float,int])
-        ids = np.arange(len(data))
-        data = append_fields(data, 'id', ids, usemask=False)
-    else:
-        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
-        print "Please rename it to end with _results.txt or _POSITIONS.txt"
-    return data
 
 def find_tracks(n=-1, maxdist=20, giveup=10):
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
