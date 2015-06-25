@@ -586,10 +586,10 @@ if __name__=='__main__' and args.nn:
     # Fit to exponential decay
     tmax = 50
     fmax = np.searchsorted(tcorr, tmax)
-    fitform = lambda *args, **kwargs: 0.5*corr.exp_decay(*args, **kwargs)
+    fitform = lambda s, DR: 0.5*np.exp(-DR*s)
     popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
                            p0=[1], sigma=errcorr[:fmax].mean() + errcorr[:fmax])
-    D_R = 1/popt[0]
+    D_R = popt[0]
     print 'D_R: {:.4f}'.format(D_R)
 
     pl.figure()
@@ -601,19 +601,20 @@ if __name__=='__main__' and args.nn:
     pl.plot(tcorr, fitform(tcorr, *popt), 'r',
              label=r"$\frac{1}{2}e^{-D_R t}$" + '\n' +\
                     "$D_R$: {:.4f}, $1/D_R$: {:.3f}".format(D_R, 1/D_R))
+
     pl.xlim(0, tmax)
-    pl.ylim(corr.exp_decay(tmax, *popt)/2, 1)
+    pl.ylim(fitform(tmax, *popt), 1)
 
     #pl.yscale('linear'); pl.ylim(-.2, .5)
     pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     pl.xlabel("$tf$")
     pl.title("Orientation Autocorrelation\n"+prefix)
-    pl.legend()
+    pl.legend(loc=0, framealpha=1)
 
-    if not (args.rn or args.rr): pl.show()
     save = locdir+prefix+'_nn-corr.pdf'
     print 'saving to', save
     pl.savefig(save)
+    if not (args.rn or args.rr): pl.show()
 
 if __name__=='__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
@@ -645,14 +646,19 @@ if __name__=='__main__' and args.rn:
         print "Merged rn corrs"
 
     # Fit to capped exponential growth
-    fitform = lambda s, v_D, dx0=0, D=(D_R if args.nn else 1):\
-                     v_D*(1 - corr.exp_decay(s-dx0, 1/D))
+    #fitform = lambda s, v_D, shift=0, D=(D_R if args.nn else 1):\
+    #          v_D*(1 - corr.exp_decay(s-shift, 1/D))
+    #fitstr = r'$\frac{v_0}{D_R}(1 - e^{D_R(-s+t_0)})$'
+    fitform = lambda s, v_D, shift=0, D=D_R:\
+              shift + np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+    fitstr = r'$c_0 + \operatorname{sign}(s)\frac{v_0}{D_R}(1 - e^{-D_R|s|})$'
+
     p0 = [10, 0] if args.nn else [10, 0, 1]
     popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=errcorr)
     fit = fitform(tcorr, *popt)
     if not args.nn: D_R = popt[-1]
     v0 = D_R*popt[0]
-    dx0 = popt[1]
+    shift = popt[1]
     print '\n'.join(['v0/D_R: {:.4f}','  dx_0: {:.4f}',
                      '   D_R: {:.4f}'][:len(popt)]).format(*popt)
     print '    v0: {:.4f}'.format(v0)
@@ -664,9 +670,11 @@ if __name__=='__main__' and args.rn:
     pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
             capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fit, 'r', lw=2,
-            label=r'$\frac{v_0}{D_R}(1 - e^{D_R(t-t_0)})$'+'\n'+
-                   ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
-                              ][:len(popt)]).format(*(v0, dx0, D_R)[:len(popt)])
+            #label=fitstr+'\n'+
+            #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
+            label=fitstr+'\n'+
+                   ', '.join(['$v_0$: {:.3f}', '$c_0$: {:.3f}', '$D_R$: {:.3f}'
+                              ][:len(popt)]).format(*(v0, shift, D_R)[:len(popt)])
            )
 
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
@@ -674,17 +682,17 @@ if __name__=='__main__' and args.rn:
     pl.axvline(1/v0, 0, 3/4, ls='--', c='k')
     pl.text(1/v0, 1e-2, ' $1/v_0$')
 
-    pl.ylim(meancorr.min(), meancorr.max())
+    pl.ylim(1.5*fit.min(), 1.5*fit.max())
     pl.xlim(tcorr.min(), tcorr.max())
     pl.title("Position - Orientation Correlation")
     pl.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     pl.xlabel("$tf$")
     pl.legend(loc=0, framealpha=1)
 
-    if not args.rr: pl.show()
     save = locdir + prefix + '_rn-corr.pdf'
     print 'saving to', save
     pl.savefig(save)
+    if not args.rr: pl.show()
 
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
@@ -703,8 +711,8 @@ if __name__=='__main__' and args.rr:
     fmax = np.searchsorted(taus, tmax)
     if not (args.nn or args.rn): D_R = v0 = 1
     elif not args.rn: v0 = 1
-    fitform = lambda t, D, v=v0, DR=D_R:\
-              2*(v/DR)**2 * (- 1 + DR*t + np.exp(-DR*t)) + 2*D*t
+    fitform = lambda s, D, v=v0, DR=D_R:\
+              2*(v/DR)**2 * (- 1 + DR*s + np.exp(-DR*s)) + 2*D*s
     p0 = [0, v0]
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax], p0=p0, sigma=msderr[:fmax])
@@ -718,9 +726,10 @@ if __name__=='__main__' and args.rr:
     ax.plot(taus, fit, 'r', lw=2,
             label="$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$\n" + \
                   ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt),
-                                                      )
+                   )
+    pl.ylim(min(fit[0], msd[0]), max(fit[-1], msd[-1]))
     pl.legend(loc=0)
-    pl.show()
     save = locdir + prefix + '_rr-corr.pdf'
     print 'saving to', save
     fig.savefig(save)
+    pl.show()
