@@ -316,7 +316,8 @@ def track_orient(odata, track=None, tracks=None, omask=None, onetrack=False):
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
     if omask is None:
         omask = np.isfinite(odata['orient'])
-    goodtracks = set(tracks[omask])
+    goodtracks = np.unique(tracks[omask])
+    if goodtracks[0] == -1: goodtracks = goodtracks[1:]
     if singletracks:
         if singletracks is True:
             goodtracks = list(goodtracks)[:4]

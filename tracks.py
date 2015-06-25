@@ -243,10 +243,11 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
         print "number of particles:", n
 
     if cut:
-        bgimage = locdir + prefix + '_0001.tif'
+        from glob import glob
         from os.path import isfile
+        bgimage = glob(locdir + prefix + "*.tif")[0]
         if not isfile(bgimage):
-            bgimage = raw_input('Please give the path to an image '
+            bgimage = raw_input('Please give the path to a tiff image '
                                 'from this dataset to identify boundary\n')
         C, R = helpy.circle_click(bgimage)
         margin = S if S>1 else R/16.9 # assume 6mm particles if S not specified
@@ -276,6 +277,7 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
     pl.figure(fignum)
+    mask = mask & (trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
     pl.scatter(data['y'], data['x'],
@@ -706,8 +708,8 @@ if __name__=='__main__' and args.rr:
     p0 = [0, v0]
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax], p0=p0, sigma=msderr[:fmax])
-    except RuntimeError:
-        print "RuntimeError, fit not found"
+    except RuntimeError as e:
+        print "RuntimeError:", e.message
         print "Using inital guess"
         popt = p0
     D, v0rr = p0
