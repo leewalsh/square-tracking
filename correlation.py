@@ -890,30 +890,30 @@ def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
         height = c[0] + c[1]
     return loc, height, x, y, c
 
-def exp_decay(s, sig=1., a=1., c=0):
-    """ exp_decay(s,sigma,c,a)
+def exp_decay(t, sig=1., a=1., c=0):
+    """ exp_decay(t, sig, a, c)
         exponential decay function for fitting
 
         Args:
-            s,  independent variable
+            t,  independent variable
         Params:
-            sigma,  decay constant
+          sig,  decay constant
             a,  prefactor
             c,  constant offset
 
         Returns:
-            exp value at s
+            value at t
     """
-    return c + a*np.exp(-s/sig)
+    return c + a*np.exp(-t/sig)
 
 def log_decay(t, a=1, l=1., c=0.):
     return c - a*np.log(t/l)
 
 def powerlaw(t, b=1., a=1., c=0):
-    """ powerlaw(t,b,c,a)
+    """ powerlaw(t, b, a, c)
         power law function for fitting
                                       -b
-        powerlaw(t, b, c, a) = c + a t
+        powerlaw(t, b, a, c) = c + a t
 
         Args:
             t,  independent variable
@@ -938,62 +938,3 @@ def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
         return cp, ct
     else:
         return cp
-    
-def domyfits():
-    if computer is 'foppl':
-        print "cant do this on foppl"
-        return
-    for k in fixedpeaks:
-        pl.figure()
-        pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
-        pl.scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
-        pexps[k],cexp = curve_fit(corr.exp_decay,
-                                  *np.array(fixedpeaks[k]).T, p0=(3,.0005,.0001))
-        ppows[k],cpow = curve_fit(corr.powerlaw,
-                                  *np.array(fixedpeaks[k]).T, p0=(-.5,.0005,.0001))
-        xs = np.arange(0.8,10.4,0.2)
-        pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
-        pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
-    return pexps, ppows
-
-
-if __name__ == '__main__':
-    prefix = 'n400'
-
-    ss = 92#22  # side length of square in pixels
-    rmax = ss*10.
-    try:
-        datapath = locdir+prefix+"_GR.npz"
-        print "loading data from",datapath
-        grnpz = np.load(datapath)
-        g, dg, rg   = grnpz['g'], grnpz['dg'], grnpz['rg']
-    except:
-        print "NPZ file not found for n =",prefix[1:]
-        datapath = locdir+prefix+'_results.txt'
-        print "loading data from",datapath
-        data = np.genfromtxt(datapath,
-                skip_header = 1,
-                usecols = [0,2,3,5],
-                names   = "id,x,y,f",
-                dtype   = [int,float,float,int])
-        data['id'] -= 1 # data from imagej is 1-indexed
-        print "\t...loaded"
-        print "loading positions"
-        gs, rgs = build_gs(data)
-        print "\t...gs,rgs built"
-        print "averaging over all frames..."
-        g, dg, rg = avg_hists(gs, rgs)
-        print "\t...averaged"
-        print "saving data..."
-        np.savez(locdir+prefix+"_GR",
-                g  = np.asarray(g),
-                dg = np.asarray(dg),
-                rg = np.asarray(rg))
-        print "\t...saved"
-
-    binmax = len(rg[rg<rmax])
-    #pl.figure()
-    pl.plot(1.*rg[:binmax]/ss,g[:binmax],'.-',label=prefix)
-    #pl.title("g[r],%s,dr%d"%(prefix,ss/2))
-    pl.legend()
-    #pl.show()
