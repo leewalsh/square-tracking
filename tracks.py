@@ -409,7 +409,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         msd[ti, tau_match] = tmsdd
     if errorbars:
         added = np.sum(np.isfinite(msd), 0)
-        msd_err = np.nanstd(msd, 0) / np.sqrt(added)
+        msd_err = np.nanstd(msd, 0) / np.sqrt(added-1)
     if show_tracks:
         pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A)
     msd = np.nanmean(msd, 0)
@@ -579,7 +579,9 @@ if __name__=='__main__' and args.nn:
     allcorr = helpy.pad_uneven(allcorr, np.nan)
     tcorr = np.arange(allcorr.shape[1])/fps
     meancorr = np.nanmean(allcorr, 0)
-    errcorr = np.nanstd(allcorr, 0)/sqrt(len(allcorr))
+    added = np.sum(np.isfinite(allcorr), 0)
+    errcorr = np.nanstd(allcorr, 0)/np.sqrt(added - 1)
+    sigma = errcorr + 1e-5*errcorr.std() # add something small to prevent 0
     if verbose:
         print "Merged nn corrs"
 
@@ -588,7 +590,7 @@ if __name__=='__main__' and args.nn:
     fmax = np.searchsorted(tcorr, tmax)
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
     popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
-                           p0=[1], sigma=errcorr[:fmax].mean() + errcorr[:fmax])
+                           p0=[1], sigma=sigma[:fmax])
     D_R = popt[0]
     print 'D_R: {:.4f}'.format(D_R)
 
@@ -641,7 +643,9 @@ if __name__=='__main__' and args.rn:
                               for t, rn in rncorrs ], np.nan)
     tcorr = np.arange(fmin, fmax)/fps
     meancorr = np.nanmean(rncorrs, 0)
-    errcorr = np.nanstd(rncorrs, 0)/sqrt(len(rncorrs))
+    added = np.sum(np.isfinite(rncorrs), 0)
+    errcorr = np.nanstd(rncorrs, 0)/np.sqrt(added - 1)
+    sigma = errcorr + 1e-5*errcorr.std() # add something small to prevent 0
     if verbose:
         print "Merged rn corrs"
 
@@ -654,7 +658,7 @@ if __name__=='__main__' and args.rn:
     fitstr = r'$c_0 + \operatorname{sign}(s)\frac{v_0}{D_R}(1 - e^{-D_R|s|})$'
 
     p0 = [10, 0] if args.nn else [10, 0, 1]
-    popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=errcorr)
+    popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
     fit = fitform(tcorr, *popt)
     if not args.nn: D_R = popt[-1]
     v0 = D_R*popt[0]
@@ -700,10 +704,11 @@ if __name__=='__main__' and args.rr:
             errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
             singletracks=singletracks, fps=fps, S=S, show=False,
             kill_flats=kill_flats, kill_jumps=kill_jumps)
-    isfin = np.isfinite(msd)
+    isfin = np.isfinite(msd) & np.isfinite(taus) & np.isfinite(msderr)
     msd = msd[isfin]
     taus = taus[isfin]
     msderr = msderr[isfin]
+    sigma = msderr + 1e-5*np.nanstd(msderr)
 
     taus /= fps
     msd /= A
@@ -715,7 +720,8 @@ if __name__=='__main__' and args.rr:
               2*(v/DR)**2 * (- 1 + DR*s + np.exp(-DR*s)) + 2*D*s
     p0 = [0, v0]
     try:
-        popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax], p0=p0, sigma=msderr[:fmax])
+        popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
+                               p0=p0, sigma=sigma[:fmax])
     except RuntimeError as e:
         print "RuntimeError:", e.message
         print "Using inital guess"
