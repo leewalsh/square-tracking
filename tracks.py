@@ -100,6 +100,9 @@ if __name__=='__main__':
                         help='Show individual tracks')
     parser.add_argument('--cut', action='store_true',
                         help='cut individual tracks at collision with boundary')
+    parser.add_argument('--center', type=float, nargs='*', default=0,
+                        help='Optionally provide center and radius '
+                        'in the form --center X0 Y0 R')
     parser.add_argument('--nn', action='store_true',
                         help='Calculate and plot the <nn> correlation')
     parser.add_argument('--rn', action='store_true',
@@ -243,13 +246,24 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
         print "number of particles:", n
 
     if cut:
-        from glob import glob
-        from os.path import isfile
-        bgimage = glob(locdir + prefix + "*.tif")[0]
-        if not isfile(bgimage):
-            bgimage = raw_input('Please give the path to a tiff image '
-                                'from this dataset to identify boundary\n')
-        C, R = helpy.circle_click(bgimage)
+        if args.center:
+            C = args.center[:2]
+            R = args.center[2]
+        else:
+            from glob import glob
+            bgimage = glob(locdir + prefix + "*.tif")
+            if not bgimage:
+                bgimage = glob(locdir + prefix + "/*.tif")
+            if not bgimage:
+                bgimage = glob(locdir + '../' + prefix + "/*.tif")
+            if not bgimage:
+                bgimage = raw_input('Please give the path to a tiff image '
+                                    'from this dataset to identify boundary\n')
+            else:
+                bgimage = bgimage[0]
+                print 'Opening', bgimage
+            C, R = helpy.circle_click(bgimage)
+            print C, R
         margin = S if S>1 else R/16.9 # assume 6mm particles if S not specified
         rs = np.hypot(data['x'] - C[0], data['y'] - C[1])
         cut = rs > R - margin
