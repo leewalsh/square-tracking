@@ -115,7 +115,7 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
         cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
         ret += (cdatanpz['data'],)
 
-    print 'loaded data for', fullprefix
+    #print 'loaded data for', fullprefix
     return ret
 
 def circle_three_points(*xs):

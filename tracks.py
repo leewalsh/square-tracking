@@ -114,7 +114,6 @@ if __name__=='__main__':
     args = p.parse_args()
 
     prefix = args.prefix
-    print 'using prefix', prefix
     dotfix = '_CORNER' if args.corner else ''
 
     gendata  =  args.load
@@ -136,6 +135,14 @@ if __name__=='__main__':
     singletracks = args.singletracks
     show_tracks = args.showtracks
     verbose = args.verbose
+    if not verbose:
+        from warnings import filterwarnings
+        filterwarnings('ignore', category=RuntimeWarning, module='numpy')
+        filterwarnings('ignore', category=RuntimeWarning, module='scipy')
+        filterwarnings('ignore', category=RuntimeWarning, module='matpl')
+    else:
+        print 'using prefix', prefix
+
 
 else:
     verbose = False
@@ -368,7 +375,8 @@ def trackmsd(track, dt0, dtau):
 
 def find_msds(dt0, dtau, tracks=None, min_length=0):
     """ Calculates the MSDs"""
-    print "Begin calculating MSDs"
+    print "Calculating MSDs with",
+    print "dtau = {}, dtau = {}".format(dt0, dtau)
     msds = []
     msdids = []
     if tracks is None:
@@ -503,7 +511,7 @@ if __name__=='__main__':
     if gendata:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
         data = gen_data(datapath)
-        print "\t...loaded"
+        if verbose: print "\t...loaded"
     if findtracks:
         if not gendata:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
@@ -517,21 +525,27 @@ if __name__=='__main__':
                 data=data, trackids=trackids)
 
     elif gendata:
-        print "saving data only (no tracks) to "+prefix+dotfix+"_POSITIONS.npz"
+        if verbose:
+            print "saving data only (no tracks) to",
+            print prefix + dotfix + "_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
                 data = data)
-        print '\t...saved'
+        if verbose: print '\t...saved'
     else:
         # assume existing tracks.npz
         try:
             tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
             trackids = tracksnpz['trackids']
-            print "loading data and tracks from "+prefix+"_TRACKS.npz"
+            if verbose:
+                print "loading data and tracks from",
+                print prefix + "_TRACKS.npz"
         except IOError:
             tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            print "loading positions data from "+prefix+"_POSITIONS.npz"
+            if verbose:
+                print "loading positions data from",
+                print prefix + "_POSITIONS.npz"
         data = tracksnpz['data']
-        print "\t...loaded"
+        if verbose: print "\t...loaded"
 
     if findmsd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
@@ -542,7 +556,7 @@ if __name__=='__main__':
                  dtau = np.asarray(dtau))
         print "saved msd data to", prefix+"_MSD.npz"
     elif plotmsd or args.rr:
-        print "loading msd data from npz files"
+        if verbose: print "loading msd data from npz files"
         msdnpz = np.load(locdir+prefix+"_MSD.npz")
         msds = msdnpz['msds']
         try: msdids = msdnpz['msdids']
@@ -553,11 +567,11 @@ if __name__=='__main__':
         except KeyError:
             dt0  = 10 # here's assuming...
             dtau = 10 #  should be true for all from before dt* was saved
-        print "\t...loaded"
+        if verbose: print "\t...loaded"
 
 if __name__=='__main__' and plot_capable:
     if plotmsd:
-        print 'plotting now!'
+        if verbose: print 'plotting now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
                  prefix=prefix, show_tracks=show_tracks,
                  singletracks=singletracks, fps=fps, S=S,
