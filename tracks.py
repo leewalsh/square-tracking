@@ -3,48 +3,25 @@
 
 from __future__ import division
 
+from socket import gethostname
+hostname = gethostname()
+if 'foppl' in hostname:
+    import matplotlib
+    matplotlib.use("agg")
+
 from itertools import izip
 from math import sqrt
-import sys
 
 import numpy as np
-from PIL import Image as Im
+from matplotlib import cm, pyplot as pl
 from scipy.optimize import curve_fit
 
 import helpy
 import correlation as corr
 
-from socket import gethostname
-hostname = gethostname()
-if 'rock' in hostname:
-    computer = 'rock'
-    locdir = ''#/Users/leewalsh/Physics/Squares/orientation/'
-    extdir = locdir#'/Volumes/bhavari/Squares/lighting/still/'
-    plot_capable = True
-elif 'foppl' in hostname:
-    computer = 'foppl'
-    locdir = '/home/lawalsh/Granular/Squares/diffusion/orientational/'
-    extdir = '/media/bhavari/Squares/diffusion/still/'
-    import matplotlib
-    matplotlib.use("agg")
-    plot_capable = False
-elif 'peregrine' in hostname:
-    computer = 'peregrine'
-    locdir = extdir = ''
-    plot_capable = True
-else:
-    print "computer not defined",
-    locdir = extdir = ''
-    plot_capable = __name__=='__main__'#helpy.bool_input("Are you able to plot?")
-    if plot_capable:
-        print " ... assuming plot capable"
-        import matplotlib
-
-from matplotlib import pyplot as pl
-from matplotlib import cm as cm
-
 pi = np.pi
 twopi = 2*pi
+locdir = extdir = ''
 
 if __name__=='__main__':
     from argparse import ArgumentParser
@@ -98,9 +75,9 @@ if __name__=='__main__':
                    help='Show individual tracks')
     p.add_argument('--cut', action='store_true',
                    help='cut individual tracks at collision with boundary')
-    p.add_argument('--center', type=float, nargs='*', default=0,
-                   help='Optionally provide center and radius '
-                   'in the form --center X0 Y0 R')
+    p.add_argument('--center', type=float, nargs=3, default=False,
+                   metavar=('X0', 'Y0', 'R'),
+                   help='Optionally provide center and radius')
     p.add_argument('--nn', action='store_true',
                    help='Calculate and plot the <nn> correlation')
     p.add_argument('--rn', action='store_true',
@@ -115,12 +92,6 @@ if __name__=='__main__':
     prefix = args.prefix
     dotfix = '_CORNER' if args.corner else ''
 
-    gendata  =  args.load
-    findtracks = args.track
-    plottracks = args.plottracks
-    findmsd = args.msd
-    plotmsd = args.plotmsd
-
     S = args.side
     A = S**2
     if args.maxdist == 0:
@@ -129,19 +100,15 @@ if __name__=='__main__':
     dtau = args.dtau
     dt0 = args.dt0
 
-    kill_flats = args.killflat
-    kill_jumps = args.killjump*S*S
-    singletracks = args.singletracks
-    show_tracks = args.showtracks
     verbose = args.verbose
-    if not verbose:
-        from warnings import filterwarnings
-        filterwarnings('ignore', category=RuntimeWarning, module='numpy')
-        filterwarnings('ignore', category=RuntimeWarning, module='scipy')
-        filterwarnings('ignore', category=RuntimeWarning, module='matpl')
-    else:
+    if verbose:
         print 'using prefix', prefix
-
+    else:
+        from warnings import filterwarnings
+        #filterwarnings('ignore', category=RuntimeWarning, module='numpy')
+        #filterwarnings('ignore', category=RuntimeWarning, module='scipy')
+        #filterwarnings('ignore', category=RuntimeWarning, module='matpl')
+        filterwarnings('ignore', category=RuntimeWarning)
 else:
     verbose = False
 
@@ -242,12 +209,13 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
         return newtrackid
 
 def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
-    sys.setrecursionlimit(max(sys.getrecursionlimit(), 2*giveup))
+    from sys import setrecursionlimit, getrecursionlimit
+    setrecursionlimit(max(getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
     if n==-1:
         n = np.count_nonzero(data['f']==0)
-        print "number of particles:", n
+        if verbose: print "number of particles:", n
 
     if cut:
         if args.center:
@@ -267,7 +235,7 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
                 bgimage = bgimage[0]
                 print 'Opening', bgimage
             C, R = helpy.circle_click(bgimage)
-            print C, R
+            print "Boundary:", C, R
         margin = S if S>1 else R/16.9 # assume 6mm particles if S not specified
         rs = np.hypot(data['x'] - C[0], data['y'] - C[1])
         cut = rs > R - margin
@@ -277,8 +245,6 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
         trackids[i] = find_closest(data[i], trackids,
                                    maxdist=maxdist, giveup=giveup, cut=cut)
 
-    # save the data record array and the trackids array
-    print "saving track data"
     # Michael used the data['lab'] field (as line[3] for line in data) to store
     # trackids. I'll keep doing that:
     assert len(data) == len(trackids), "too few/many trackids"
@@ -440,9 +406,10 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
     """ Plots the MS(A)Ds """
-    print "using dtau = {}, dt0 = {}".format(dtau, dt0)
     A = 1 if ang else S**2
-    print "using S = {} pixels, thus A = {} px^2".format(S, A)
+    if verbose:
+        print "using dtau = {}, dt0 = {}".format(dtau, dt0)
+        print "using S = {} pixels, thus A = {} px^2".format(S, A)
     try:
         dtau = np.asscalar(dtau)
     except AttributeError:
@@ -506,12 +473,12 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
-    if gendata:
+    if args.load:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
         data = gen_data(datapath)
         if verbose: print "\t...loaded"
-    if findtracks:
-        if not gendata:
+    if args.track:
+        if not args.load:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         fsets = helpy.splitter(data, ret_dict=True)
 #        from scipy.spatial.kdtree import KDTree
@@ -519,13 +486,15 @@ if __name__=='__main__':
 #                   for f, fset in fsets.iteritems() }
         trackids = find_tracks(n=args.number, maxdist=args.maxdist,
                                giveup=args.giveup, cut=args.cut)
+        # save the data record array and the trackids array
+        print "saving track data to",
+        print locdir+prefix+dotfix+"_TRACKS"
         np.savez(locdir+prefix+dotfix+"_TRACKS",
                 data=data, trackids=trackids)
 
-    elif gendata:
-        if verbose:
-            print "saving data only (no tracks) to",
-            print prefix + dotfix + "_POSITIONS.npz"
+    elif args.load:
+        print "saving " + dotfix.strip('_').lower() + " data (no tracks) to",
+        print prefix + dotfix + "_POSITIONS.npz"
         np.savez(locdir+prefix+dotfix+"_POSITIONS",
                 data = data)
         if verbose: print '\t...saved'
@@ -545,7 +514,7 @@ if __name__=='__main__':
         data = tracksnpz['data']
         if verbose: print "\t...loaded"
 
-    if findmsd:
+    if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
         np.savez(locdir+prefix+"_MSD",
                  msds = np.asarray(msds),
@@ -553,7 +522,7 @@ if __name__=='__main__':
                  dt0  = np.asarray(dt0),
                  dtau = np.asarray(dtau))
         print "saved msd data to", prefix+"_MSD.npz"
-    elif plotmsd or args.rr:
+    elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
         msdnpz = np.load(locdir+prefix+"_MSD.npz")
         msds = msdnpz['msds']
@@ -567,23 +536,23 @@ if __name__=='__main__':
             dtau = 10 #  should be true for all from before dt* was saved
         if verbose: print "\t...loaded"
 
-if __name__=='__main__' and plot_capable:
-    if plotmsd:
+if __name__=='__main__':
+    if args.plotmsd:
         if verbose: print 'plotting now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-                 prefix=prefix, show_tracks=show_tracks,
-                 singletracks=singletracks, fps=fps, S=S,
-                 kill_flats=kill_flats, kill_jumps=kill_jumps)
-    if plottracks:
+                 prefix=prefix, show_tracks=args.showtracks,
+                 singletracks=args.singletracks, fps=fps, S=S,
+                 kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
+    if args.plottracks:
         try:
-            bgimage = Im.open(extdir+prefix+'_0001.tif')
+            bgimage = pl.imread(extdir+prefix+'_0001.tif')
         except IOError:
             try:
-                bgimage = Im.open(locdir+prefix+'_001.tif')
+                bgimage = pl.imread(locdir+prefix+'_001.tif')
             except IOError:
                 bgimage = None
-        if singletracks:
-            mask = np.in1d(trackids, singletracks)
+        if args.singletracks:
+            mask = np.in1d(trackids, args.singletracks)
         plot_tracks(data, trackids, bgimage, mask=mask)
 
 if __name__=='__main__' and args.nn:
@@ -728,8 +697,8 @@ if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
             msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
             errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
-            singletracks=singletracks, fps=fps, S=S, show=False,
-            kill_flats=kill_flats, kill_jumps=kill_jumps)
+            singletracks=args.singletracks, fps=fps, S=S, show=False,
+            kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     isfin = np.isfinite(msd) & np.isfinite(taus) & np.isfinite(msderr)
     msd = msd[isfin]
     taus = taus[isfin]
@@ -752,7 +721,6 @@ if __name__=='__main__' and args.rr:
         print "RuntimeError:", e.message
         print "Using inital guess"
         popt = p0
-    D, v0rr = p0
     print '\n'.join(['   D_T: {:.3f}', 'v0(rr): {:.3f}'][:len(popt)]).format(*popt)
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
