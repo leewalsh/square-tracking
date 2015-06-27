@@ -52,8 +52,8 @@ if __name__=='__main__':
     parser.add_argument('-o','--orient', action='store_true',
                         help='Find the orientations and save')
     parser.add_argument('-n', '--ncorners', type=int, default=2,
-                        help='Number of corner dots per particle. Default is 3')
-    parser.add_argument('-r', '--rcorner', type=float, default=10,
+                        help='Number of corner dots per particle. default = 2')
+    parser.add_argument('-r', '--rcorner', type=float, required=True,
                         help='Distance to corner dot from central dot, in pixels.')
     parser.add_argument('--drcorner', type=float, default=-1,
                         help='Allowed error in r (rcorner), in pixels. Default is sqrt(r)')
@@ -70,7 +70,7 @@ if __name__=='__main__':
     parser.add_argument('-f', '--fps', type=float, default=1,
                         help="Number of frames per second (or per shake) "
                              "for unit normalization")
-    parser.add_argument('--dt0', type=int, default=10,
+    parser.add_argument('--dt0', type=int, default=1,
                         help='Stepsize for time-averaging of a single '
                              'track at different time starting points')
     parser.add_argument('--dtau', type=int, default=1,

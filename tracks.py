@@ -50,9 +50,8 @@ if __name__=='__main__':
     from argparse import ArgumentParser
     p = ArgumentParser()
     p.add_argument('prefix', metavar='PRE',
-                   help="Filename prefix with full or relative path "
-                        "(filenames prefix_POSITIONS.txt, "
-                        "prefix_CORNER_POSITIONS.txt, etc)")
+                   help="Filename prefix with full or relative path (filenames"
+                   " prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
     p.add_argument('-c', '--corner', action='store_true',
                    help='Track corners instead of centers')
     p.add_argument('-n', '--number', type=int, default=-1,
@@ -66,9 +65,9 @@ if __name__=='__main__':
                    help='Plot the tracks')
     p.add_argument('--maxdist', type=int, default=0,
                    help="maximum single-frame travel distance in "
-                        "pixels for track")
+                        "pixels for track. default = S if S>1 else 20")
     p.add_argument('--giveup', type=int, default=10,
-                   help="maximum number of frames in track gap")
+                   help="maximum number of frames in track gap. default = 10")
     p.add_argument('-d', '--msd', action='store_true',
                    help='Calculate the MSD')
     p.add_argument('--plotmsd', action='store_true',
@@ -142,7 +141,6 @@ if __name__=='__main__':
         filterwarnings('ignore', category=RuntimeWarning, module='matpl')
     else:
         print 'using prefix', prefix
-
 
 else:
     verbose = False
