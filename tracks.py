@@ -48,71 +48,70 @@ twopi = 2*pi
 
 if __name__=='__main__':
     from argparse import ArgumentParser
-
-    parser = ArgumentParser()
-    parser.add_argument('prefix', metavar='PRE',
-                        help="Filename prefix with full or relative path "
-                             "(filenames prefix_POSITIONS.txt, "
-                             "prefix_CORNER_POSITIONS.txt, etc)")
-    parser.add_argument('-c', '--corner', action='store_true',
-                        help='Track corners instead of centers')
-    parser.add_argument('-n', '--number', type=int, default=-1,
-                        help='Total number of particles')
-    parser.add_argument('-l','--load', action='store_true',
-                        help='Create and save structured array from '
-                             'prefix[_CORNER]_POSITIONS.txt file')
-    parser.add_argument('-t','--track', action='store_true',
-                        help='Connect the dots and save in the array')
-    parser.add_argument('-p', '--plottracks', action='store_true',
-                        help='Plot the tracks')
-    parser.add_argument('--maxdist', type=int, default=0,
-                        help="maximum single-frame travel distance in "
-                             "pixels for track")
-    parser.add_argument('--giveup', type=int, default=10,
-                        help="maximum number of frames in track gap")
-    parser.add_argument('-d', '--msd', action='store_true',
-                        help='Calculate the MSD')
-    parser.add_argument('--plotmsd', action='store_true',
-                        help='Plot the MSD (requires --msd first)')
-    parser.add_argument('-s', '--side', type=float, default=1,
-                        help='Particle size in pixels, for unit normalization')
-    parser.add_argument('-f', '--fps', type=float, default=1,
-                        help="Number of frames per second (or per shake) "
-                             "for unit normalization")
-    parser.add_argument('--dt0', type=int, default=1,
-                        help='Stepsize for time-averaging of a single track '
-                             'at different time starting points. default = 1')
-    parser.add_argument('--dtau', type=int, default=1,
-                        help='Stepsize for values of tau at which '
-                             'to calculate MSD(tau). default = 1')
-    parser.add_argument('--killflat', type=int, default=0,
-                        help='Minimum growth factor for a single MSD track '
-                             'for it to be included')
-    parser.add_argument('--killjump', type=int, default=100000,
-                        help='Maximum initial jump for a single MSD track '
-                             'at smallest time step')
-    parser.add_argument('--stub', type=int, default=10,
-                        help='Minimum length (in frames) of a track '
-                             'for it to be included. default = 10')
-    parser.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
-                        help='identify single track ids to plot')
-    parser.add_argument('--showtracks', action='store_true',
-                        help='Show individual tracks')
-    parser.add_argument('--cut', action='store_true',
-                        help='cut individual tracks at collision with boundary')
-    parser.add_argument('--center', type=float, nargs='*', default=0,
-                        help='Optionally provide center and radius '
-                        'in the form --center X0 Y0 R')
-    parser.add_argument('--nn', action='store_true',
-                        help='Calculate and plot the <nn> correlation')
-    parser.add_argument('--rn', action='store_true',
-                        help='Calculate and plot the <rn> correlation')
-    parser.add_argument('--rr', action='store_true',
-                        help='Calculate and plot the <rr> correlation')
-    parser.add_argument('-v', '--verbose', action='count',
+    p = ArgumentParser()
+    p.add_argument('prefix', metavar='PRE',
+                   help="Filename prefix with full or relative path "
+                        "(filenames prefix_POSITIONS.txt, "
+                        "prefix_CORNER_POSITIONS.txt, etc)")
+    p.add_argument('-c', '--corner', action='store_true',
+                   help='Track corners instead of centers')
+    p.add_argument('-n', '--number', type=int, default=-1,
+                   help='Total number of particles')
+    p.add_argument('-l','--load', action='store_true',
+                   help='Create and save structured array from '
+                        'prefix[_CORNER]_POSITIONS.txt file')
+    p.add_argument('-t','--track', action='store_true',
+                   help='Connect the dots and save in the array')
+    p.add_argument('-p', '--plottracks', action='store_true',
+                   help='Plot the tracks')
+    p.add_argument('--maxdist', type=int, default=0,
+                   help="maximum single-frame travel distance in "
+                        "pixels for track")
+    p.add_argument('--giveup', type=int, default=10,
+                   help="maximum number of frames in track gap")
+    p.add_argument('-d', '--msd', action='store_true',
+                   help='Calculate the MSD')
+    p.add_argument('--plotmsd', action='store_true',
+                   help='Plot the MSD (requires --msd first)')
+    p.add_argument('-s', '--side', type=float, default=1,
+                   help='Particle size in pixels, for unit normalization')
+    p.add_argument('-f', '--fps', type=float, default=1,
+                   help="Number of frames per second (or per shake) "
+                        "for unit normalization")
+    p.add_argument('--dt0', type=int, default=1,
+                   help='Stepsize for time-averaging of a single track '
+                        'at different time starting points. default = 1')
+    p.add_argument('--dtau', type=int, default=1,
+                   help='Stepsize for values of tau at which '
+                        'to calculate MSD(tau). default = 1')
+    p.add_argument('--killflat', type=int, default=0,
+                   help='Minimum growth factor for a single MSD track '
+                        'for it to be included')
+    p.add_argument('--killjump', type=int, default=100000,
+                   help='Maximum initial jump for a single MSD track '
+                        'at smallest time step')
+    p.add_argument('--stub', type=int, default=10,
+                   help='Minimum length (in frames) of a track '
+                        'for it to be included. default = 10')
+    p.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
+                   help='identify single track ids to plot')
+    p.add_argument('--showtracks', action='store_true',
+                   help='Show individual tracks')
+    p.add_argument('--cut', action='store_true',
+                   help='cut individual tracks at collision with boundary')
+    p.add_argument('--center', type=float, nargs='*', default=0,
+                   help='Optionally provide center and radius '
+                   'in the form --center X0 Y0 R')
+    p.add_argument('--nn', action='store_true',
+                   help='Calculate and plot the <nn> correlation')
+    p.add_argument('--rn', action='store_true',
+                   help='Calculate and plot the <rn> correlation')
+    p.add_argument('--rr', action='store_true',
+                   help='Calculate and plot the <rr> correlation')
+    p.add_argument('-v', '--verbose', action='count',
                         help='Print verbosity')
 
-    args = parser.parse_args()
+    args = p.parse_args()
 
     prefix = args.prefix
     print 'using prefix', prefix
