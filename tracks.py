@@ -418,21 +418,21 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         tmsdt, tmsdd = np.asarray(tmsd).T
         if tmsdd[-50:].mean() < kill_flats: continue
         if tmsdd[:2].mean() > kill_jumps: continue
-        if show_tracks:
-            if msdids is not None and msdid not in singletracks: continue
-            if tnormalize:
-                pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
-            else:
-                pl.loglog(tmsdt/fps, tmsdd/A, lw=0.5, alpha=0.25,
-                          #label=msdid if msdids is not None else ''
-                          )
+        #if show_tracks:
+        #    if msdids is not None and msdid not in singletracks: continue
+        #    if tnormalize:
+        #        pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
+        #    else:
+        #        pl.loglog(tmsdt/fps, tmsdd/A, 'b', lw=0.5, alpha=0.2,
+        #                  #label=msdid if msdids is not None else ''
+        #                  )
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
     if errorbars:
         added = np.sum(np.isfinite(msd), 0)
         msd_err = np.nanstd(msd, 0) / np.sqrt(added-1)
     if show_tracks:
-        pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A)
+        pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
     msd = np.nanmean(msd, 0)
     return (msd, msd_err) if errorbars else msd
 
@@ -624,7 +624,7 @@ if __name__=='__main__' and args.nn:
     pl.figure()
     plot_individual = True
     if plot_individual:
-        pl.semilogy(tcorr, allcorr.T, 'b', alpha=.25)
+        pl.plot(tcorr, allcorr.T, 'b', alpha=.2)
     pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
                  capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fitform(tcorr, *popt), 'r',
@@ -633,8 +633,8 @@ if __name__=='__main__' and args.nn:
 
     pl.xlim(0, tmax)
     pl.ylim(fitform(tmax, *popt), 1)
+    pl.yscale('log')
 
-    #pl.yscale('linear'); pl.ylim(-.2, .5)
     pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     pl.xlabel("$tf$")
     pl.title("Orientation Autocorrelation\n"+prefix)
@@ -663,11 +663,12 @@ if __name__=='__main__' and args.rn:
                  **corr_args) for t in tracksets ]
 
     # Align and merge them
-    fmin, fmax = -20, 100
+    fmax = int(2*fps/D_R) if args.nn else 50
+    fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
     rncorrs = helpy.pad_uneven([
-                    rn[np.searchsorted(t, fmin):np.searchsorted(t, fmax)]
-                              for t, rn in rncorrs ], np.nan)
+                    rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
+                              for f, rn in rncorrs ], np.nan)
     tcorr = np.arange(fmin, fmax)/fps
     meancorr = np.nanmean(rncorrs, 0)
     added = np.sum(np.isfinite(rncorrs), 0)
@@ -697,7 +698,7 @@ if __name__=='__main__' and args.rn:
     pl.figure()
     plot_individual = True
     if plot_individual:
-        pl.plot(tcorr, rncorrs.T, 'b', alpha=.25)
+        pl.plot(tcorr, rncorrs.T, 'b', alpha=.2)
     pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
             capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fit, 'r', lw=2,
@@ -758,8 +759,7 @@ if __name__=='__main__' and args.rr:
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label="$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$\n" + \
-                  ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt),
-                   )
+                  ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
     pl.ylim(min(fit[0], msd[0]), max(fit[-1], msd[-1]))
     pl.legend(loc=0)
     save = locdir + prefix + '_rr-corr.pdf'
