@@ -394,7 +394,8 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         msd[ti, tau_match] = tmsdd
     if errorbars:
         added = np.sum(np.isfinite(msd), 0)
-        msd_err = np.nanstd(msd, 0) / np.sqrt(added-1)
+        msd_err = np.nanstd(msd, 0) + 1e-9
+        msd_err /= np.nan_to_num(np.sqrt(added-1))
     if show_tracks:
         pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
     msd = np.nanmean(msd, 0)
@@ -699,12 +700,8 @@ if __name__=='__main__' and args.rr:
             errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
             kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
-    isfin = np.isfinite(msd) & np.isfinite(taus) & np.isfinite(msderr)
-    msd = msd[isfin]
-    taus = taus[isfin]
-    msderr = msderr[isfin]
-    sigma = msderr + 1e-5*np.nanstd(msderr)
 
+    sigma = msderr + 1e-5*S*S
     taus /= fps
     msd /= A
     tmax = 300
