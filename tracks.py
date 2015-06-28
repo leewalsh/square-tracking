@@ -84,6 +84,8 @@ if __name__=='__main__':
                    help='Calculate and plot the <rn> correlation')
     p.add_argument('--rr', action='store_true',
                    help='Calculate and plot the <rr> correlation')
+    p.add_argument('--fitv0', action='store_true',
+                   help='Allow v_0 to be a free parameter in fit to MSD (<rr>)')
     p.add_argument('-v', '--verbose', action='count',
                         help='Print verbosity')
 
@@ -584,10 +586,17 @@ if __name__=='__main__' and args.nn:
     tmax = 50
     fmax = np.searchsorted(tcorr, tmax)
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
-    popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
-                           p0=[1], sigma=sigma[:fmax])
+    p0 = [1]
+    try:
+        popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
+                               p0=p0, sigma=sigma[:fmax])
+    except RuntimeError as e:
+        print "RuntimeError:", e.message
+        print "Using inital guess", p0
+        popt = p0
     D_R = popt[0]
-    print 'D_R: {:.4f}'.format(D_R)
+    print "Fits to <nn>:"
+    print '   D_R: {:.4f}'.format(D_R)
 
     pl.figure()
     plot_individual = True
@@ -646,22 +655,33 @@ if __name__=='__main__' and args.rn:
         print "Merged rn corrs"
 
     # Fit to capped exponential growth
+    if not args.nn: D_R = 1
     #fitform = lambda s, v_D, shift=0, D=(D_R if args.nn else 1):\
     #          v_D*(1 - corr.exp_decay(s-shift, 1/D))
     #fitstr = r'$\frac{v_0}{D_R}(1 - e^{D_R(-s+t_0)})$'
     fitform = lambda s, v_D, shift=0, D=D_R:\
               shift + np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
-    fitstr = r'$c_0 + \operatorname{sign}(s)\frac{v_0}{D_R}(1 - e^{-D_R|s|})$'
+    fitstr = r'$c_0 +\ \operatorname{sign}(s)\frac{v_0}{D_R}(1 - e^{-D_R|s|})$'
 
-    p0 = [10, 0] if args.nn else [10, 0, 1]
-    popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
+    p0 = [1, 0] if args.nn else [1, 0, D_R] # [v_0/D_R, shift, D_R]
+    try:
+        popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
+    except RuntimeError as e:
+        print "RuntimeError:", e.message
+        print "Using inital guess", p0
+        popt = p0
     fit = fitform(tcorr, *popt)
     if not args.nn: D_R = popt[-1]
     v0 = D_R*popt[0]
     shift = popt[1]
-    print '\n'.join(['v0/D_R: {:.4f}','  dx_0: {:.4f}',
+    print "Fits to <rn>:"
+    print '\n'.join(['v0/D_R: {:.4f}',
+                     ' shift: {:.4f}',
                      '   D_R: {:.4f}'][:len(popt)]).format(*popt)
-    print '    v0: {:.4f}'.format(v0)
+    print "Giving:"
+    print '\n'.join(['    v0: {:.4f}',
+                     '   D_R: {:.4f}'][:4-len(popt)]
+                    ).format(*[v0, D_R][:4-len(popt)])
 
     pl.figure()
     plot_individual = True
@@ -706,8 +726,14 @@ if __name__=='__main__' and args.rr:
     msd /= A
     tmax = 300
     fmax = np.searchsorted(taus, tmax)
-    if not (args.nn or args.rn): D_R = v0 = 1
-    elif not args.rn: v0 = 1
+    if not (args.nn or args.rn):
+        D_R = v0 = 1
+        p0 = [0, v0, D_R]
+    elif not args.rn:
+        v0 = 1
+        p0 = [0, v0]
+    else:
+        p0 = [0, v0] if args.fitv0 else [0]# [D_T, v_0, D_R]
     fitform = lambda s, D, v=v0, DR=D_R:\
               2*(v/DR)**2 * (- 1 + DR*s + np.exp(-DR*s)) + 2*D*s
     p0 = [0, v0]
@@ -716,9 +742,16 @@ if __name__=='__main__' and args.rr:
                                p0=p0, sigma=sigma[:fmax])
     except RuntimeError as e:
         print "RuntimeError:", e.message
-        print "Using inital guess"
+        if not args.fitv0: p0 = [0, v0]
+        print "Using inital guess", p0
         popt = p0
-    print '\n'.join(['   D_T: {:.3f}', 'v0(rr): {:.3f}'][:len(popt)]).format(*popt)
+    print "Fits to <rr>:"
+    print '\n'.join(['   D_T: {:.3f}',
+                     'v0(rr): {:.3f}',
+                     '   D_R: {:.3f}'][:len(popt)]).format(*popt)
+    if len(popt) > 1:
+        print "Giving:"
+        print "v0/D_R: {:.3f}".format(popt[1]/(popt[2] if len(popt)>2 else D_R))
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label="$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$\n" + \
