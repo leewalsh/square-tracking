@@ -40,6 +40,10 @@ if __name__=='__main__':
                    help='Connect the dots and save in the array')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
+    p.add_argument('--noshow', action='store_false', dest='show',
+                   help="Don't show figures (just save them)")
+    p.add_argument('--nosave', action='store_false', dest='save',
+                   help="Don't save figures (just show them)")
     p.add_argument('--maxdist', type=int, default=0,
                    help="maximum single-frame travel distance in "
                         "pixels for track. default = S if S>1 else 20")
@@ -261,7 +265,8 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
     return trackids
 
 # Plotting tracks:
-def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
+def plot_tracks(data, trackids, bgimage=None, mask=slice(None),
+                fignum=None, save=True, show=True):
     pl.figure(fignum)
     mask = mask & (trackids >= 0)
     data = data[mask]
@@ -274,9 +279,10 @@ def plot_tracks(data, trackids, bgimage=None, mask=slice(None), fignum=None):
     pl.xlim(data['y'].min()-10, data['y'].max()+10)
     pl.ylim(data['x'].min()-10, data['x'].max()+10)
     pl.title(prefix)
-    print "saving tracks image to", prefix+"_tracks.png"
-    pl.savefig(locdir+prefix+"_tracks.png")
-    pl.show()
+    if save:
+        print "saving tracks image to", prefix+"_tracks.png"
+        pl.savefig(locdir+prefix+"_tracks.png")
+    if show: pl.show()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -467,7 +473,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if ylim is not None:
         pl.ylim(*ylim)
     if show_legend: pl.legend(loc='best')
-    if save is None:
+    if save is True:
         save = locdir + prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
         print "saving to", save
@@ -543,8 +549,8 @@ if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-                 prefix=prefix, show_tracks=args.showtracks,
-                 singletracks=args.singletracks, fps=fps, S=S,
+                 prefix=prefix, show_tracks=args.showtracks, show=args.show,
+                 singletracks=args.singletracks, fps=fps, S=S, save=args.save,
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
         try:
@@ -556,7 +562,8 @@ if __name__=='__main__':
                 bgimage = None
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
-        plot_tracks(data, trackids, bgimage, mask=mask)
+        plot_tracks(data, trackids, bgimage, mask=mask,
+                    save=args.save, show=args.show)
 
 if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
@@ -617,10 +624,11 @@ if __name__=='__main__' and args.nn:
     pl.title("Orientation Autocorrelation\n"+prefix)
     pl.legend(loc=0, framealpha=1)
 
-    save = locdir+prefix+'_nn-corr.pdf'
-    print 'saving to', save
-    pl.savefig(save)
-    if not (args.rn or args.rr): pl.show()
+    if args.save:
+        save = locdir+prefix+'_nn-corr.pdf'
+        print 'saving to', save
+        pl.savefig(save)
+    if not (args.rn or args.rr) and args.show: pl.show()
 
 if __name__=='__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
@@ -709,10 +717,11 @@ if __name__=='__main__' and args.rn:
     pl.xlabel("$tf$")
     pl.legend(loc=0, framealpha=1)
 
-    save = locdir + prefix + '_rn-corr.pdf'
-    print 'saving to', save
-    pl.savefig(save)
-    if not args.rr: pl.show()
+    if args.save:
+        save = locdir + prefix + '_rn-corr.pdf'
+        print 'saving to', save
+        pl.savefig(save)
+    if not args.rr and args.show: pl.show()
 
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
@@ -758,7 +767,9 @@ if __name__=='__main__' and args.rr:
                   ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
     pl.ylim(min(fit[0], msd[0]), max(fit[-1], msd[-1]))
     pl.legend(loc=0)
-    save = locdir + prefix + '_rr-corr.pdf'
-    print 'saving to', save
-    fig.savefig(save)
-    pl.show()
+
+    if args.save:
+        save = locdir + prefix + '_rr-corr.pdf'
+        print 'saving to', save
+        fig.savefig(save)
+    if args.show: pl.show()
