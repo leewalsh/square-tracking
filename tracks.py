@@ -73,7 +73,7 @@ if __name__=='__main__':
     p.add_argument('--stub', type=int, default=10,
                    help='Minimum length (in frames) of a track '
                         'for it to be included. default = 10')
-    p.add_argument('--singletracks', type=int, nargs='*', default=xrange(1000),
+    p.add_argument('--singletracks', type=int, nargs='*',
                    help='identify single track ids to plot')
     p.add_argument('--showtracks', action='store_true',
                    help='Show individual tracks')
@@ -370,11 +370,13 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
 # Mean Squared Displacement:
 
 def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
-             show_tracks=False, singletracks=xrange(1000), tnormalize=False,
+             show_tracks=False, singletracks=None, tnormalize=False,
              errorbars=False, fps=1, A=1):
     """ return the mean of several track msds """
 
-    msd = np.full((len(msds),len(taus)), np.nan, float)
+    msdshape = (len(singletracks) if singletracks else len(msds),
+                len(taus))
+    msd = np.full(msdshape, np.nan, float)
     added = np.zeros(len(taus), float)
 
     if msdids is not None:
@@ -382,6 +384,10 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     elif msdids is None:
         allmsds = enumerate(msds)
     for thismsd in allmsds:
+        if singletracks\
+               and msdids is not None\
+               and msdid not in singletracks:
+            continue
         if msdids is not None:
             ti, tmsd, msdid = thismsd
         else:
@@ -390,14 +396,6 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         tmsdt, tmsdd = np.asarray(tmsd).T
         if tmsdd[-50:].mean() < kill_flats: continue
         if tmsdd[:2].mean() > kill_jumps: continue
-        #if show_tracks:
-        #    if msdids is not None and msdid not in singletracks: continue
-        #    if tnormalize:
-        #        pl.loglog(tmsdt/fps, tmsdd/A/(tmsdt/fps)**tnormalize)
-        #    else:
-        #        pl.loglog(tmsdt/fps, tmsdd/A, 'b', lw=0.5, alpha=0.2,
-        #                  #label=msdid if msdids is not None else ''
-        #                  )
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
     if errorbars:
@@ -412,7 +410,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
 def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         show_tracks=True, figsize=(8,6), plfunc=pl.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
-        lw=1, singletracks=xrange(1000), fps=1, S=1, ang=False, sys_size=0,
+        lw=1, singletracks=None, fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
     """ Plots the MS(A)Ds """
     A = 1 if ang else S**2
