@@ -743,7 +743,6 @@ if __name__=='__main__' and args.rr:
         p0 = [0, v0] if args.fitv0 else [0]# [D_T, v_0, D_R]
     fitform = lambda s, D, v=v0, DR=D_R:\
               2*(v/DR)**2 * (- 1 + DR*s + np.exp(-DR*s)) + 2*D*s
-    p0 = [0, v0]
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
                                p0=p0, sigma=sigma[:fmax])
