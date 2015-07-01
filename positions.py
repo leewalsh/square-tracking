@@ -229,7 +229,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
     from argparse import ArgumentParser
-    from os import path
+    from os import path, makedirs
 
     parser = ArgumentParser()
     parser.add_argument('files', metavar='FILE', nargs='+',
@@ -348,13 +348,13 @@ if __name__ == '__main__':
 
         nfound = len(pts)
         if nfound < 1:
-            print 'Found no particles in ', path.split(filename)[-1]
+            print 'Found no particles in ', path.basename(filename)
             return
         centers = np.hstack([n*np.ones((nfound,1)), pts])
-        print '%20s: Found %d particles' % (path.split(filename)[-1], nfound)
+        print '%20s: Found %d particles' % (path.basename(filename), nfound)
         if args.plot:
-            pdir = path.split(path.abspath(args.output))[0]
-            savebase = path.join(pdir, path.split(filename)[-1].split('.')[-2])
+            pdir = path.dirname(path.abspath(args.output))
+            savebase = path.join(pdir, path.splitext(path.basename(filename))[0])
             plot_positions(savebase, args.plot, *out)
 
         if args.both:
@@ -380,7 +380,7 @@ if __name__ == '__main__':
             if nfound < 1:
                 print 'Found no corners, returning only centers'
                 return centers
-            print '%20s: Found %d corners' % (path.split(filename)[-1], nfound)
+            print '%20s: Found %d corners' % (path.basename(filename), nfound)
             if args.plot:
                 plot_positions(savebase+'_CORNER', args.plot, cpts, clabels)
             corners = np.hstack([n*np.ones((nfound,1)), cpts])
@@ -396,6 +396,11 @@ if __name__ == '__main__':
         mapper = map
     points = mapper(get_positions, enumerate(filenames))
     points = filter(lambda x: len(x) > 0, points)
+
+    fulldir = os.path.abspath(os.path.dirname(args.output))
+    if not os.path.exists(fulldir):
+        print "Creating new directory", fulldir
+        makedirs(fulldir)
 
     if not args.output.endswith('_POSITIONS.txt'):
         if args.output.endswith('.txt'):
@@ -416,7 +421,8 @@ if __name__ == '__main__':
         with open(coutput, 'w') as coutput:
             print "Saving corner positions to ", coutput.name
             coutput.write('# Kern     Min area    Max area      Max eccen\n')
-            coutput.write('#%5.2f%7d%13d%15.2f\n' % (args.ckern, args.cmin, args.cmax, args.cecc))
+            coutput.write('#%5.2f%7d%13d%15.2f\n' % (
+                          args.ckern, args.cmin, args.cmax, args.cecc))
             coutput.write('#\n')
             coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
             np.savetxt(coutput, corners, delimiter='     ',
