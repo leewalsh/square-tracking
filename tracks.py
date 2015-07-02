@@ -693,17 +693,18 @@ if __name__=='__main__' and args.rn:
 
     pl.figure()
     plot_individual = True
+    sgn = np.sign(v0)
     if plot_individual:
-        pl.plot(tcorr, rncorrs.T, 'b', alpha=.2)
-    pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+        pl.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
+    pl.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
                 label="Mean Position-Orientation Correlation",
                 capthick=0, elinewidth=1, errorevery=3)
-    pl.plot(tcorr, fit, 'r', lw=2,
+    pl.plot(tcorr, sgn*fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr+'\n'+
                    ', '.join(['$v_0 = {:.3f}$', '$c_0 = {:.3f}$', '$D_R = {:.3f}$'
-                              ][:len(popt)]).format(*(v0, shift, D_R)[:len(popt)])
+                              ][:len(popt)]).format(*(abs(v0), shift, D_R)[:len(popt)])
            )
 
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
@@ -740,6 +741,7 @@ if __name__=='__main__' and args.rr:
     elif not args.rn:
         v0 = 1
         p0 = [0, v0]
+        sgn = 1
     else:
         p0 = [0, v0] if args.fitv0 else [0]# [D_T, v_0, D_R]
     fitform = lambda s, D, v=v0, DR=D_R:\
@@ -763,7 +765,8 @@ if __name__=='__main__' and args.rr:
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + ', '.join(
-                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
+                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]
+                  ).format(*(popt*np.array([1, sgn]))))
 
     pl.axvline(popt[0]/popt[1]**2, 0, 1/3, ls='--', c='k')
     pl.text(popt[0]/popt[1]**2, 2e-2, ' $D_T/v_0^2$')
