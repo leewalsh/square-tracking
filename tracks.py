@@ -448,7 +448,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
     else:
         pl.loglog(taus/fps, msd/A, meancol, lw=lw,
-                  label=prefix+'\ndt0=%d dtau=%d'%(dt0,dtau))
+                  label="Mean Squared {}Displacement".format('Angular '*ang))
         #pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
@@ -607,10 +607,11 @@ if __name__=='__main__' and args.nn:
     if plot_individual:
         pl.plot(tcorr, allcorr.T, 'b', alpha=.2)
     pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
-                 capthick=0, elinewidth=1, errorevery=3)
+                label="Mean Orientation Autocorrelation",
+                capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fitform(tcorr, *popt), 'r',
              label=r"$\frac{1}{2}e^{-D_R t}$" + '\n' +\
-                    "$D_R$: {:.4f}, $1/D_R$: {:.3f}".format(D_R, 1/D_R))
+                    "$D_R = {:.4f}$, $D_R^{{-1}} = {:.3f}$".format(D_R, 1/D_R))
 
     pl.xlim(0, tmax)
     pl.ylim(fitform(tmax, *popt), 1)
@@ -619,7 +620,7 @@ if __name__=='__main__' and args.nn:
     pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     pl.xlabel("$tf$")
     pl.title("Orientation Autocorrelation\n"+prefix)
-    pl.legend(loc='lower left', framealpha=1)
+    pl.legend(loc='upper right', framealpha=1)
 
     if args.save:
         save = locdir+prefix+'_nn-corr.pdf'
@@ -696,26 +697,25 @@ if __name__=='__main__' and args.rn:
     if plot_individual:
         pl.plot(tcorr, rncorrs.T, 'b', alpha=.2)
     pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
-            capthick=0, elinewidth=1, errorevery=3)
+                label="Mean Position-Orientation Correlation",
+                capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr+'\n'+
-                   ', '.join(['$v_0$: {:.3f}', '$c_0$: {:.3f}', '$D_R$: {:.3f}'
+                   ', '.join(['$v_0 = {:.3f}$', '$c_0 = {:.3f}$', '$D_R = {:.3f}$'
                               ][:len(popt)]).format(*(v0, shift, D_R)[:len(popt)])
            )
 
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
     pl.text(1/D_R, 1e-2, ' $1/D_R$')
-    pl.axvline(1/v0, 0, 3/4, ls='--', c='k')
-    pl.text(1/v0, 1e-2, ' $1/v_0$')
 
     pl.ylim(1.5*fit.min(), 1.5*fit.max())
     pl.xlim(tcorr.min(), tcorr.max())
     pl.title("Position - Orientation Correlation")
     pl.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     pl.xlabel("$tf$")
-    pl.legend(loc='lower right', framealpha=1)
+    pl.legend(loc='upper left', framealpha=1)
 
     if args.save:
         save = locdir + prefix + '_rn-corr.pdf'
@@ -733,7 +733,7 @@ if __name__=='__main__' and args.rr:
     sigma = msderr + 1e-5*S*S
     taus /= fps
     msd /= A
-    tmax = 300
+    tmax = 200
     fmax = np.searchsorted(taus, tmax)
     if not (args.nn or args.rn):
         D_R = v0 = 1
@@ -765,8 +765,15 @@ if __name__=='__main__' and args.rr:
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + ', '.join(
                   ["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
-    pl.ylim(min(fit[0], msd[0]), max(fit[-1], msd[-1]))
-    pl.legend(loc='lower right')
+
+    pl.axvline(popt[0]/popt[1]**2, 0, 1/3, ls='--', c='k')
+    pl.text(popt[0]/popt[1]**2, 2e-2, ' $D_T/v_0^2$')
+    pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+    pl.text(1/D_R, 2e-1, ' $1/D_R$')
+
+    pl.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
+    pl.xlim(taus[0], tmax)
+    pl.legend(loc='upper left')
 
     if args.save:
         save = locdir + prefix + '_rr-corr.pdf'
