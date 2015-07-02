@@ -354,8 +354,13 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
                          "for matching lengths").format(l, len(g))
 
     if cumulant:
-        f = f - f.mean()
-        g = g - g.mean()
+        if cumulant is True:
+            f = f - f.mean()
+            g = g - g.mean()
+        elif cumulant[0]:
+            f = f - f.mean()
+        elif cumulant[1]:
+            g = g - g.mean()
 
     c = convolve(f, g, mode=mode) if reverse else correlate(f, g, mode=mode)
     if verbose:
@@ -374,15 +379,17 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         assert n[m]==l, "overlap normalizer not l at m"
     c /= n
 
-    if norm:
+    if norm is 1:
         # Normalize by no-shift value
         c /= c[m]
+    elif norm is 0:
         if verbose:
             fgs = c[m], np.dot(f, g), c.max()
             print "normalizing by scaler:", fgs[0]
             assert np.allclose(fg, fgs), (
                     "normalization calculations don't all match:"
                     "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
+        c -= c[m]
     elif verbose:
         print 'central value:', c[m]
 

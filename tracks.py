@@ -638,7 +638,8 @@ if __name__=='__main__' and args.rn:
         tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
                                                    min_length=max(100, args.stub))
 
-    corr_args = {'side': 'both', 'ret_dx': True, 'cumulant': True}
+    corr_args = {'side': 'both', 'ret_dx': True,
+                 'cumulant': (True, False), 'norm': 0 }
 
     xcoscorrs = [ corr.crosscorr(tracksets[t]['x']/S, np.cos(otracksets[t]),
                  **corr_args) for t in tracksets ]
@@ -659,20 +660,18 @@ if __name__=='__main__' and args.rn:
     meancorr = np.nanmean(rncorrs, 0)
     added = np.sum(np.isfinite(rncorrs), 0)
     errcorr = np.nanstd(rncorrs, 0)/np.sqrt(added - 1)
-    sigma = errcorr + 1e-5*errcorr.std() # add something small to prevent 0
+    sigma = errcorr + errcorr.std() # add something small to prevent 0
     if verbose:
         print "Merged rn corrs"
 
     # Fit to capped exponential growth
     if not args.nn: D_R = 1
-    #fitform = lambda s, v_D, shift=0, D=(D_R if args.nn else 1):\
-    #          v_D*(1 - corr.exp_decay(s-shift, 1/D))
-    #fitstr = r'$\frac{v_0}{D_R}(1 - e^{D_R(-s+t_0)})$'
-    fitform = lambda s, v_D, shift=0, D=D_R:\
-              shift + np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
-    fitstr = r'$c_0 +\ \operatorname{sign}(s)\frac{v_0}{D_R}(1 - e^{-D_R|s|})$'
 
-    p0 = [1, 0] if args.nn else [1, 0, D_R] # [v_0/D_R, shift, D_R]
+    fitform = lambda s, v_D, D=D_R:\
+                  np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+    fitstr = r'$\frac{v_0}{D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
+    p0 = [1] if args.nn else [1, D_R] # [v_0/D_R, D_R]
+
     try:
         popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
     except RuntimeError as e:
@@ -682,7 +681,7 @@ if __name__=='__main__' and args.rn:
     fit = fitform(tcorr, *popt)
     if not args.nn: D_R = popt[-1]
     v0 = D_R*popt[0]
-    shift = popt[1]
+    shift = popt[1] if len(popt) > 1 else 0
     print "Fits to <rn>:"
     print '\n'.join(['v0/D_R: {:.4f}',
                      ' shift: {:.4f}',
