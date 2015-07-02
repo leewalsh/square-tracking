@@ -649,9 +649,12 @@ if __name__=='__main__' and args.rn:
     fmax = int(2*fps/(D_R if args.nn else 12))
     fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
+    # TODO: align these so that even if a track doesn't reach the fmin edge,
+    # that is, if f.min() > fmin for a track, then it still aligns at zero
     rncorrs = helpy.pad_uneven([
                     rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
-                              for f, rn in rncorrs ], np.nan)
+                              for f, rn in rncorrs if f.min() <= fmin ],
+                    np.nan)
     tcorr = np.arange(fmin, fmax)/fps
     meancorr = np.nanmean(rncorrs, 0)
     added = np.sum(np.isfinite(rncorrs), 0)
