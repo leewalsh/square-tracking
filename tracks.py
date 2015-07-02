@@ -620,7 +620,7 @@ if __name__=='__main__' and args.nn:
     pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     pl.xlabel("$tf$")
     pl.title("Orientation Autocorrelation\n"+prefix)
-    pl.legend(loc=0, framealpha=1)
+    pl.legend(loc='lower left', framealpha=1)
 
     if args.save:
         save = locdir+prefix+'_nn-corr.pdf'
@@ -646,7 +646,7 @@ if __name__=='__main__' and args.rn:
                  **corr_args) for t in tracksets ]
 
     # Align and merge them
-    fmax = int(2*fps/D_R) if args.nn else 50
+    fmax = int(2*fps/(D_R if args.nn else 12))
     fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
     rncorrs = helpy.pad_uneven([
@@ -713,7 +713,7 @@ if __name__=='__main__' and args.rn:
     pl.title("Position - Orientation Correlation")
     pl.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     pl.xlabel("$tf$")
-    pl.legend(loc=0, framealpha=1)
+    pl.legend(loc='lower right', framealpha=1)
 
     if args.save:
         save = locdir + prefix + '_rn-corr.pdf'
@@ -742,7 +742,8 @@ if __name__=='__main__' and args.rr:
     else:
         p0 = [0, v0] if args.fitv0 else [0]# [D_T, v_0, D_R]
     fitform = lambda s, D, v=v0, DR=D_R:\
-              2*(v/DR)**2 * (- 1 + DR*s + np.exp(-DR*s)) + 2*D*s
+              2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -760,13 +761,16 @@ if __name__=='__main__' and args.rr:
         print "v0/D_R: {:.3f}".format(popt[1]/(popt[2] if len(popt)>2 else D_R))
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
-            label="$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$\n" + \
-                  ', '.join(["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
+            label=fitstr + "\n" + ', '.join(
+                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]).format(*popt))
     pl.ylim(min(fit[0], msd[0]), max(fit[-1], msd[-1]))
-    pl.legend(loc=0)
+    pl.legend(loc='lower right')
 
     if args.save:
         save = locdir + prefix + '_rr-corr.pdf'
         print 'saving to', save
         fig.savefig(save)
     if args.show: pl.show()
+
+if not args.show:
+    pl.close('all')
