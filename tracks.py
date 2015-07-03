@@ -375,7 +375,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     """ return the mean of several track msds """
 
     msdshape = (len(singletracks) if singletracks else len(msds),
-                max(map(len, taus)))
+                max(map(len, msds)))
     msd = np.full(msdshape, np.nan, float)
 
     if msdids is not None:
