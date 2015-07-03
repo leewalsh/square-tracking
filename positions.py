@@ -397,8 +397,8 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = filter(lambda x: len(x) > 0, points)
 
-    fulldir = os.path.abspath(os.path.dirname(args.output))
-    if not os.path.exists(fulldir):
+    fulldir = path.abspath(path.dirname(args.output))
+    if not path.exists(fulldir):
         print "Creating new directory", fulldir
         makedirs(fulldir)
 
