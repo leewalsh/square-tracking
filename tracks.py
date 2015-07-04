@@ -267,10 +267,13 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
     return trackids
 
 # Plotting tracks:
-def plot_tracks(data, trackids, bgimage=None, mask=slice(None),
+def plot_tracks(data, trackids, bgimage=None, mask=None,
                 fignum=None, save=True, show=True):
     pl.figure(fignum)
-    mask = mask & (trackids >= 0)
+    if mask is None:
+        mask = (trackids >= 0)
+    else:
+        mask = mask & (trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
     pl.scatter(data['y'], data['x'],
@@ -561,6 +564,8 @@ if __name__=='__main__':
                 bgimage = None
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
+        else:
+            mask = None
         plot_tracks(data, trackids, bgimage, mask=mask,
                     save=args.save, show=args.show)
 
