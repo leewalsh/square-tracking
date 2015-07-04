@@ -31,8 +31,9 @@ if __name__=='__main__':
                    " prefix_POSITIONS.txt, prefix_CORNER_POSITIONS.txt, etc)")
     p.add_argument('-c', '--corner', action='store_true',
                    help='Track corners instead of centers')
-    p.add_argument('-n', '--number', type=int, default=-1,
-                   help='Total number of particles')
+    p.add_argument('-n', '--number', type=int, default=0,
+                   help='Total number of tracks to keep. Default = 0 keeps all,'
+                        ' -1 attempts to count particles')
     p.add_argument('-l','--load', action='store_true',
                    help='Create and save structured array from '
                         'prefix[_CORNER]_POSITIONS.txt file')
@@ -214,12 +215,12 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
             print '\tframe:', frame, 'n:', n, 'dot:', thisdot['id']
         return newtrackid
 
-def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
+def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
     from sys import setrecursionlimit, getrecursionlimit
     setrecursionlimit(max(getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(data.shape, dtype=int)
-    if n==-1:
+    if n is True:
         n = np.count_nonzero(data['f']==0)
         if verbose: print "number of particles:", n
 
@@ -256,9 +257,10 @@ def find_tracks(n=-1, maxdist=20, giveup=10, cut=False):
     assert len(data) == len(trackids), "too few/many trackids"
     assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
     data['lab'] = trackids
-    #data = data[trackids < n] # michael did this to "crop out extra tracks"
+    if n:
+        data = data[trackids < n]
 
-    stubs = np.where(np.bincount(trackids+1)[1:] < args.stub)[0]
+    stubs = np.where(np.bincount(trackids+1)[1:] < stub)[0]
     if verbose: print "removing {} stubs".format(len(stubs))
     stubs = np.in1d(trackids, stubs)
     trackids[stubs] = -1
@@ -490,8 +492,8 @@ if __name__=='__main__':
 #        from scipy.spatial.kdtree import KDTree
 #        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
 #                   for f, fset in fsets.iteritems() }
-        trackids = find_tracks(n=args.number, maxdist=args.maxdist,
-                               giveup=args.giveup, cut=args.cut)
+        trackids = find_tracks(maxdist=args.maxdist, giveup=args.giveup,
+                               n=args.number, cut=args.cut, stub=args.stub)
         # save the data record array and the trackids array
         print "saving track data to",
         print locdir+prefix+dotfix+"_TRACKS"
