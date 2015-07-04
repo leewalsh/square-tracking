@@ -236,6 +236,55 @@ def dist(a, b):
     """
     return np.hypot(*(a - b).T)
 
+def der(f, dx=None, x=None, xwidth=None, iwidth=None):
+    """ Take a finite derivative of f(x) using convolution with the derivative
+        of a gaussian kernel.  For any convolution:
+            (f * g)' = f * g' = g * f'
+        so we start with f and g', and return g and f', a smoothed derivative.
+
+        parameters
+        ----------
+        f : an array to differentiate
+        xwidth or iwidth : smoothing width (sigma) for gaussian.
+            use iwidth for index units, (simple array index width)
+            use xwidth for the physical units of x (x array is required)
+            use 0 for no smoothing. Gives an array shorter by 1.
+        x or dx : required for normalization
+            if x is provided, dx = x[1] - x[0]
+            otherwise, a scalar dx is presumed
+            if dx=1, use a simple finite difference with np.diff
+            if dx>1, convolves with the derivative of a gaussian, sigma=dx
+
+        returns
+        -------
+        df_dx : the derivative of f with respect to x
+    """
+    from scipy.ndimage import gaussian_filter1d
+
+    if dx is None and x is None:
+        dx = 1
+    elif dx is None:
+        dx = x[1] - x[0]
+
+    if xwidth is None and iwidth is None:
+        if x is None:
+            iwidth = 1
+        else:
+            xwidth = 1
+    if iwidth is None:
+        iwidth = xwidth / dx
+
+    if iwidth == 0:
+        df = np.diff(f)
+    elif iwidth <= 1:
+       raise ValueError("width of {} too small for reliable "
+                        "results".format(iwidth))
+   else:
+        df = gaussian_filter1d(f, iwidth, order=1)
+
+    return df/dx
+
+
 # Pixel-Physical Unit Conversions
 # Physical measurements
 R_inch = 4.0           # as machined
