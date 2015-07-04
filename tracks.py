@@ -120,6 +120,12 @@ else:
     verbose = False
 
 def gen_data(datapath):
+    """ Reads raw positions data into a numpy array and saves it as an npz file
+
+        `datapath` is the path to the output file from finding particles
+        it must end with "results.txt" or "POSITIONS.txt", depending on its
+        source, and its structure is assumed to match a certain pattern
+    """
     print "loading positions data from", datapath
     if  datapath.endswith('results.txt'):
         shapeinfo = False
@@ -216,6 +222,41 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
         return newtrackid
 
 def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
+    """ Track dots from frame-to-frame, giving each particle a unique and
+        persistent id, called the trackid.
+
+        parameters
+        ----------
+        maxdist : maximal separation in pixels between a particles current
+            and previous position. i.e., the maximum distance a particle is
+            allowed to travel to be considered part of the same track
+            A good choice for this value is the size of one particle.
+        giveup : maximal number of frames to recurse over seeking the parent
+        n : the number of particles to track, useful if you wish to have one
+            track per physical particle. Not useful if you want tracks to be
+            cut when the particle hits the boundary
+        cut : whether or not to cut tracks (assign a new trackid to the same
+            physical particle) when the particle nears or hits the boundary
+            if True, it requires either args.center or for user to click on an
+            image to mark the center and boundary. Particle at the boundary
+            (between two tracks) will have track id of -1
+        stub : minimal length of a track for it to be kept. trackids of any
+            track with length less than `stub` will be set to -1
+
+        accesses
+        --------
+        data : the main data array
+
+        modifies
+        --------
+        data : replaces the `data['lab']` field with the values from `trackids`
+
+        returns
+        -------
+        trackids : an array of length `len(data)`, giving the track id number
+            for each point in data. Any point not belonging to any track has a
+            track id of -1
+    """
     from sys import setrecursionlimit, getrecursionlimit
     setrecursionlimit(max(getrecursionlimit(), 2*giveup))
 
@@ -269,6 +310,18 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None, mask=None,
                 fignum=None, save=True, show=True):
+    """ Plots the tracks of particles in 2D
+
+    parameters
+    ----------
+    data : the main data array of points
+    trackids : the array of track ids
+    bgimage : a background image to plot on top of (the first frame tif, e.g.)
+    mask : a boolean mask to filter the data (to show certain frames or tracks)
+    fignum : a pyplot figure number to add the plot to
+    save : whether to save the figure
+    show : whether to show the figure
+    """
     pl.figure(fignum)
     if mask is None:
         mask = (trackids >= 0)
@@ -294,7 +347,23 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
 #              <  averaged over t0, then i   >
 
 def t0avg(trackdots, tracklen, tau):
-    """ t0avg() averages over all t0, for given track, given tau """
+    """ Averages the squared displacement of a track for a certain value of tau
+        over all valid values of t0 (such that t0 + tau < tracklen)
+
+        That is, for a given particle, do the average over all t0
+            <[(r_i(t0 + tau) - r_i(t0)]^2>
+        for a single particle i and fixed time shift tau
+
+        parameters
+        ----------
+        trackdots : a subset of data for all points in the given track
+        tracklen : the length (duration) of the track
+        tau : the time separation for the displacement: r(tau) - r(0)
+
+        returns
+        -------
+        the described mean, a scalar
+    """
     totsqdisp = 0.0
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
@@ -318,9 +387,27 @@ def t0avg(trackdots, tracklen, tau):
     return totsqdisp/nt0s if nt0s else None
 
 def trackmsd(track, dt0, dtau):
-    """ trackmsd(track, dt0, dtau)
-        finds the track msd, as function of tau,
-        averaged over t0, for one track (worldline)
+    """ finds the mean squared displacement as a function of tau,
+        averaged over t0, for one track (particle)
+
+        parameters
+        ----------
+        track : a single integer giving the track id to be calculated
+        dt0 : spacing stepsize for values of t0, gives the number of starting
+            points averaged over in `t0avg`
+        dtau : spacing stepsize for values of tau, gives the spacing of the
+            points in time at which the msd is evaluated
+
+        For dt0, dtau:  Small values will take longer to calculate without
+            adding to the statistics. Large values calculate faster but give
+            worse statistics. For the special case dt0 = dtau = 1, a
+            correlation is used for a signicant speedup
+
+        returns
+        -------
+        a list of tuples (tau, msd(tau)) the value of tau and the mean squared
+        displacement for a single track at that value of tau
+
     """
     trackdots = data[trackids==track]
 
@@ -351,7 +438,19 @@ def trackmsd(track, dt0, dtau):
     return tmsd
 
 def find_msds(dt0, dtau, tracks=None, min_length=0):
-    """ Calculates the MSDs"""
+    """ Calculates the MSDs for all tracks
+
+        parameters
+        ----------
+        dt0, dtau : see documentation for `trackmsd`
+        tracks : iterable of individual track numbers, or None for all tracks
+        min_length : a cutoff to exclude tracks shorter than min_length
+
+        returns
+        -------
+        msds : a list of all trackmsds (each in the format given by `trackmsd`)
+        msdids : a list of the trackids corresponding to each msd
+    """
     print "Calculating MSDs with",
     print "dtau = {}, dtau = {}".format(dt0, dtau)
     msds = []
