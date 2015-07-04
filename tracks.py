@@ -889,5 +889,5 @@ if __name__=='__main__' and args.rr:
         fig.savefig(save)
     if args.show: pl.show()
 
-if not args.show:
+if __name__=='__main__' and not args.show:
     pl.close('all')
