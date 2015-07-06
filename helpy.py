@@ -279,7 +279,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
     elif iwidth <= 1:
        raise ValueError("width of {} too small for reliable "
                         "results".format(iwidth))
-   else:
+    else:
         df = gaussian_filter1d(f, iwidth, order=1)
 
     return df/dx
