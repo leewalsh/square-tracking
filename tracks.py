@@ -107,6 +107,9 @@ if __name__=='__main__':
     dtau = args.dtau
     dt0 = args.dt0
 
+    if args.number == -1:
+        args.number = True
+
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
@@ -262,8 +265,10 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
 
     trackids = -np.ones(data.shape, dtype=int)
     if n is True:
-        n = np.count_nonzero(data['f']==0)
-        if verbose: print "number of particles:", n
+        # use the mode of number of particles per frame
+        # np.argmax(np.bincount(x)) == mode(x)
+        n = np.argmax(np.bincount(np.bincount(data['f'])))
+        print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
         if args.center:
@@ -293,18 +298,23 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         trackids[i] = find_closest(data[i], trackids,
                                    maxdist=maxdist, giveup=giveup, cut=cut)
 
+    if verbose:
+        assert len(data) == len(trackids), "too few/many trackids"
+        assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
+
+    if n or stub > 0:
+        track_lens = np.bincount(trackids+1)[1:]
+    if n:
+        stubs = np.argsort(track_lens)[:-n] # all but the longest n
+    elif stub > 0:
+        stubs = np.where(track_lens < stub)[0]
+        if verbose: print "removing {} stubs".format(len(stubs))
+    if n or stub > 0:
+        stubs = np.in1d(trackids, stubs)
+        trackids[stubs] = -1
     # Michael used the data['lab'] field (as line[3] for line in data) to store
     # trackids. I'll keep doing that:
-    assert len(data) == len(trackids), "too few/many trackids"
-    assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
     data['lab'] = trackids
-    if n:
-        data = data[trackids < n]
-
-    stubs = np.where(np.bincount(trackids+1)[1:] < stub)[0]
-    if verbose: print "removing {} stubs".format(len(stubs))
-    stubs = np.in1d(trackids, stubs)
-    trackids[stubs] = -1
     return trackids
 
 # Plotting tracks:
