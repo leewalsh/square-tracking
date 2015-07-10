@@ -488,9 +488,11 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
              errorbars=False, fps=1, A=1):
     """ return the mean of several track msds """
 
+    # msd has shape (number of tracks, length of tracks)
     msdshape = (len(singletracks) if singletracks else len(msds),
                 max(map(len, msds)))
     msd = np.full(msdshape, np.nan, float)
+    taus = taus[:msdshape[1]]
 
     if msdids is not None:
         allmsds = izip(xrange(len(msds)), msds, msdids)
@@ -546,28 +548,34 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
             singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars,
             fps=fps, A=A)
     if errorbars: msd, msd_err = msd
+
     #print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
     #print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
 
+    taus = taus[:len(msd)]
+    taus /= fps
+    msd /= A
+    if errorbars: msd_err /= A
+
     if tnormalize:
-        plfunc(taus/fps, msd/A/(taus/fps)**tnormalize, meancol,
+        plfunc(taus, msd/taus**tnormalize, meancol,
                label="Mean Sq {}Disp/Time{}".format(
                      "Angular " if ang else "",
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus/fps, msd[0]/A*(taus/fps)**(1-tnormalize)/dtau,
+        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
-        plfunc(taus/fps, (twopi**2 if ang else 1)/(taus/fps)**tnormalize,
+        plfunc(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
                'k--', lw=2, label=r"$(2\pi)^2$" if ang else
                ("One particle area" if S>1 else "One Pixel"))
-        pl.ylim([0, 1.3*np.max(msd/A/(taus/fps)**tnormalize)])
+        pl.ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
-        pl.loglog(taus/fps, msd/A, meancol, lw=lw,
+        pl.loglog(taus, msd, meancol, lw=lw,
                   label="Mean Squared {}Displacement".format('Angular '*ang))
-        #pl.loglog(taus/fps, msd[0]/A*taus/dtau/2, meancol+'--', lw=2,
+        #pl.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
-        pl.errorbar(taus/fps, msd/A/(taus/fps)**tnormalize,
-                    msd_err/A/(taus/fps)**tnormalize,
+        pl.errorbar(taus, msd/taus**tnormalize,
+                    msd_err/taus**tnormalize,
                     fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
@@ -847,8 +855,6 @@ if __name__=='__main__' and args.rr:
             kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
 
     sigma = msderr + 1e-5*S*S
-    taus /= fps
-    msd /= A
     tmax = 200
     fmax = np.searchsorted(taus, tmax)
     if not (args.nn or args.rn):
