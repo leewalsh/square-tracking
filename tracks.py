@@ -771,7 +771,7 @@ if __name__=='__main__' and args.rn:
                  **corr_args) for t in tracksets ]
 
     # Align and merge them
-    fmax = int(2*fps/(D_R if args.nn else 12))
+    fmax = int(2*fps/(D_R if args.nn else 1/12))
     fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
@@ -860,6 +860,7 @@ if __name__=='__main__' and args.rr:
     if not (args.nn or args.rn):
         D_R = v0 = 1
         p0 = [0, v0, D_R]
+        sgn = 1
     elif not args.rn:
         v0 = 1
         p0 = [0, v0]
@@ -877,21 +878,28 @@ if __name__=='__main__' and args.rr:
         if not args.fitv0: p0 = [0, v0]
         print "Using inital guess", p0
         popt = p0
+
+    D_T = popt[0]
+    if len(popt) > 1:
+        v0 = popt[1]
+        if len(popt) > 2:
+            D_R = popt[2]
+
     print "Fits to <rr>:"
     print '\n'.join(['   D_T: {:.3f}',
                      'v0(rr): {:.3f}',
                      '   D_R: {:.3f}'][:len(popt)]).format(*popt)
     if len(popt) > 1:
         print "Giving:"
-        print "v0/D_R: {:.3f}".format(popt[1]/(popt[2] if len(popt)>2 else D_R))
+        print "v0/D_R: {:.3f}".format(v0/D_R)
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + ', '.join(
-                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$"][:len(popt)]
-                  ).format(*(popt*np.array([1, sgn]))))
+                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$", "$D_R = {:.3f}$"][:len(popt)]
+                  ).format(*(popt*np.array([1, sgn, 1][:len(popt)]))))
 
-    pl.axvline(popt[0]/popt[1]**2, 0, 1/3, ls='--', c='k')
-    pl.text(popt[0]/popt[1]**2, 2e-2, ' $D_T/v_0^2$')
+    pl.axvline(D_T/v0**2, 0, 1/3, ls='--', c='k')
+    pl.text(D_T/v0**2, 2e-2, ' $D_T/v_0^2$')
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
     pl.text(1/D_R, 2e-1, ' $1/D_R$')
 
