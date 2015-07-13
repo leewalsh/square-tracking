@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# encoding: utf-8
 
 from __future__ import division
 
@@ -8,14 +9,17 @@ from math import sqrt
 from cmath import phase, polar
 import numpy as np
 from numpy.linalg import norm
+from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi, cKDTree, Delaunay
-from scipy.ndimage import gaussian_filter
-from scipy.signal import hilbert
+from scipy.ndimage import gaussian_filter, gaussian_filter1d
+from scipy.signal import hilbert, correlate, convolve
 from scipy.fftpack import fft2
 from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
 from skimage.morphology import disk, binary_dilation
+
+import helpy
 
 if __name__=='__main__':
     from socket import gethostname
@@ -30,17 +34,50 @@ if __name__=='__main__':
     else:
         print "computer not defined\nwhere are you working?"
 
-ss = 92   # side length of square in pixels
-rr = 1255 # radius of disk in pixels
-x0, y0 = 1375, 2020 # center of disk within image, in pixels
+ss = 95     # side length of square in pixels, see equilibrium.ipynb
+rr = 1229.5 # radius of disk in pixels, see equilibrium.ipynb
 
 pi = np.pi
 tau = 2*pi
 
+def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
+    """ Filter marginal particles from bulk particles to reduce boundary effects
+            positions:  (N, 2) array of particle positions
+            margin:     width of margin, in units of pixels or particle sides
+            full_N:     actual number of particles, to renormalize assuming
+                        uniform distribution of undetected particles.
+            center:     if known, (2,) array of center position
+            radius:     if known, radius of system in pixels
+
+        returns
+            bulk_N:     the number particles in the bulk
+            bulk_mask:  a mask the shape of `positions`
+    """
+    #raise StandardError, "not yet tested"
+    if center is None:
+        center = 0.5*(positions.max(0) + positions.min(0))
+    if margin < ss: margin *= ss
+    d = helpy.dist(positions, center) # distances to center
+    if radius is None:
+        if len(positions) > 1e5: raise ValueError, "too many points to calculate radius"
+        r = cdist(positions, positions)       # distances between all pairs
+        radius = np.maximum(r.max()/2, d.max()) + ss/2
+    elif radius < ss:
+        radius *= ss
+    dmax = radius - margin
+    #print 'radius: ', radius/ss
+    #print 'margin: ', margin/ss
+    #print 'max r: ', dmax/ss
+    bulk_mask = d <= dmax # mask of particles in the bulk
+    bulk_N = np.count_nonzero(bulk_mask)
+    if full_N:
+        bulk_N *= full_N/len(positions)
+    return bulk_N, bulk_mask
+
 def pair_indices(n):
     """ pairs of indices to a 1d array of objects.
         equivalent to but faster than `np.triu_indices(n, 1)`
-        from: http://stackoverflow.com/questions/22390418/pairwise-displacement-vectors-among-set-of-points/
+        stackoverflow.com/questions/22390418
 
         To index the upper triangle of a matrix, just use the returned tuple.
         Otherwise, use `i` and `j` separately to index the first then second of
@@ -58,14 +95,15 @@ def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, ma
         excludes pairs in margin of given width
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
-    radius = np.maximum(r.max()/2, d.max())#TODO accuracy is critical.. add ss/2?
+    radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
         rmax = 2*radius # this will have terrible statistics at large r
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
+        if margin < ss: margin *= ss
         dmax = radius - margin
     ind = pair_indices(len(positions))
     # for weighting, use areas of the annulus, which is:
@@ -106,10 +144,10 @@ def rectify(positions, margin=0, dangonly=False):
 def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
     if margin < ss: margin *= ss
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     dmask = d < d.max() - margin
     r = cdist(positions, positions[dmask])#.ravel()
-    radius = np.maximum(r.max()/2, d.max())
+    radius = np.maximum(r.max()/2, d.max()) + ss/2
     cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
     dr = radius / bins
@@ -212,6 +250,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
 
 def structure_factor(positions, m=4, margin=0):
     """return the 2d structure factor"""
+    raise StandardError, "um this isn't finished"
     #center = 0.5*(positions.max(0) + positions.min(0))
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)
@@ -231,7 +270,7 @@ def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=F
     if margin:
         if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
+        d = helpy.dist(positions, center) # distances to center
         orientations = orientations[d < d.max() - margin]
     phi = np.exp(m*orientations*1j).mean()
     if do_err:
@@ -253,24 +292,263 @@ def dtheta(i, j=None, m=4, sign=False):
     diff = (diff + ma/2)%ma - ma/2
     return diff if sign else np.abs(diff)
 
-def correlate(r, f, bins=10):
+def bin_average(r, f, bins=10):
+    """ Binned average of function f(r)
+        r : independent variable to be binned over
+        f : function to be averaged
+        bins (default 10): can be number of bins or bin edges len(nbins)+1
+    """
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def orient_corr(positions, orientations, m=4, margin=0):
+def autocorr(f, side='right', cumulant=True, norm=True, mode='same',
+             verbose=False, reverse=False, ret_dx=False):
+    """ autocorr(f, side='right', cumulant=True, norm=True, mode='same',
+                 verbose=False, reverse=False, ret_dx=False):
+
+        The cross-correlation of f and g
+        returns the cross-correlation function
+            <f(x) g(x - dx)> averaged over x
+
+        f, g:   1d arrays, as function of x, with same lengths
+        side:   'right' returns only dx > 0, (x' < x)
+                'left'  returns only dx < 0, (x < x')
+                'both'  returns entire correlation
+        cumulant: if True, subtracts mean of the function before correlation
+        mode:   passed to scipy.signal.correlate, has little effect here, but
+                returns shorter correlation array
+    """
+    return crosscorr(f, f, side=side, cumulant=cumulant, norm=norm,
+                    mode=mode, verbose=verbose, reverse=reverse, ret_dx=ret_dx)
+
+def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+              verbose=False, reverse=False, ret_dx=False):
+    """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+                  verbose=False, reverse=False, ret_dx=False):
+
+        The cross-correlation of f and g
+        returns the cross-correlation function
+            <f(x) g(x - dx)> averaged over x
+
+        f, g:   1d arrays, as function of x, with same lengths
+        side:   'right' returns only dx > 0, (x' < x)
+                'left'  returns only dx < 0, (x < x')
+                'both'  returns entire correlation
+        cumulant:   if True, subtracts mean of the function before correlation
+        mode:       passed to scipy.signal.correlate, has little effect here.
+        norm:  if True, normalize by the correlation at no shift,
+                    that is, by <f(x) g(x) >
+        ret_dx: if True, return the dx shift between f and g
+                that is, if we are looking at <f(x) g(x')>
+                then dx = x - x'
+        reverse:    if True, flip g relative to f, that is,
+                    calculate <f(x) g(dx - x)> ?could be f(x) g(-dx-x)
+    """
+    l = len(f)
+    m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
+    L = l    if mode=='same' else 2*l-1 # length of correlation
+    if verbose:
+        print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
+    assert l == len(g), ("len(f) = {:d}, len(g) = {:d}\n"
+                         "right now only properly normalized "
+                         "for matching lengths").format(l, len(g))
+
+    if cumulant:
+        if cumulant is True:
+            f = f - f.mean()
+            g = g - g.mean()
+        elif cumulant[0]:
+            f = f - f.mean()
+        elif cumulant[1]:
+            g = g - g.mean()
+
+    c = convolve(f, g, mode=mode) if reverse else correlate(f, g, mode=mode)
+    if verbose:
+        assert c.argmax() == m, "m not at max!"
+
+    # divide by overlap
+    nl = np.arange(l - m, l)
+    nr = np.arange(l, m - (L - l) , -1)
+    n = np.concatenate([nl, nr])
+    if verbose:
+        print nl, nr
+        overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
+        print '      n: {}\noverlap: {}'.format(n, overlap)
+        assert np.allclose(n, overlap),\
+                "overlap miscalculated:\n\t{}\n\t{}".format(n, overlap)
+        assert n[m]==l, "overlap normalizer not l at m"
+    c /= n
+
+    if norm is 1:
+        # Normalize by no-shift value
+        c /= c[m]
+    elif norm is 0:
+        if verbose:
+            fgs = c[m], np.dot(f, g), c.max()
+            print "normalizing by scaler:", fgs[0]
+            assert np.allclose(fg, fgs), (
+                    "normalization calculations don't all match:"
+                    "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
+        c -= c[m]
+    elif verbose:
+        print 'central value:', c[m]
+
+    if ret_dx:
+        if side=='both':
+            return np.arange(-m, L-m), c
+        elif side=='left':
+            #return np.arange(0, -m-1, -1), c[m::-1]
+            return np.arange(-m, 1,), c[:m+1]
+        elif side=='right':
+            return np.arange(0, L-m), c[m:]
+
+    if side=='both':
+        return c
+    elif side=='left':
+        return c[m::-1]
+    elif side=='right':
+        return c[m:]
+
+def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
+    """ exponential decay with a polynomial decay scale
+
+                 - x
+           ------------------
+           a + b x + c x² ...
+        e
+    """
+    return_poly=False
+    if len(coeffs) == 0: coeffs = (1,)
+    d = poly.polyval(x, coeffs)
+    f = a*np.exp(-x**gamma/d)
+    return (f, d) if return_poly else f
+
+def vary_gauss(a, sig=1, verbose=False):
+    n = len(a)
+    b = np.empty_like(a)
+
+    if np.isscalar(sig):
+        sig *= np.arange(n)
+    elif isinstance(sig, tuple):
+        sig = poly.polyval(np.arange(n), sig)
+    elif callable(sig):
+        sig = sig(np.arange(n))
+    elif hasattr(sig, '__getitem__'):
+        assert len(a) == len(sig)
+    else: raise TypeError('`sig` is neither callable nor arraylike')
+
+    for i, s in enumerate(sig):
+        # build the kernel:
+        w = round(2*s) # kernel half-width, must be integer
+        if s == 0: s = 1
+        k = np.arange(-w, w+1, dtype=float)
+        k = np.exp(-.5 * k**2 / s**2)
+
+        # slice the array (min/max prevent going past ends)
+        al = max(i - w,     0)
+        ar = min(i + w + 1, n)
+        ao = a[al:ar]
+
+        # and the kernel
+        kl = max(w - i,     0)
+        kr = min(w - i + n, 2*w+1)
+        ko = k[kl:kr]
+        b[i] = np.dot(ao, ko)/ko.sum()
+
+    return b
+
+def msd(xs, ret_taus=False):
+    """ So far:
+          - only accepts the positions in 1 or 2d array (no data structure)
+          - can only do dt0 = dtau = 1
+
+        msd = < [x(t0 + tau) - x(t0)]**2 >
+            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0+tau) x(t0) >
+            = cumsum
+
+        The first two terms are averaged over all values of t0 that are valid
+        for the current value of tau. Thus, we have sums of x(t0) and x(t0+tau)
+        for all values of t0 in [0, T - tau). For small values of tau, nearly
+        all values of t0 are valid, and vice versa. The averages for increasing
+        values of tau is the reverse of cumsum(x) / (T-tau)
+
+        Time must be axis 0, but any number of dimensions is allowed (along axis 1)
+    """
+
+    xs = np.asarray(xs)
+    d = xs.ndim
+    if d==1:
+        T = len(xs)
+        xs = xs[:, None]
+    elif d==2:
+        T, d = xs.shape
+    else:
+        raise ValueError, "can't handle xs.ndims > 2. xs.shape is {}".format(xs.shape)
+
+    # The last term is an autocorrelation for x(t):
+    xx0 = np.apply_along_axis(autocorr, 0, xs,
+                              side='right', cumulant=False, norm=False, mode='full',
+                              verbose=False, reverse=False, ret_dx=False)
+
+    ntau = np.arange(T, 0, -1) # = T - tau
+    x2 = xs * xs
+    #x0avg = np.cumsum(x2)[::-1] / ntau
+    #xavg = np.cumsum(x2[::-1])[::-1] / ntau
+    # we'll only ever combine these, which can be done with one call:
+    #x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    #assert x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
+
+    msd = x2s - 2*xx0
+    msd = msd.sum(1) # straight sum over dimensions (x2 + y2 + ...)
+
+    return np.column_stack([np.arange(T), msd]) if ret_taus else msd
+
+def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
+    """ Find the decay scale of a function f(x)
+        f: a decaying 1d array
+        x: independent variable, default is range(len(f))
+        method: how to calculate
+            'integrate': integral of f(t) assuming exp'l form
+            'mean': mean lifetime < t > = integral of t*f(t)
+        smooth: smooth data first using poly_exp
+    """
+    l = len(f)
+    if x is None: x = np.arange(l)
+
+    if smooth=='fit':
+        p, _ = curve_fit(poly_exp, x, f, [1,1,1])
+        f = poly_exp(x, *p)
+    elif smooth.startswith('gauss'):
+        g = [gaussian_filter(f, sig, mode='constant', cval=f[sig])
+                for sig in (1, 10, 100, 1000)]
+        f = np.choose(np.repeat([0,1,2,3], [10,90,900,len(f)-1000]), g)
+
+    if rectify:
+        np.maximum(f, 0, f)
+
+    method = method.lower()
+    if method.startswith('mean'):
+        return np.dot(x, f) / f.sum()
+    elif method.startswith('int'):
+        return f.sum()
+    elif method.startswith('inv'):
+        return f.sum() / np.dot(1/(x+1), f)
+
+def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = np.hypot(*(positions - center).T)
+    d = helpy.dist(positions, center) # distances to center
     if margin < ss: margin *= ss
     loc_mask = d < d.max() - margin
     r = pdist(positions[loc_mask])
     ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
-    return r, diffs
+    return bin_average(r, diffs, bins)
 
 def get_neighbors(tess, p, pm=None, ret_pairs=False):
     """ give neighbors in voronoi tessellation v of point id p
@@ -300,14 +578,13 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         if margin < ss:
             margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
         dmask = d < d.max() - margin
         positions = positions[dmask]
         orientations = orientations[dmask]
     if 'neigh' in method or 'ball' in method:
         tree = cKDTree(positions)
         balls = tree.query_ball_tree(tree, bl)
-        balls, ball_mask = pad_uneven(balls, 0, True, int)
+        balls, ball_mask = helpy.pad_uneven(balls, 0, True, int)
         ball_orient = orientations[balls]
         ball_orient[~ball_mask] = np.nan
         phis = np.nanmean(np.exp(m*ball_orient*1j), 1)
@@ -326,27 +603,13 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
                      np.digitize(positions[:,0], xbins),
                      np.digitize(positions[:,1], ybins)])
 
-def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
-    """ take uneven list of lists
-        return new 2d array with shorter lists padded with fill value"""
-    if dtype is None:
-        dtype = np.result_type(fill, lst[0][0])
-    shape = len(lst), max(map(len, lst))
-    result = np.zeros(shape, dtype) if fill==0 else np.full(shape, fill, dtype)
-    if return_mask:
-        mask = np.zeros(shape, bool)
-    for i, row in enumerate(lst):
-        result[i, :len(row)] = row
-        if return_mask:
-            mask[i, :len(row)] = True
-    return (result, mask) if return_mask else result
-
 def get_id(data, position, frames=None, tolerance=10e-5):
     """ take a particle's `position' (x,y)
         optionally limit search to one or more `frames'
 
         return that particle's id
         THIS FUNCTION IS IMPORTED BY otracks.py AND orientation.py
+         --> but does it need to be?
         """
     if frames is not None:
         if np.iterable(frames):
@@ -370,7 +633,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         #method = 'voronoi'
         tess = Delaunay(positions)
         neighbors = get_neighbors(tess, xrange(tess.npoints))
-        neighbors, nmask = pad_uneven(neighbors, 0, True, int)
+        neighbors, nmask = helpy.pad_uneven(neighbors, 0, True, int)
     elif isinstance(neighborhood, int):
         #method = 'nearest'
         tree = cKDTree(positions)
@@ -401,7 +664,7 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
     if margin:
         if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = np.hypot(*(positions - center).T)
+        d = helpy.dist(positions, center) # distances to center
         dmask = d < d.max() - margin
         assert np.allclose(len(dmask), map(len, [angles, nmask]))
         angles = angles[dmask]
@@ -419,7 +682,7 @@ def pair_angle_corr(positions, psims, rbins=10):
     assert len(positions) == len(psims), "positions does not match psi_m(r)"
     i, j = pair_indices(len(positions))
     psi2 = psims[i].conj() * psims[j]
-    return correlate(pdist(positions), psi2, rbins)
+    return bin_average(pdist(positions), psi2, rbins)
 
 class vonmises_m(rv_continuous):
     def __init__(self, m):
@@ -613,25 +876,51 @@ def gpeak_decay(peaks,f,pksonly=False):
             print "maximak empty:",maximak
     return popt,pcov
 
-def exp_decay(s, sig=1., a=1., c=0):
-    """ exp_decay(s,sigma,c,a)
+def gauss_peak(x, c=0., a=1., x0=0., sig=1.):
+    x2 = np.square(x-x0)
+    s2 = sig*sig
+    return c + a*np.exp(-x2/s2)
+
+def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
+    l = np.searchsorted(xdata, x0-w/2)
+    r = np.searchsorted(xdata, x0+w/2)
+    x = xdata[l:r+1]
+    y = ydata[l:r+1]
+    form = form.lower()
+    if form.startswith('p'):
+        c = poly.polyfit(x, y, 2)
+        loc = -0.5*c[1]/c[2]
+        height = c[0] - 0.25 * c[1]**2 / c[2]
+    elif form.startswith('g'):
+        c, _ = curve_fit(gauss_peak, x, y, p0=[0, y0, x0, w])
+        loc = c[2]
+        height = c[0] + c[1]
+    return loc, height, x, y, c
+
+def exp_decay(t, sig=1., a=1., c=0):
+    """ exp_decay(t, sig, a, c)
         exponential decay function for fitting
 
         Args:
-            s,  independent variable
+            t,  independent variable
         Params:
-            sigma,  decay constant
+          sig,  decay constant
             a,  prefactor
             c,  constant offset
 
         Returns:
-            exp value at s
+            value at t
     """
-    return c + a*np.exp(-s/sig)
+    return c + a*np.exp(-t/sig)
+
+def log_decay(t, a=1, l=1., c=0.):
+    return c - a*np.log(t/l)
 
 def powerlaw(t, b=1., a=1., c=0):
-    """ powerlaw(t,b,c,a)
+    """ powerlaw(t, b, a, c)
         power law function for fitting
+                                      -b
+        powerlaw(t, b, a, c) = c + a t
 
         Args:
             t,  independent variable
@@ -644,64 +933,15 @@ def powerlaw(t, b=1., a=1., c=0):
     """
     return c + a * np.power(t, -b)
 
-def log_decay(t, a=1, l=1., c=0.):
-    return c - a*np.log(t/l)
-    
-def domyfits():
-    if computer is 'foppl':
-        print "cant do this on foppl"
-        return
-    for k in fixedpeaks:
-        pl.figure()
-        pl.plot(gdata[k]['rg'][:binmax]/22.0,gdata[k]['g'][:binmax]/22.0,',',label=k)
-        pl.scatter(*np.asarray(fixedpeaks[k]).T,marker='o')
-        pexps[k],cexp = curve_fit(corr.exp_decay,
-                                  *np.array(fixedpeaks[k]).T, p0=(3,.0005,.0001))
-        ppows[k],cpow = curve_fit(corr.powerlaw,
-                                  *np.array(fixedpeaks[k]).T, p0=(-.5,.0005,.0001))
-        xs = np.arange(0.8,10.4,0.2)
-        pl.plot(xs,exp_decay(xs,*pexps[k]),label='exp_decay')
-        pl.plot(xs,powerlaw(xs,*ppows[k]),label='powerlaw')
-    return pexps, ppows
-
-
-if __name__ == '__main__':
-    prefix = 'n400'
-
-    ss = 92#22  # side length of square in pixels
-    rmax = ss*10.
-    try:
-        datapath = locdir+prefix+"_GR.npz"
-        print "loading data from",datapath
-        grnpz = np.load(datapath)
-        g, dg, rg   = grnpz['g'], grnpz['dg'], grnpz['rg']
-    except:
-        print "NPZ file not found for n =",prefix[1:]
-        datapath = locdir+prefix+'_results.txt'
-        print "loading data from",datapath
-        data = np.genfromtxt(datapath,
-                skip_header = 1,
-                usecols = [0,2,3,5],
-                names   = "id,x,y,f",
-                dtype   = [int,float,float,int])
-        data['id'] -= 1 # data from imagej is 1-indexed
-        print "\t...loaded"
-        print "loading positions"
-        gs, rgs = build_gs(data)
-        print "\t...gs,rgs built"
-        print "averaging over all frames..."
-        g, dg, rg = avg_hists(gs, rgs)
-        print "\t...averaged"
-        print "saving data..."
-        np.savez(locdir+prefix+"_GR",
-                g  = np.asarray(g),
-                dg = np.asarray(dg),
-                rg = np.asarray(rg))
-        print "\t...saved"
-
-    binmax = len(rg[rg<rmax])
-    #pl.figure()
-    pl.plot(1.*rg[:binmax]/ss,g[:binmax],'.-',label=prefix)
-    #pl.title("g[r],%s,dr%d"%(prefix,ss/2))
-    pl.legend()
-    #pl.show()
+def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
+    p1 = powerlaw(t, b1, d1, c1)
+    p2 = powerlaw(t, b2, d2, c2)
+    cp = np.maximum(p1, p2)
+    if ret_crossover:
+        ct = t[np.abs(p1-p2).argmin()]
+        print ct
+        ct = np.power(d1/d2, -np.reciprocal(b2-b1))
+        print ct
+        return cp, ct
+    else:
+        return cp

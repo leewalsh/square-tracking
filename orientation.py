@@ -1,7 +1,10 @@
+# coding: utf-8
 
 from __future__ import division
+from itertools import izip
 import numpy as np
 #from scipy.stats import nanmean
+from scipy.spatial import cKDTree
 from PIL import Image as Im
 
 import matplotlib.pyplot as pl
@@ -18,6 +21,9 @@ if __name__=='__main__':
     else:
         print "computer not defined"
         print "where are you working?"
+
+pi = np.pi
+twopi = 2*pi
 
 def field_rename(a, old, new):
     a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
@@ -60,9 +66,9 @@ def get_orientation(b):
             ang = np.arctan2(mi - hght/2, ni - wdth/2)
             p.append([ang,abs(n)])
     p = np.asarray(p)
-    p[:,0] = p[:,0] + np.pi
+    p[:,0] = p[:,0] + pi
     slices = 45
-    slicewidth = 2*np.pi/slices
+    slicewidth = 2*pi/slices
     s = []
     for sl in range(slices):
         si = np.nonzero(abs(p[:,0] - sl*slicewidth) < slicewidth)
@@ -73,15 +79,16 @@ def get_orientation(b):
         pl.figure()
         #pl.plot(p[:,0],p[:,1],'.',label='p')
         #pl.plot(s[:,0],s[:,1],'o',label='s')
-        pl.plot(p[:,0]%(np.pi/2),p[:,1],'.',label='p')
-        pl.plot(s[:,0]%(np.pi/2),s[:,1],'o',label='s')
+        pl.plot(p[:,0]%(pi/2),p[:,1],'.',label='p')
+        pl.plot(s[:,0]%(pi/2),s[:,1],'o',label='s')
         pl.legend()
         pl.show()
     elif do_plots and computer is 'foppl':
         print "can't plot on foppl"
     return s, p
 
-def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True):
+def find_corner(particle, corners, tree=None,
+                nc=1, rc=11, drc=4, slr=False, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -91,51 +98,56 @@ def find_corner(particle, corners, n=1, rc=11, drc=4, slr=False, do_average=True
             particle - is particle position as [x,y] array of shape (2,)
             corners  - is shape (N,2) array of positions of corner dots
                         as [x,y] pairs
-            n        - number of corner dots
+            tree     - a KDTree of the `corners`, if available
+            nc        - number of corner dots
             rc       - is the expected distance to corner from particle position
             drc      - delta r_c is the tolerance on rc
             slr      - whether to use slr resolution
-            do_average - whether to average the n corners to one value for return
+            do_average - whether to average the nc corners to one value for return
 
         returns:
             pcorner - (mean) position(s) (x,y) of corner that belongs to particle
             porient - (mean) particle orientation(s) (% 2pi)
             cdisp   - (mean) vector(s) (x,y) from particle center to corner(s)
     """
-    from numpy.linalg import norm
 
     if slr:
         rc = 43 # 56 ?
         drc = 10
 
+    # displacements from center to corners
+    if tree:
+        # if kdtree is available, only consider nearby corners
+        icnear = tree.query_ball_point(particle, rc + drc)
+        corners = corners[icnear]
+
     cdisps = corners - particle
-    cdists = np.sqrt((cdisps**2).sum(axis=1))
-
-    legal = abs(cdists-rc) < drc
-    N = legal.sum() # number of corners found
-
-    if N == n:
+    cdists = np.hypot(*cdisps.T)    # distances corner to center
+    legal = abs(cdists - rc) < drc  # within acceptable range
+    nfound = np.count_nonzero(legal)     # number of corners found
+    if nfound == nc:
+        # good.
         pass
-    elif N < n:
+    elif nfound < nc:
+        # too few, skip.
         return (None,)*3
-    elif N > n:
-        # keep only the n closest to rc
-        #legal[np.argsort(abs(cdists-rc))[n:]] = False
+    elif nfound > nc:
+        # too many, keep only the nc closest to rc away
+        #legal[np.argsort(abs(cdists-rc))[nc:]] = False
         # the following is marginally faster than the above:
-        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[n:]]] = False
+        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[nc:]]] = False
 
-    pcorner = [x for i, x in enumerate(corners) if legal[i]]
-    cdisp = [x for i, x in enumerate(cdisps) if legal[i]]
+    pcorner = corners[legal]
+    cdisp = cdisps[legal]
 
-    if do_average and n > 1:
+    if do_average and nc > 1:
         amps = np.hypot(*cdisp.T)[...,None]
         ndisp = cdisp/amps
-        porient = np.arctan2(*ndisp.mean(0)[::-1]) % (2*np.pi)
+        porient = np.arctan2(*ndisp.mean(0)[::-1]) % twopi
         cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
         pcorner = cdisp + particle
     else:
-        porient = np.arctan2([x[0] for x in cdisp], [x[1] for x in cdisp]) \
-                  % (2*np.pi)
+        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % twopi
 
     return pcorner, porient, cdisp
 
@@ -187,7 +199,7 @@ def get_angles_map(data, cdata, nthreads=None):
 
 def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=True):
     """ get_angles(data, cdata, framestep=1, nc=3, do_average=True)
-        
+
         arguments:
             data    - data array with 'x' and 'y' fields for particle centers
             cdata   - data array wity 'x' and 'y' fields for corners
@@ -195,15 +207,15 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
                 but both must have 'f' field for the image frame)
             framestep - only analyze every `framestep` frames
             nc      - number of corner dots
-            do_average - whether to average the n corners to one value for return
-            
+            do_average - whether to average the nc corners to one value for return
+
         returns:
             odata   - array with fields:
                 'orient' for orientation of particles
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
-    from correlation import get_id
+    #from correlation import get_id
     field_rename(data,'s','f')
     field_rename(cdata,'s','f')
     if do_average or nc == 1:
@@ -215,25 +227,22 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=Tru
               ('orient',float,(nc,)),
               ('cdisp',float,(nc,2,))]
     odata = np.zeros(len(data), dtype=dt)
-    frame = 0
-    for datum in data:
-        if datum['f'] % framestep != 0:
-            continue
-        #if frame != datum['f']:
-        #    print 'frame',frame
-        frame = datum['f']
-        posi = (datum['x'], datum['y'])
-        icorner, iorient, idisp = \
-            find_corner(np.asarray(posi),
-                        np.column_stack((cdata['x'][cdata['f']==frame],
-                                         cdata['y'][cdata['f']==frame])),
-                        n=nc, rc=rc, drc=drc, do_average=do_average)
-        iid = get_id(data, posi, frame)
-        imask = data['id']==iid
-        odata['corner'][imask] = icorner
-        odata['orient'][imask] = iorient
-        odata['cdisp'][imask] = idisp
-
+    for fdata, fcdata in izip(np.split(data, np.where(np.diff(data['f']))[0]+1),
+                              np.split(cdata, np.where(np.diff(cdata['f']))[0]+1)):
+        frame = fdata['f'][0]
+        positions = np.column_stack([fdata['x'], fdata['y']])
+        cpositions = np.column_stack([fcdata['x'], fcdata['y']])
+        tree = cKDTree(cpositions)
+        for iid, posi in izip(fdata['id'], positions):
+            icorner, iorient, idisp = \
+                find_corner(posi, cpositions, tree=tree,
+                            nc=nc, rc=rc, drc=drc, do_average=do_average)
+            #iid = get_id(data, posi, frame) # what was this even for?
+            #imask = np.nonzero(data['id']==iid) # faster than using boolean mask directly
+            imask = np.searchsorted(data['id'], iid) # much faster than above
+            odata['corner'][imask] = icorner
+            odata['orient'][imask] = iorient
+            odata['cdisp'][imask] = idisp
 
     if do_average or nc == 1:
         mask = np.isfinite(odata['orient'])
@@ -275,7 +284,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
             color=cm.jet(nz(data['f'][mask]/fps)),
-            scale=1000.)
+            scale=1, scale_units='xy')
     #pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]) if imfile else '')
     cax,_ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
@@ -286,24 +295,29 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     pl.show()
     return qq, cb
 
-def track_orient(data, odata, track, tracks, omask=None):
+def track_orient(odata, track=None, tracks=None, omask=None, onetrack=False):
     """ tracks branch cut crossings for orientation data
         assumes that dtheta << pi for each frame
     """
-    cutoff = 3*np.pi/2
-    if omask is None:
-        omask = np.isfinite(odata['orient'])
-    mask = (track == tracks) & omask
-    deltas = np.diff(odata['orient'][mask])
+    cutoff = 3*pi/2
+    if onetrack:
+        orients = odata
+    else:
+        if omask is None:
+            omask = np.isfinite(odata['orient'])
+        mask = (track == tracks) & omask
+        orients = odata['orient'][mask]
+    deltas = np.diff(orients)
     deltas = np.concatenate(([0], deltas))
     crossings = (deltas < -cutoff).astype(int) - (deltas > cutoff).astype(int)
-    crossings = crossings.cumsum() * 2 * np.pi
-    return odata['orient'][mask] + crossings
+    crossings = crossings.cumsum() * twopi
+    return orients + crossings
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
     if omask is None:
         omask = np.isfinite(odata['orient'])
-    goodtracks = set(tracks[omask])
+    goodtracks = np.unique(tracks[omask])
+    if goodtracks[0] == -1: goodtracks = goodtracks[1:]
     if singletracks:
         if singletracks is True:
             goodtracks = list(goodtracks)[:4]
@@ -329,11 +343,11 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
                     'o', c=c,label='delta {}'.format(goodtrack))
         else:
             pl.plot(data['f'][fullmask][plotrange]/fps,
-                    track_orient(data, odata, goodtrack, tracks, omask)[plotrange],
+                    track_orient(odata, goodtrack, tracks, omask)[plotrange],
                     '--', label='tracked {}'.format(goodtrack))
     if delta:
         for n in np.arange(-2 if delta else 0,2.5,0.5):
-            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*np.pi,'k--')
+            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*pi,'k--')
     if len(goodtracks) < 10:
         pl.legend()
     #pl.title('Orientation over time')#\ninitial orientation = 0')
@@ -359,7 +373,7 @@ def plot_orient_location(data,odata,tracks):
         loc_start = (data['x'][fullmask][0],data['y'][fullmask][0])
         orient_start = odata['orient'][fullmask][0]
         sc = pl.scatter(
-                (odata['orient'][fullmask] - orient_start + np.pi) % (2*np.pi),
+                (odata['orient'][fullmask] - orient_start + pi) % twopi,
                 np.asarray(map(corr.get_norm,
                     zip([loc_start]*fullmask.sum(),
                         zip(data['x'][fullmask],data['y'][fullmask]))
