@@ -537,9 +537,9 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     except AttributeError:
         pass
     if isinstance(dtau, (float, np.float)):
-        taus = helpy.farange(dt0, nframes-1, dtau)
+        taus = helpy.farange(dt0, nframes+1, dtau)
     elif isinstance(dtau, (int, np.int)):
-        taus = np.arange(dtau, nframes-1, dtau, dtype=float)
+        taus = np.arange(dtau, nframes+1, dtau, dtype=float)
     fig = pl.figure(fignum, figsize)
 
     # Get the mean of msds
