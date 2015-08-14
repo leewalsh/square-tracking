@@ -60,7 +60,8 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
 
 def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
-        return new 2d array with shorter lists padded with fill value"""
+        return new 2d array with shorter lists padded with fill value
+    """
     if dtype is None:
         dtype = np.result_type(fill, lst[0][0])
     shape = len(lst), max(map(len, lst))
@@ -73,9 +74,36 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
+def load_data(fullprefix, ret_odata=True, ret_cdata=False):
+    """ Load data from a TRACKS.npz file
+
+        Given `fullprefix`
+
+        returns: `data`, `trackids`,[ `odata`,] `omask`,[ `cdata`]
+    """
+    ret = ()
+
+    datanpz = np.load(fullprefix+'_TRACKS.npz')
+    ret += datanpz['data'], datanpz['trackids']
+
+    odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
+    if ret_odata:
+        ret += (odatanpz['odata'],)
+    ret += (odatanpz['omask'],)
+
+    if ret_cdata:
+        cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
+        ret += (cdatanpz['data'],)
+
+    #print 'loaded data for', fullprefix
+    return ret
+
 def load_MSD(fullprefix, pos=True, ang=True):
-    """ Given `fullprefix`
-        Returns `msds`, `msdids`, `msads`, `msadids`, `dtau`, `dt0`
+    """ Loads ms(a)ds from an MS(A)D.npz file
+
+        Given `fullprefix`, and choice of position and angular
+
+        Returns [`msds`, `msdids`,] [`msads`, `msadids`,] `dtau`, `dt0`
     """
     ret = ()
     if pos:
@@ -97,26 +125,93 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_data(fullprefix, ret_odata=True, ret_cdata=False):
-    """ Given `fullprefix`
-        returns: `data`, `trackids`,[ `odata`,] `omask`,[ `cdata`]
+def load_tracksets(data, trackids, odata=None, omask=True, min_length=10):
+    """ Returns a dict of slices into data based on trackid
     """
-    ret = ()
+    if omask is not True:
+        trackids = trackids[omask]
+    longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
+    tracksets  = { track: data[(data['lab']==track) & omask]
+                   for track in longtracks }
+    if odata is not None:
+        otracksets = { track: orient.track_orient(
+               odata[(data['lab']==track) & omask]['orient'], onetrack=True)
+                   for track in longtracks }
+        return tracksets, otracksets
+    else:
+        return tracksets
 
-    datanpz = np.load(fullprefix+'_TRACKS.npz')
-    ret += datanpz['data'], datanpz['trackids']
+def loadall(fullprefix, ret_msd=True):
+    """ returns data, tracksets, odata, otracksets,
+         + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
+    """
+    data, trackids, odata, omask = \
+            load_data(fullprefix, ret_odata=True, ret_cdata=False)
+    fsets = splitter(data, ret_dict=True)
+    fosets = splitter(odata[omask], data['f'], ret_dict=True)
+    tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
+    if ret_msd:
+        return (data, tracksets, odata, otracksets) + load_MSD(fullprefix, True, True)
+    else:
+        return data, tracksets, odata, otracksets
 
-    odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
-    if ret_odata:
-        ret += (odatanpz['odata'],)
-    ret += (odatanpz['omask'],)
+def gen_data(datapath):
+    """ Reads raw positions data into a numpy array and saves it as an npz file
 
-    if ret_cdata:
-        cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
-        ret += (cdatanpz['data'],)
+        `datapath` is the path to the output file from finding particles
+        it must end with "results.txt" or "POSITIONS.txt", depending on its
+        source, and its structure is assumed to match a certain pattern
+    """
+    print "loading positions data from", datapath
+    if  datapath.endswith('results.txt'):
+        shapeinfo = False
+        # imagej output (called *_results.txt)
+        dtargs = {  'usecols' : [0,2,3,5],
+                    'names'   : "id,x,y,f",
+                    'dtype'   : [int,float,float,int]} \
+            if not shapeinfo else \
+                 {  'usecols' : [0,1,2,3,4,5,6],
+                    'names'   : "id,area,mean,x,y,circ,f",
+                    'dtype'   : [int,float,float,float,float,float,int]}
+        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
+        data['id'] -= 1 # data from imagej is 1-indexed
+    elif datapath.endswith('POSITIONS.txt'):
+        # positions.py output (called *_POSITIONS.txt)
+        from numpy.lib.recfunctions import append_fields
+        data = np.genfromtxt(datapath,
+                             skip_header = 1,
+                             names = "f,x,y,lab,ecc,area",
+                             dtype = [int,float,float,int,float,int])
+        ids = np.arange(len(data))
+        data = append_fields(data, 'id', ids, usemask=False)
+    else:
+        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
+        print "Please rename it to end with _results.txt or _POSITIONS.txt"
+    return data
 
-    #print 'loaded data for', fullprefix
-    return ret
+def bool_input(question):
+    "Returns True or False from yes/no user-input question"
+    answer = raw_input(question)
+    return answer.lower().startswith('y') or answer.lower().startswith('t')
+
+def farange(start,stop,factor):
+    start_power = np.log(start)/np.log(factor)
+    stop_power = np.log(stop)/np.log(factor)
+    return factor**np.arange(start_power,stop_power, dtype=type(factor))
+
+def loglog_slope(x, y, smooth=0):
+    dx = 0.5*(x[1:] + x[:-1])
+    dy = np.diff(np.log(y)) / np.diff(np.log(x))
+
+    if smooth:
+        from scipy.ndimage import gaussian_filter1d
+        dy = gaussian_filter1d(dy, smooth, mode='reflect')
+    return dx, dy
+
+def dist(a, b):
+    """ The 2d distance between two arrays of shape (N, 2) or just (2,)
+    """
+    return np.hypot(*(a - b).T)
 
 def circle_three_points(*xs):
     """ With three points, calculate circle
@@ -181,60 +276,6 @@ def circle_click(im):
     fig.canvas.mpl_connect('button_press_event', circle_click_connector)
     plt.show()
     return c, r
-
-def load_tracksets(data, trackids, odata=None, omask=True, min_length=10):
-    """ Returns a dict of slices into data based on trackid
-    """
-    if omask is not True:
-        trackids = trackids[omask]
-    longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
-    tracksets  = { track: data[(data['lab']==track) & omask]
-                   for track in longtracks }
-    if odata is not None:
-        otracksets = { track: orient.track_orient(
-               odata[(data['lab']==track) & omask]['orient'], onetrack=True)
-                   for track in longtracks }
-        return tracksets, otracksets
-    else:
-        return tracksets
-
-def loadall(fullprefix, ret_msd=True):
-    """ returns data, tracksets, odata, otracksets,
-         + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
-    """
-    data, trackids, odata, omask = \
-            load_data(fullprefix, ret_odata=True, ret_cdata=False)
-    fsets = splitter(data, ret_dict=True)
-    fosets = splitter(odata[omask], data['f'], ret_dict=True)
-    tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
-    if ret_msd:
-        return (data, tracksets, odata, otracksets) + load_MSD(fullprefix, True, True)
-    else:
-        return data, tracksets, odata, otracksets
-
-def bool_input(question):
-    "Returns True or False from yes/no user-input question"
-    answer = raw_input(question)
-    return answer.lower().startswith('y') or answer.lower().startswith('t')
-
-def farange(start,stop,factor):
-    start_power = np.log(start)/np.log(factor)
-    stop_power = np.log(stop)/np.log(factor)
-    return factor**np.arange(start_power,stop_power, dtype=type(factor))
-
-def loglog_slope(x, y, smooth=0):
-    dx = 0.5*(x[1:] + x[:-1])
-    dy = np.diff(np.log(y)) / np.diff(np.log(x))
-
-    if smooth:
-        from scipy.ndimage import gaussian_filter1d
-        dy = gaussian_filter1d(dy, smooth, mode='reflect')
-    return dx, dy
-
-def dist(a, b):
-    """ The 2d distance between two arrays of shape (N, 2) or just (2,)
-    """
-    return np.hypot(*(a - b).T)
 
 def der(f, dx=None, x=None, xwidth=None, iwidth=None):
     """ Take a finite derivative of f(x) using convolution with the derivative

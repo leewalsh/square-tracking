@@ -122,40 +122,6 @@ if __name__=='__main__':
 else:
     verbose = False
 
-def gen_data(datapath):
-    """ Reads raw positions data into a numpy array and saves it as an npz file
-
-        `datapath` is the path to the output file from finding particles
-        it must end with "results.txt" or "POSITIONS.txt", depending on its
-        source, and its structure is assumed to match a certain pattern
-    """
-    print "loading positions data from", datapath
-    if  datapath.endswith('results.txt'):
-        shapeinfo = False
-        # imagej output (called *_results.txt)
-        dtargs = {  'usecols' : [0,2,3,5],
-                    'names'   : "id,x,y,f",
-                    'dtype'   : [int,float,float,int]} \
-            if not shapeinfo else \
-                 {  'usecols' : [0,1,2,3,4,5,6],
-                    'names'   : "id,area,mean,x,y,circ,f",
-                    'dtype'   : [int,float,float,float,float,float,int]}
-        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
-        data['id'] -= 1 # data from imagej is 1-indexed
-    elif datapath.endswith('POSITIONS.txt'):
-        # positions.py output (called *_POSITIONS.txt)
-        from numpy.lib.recfunctions import append_fields
-        data = np.genfromtxt(datapath,
-                             skip_header = 1,
-                             names = "f,x,y,lab,ecc,area",
-                             dtype = [int,float,float,int,float,int])
-        ids = np.arange(len(data))
-        data = append_fields(data, 'id', ids, usemask=False)
-    else:
-        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
-        print "Please rename it to end with _results.txt or _POSITIONS.txt"
-    return data
-
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
                  cut=False):
     """ recursive function to find nearest dot in previous frame.
@@ -603,7 +569,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
 if __name__=='__main__':
     if args.load:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
-        data = gen_data(datapath)
+        data = helpy.gen_data(datapath)
         if verbose: print "\t...loaded"
     if args.track:
         if not args.load:
