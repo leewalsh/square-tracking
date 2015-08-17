@@ -189,17 +189,17 @@ def gen_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
-def merge_data(data, do_orient=True, savename=None):
+def merge_data(data, savename=None, do_orient=True):
     """ returns (and optionally saves) new `data` array merged from list or
         tuple of individual `data` arrays or path prefixes.
 
         parameters
         ----------
-        data : a list or tuple of arrays, path prefixes, or positions filepaths
+        data : list of arrays, prefixes, or single prefix with wildcards
+        savename : path prefix at which to save the merged data,
+            saved as "<savename>_MERGED_<TRACKS|ORIENTATION>.npz"
         do_orient : True or False, whether to merge the orientation data as
             well. default is True
-        savename : a path prefix at which to save the merged data,
-            saved as "<savename>_MERGED_<TRACKS|ORIENTATION>.npz"
 
         returns
         -------
@@ -213,28 +213,33 @@ def merge_data(data, do_orient=True, savename=None):
 
         only data is returned if array objects are given.
     """
-    if isinstance(data[0], str):
-        if data[0].endswith('.txt'):
-            # A positions file
-            data = map(gen_data, data)
-        elif data[0].endswith('.npz'):
-            # a saved array
-            print "no don't do it!"
-            return
+    if isinstance(data, str):
+        if '*' in data or '?' in data:
+            from glob import glob
+            suf = '_TRACKS.npz'
+            data = [ s.strip(suf) for s in glob(data+suf) ]
+        elif data.endsith('.npz'):
+            raise ValueError, "please give only the prefix"
         else:
-            print "Assuming this is a path prefix"
-            print len(data)
-            data = zip(*map(lambda d: load_data(d, ret_odata=do_orient), data))
-            print len(data)
+            raise ValueError, "only one file given"
+
+    if isinstance(data[0], str):
+        if data[0].endswith('.npz'):
+            raise ValueError, "please only give the prefix"
+        data = zip(*map(lambda d: load_data(d, ret_odata=do_orient), data))
     else:
         data = (data,)
 
     track_increment = 0
     for i, datum in enumerate(data[0]):
-        datum['lab'] += track_increment
+        goodtracks = datum['lab'] >= 0
+        datum['lab'][goodtracks] += track_increment
+        if len(data) > 1:
+            data[1][i][goodtracks] += track_increment # trackids
         track_increment = datum['lab'].max() + 1
 
     merged = map(np.concatenate, data)
+
     if savename:
         np.savez_compressed(savename+'_MERGED_TRACKS.npz',
                             **dict(zip(['data', 'trackids'], merged)))
