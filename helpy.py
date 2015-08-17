@@ -189,6 +189,60 @@ def gen_data(datapath):
         print "Please rename it to end with _results.txt or _POSITIONS.txt"
     return data
 
+def merge_data(data, do_orient=True, savename=None):
+    """ returns (and optionally saves) new `data` array merged from list or
+        tuple of individual `data` arrays or path prefixes.
+
+        parameters
+        ----------
+        data : a list or tuple of arrays, path prefixes, or positions filepaths
+        do_orient : True or False, whether to merge the orientation data as
+            well. default is True
+        savename : a path prefix at which to save the merged data,
+            saved as "<savename>_MERGED_<TRACKS|ORIENTATION>.npz"
+
+        returns
+        -------
+        data : always returned, the main merged data array
+        trackids : returned if paths are given
+        odata : returned if do_orient
+        omask : returned if do_orient
+
+        if orientational data is to be merged, then a list of filenames or
+        prefixes must be given instead of data objects.
+
+        only data is returned if array objects are given.
+    """
+    if isinstance(data[0], str):
+        if data[0].endswith('.txt'):
+            # A positions file
+            data = map(gen_data, data)
+        elif data[0].endswith('.npz'):
+            # a saved array
+            print "no don't do it!"
+            return
+        else:
+            print "Assuming this is a path prefix"
+            print len(data)
+            data = zip(*map(lambda d: load_data(d, ret_odata=do_orient), data))
+            print len(data)
+    else:
+        data = (data,)
+
+    track_increment = 0
+    for i, datum in enumerate(data[0]):
+        datum['lab'] += track_increment
+        track_increment = datum['lab'].max() + 1
+
+    merged = map(np.concatenate, data)
+    if savename:
+        np.savez_compressed(savename+'_MERGED_TRACKS.npz',
+                            **dict(zip(['data', 'trackids'], merged)))
+        if do_orient and len(data) > 2:
+            np.savez_compressed(savename+'_MERGED_ORIENTATION.npz',
+                                odata=merged[2], omask=merged[3])
+    return merged
+
 def bool_input(question):
     "Returns True or False from yes/no user-input question"
     answer = raw_input(question)
