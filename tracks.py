@@ -261,6 +261,8 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
 
     print "seeking tracks"
     for i in range(len(data)):
+        # This must remain a simple loop because trackids gets modified and
+        # passed into the function with each iteration
         trackids[i] = find_closest(data[i], trackids,
                                    maxdist=maxdist, giveup=giveup, cut=cut)
 
@@ -442,7 +444,6 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
         if verbose: print "calculating msd for track", trackid
         tmsd = trackmsd(trackid, dt0, dtau)
         if len(tmsd) > 1:
-            tmsdarr = np.asarray(tmsd)
             msds.append(tmsd)
             msdids.append(trackid)
     return msds, msdids
