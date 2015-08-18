@@ -347,7 +347,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
     l = len(f)
     m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
     L = l    if mode=='same' else 2*l-1 # length of correlation
-    if verbose:
+    if verbose > 1:
         print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
     assert l == len(g), ("len(f) = {:d}, len(g) = {:d}\n"
                          "right now only properly normalized "
@@ -363,17 +363,20 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
             g = g - g.mean()
 
     c = convolve(f, g, mode=mode) if reverse else correlate(f, g, mode=mode)
-    if verbose:
-        assert c.argmax() == m, "m not at max!"
+    if verbose and (f is g):
+        maxi = c.argmax()
+        assert maxi == m, ("autocorrelation not peaked at 0: "
+                           "max ({}) not at m ({})").format(maxi, m)
 
     # divide by overlap
     nl = np.arange(l - m, l)
     nr = np.arange(l, m - (L - l) , -1)
     n = np.concatenate([nl, nr])
     if verbose:
-        print nl, nr
         overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
-        print '      n: {}\noverlap: {}'.format(n, overlap)
+        if verbose > 1:
+            print nl, nr
+            print '      n: {}\noverlap: {}'.format(n, overlap)
         assert np.allclose(n, overlap),\
                 "overlap miscalculated:\n\t{}\n\t{}".format(n, overlap)
         assert n[m]==l, "overlap normalizer not l at m"
@@ -381,16 +384,22 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
 
     if norm is 1:
         # Normalize by no-shift value
+        if verbose:
+            fgs = c[m], np.dot(f, g)/len(f), c[m]#, c.max()
+            if verbose > 1: print "normalizing by scaler:", fgs[0]
+            assert np.allclose(fgs[0], fgs), (
+                    "normalization calculations don't all match:"
+                    "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
         c /= c[m]
     elif norm is 0:
         if verbose:
-            fgs = c[m], np.dot(f, g), c.max()
-            print "normalizing by scaler:", fgs[0]
-            assert np.allclose(fg, fgs), (
+            fgs = c[m], np.dot(f, g)/len(f), c[m]#c.max()
+            if verbose > 1: print "subtracting scaler:", fgs[0]
+            assert np.allclose(fgs[0], fgs), (
                     "normalization calculations don't all match:"
                     "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
         c -= c[m]
-    elif verbose:
+    elif verbose > 1:
         print 'central value:', c[m]
 
     if ret_dx:
