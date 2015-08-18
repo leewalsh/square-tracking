@@ -6,8 +6,6 @@ from itertools import izip
 
 import numpy as np
 
-import orientation as orient
-
 def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
     """ Splits a dataset into subarrays with unique frame value
         `data` : the dataset (will be split along first axis)
@@ -79,7 +77,7 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
 
         Given `fullprefix`
 
-        returns: `data`, `trackids`,[ `odata`,] `omask`,[ `cdata`]
+        returns: `data`, `trackids`,[ `odata`, `omask`],[ `cdata`]
     """
     ret = ()
 
@@ -88,8 +86,7 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
 
     odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
     if ret_odata:
-        ret += (odatanpz['odata'],)
-    ret += (odatanpz['omask'],)
+        ret += odatanpz['odata'], odatanpz['omask']
 
     if ret_cdata:
         cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
@@ -117,7 +114,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
         if pos:
             assert dtau == msadnpz['dtau'][()]\
                 and dt0 == msadnpz['dt0'][()],\
-                   'dt mismatch'
+                    'dt mismatch'
         else:
             dtau = msadnpz['dtau'][()]
             dt0 = msadnpz['dt0'][()]
@@ -134,26 +131,29 @@ def load_tracksets(data, trackids, odata=None, omask=True, min_length=10):
     tracksets  = { track: data[(data['lab']==track) & omask]
                    for track in longtracks }
     if odata is not None:
-        otracksets = { track: orient.track_orient(
+        from orientation import track_orient
+        otracksets = { track: track_orient(
                odata[(data['lab']==track) & omask]['orient'], onetrack=True)
                    for track in longtracks }
         return tracksets, otracksets
     else:
         return tracksets
 
-def loadall(fullprefix, ret_msd=True):
+def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,
          + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
     """
     data, trackids, odata, omask = \
             load_data(fullprefix, ret_odata=True, ret_cdata=False)
-    fsets = splitter(data, ret_dict=True)
-    fosets = splitter(odata[omask], data['f'], ret_dict=True)
     tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
+    ret = data, tracksets, odata, otracksets
     if ret_msd:
-        return (data, tracksets, odata, otracksets) + load_MSD(fullprefix, True, True)
-    else:
-        return data, tracksets, odata, otracksets
+        ret += load_MSD(fullprefix, True, True)
+    if ret_fsets:
+        fsets = splitter(data, ret_dict=True)
+        fosets = splitter(odata[omask], data['f'][omask], ret_dict=True)
+        ret += (fsets, fosets)
+    return ret
 
 def gen_data(datapath):
     """ Reads raw positions data into a numpy array and saves it as an npz file
