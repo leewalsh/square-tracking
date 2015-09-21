@@ -18,6 +18,8 @@ else:
 from skimage.morphology import disk as _disk
 from collections import namedtuple
 
+import helpy
+
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
         Returns the labels for an image.
