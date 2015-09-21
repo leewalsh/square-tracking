@@ -1,5 +1,5 @@
-''' This script plots a histogram of the transverse data for a one or several data 
-sets. Includes option to subtract v_0. The histogram is saved in the 
+''' This script plots a histogram of the transverse data for a one or several
+data sets. Includes option to subtract v_0. The histogram is saved in the
 format prefix.plothist.pdf
 
 Run from the folder containing the positions file.
@@ -30,22 +30,22 @@ def compile_for_hist(spfprefix):
             vx /= 17
             vy = helpy.der(tdata['y'], iwidth=3)
             vy /= 17
-            
+
             histv.extend(vx)
             histv.extend(vy)
-            
+
             vnot = vx * np.cos(todata['orient']) + vy * np.sin(todata['orient'])
             etax = vx - vnot * np.cos(todata['orient'])
             etay = vy - vnot * np.sin(todata['orient'])
             eta.extend(etax)
             eta.extend(etay)
-    return histv, eta   
+    return histv, eta
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
     ret = []
     hist = np.asarray(hist)
-    hist *= 2.4                
+    hist *= 2.4
     mean = np.mean(hist)
     ret.append(mean)
     variance = np.var(hist)
@@ -64,16 +64,16 @@ prefix = raw_input('Prefix without trial number: ')
 sets = raw_input('How many sets? ')
 sets = int(sets)
 particle = raw_input('Particle type: ')
-subtract = raw_input('Subtract v0 (yes to subtract)? ')    
+subtract = raw_input('Subtract v0 (yes to subtract)? ')
 
-if sets > 1: 
-    for setnum in range(1, sets+1): 
+if sets > 1:
+    for setnum in range(1, sets+1):
         spfprefix = prefix + str(setnum)
-        os.chdir('..\\{}_d'.format(spfprefix))   
-        histv, eta = compile_for_hist(spfprefix)                
-                
+        os.chdir('..\\{}_d'.format(spfprefix))
+        histv, eta = compile_for_hist(spfprefix)
+
         trackcount = trackcount + 1
-                
+
 elif sets == 1:
     histv, eta = compile_for_hist(prefix)
 
@@ -87,14 +87,14 @@ if subtract == 'yes':
     top.legend(loc='center left')
     top.set_ylabel('Frequency')
     top.set_title("{} tracks of {} ({})".format(trackcount, prefix, particle))
-    
+
     low = plt.subplot(2, 1, 2)
     low.hist(eta, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(etastat[0], etastat[1], etastat[2])])
     low.legend(loc='center left')
     low.set_xlabel('Velocity step size in rad/frame')
     low.set_ylabel('Frequency')
     low.set_title("{} tracks of {} ({}) with $v_0$ subtracted".format(trackcount, prefix, particle))
-            
+
 else:
     fig = plt.figure()
     plt.subplot(2, 1, 1)
@@ -107,4 +107,4 @@ else:
 print 'Saving plot to C:Users\Sarah\Dropbox\\0SquareTrackingData\\{}.plothist'.format(spfprefix)
 fig.savefig(prefix+'.plothist.pdf')
 
-plt.show()           
+plt.show()

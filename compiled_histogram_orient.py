@@ -1,4 +1,4 @@
-''' This script plots a histogram of the orientation data for a one or several 
+''' This script plots a histogram of the orientation data for a one or several
 data sets. The histogram is saved in the format prefix.plothist.pdf
 
 Run from the folder containing the positions file.
@@ -24,7 +24,7 @@ sets = raw_input('How many sets? ')
 sets = int(sets)
 particle = raw_input('Particle type: ')
 
-if sets > 1: 
+if sets > 1:
     for setnum in range(1, sets+1):      # changed to 7 for testing
         spfprefix = prefix + str(setnum)
         print spfprefix
@@ -33,27 +33,27 @@ if sets > 1:
         data = data[omask]
         odata = odata[omask]
         print odata
-        
+
         for track in range(data['lab'].max()):
             tdata = odata[data['lab']==track]
             vx = helpy.der(tdata['orient'], iwidth=3)
-            if len(vx) > 0:   
+            if len(vx) > 0:
                 histv = np.concatenate((histv, vx), axis=1)
                 trackcount = trackcount + 1
-            
+
 elif sets == 1:
     spfprefix = prefix
     data, trackids, odata, omask = helpy.load_data(spfprefix)
     data = data[omask]
     odata = odata[omask]
-    
+
     for track in range(data['lab'].max()):
         tdata = odata[data['lab']==track]
         vx = helpy.der(tdata['orient'], iwidth=3)
-        if len(vx) > 0:   
+        if len(vx) > 0:
             histv = np.concatenate((histv, vx), axis=1)
             trackcount = trackcount + 1
-            
+
 histv *= 2.4
 mean = np.mean(histv)
 variance = np.var(histv)
@@ -66,7 +66,7 @@ plt.legend(loc='center left')
 plt.xlabel('Velocity step size in rad/frame')
 plt.ylabel('Frequency')
 plt.title("{} orientation tracks of {} ({})".format(trackcount, prefix, particle))
-        
+
 print 'Saving plot to C:Users\Sarah\Dropbox\\0SquareTrackingData\\{}.plothistorient'.format(spfprefix)
 fig.savefig(spfprefix+'.plothistorient.pdf')
-plt.show() 
+plt.show()
