@@ -84,8 +84,8 @@ def load_data(fullprefix, ret_odata=True, ret_cdata=False):
     datanpz = np.load(fullprefix+'_TRACKS.npz')
     ret += datanpz['data'], datanpz['trackids']
 
-    odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
     if ret_odata:
+        odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
         ret += odatanpz['odata'], odatanpz['omask']
 
     if ret_cdata:
