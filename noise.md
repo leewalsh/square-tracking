@@ -20,11 +20,13 @@ This has been discussed in more detail elsewhere [e.g., Balasubramanian, Baskara
 
 2) Measure the velocity of the particle, extract the noise term by removing the constant component in the parallel direction, and measure the three noise assumptions: zero mean, variance of D, and no time correlations.
 
-To measure the velocity, we take a derivative of the position and orientation of the particle over time. Derivative is taken as the convolution with the derivative of a gaussian kernel, which is equal to the convolution of the derivative with a gaussian kernel, i.e., a smoothed derivative. We convert step sizes to velocity via $v_i = \frac{\Delta x_i}{\Delta t}$.
+To measure the velocity, we take a derivative of the position and orientation of the particle over time. Derivative is taken as the convolution with the derivative of a gaussian kernel, which is equal to the convolution of the derivative with a gaussian kernel, i.e., a smoothed derivative. We convert step sizes to velocity via $\dot x_i = \frac{\Delta x_i}{\Delta t}$.
 
-Before extracting noise statistics, we must first subtract the constant active velocity from the trajectory. For translational motion, we must combine the two Cartesian components to find $v_0$ then separate them to subtract the activity. To find its magnitude $v_0$, we use^[but perhaps we should instead use $v_0 = \langle \vec v \cdot \hat n \rangle$?]
-$$v_0^2 = \langle \vec v^2 \rangle$$
-where $\vec v^2 = \vec v \cdot \vec v = v_x^2 + v_y^2$. We must subtract it from the velocity as a vector $\vec v_0 = v_0 \hat n$, where $\hat n = (\cos\theta, \sin\theta)$, i.e., $v_0^x = v_0 \cos\theta$ and $v_0^y = v_0 \sin\theta$. Thus we shall measure the statistics of $\delta v_i = v_i - v_0 \hat n_i$.
+Before extracting noise statistics, we must first subtract from the trajectory the constant active velocity $v_0$, which is the average value of the velocity along the forward direction. For translational motion, we must combine the two Cartesian components $\dot x$ and $\dot y$ to find $\vec v$, from which we measure $v_0$, and then separate them to subtract the activity. To find its magnitude $v_0$, we use^[We could just measure the average magnitude or square of $v$, which doesn't require knowing the orientation just yet, but $\langle \vec v \cdot \hat n\rangle = v_0$ while $\langle v^2 \rangle = v_0^2 + 2D_T/\tau$ where $\tau$ is some timescale (for units of the $\delta(t)$ term)]
+
+$$v_0 = \langle \vec v \cdot \hat n \rangle = v_x \cos \theta + v_y \sin \theta$$
+
+where $v_x = |\vec v_x| = |\dot x|$, and similarly for $v_y$. We must subtract it from the velocity as a time-dependent vector $\vec v_0 (t) = v_0 \hat n (t)$, where the magnitude is constant, but the direction is varying $\hat n (t) = (\cos\theta (t), \sin\theta (t))$, i.e., $v_0^x = v_0 \cos\theta$ and $v_0^y = v_0 \sin\theta$. Thus we shall measure the statistics of $\delta \vec v_i = \vec v_i - v_0 \hat n_i$.
 
 Rotational motion is one dimensional, so the mean can be calculated on $\omega = \Delta \theta / \Delta t$ itself: $\omega_0 = \langle \omega \rangle$. We then analyze the statistics of $\delta \omega = \omega - \omega_0$, which will be equivalent to using $\omega$ itself since $\omega_0$ is constant.
 
