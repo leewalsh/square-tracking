@@ -330,19 +330,23 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         returns the cross-correlation function
             <f(x) g(x - dx)> averaged over x
 
-        f, g:   1d arrays, as function of x, with same lengths
-        side:   'right' returns only dx > 0, (x' < x)
-                'left'  returns only dx < 0, (x < x')
-                'both'  returns entire correlation
+        f, g:       1d arrays, as function of x, with same lengths
+        side:       'right' returns only dx > 0, (x' < x)
+                    'left'  returns only dx < 0, (x < x')
+                    'both'  returns entire correlation
         cumulant:   if True, subtracts mean of the function before correlation
         mode:       passed to scipy.signal.correlate, has little effect here.
-        norm:  if True, normalize by the correlation at no shift,
-                    that is, by <f(x) g(x) >
-        ret_dx: if True, return the dx shift between f and g
-                that is, if we are looking at <f(x) g(x')>
-                then dx = x - x'
-        reverse:    if True, flip g relative to f, that is,
-                    calculate <f(x) g(dx - x)> ?could be f(x) g(-dx-x)
+        norm:       normalize by the correlation at no shift,
+                        that is, by <f(x) g(x) >
+                    if 1, divide
+                    if 0, subtract
+        ret_dx:     if True, return the dx shift between f and g
+                        that is, if we are looking at <f(x) g(x')>
+                        then dx = x - x'
+        reverse:    if True, flip g relative to f, that is, use convolve
+                        instead of correlate, which calculates <f(x) g(dx - x)>
+        verbose:    if True or 1, be careful but not very verbose
+                    if 2 or greater, be careful and verbose
     """
     l = len(f)
     m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
