@@ -8,13 +8,11 @@ from operator import itemgetter
 from math import sqrt
 from cmath import phase, polar
 import numpy as np
-from numpy.linalg import norm
 from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial import Voronoi, cKDTree, Delaunay
-from scipy.ndimage import gaussian_filter, gaussian_filter1d
+from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert, correlate, convolve
-from scipy.fftpack import fft2
 from scipy.stats import rv_continuous, vonmises
 from scipy.optimize import curve_fit
 from skimage.morphology import disk, binary_dilation
@@ -251,6 +249,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
 def structure_factor(positions, m=4, margin=0):
     """return the 2d structure factor"""
     raise StandardError, "um this isn't finished"
+    from scipy.fftpack import fft2
     #center = 0.5*(positions.max(0) + positions.min(0))
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)
