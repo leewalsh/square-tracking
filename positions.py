@@ -1,4 +1,44 @@
 #!/usr/bin/env python
+# encoding: utf-8
+
+from __future__ import division
+
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+    p = ArgumentParser()
+    p.add_argument('files', metavar='FILE', nargs='+',
+                   help='Images to process')
+    p.add_argument('-p', '--plot', action='count',
+                   help="Produce a plot for each image. Use more p's for more images")
+    p.add_argument('-v', '--verbose', action='count',
+                   help="Control verbosity")
+    p.add_argument('-o', '--output', default='POSITIONS.txt',
+                   help='Output file')
+    p.add_argument('-N', '--threads', default=1, type=int,
+                   help='Number of worker threads')
+    p.add_argument('-s', '--select', action='store_true',
+                   help='Open the first image and specify the circle of interest')
+    p.add_argument('-b', '--both', action='store_true',
+                   help='find both center and corner dots')
+    p.add_argument('--slr', action='store_true',
+                   help='Full resolution SLR was used')
+    p.add_argument('-k', '--kern', default=0, type=float,
+                   help='Kernel size for convolution')
+    p.add_argument('--min', default=-1, type=int,
+                   help='Minimum area')
+    p.add_argument('--max', default=-1, type=int,
+                   help='Maximum area')
+    p.add_argument('--ecc', default=.8, type=float,
+                   help='Maximum eccentricity')
+    p.add_argument('-c', '--ckern', default=0, type=float,
+                   help='Kernel size for convolution for corner dots')
+    p.add_argument('--cmin', default=-1, type=int,
+                   help='Minimum area for corner dots')
+    p.add_argument('--cmax', default=-1, type=int,
+                   help='Maximum area for corner dots')
+    p.add_argument('--cecc', default=.8, type=float,
+                        help='Maximum eccentricity for corner dots')
+    args = p.parse_args()
 
 from socket import gethostname
 hostname = gethostname()
@@ -230,43 +270,7 @@ if __name__ == '__main__':
     if 'foppl' in hostname: matplotlib.use('Agg')
     import matplotlib.pyplot as pl
     from multiprocessing import Pool
-    from argparse import ArgumentParser
     from os import path, makedirs
-
-    parser = ArgumentParser()
-    parser.add_argument('files', metavar='FILE', nargs='+',
-                        help='Images to process')
-    parser.add_argument('-p', '--plot', action='count',
-                        help="Produce a plot for each image. Use more p's for more images")
-    parser.add_argument('-v', '--verbose', action='count',
-                        help="Control verbosity")
-    parser.add_argument('-o', '--output', default='POSITIONS.txt',
-                        help='Output file')
-    parser.add_argument('-N', '--threads', default=1, type=int,
-                        help='Number of worker threads')
-    parser.add_argument('-s', '--select', action='store_true',
-                        help='Open the first image and specify the circle of interest')
-    parser.add_argument('-b', '--both', action='store_true',
-                        help='find both center and corner dots')
-    parser.add_argument('--slr', action='store_true',
-                        help='Full resolution SLR was used')
-    parser.add_argument('-k', '--kern', default=0, type=float,
-                        help='Kernel size for convolution')
-    parser.add_argument('--min', default=-1, type=int,
-                        help='Minimum area')
-    parser.add_argument('--max', default=np.inf, type=int,
-                        help='Maximum area')
-    parser.add_argument('--ecc', default=.8, type=float,
-                        help='Maximum eccentricity')
-    parser.add_argument('-c', '--ckern', default=0, type=float,
-                        help='Kernel size for convolution for corner dots')
-    parser.add_argument('--cmin', default=-1, type=int,
-                        help='Minimum area for corner dots')
-    parser.add_argument('--cmax', default=np.inf, type=int,
-                        help='Maximum area for corner dots')
-    parser.add_argument('--cecc', default=.8, type=float,
-                        help='Maximum eccentricity for corner dots')
-    args = parser.parse_args()
 
     if '*' in args.files[0] or '?' in args.files[0]:
         from glob import glob
@@ -283,14 +287,14 @@ if __name__ == '__main__':
     if args.min == -1:
         args.min = kern_area/2
         if args.verbose: print "using min =", args.min
-    if args.max == np.inf:
+    if args.max == -1:
         args.max = 2*kern_area
         if args.verbose: print "using max =", args.max
 
     if args.both:
         ckern_area = np.pi*args.ckern**2
         if args.cmin == -1: args.cmin = ckern_area/2
-        if args.cmax == np.inf: args.cmax = 2*ckern_area
+        if args.cmax == -1: args.cmax = 2*ckern_area
 
     if args.select:
         co, ro = helpy.circle_click(filenames[0])

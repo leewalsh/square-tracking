@@ -3,26 +3,6 @@
 
 from __future__ import division
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
-    import matplotlib
-    matplotlib.use("agg")
-
-from itertools import izip
-from math import sqrt
-
-import numpy as np
-from matplotlib import cm, pyplot as pl
-from scipy.optimize import curve_fit
-
-import helpy
-import correlation as corr
-
-pi = np.pi
-twopi = 2*pi
-locdir = extdir = ''
-
 if __name__=='__main__':
     from argparse import ArgumentParser
     p = ArgumentParser()
@@ -121,6 +101,26 @@ if __name__=='__main__':
         filterwarnings('ignore', category=RuntimeWarning)
 else:
     verbose = False
+
+from socket import gethostname
+hostname = gethostname()
+if 'foppl' in hostname:
+    import matplotlib
+    matplotlib.use("agg")
+
+from itertools import izip
+from math import sqrt
+
+import numpy as np
+from matplotlib import cm, pyplot as pl
+from scipy.optimize import curve_fit
+
+import helpy
+import correlation as corr
+
+pi = np.pi
+twopi = 2*pi
+locdir = extdir = ''
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
                  cut=False):
