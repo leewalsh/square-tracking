@@ -10,10 +10,19 @@ August 2015
 '''
 
 from __future__ import division
-import helpy
 import os
+import helpy
+
+prefix = raw_input('Prefix without trial number: ')
+sets = int(raw_input('How many sets? '))
+particle = raw_input('Particle type: ')
+subtract = helpy.bool_input('Subtract v0? ')
+save = helpy.bool_input('Save figure? ')
+
 import numpy as np
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
+
+S = 17
 
 def compile_for_hist(spfprefix):
     '''Adds data from one trial to two lists for transverse and orientation
@@ -21,14 +30,13 @@ def compile_for_hist(spfprefix):
     data, trackids, odata, omask = helpy.load_data(spfprefix)
     data = data[omask]
     odata = odata[omask]
+
     for track in range(data['lab'].max()):
         tdata = data[data['lab']==track]
         todata = odata[data['lab']==track]
         if len(tdata) > 0:
-            vx = helpy.der(tdata['x'], iwidth=3)
-            vx /= 17
-            vy = helpy.der(tdata['y'], iwidth=3)
-            vy /= 17
+            vx = helpy.der(tdata['x']/S, iwidth=3)
+            vy = helpy.der(tdata['y']/S, iwidth=3)
 
             histv.extend(vx)
             histv.extend(vy)
@@ -56,14 +64,7 @@ def get_stats(hist):
 
 trackcount = 0
 histbins = 100
-
 histv = eta = []
-
-prefix = raw_input('Prefix without trial number: ')
-sets = raw_input('How many sets? ')
-sets = int(sets)
-particle = raw_input('Particle type: ')
-subtract = raw_input('Subtract v0 (yes to subtract)? ')
 
 if sets > 1:
     for setnum in range(1, sets+1):
@@ -79,8 +80,8 @@ elif sets == 1:
 histvstat = get_stats(histv)
 etastat = get_stats(eta)
 
-if subtract == 'yes':
-    fig = plt.figure()
+fig = plt.figure()
+if subtract:
     top = plt.subplot(2, 1, 1)
     top.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(histvstat[0], histvstat[1], histvstat[2])])
     top.legend(loc='center left')
@@ -95,7 +96,6 @@ if subtract == 'yes':
     low.set_title("{} tracks of {} ({}) with $v_0$ subtracted".format(trackcount, prefix, particle))
 
 else:
-    fig = plt.figure()
     plt.subplot(2, 1, 1)
     plt.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(histvstat[0], histvstat[1], histvstat[2])])
     plt.legend(loc='center left')
@@ -103,7 +103,8 @@ else:
     plt.ylabel('Frequency')
     plt.title("{} tracks of {} ({})".format(trackcount, prefix, particle))
 
-print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
-fig.savefig(prefix+'.plothist.pdf')
+if save:
+    print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
+    fig.savefig(prefix+'.plothist.pdf')
 
 plt.show()

@@ -9,22 +9,23 @@ August 2015
 '''
 
 from __future__ import division
-import helpy
 import os
+import helpy
+
+prefix = raw_input('Prefix without trial number: ')
+sets = int(raw_input('How many sets? '))
+particle = raw_input('Particle type: ')
+save = helpy.bool_input('Save figure? ')
+
 import numpy as np
-from matplotlib import pyplot as plt
-import math
+import matplotlib.pyplot as plt
 
 trackcount = 0
-prefix = raw_input('Prefix without trial number: ')
-histv = []
 histbins = 100
-sets = raw_input('How many sets? ')
-sets = int(sets)
-particle = raw_input('Particle type: ')
+histv = []
 
 if sets > 1:
-    for setnum in range(1, sets+1):      # changed to 7 for testing
+    for setnum in range(1, sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
         data, trackids, odata, omask = helpy.load_data(spfprefix)
@@ -65,6 +66,7 @@ plt.xlabel('Velocity step size in rad/frame')
 plt.ylabel('Frequency')
 plt.title("{} orientation tracks of {} ({})".format(trackcount, prefix, particle))
 
-print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(spfprefix))
-fig.savefig(spfprefix+'.plothistorient.pdf')
+if save:
+    print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(spfprefix))
+    fig.savefig(spfprefix+'.plothistorient.pdf')
 plt.show()
