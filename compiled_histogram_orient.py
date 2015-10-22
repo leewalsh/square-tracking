@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 ''' This script plots a histogram of the orientation data for a one or several
 data sets. The histogram is saved in the format prefix.plothist.pdf
 
@@ -8,8 +9,6 @@ August 2015
 '''
 
 from __future__ import division
-from sys import path
-path.append('C:\\Users\\Sarah\\Desktop\\tracking\\square-tracking')
 import helpy
 import os
 import numpy as np
@@ -27,8 +26,7 @@ particle = raw_input('Particle type: ')
 if sets > 1:
     for setnum in range(1, sets+1):      # changed to 7 for testing
         spfprefix = prefix + str(setnum)
-        print spfprefix
-        os.chdir('..\\' + spfprefix + '_d')
+        spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
         data, trackids, odata, omask = helpy.load_data(spfprefix)
         data = data[omask]
         odata = odata[omask]
@@ -67,6 +65,6 @@ plt.xlabel('Velocity step size in rad/frame')
 plt.ylabel('Frequency')
 plt.title("{} orientation tracks of {} ({})".format(trackcount, prefix, particle))
 
-print 'Saving plot to C:Users\Sarah\Dropbox\\0SquareTrackingData\\{}.plothistorient'.format(spfprefix)
+print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(spfprefix))
 fig.savefig(spfprefix+'.plothistorient.pdf')
 plt.show()

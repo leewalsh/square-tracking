@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 ''' This script plots a histogram of the transverse data for a one or several
 data sets. Includes option to subtract v_0. The histogram is saved in the
 format prefix.plothist.pdf
@@ -9,8 +10,6 @@ August 2015
 '''
 
 from __future__ import division
-from sys import path
-path.append('C:\\Users\\Sarah\\Desktop\\tracking\\square-tracking')
 import helpy
 import os
 import numpy as np
@@ -69,7 +68,7 @@ subtract = raw_input('Subtract v0 (yes to subtract)? ')
 if sets > 1:
     for setnum in range(1, sets+1):
         spfprefix = prefix + str(setnum)
-        os.chdir('..\\{}_d'.format(spfprefix))
+        spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
         histv, eta = compile_for_hist(spfprefix)
 
         trackcount = trackcount + 1
@@ -104,7 +103,7 @@ else:
     plt.ylabel('Frequency')
     plt.title("{} tracks of {} ({})".format(trackcount, prefix, particle))
 
-print 'Saving plot to C:Users\Sarah\Dropbox\\0SquareTrackingData\\{}.plothist'.format(spfprefix)
+print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
 fig.savefig(prefix+'.plothist.pdf')
 
 plt.show()
