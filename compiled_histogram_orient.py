@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-''' This script plots a histogram of the orientation data for a one or several
-data sets. The histogram is saved in the format prefix.plothist.pdf
+# encoding: utf-8
+''' This script plots a histogram of the orientation velocity noise
+for a one or several data sets.
+The histogram figure is saved to file prefix.plothist.pdf
 
 Run from the folder containing the positions file.
 
@@ -34,11 +36,12 @@ if sets > 1:
         print odata
 
         for track in range(data['lab'].max()):
-            tdata = odata[data['lab']==track]
-            vx = helpy.der(tdata['orient'], iwidth=3)
-            if len(vx) > 0:
-                histv = np.concatenate((histv, vx), axis=1)
-                trackcount = trackcount + 1
+            mask = data['lab']==track
+            if np.count_nonzero(mask) > 0:
+                todata = odata[mask]['orient']
+                vo = helpy.der(todata, iwidth=3)
+                histv = np.concatenate((histv, vo), axis=1)
+                trackcount += 1
 
 elif sets == 1:
     spfprefix = prefix
@@ -47,11 +50,12 @@ elif sets == 1:
     odata = odata[omask]
 
     for track in range(data['lab'].max()):
-        tdata = odata[data['lab']==track]
-        vx = helpy.der(tdata['orient'], iwidth=3)
-        if len(vx) > 0:
-            histv = np.concatenate((histv, vx), axis=1)
-            trackcount = trackcount + 1
+        mask = data['lab']==track
+        if np.count_nonzero(mask) > 0:
+            todata = odata[mask]['orient']
+            vo = helpy.der(todata, iwidth=3)
+            histv = np.concatenate((histv, vo), axis=1)
+            trackcount += 1
 
 histv *= 2.4
 mean = np.mean(histv)
@@ -67,6 +71,6 @@ plt.ylabel('Frequency')
 plt.title("{} orientation tracks of {} ({})".format(trackcount, prefix, particle))
 
 if save:
-    print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(spfprefix))
-    fig.savefig(spfprefix+'.plothistorient.pdf')
+    print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(prefix))
+    plt.savefig(prefix+'.plothistorient.pdf')
 plt.show()

@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-''' This script plots a histogram of the transverse data for a one or several
-data sets. Includes option to subtract v_0. The histogram is saved in the
-format prefix.plothist.pdf
+# encoding: utf-8
+''' This script plots a histogram of the translational velocity noise
+for a one or several data sets. Includes option to subtract v_0.
+The histogram figure is saved to file prefix.plothist.pdf
 
 Run from the folder containing the positions file.
 
@@ -32,35 +33,32 @@ def compile_for_hist(spfprefix):
     odata = odata[omask]
 
     for track in range(data['lab'].max()):
-        tdata = data[data['lab']==track]
-        todata = odata[data['lab']==track]
-        if len(tdata) > 0:
+        mask = data['lab']==track
+        if np.count_nonzero(mask) > 0:
+            tdata = data[mask]
+            todata = odata[mask]['orient']
             vx = helpy.der(tdata['x']/S, iwidth=3)
             vy = helpy.der(tdata['y']/S, iwidth=3)
 
             histv.extend(vx)
             histv.extend(vy)
 
-            vnot = vx * np.cos(todata['orient']) + vy * np.sin(todata['orient'])
-            etax = vx - vnot * np.cos(todata['orient'])
-            etay = vy - vnot * np.sin(todata['orient'])
+            vnot = vx * np.cos(todata) + vy * np.sin(todata)
+            etax = vx - vnot * np.cos(todata)
+            etay = vy - vnot * np.sin(todata)
             eta.extend(etax)
             eta.extend(etay)
     return histv, eta
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
-    ret = []
     hist = np.asarray(hist)
     hist *= 2.4
     mean = np.mean(hist)
-    ret.append(mean)
     variance = np.var(hist)
-    D_T = 0.5*variance
-    ret.append(D_T)
+    D = 0.5*variance
     SE = np.sqrt(variance) / np.sqrt(len(hist))
-    ret.append(SE)
-    return ret
+    return mean, D, SE
 
 trackcount = 0
 histbins = 100
@@ -72,7 +70,7 @@ if sets > 1:
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
         histv, eta = compile_for_hist(spfprefix)
 
-        trackcount = trackcount + 1
+        trackcount += 1
 
 elif sets == 1:
     histv, eta = compile_for_hist(prefix)
@@ -105,6 +103,6 @@ else:
 
 if save:
     print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
-    fig.savefig(prefix+'.plothist.pdf')
+    plt.savefig(prefix+'.plothist.pdf')
 
 plt.show()
