@@ -33,7 +33,6 @@ def get_stats(hist):
     return mean, D, SE
 
 trackcount = 0
-histbins = 100
 histv = []
 
 if sets > 1:
@@ -67,14 +66,21 @@ elif sets == 1:
             histv = np.concatenate((histv, vo), axis=1)
             trackcount += 1
 
-mean, D_R, SE = get_stats(histv)
+def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
+    stats = get_stats(hist)
+    ax = plt.gca()
+    ax.hist(hist, bins, log=log, color='b',
+            label=('$\\langle v \\rangle = {:.5f}$\n'
+                   '$D_R = {:.5f}$\n'
+                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(*stats))
+    ax.legend(loc='best')
+    ax.set_ylabel('Frequency')
+    ax.set_xlabel('Velocity step size (rad/frame)')
+    ax.set_title("{} orientation tracks of {} ({}){}".format(
+                 trackcount, prefix.strip('/._'), particle, title_suf))
+    return ax
 
-fig = plt.figure()
-plt.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_R$ = {:.5f} \n Standard error = {:.5f}'.format(mean, D_R, SE)])
-plt.legend(loc='center left')
-plt.xlabel('Velocity step size in rad/frame')
-plt.ylabel('Frequency')
-plt.title("{} orientation tracks of {} ({})".format(trackcount, prefix, particle))
+plot_hist(histv)
 
 if save:
     print 'Saving plot to {}.plothistorient.pdf'.format(os.path.abspath(prefix))

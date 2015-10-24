@@ -61,7 +61,6 @@ def get_stats(hist):
     return mean, D, SE
 
 trackcount = 0
-histbins = 100
 histv = eta = []
 
 if sets > 1:
@@ -75,31 +74,24 @@ if sets > 1:
 elif sets == 1:
     histv, eta = compile_for_hist(prefix)
 
-histvstat = get_stats(histv)
-etastat = get_stats(eta)
+def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
+    stats = get_stats(hist)
+    if isinstance(ax, int):
+        ax = plt.subplot(2, 1, ax)
+    ax.hist(hist, bins, log=log, color='b',
+            label=('$\\langle v \\rangle = {:.5f}$\n'
+                   '$D_T = {:.5f}$\n'
+                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(*stats))
+    ax.legend(loc='best')
+    ax.set_ylabel('Frequency')
+    ax.set_xlabel('Velocity step size (particle/frame)')
+    ax.set_title("{} tracks of {} ({}){}".format(
+                 trackcount, prefix.strip('/._'), particle, title_suf))
+    return ax
 
-fig = plt.figure()
+plot_hist(histv)
 if subtract:
-    top = plt.subplot(2, 1, 1)
-    top.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(histvstat[0], histvstat[1], histvstat[2])])
-    top.legend(loc='center left')
-    top.set_ylabel('Frequency')
-    top.set_title("{} tracks of {} ({})".format(trackcount, prefix, particle))
-
-    low = plt.subplot(2, 1, 2)
-    low.hist(eta, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(etastat[0], etastat[1], etastat[2])])
-    low.legend(loc='center left')
-    low.set_xlabel('Velocity step size in rad/frame')
-    low.set_ylabel('Frequency')
-    low.set_title("{} tracks of {} ({}) with $v_0$ subtracted".format(trackcount, prefix, particle))
-
-else:
-    plt.subplot(2, 1, 1)
-    plt.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_T$ = {:.5f} \n Standard error = {:.5f}'.format(histvstat[0], histvstat[1], histvstat[2])])
-    plt.legend(loc='center left')
-    plt.xlabel('Velocity step size in rad/frame')
-    plt.ylabel('Frequency')
-    plt.title("{} tracks of {} ({})".format(trackcount, prefix, particle))
+    plot_hist(eta, ax=2, title_suf=' with $v_0$ subtracted')
 
 if save:
     print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
