@@ -22,6 +22,23 @@ save = helpy.bool_input('Save figure? ')
 import numpy as np
 import matplotlib.pyplot as plt
 
+def compile_for_hist(spfprefix):
+    '''Adds data from one trial to two lists for transverse and orientation
+    histograms.'''
+    data, trackids, odata, omask = helpy.load_data(spfprefix)
+    data = data[omask]
+    odata = odata[omask]
+
+    trackcount = 0
+    for track in range(data['lab'].max()):
+        mask = data['lab']==track
+        if np.count_nonzero(mask) > 0:
+            trackcount += 1
+            todata = odata[mask]['orient']
+            vo = helpy.der(todata, iwidth=3)
+            histv.extend(vo)
+    return trackcount
+
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
     hist = np.asarray(hist)
@@ -39,32 +56,12 @@ if sets > 1:
     for setnum in range(1, sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-        data, trackids, odata, omask = helpy.load_data(spfprefix)
-        data = data[omask]
-        odata = odata[omask]
-        print odata
-
-        for track in range(data['lab'].max()):
-            mask = data['lab']==track
-            if np.count_nonzero(mask) > 0:
-                todata = odata[mask]['orient']
-                vo = helpy.der(todata, iwidth=3)
-                histv = np.concatenate((histv, vo), axis=1)
-                trackcount += 1
+        settrackcount = compile_for_hist(spfprefix)
+        trackcount += settrackcount
 
 elif sets == 1:
+    trackcount = compile_for_hist(prefix)
     spfprefix = prefix
-    data, trackids, odata, omask = helpy.load_data(spfprefix)
-    data = data[omask]
-    odata = odata[omask]
-
-    for track in range(data['lab'].max()):
-        mask = data['lab']==track
-        if np.count_nonzero(mask) > 0:
-            todata = odata[mask]['orient']
-            vo = helpy.der(todata, iwidth=3)
-            histv = np.concatenate((histv, vo), axis=1)
-            trackcount += 1
 
 def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
     stats = get_stats(hist)

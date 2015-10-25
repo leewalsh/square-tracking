@@ -32,13 +32,16 @@ def compile_for_hist(spfprefix):
     data = data[omask]
     odata = odata[omask]
 
+    trackcount = 0
     for track in range(data['lab'].max()):
         mask = data['lab']==track
         if np.count_nonzero(mask) > 0:
+            trackcount += 1
             tdata = data[mask]
             todata = odata[mask]['orient']
             vx = helpy.der(tdata['x']/S, iwidth=3)
             vy = helpy.der(tdata['y']/S, iwidth=3)
+            #vx, vy = map(lambda i: helpy.der(tdata[i]/S, iwidth=3), 'xy')
 
             histv.extend(vx)
             histv.extend(vy)
@@ -48,7 +51,7 @@ def compile_for_hist(spfprefix):
             etay = vy - vnot * np.sin(todata)
             eta.extend(etax)
             eta.extend(etay)
-    return histv, eta
+    return trackcount
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
@@ -61,18 +64,18 @@ def get_stats(hist):
     return mean, D, SE
 
 trackcount = 0
-histv = eta = []
+histv = []
+eta = []
 
 if sets > 1:
     for setnum in range(1, sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-        histv, eta = compile_for_hist(spfprefix)
-
-        trackcount += 1
+        settrackcount = compile_for_hist(spfprefix)
+        trackcount += settrackcount
 
 elif sets == 1:
-    histv, eta = compile_for_hist(prefix)
+    trackcount = compile_for_hist(prefix)
 
 def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
     stats = get_stats(hist)
