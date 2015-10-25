@@ -22,6 +22,16 @@ save = helpy.bool_input('Save figure? ')
 import numpy as np
 import matplotlib.pyplot as plt
 
+def get_stats(hist):
+    #Computes mean, D_T or D_R, and standard error for a list.
+    hist = np.asarray(hist)
+    hist *= 2.4
+    mean = np.mean(hist)
+    variance = np.var(hist)
+    D = 0.5*variance
+    SE = np.sqrt(variance) / np.sqrt(len(hist))
+    return mean, D, SE
+
 trackcount = 0
 histbins = 100
 histv = []
@@ -57,11 +67,7 @@ elif sets == 1:
             histv = np.concatenate((histv, vo), axis=1)
             trackcount += 1
 
-histv *= 2.4
-mean = np.mean(histv)
-variance = np.var(histv)
-D_R = 0.5*variance
-SE = np.sqrt(variance) / np.sqrt(len(histv))
+mean, D_R, SE = get_stats(histv)
 
 fig = plt.figure()
 plt.hist(histv, int(histbins), log=True, color=['blue'], label=['Mean = {:.5f} \n $D_R$ = {:.5f} \n Standard error = {:.5f}'.format(mean, D_R, SE)])
