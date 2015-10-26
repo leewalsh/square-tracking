@@ -96,8 +96,10 @@ def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Velocity step size (particle/frame)')
     ax.set_title("{} tracks of {} ({}){}".format(
-                 trackcount, prefix.strip('/._'), args.particle, title_suf))
+                 trackcount, prefix, args.particle, title_suf))
     return ax
+
+prefix = prefix.strip('/._')
 
 plot_hist(histv)
 if args.subtract:
