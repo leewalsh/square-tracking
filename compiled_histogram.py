@@ -11,19 +11,27 @@ August 2015
 '''
 
 from __future__ import division
+
+from argparse import ArgumentParser
+p = ArgumentParser()
+p.add_argument('prefix', help='Prefix without trial number')
+p.add_argument('--sets', type=int, default=1, metavar='N', help='Number of sets')
+p.add_argument('--particle', type=str, default='', metavar='NAME', help='Particle type name')
+p.add_argument('--savefig', action='store_true', dest='savefig',
+               help='Save figure?')
+p.add_argument('--subtract', action='store_true', help='Subtract v0?')
+p.add_argument('-s', '--side', type=float, default=17,
+               help='Particle size in pixels, for unit normalization')
+p.add_argument('-f', '--fps', type=float, default=2.4,
+               help="Number of frames per second (or per shake) "
+                    "for unit normalization")
+args = p.parse_args()
+prefix = args.prefix
+
 import os
-import helpy
-
-prefix = raw_input('Prefix without trial number: ')
-sets = int(raw_input('How many sets? '))
-particle = raw_input('Particle type: ')
-subtract = helpy.bool_input('Subtract v0? ')
-save = helpy.bool_input('Save figure? ')
-
 import numpy as np
 import matplotlib.pyplot as plt
-
-S = 17
+import helpy
 
 def compile_for_hist(spfprefix):
     '''Adds data from one trial to two lists for transverse and orientation
@@ -33,15 +41,14 @@ def compile_for_hist(spfprefix):
     odata = odata[omask]
 
     trackcount = 0
-    for track in range(data['lab'].max()):
+    for track in np.unique(data['lab'])[1:]:
         mask = data['lab']==track
         if np.count_nonzero(mask) > 0:
             trackcount += 1
             tdata = data[mask]
             todata = odata[mask]['orient']
-            vx = helpy.der(tdata['x']/S, iwidth=3)
-            vy = helpy.der(tdata['y']/S, iwidth=3)
-            #vx, vy = map(lambda i: helpy.der(tdata[i]/S, iwidth=3), 'xy')
+            vx = helpy.der(tdata['x']/args.side, iwidth=3)
+            vy = helpy.der(tdata['y']/args.side, iwidth=3)
 
             histv.extend(vx)
             histv.extend(vy)
@@ -56,7 +63,7 @@ def compile_for_hist(spfprefix):
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
     hist = np.asarray(hist)
-    hist *= 2.4
+    hist *= args.fps
     mean = np.mean(hist)
     variance = np.var(hist)
     D = 0.5*variance
@@ -67,14 +74,14 @@ trackcount = 0
 histv = []
 eta = []
 
-if sets > 1:
-    for setnum in range(1, sets+1):
+if args.sets > 1:
+    for setnum in range(1, args.sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
         settrackcount = compile_for_hist(spfprefix)
         trackcount += settrackcount
 
-elif sets == 1:
+elif args.sets == 1:
     trackcount = compile_for_hist(prefix)
 
 def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
@@ -89,15 +96,15 @@ def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Velocity step size (particle/frame)')
     ax.set_title("{} tracks of {} ({}){}".format(
-                 trackcount, prefix.strip('/._'), particle, title_suf))
+                 trackcount, prefix.strip('/._'), args.particle, title_suf))
     return ax
 
 plot_hist(histv)
-if subtract:
+if args.subtract:
     plot_hist(eta, ax=2, title_suf=' with $v_0$ subtracted')
 
-if save:
+if args.savefig:
     print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
     plt.savefig(prefix+'.plothist.pdf')
-
-plt.show()
+else:
+    plt.show()
