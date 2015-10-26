@@ -122,22 +122,30 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, trackids, odata=None, omask=True, min_length=10):
+def load_tracksets(data, trackids, odata=None, omask=None, min_length=10, run_track_orient=False):
     """ Returns a dict of slices into data based on trackid
     """
-    if omask is not True:
+    if omask is not None:
         trackids = trackids[omask]
+        data = data[omask]
+        if odata is not None:
+            odata = odata[omask]
+
+    #NOTE: check min_length after omask:
     longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
-    tracksets  = { track: data[(data['lab']==track) & omask]
-                   for track in longtracks }
-    if odata is not None:
-        from orientation import track_orient
-        otracksets = { track: track_orient(
-               odata[(data['lab']==track) & omask]['orient'], onetrack=True)
-                   for track in longtracks }
-        return tracksets, otracksets
-    else:
+    tmasks = {track: np.where(data['lab']==track) for track in longtracks}
+    tracksets = {track: data[tmasks[track]] for track in longtracks}
+
+    if odata is None:
         return tracksets
+
+    otracksets = {track: odata[tmasks[track]]['orient']
+                  for track in longtracks}
+    if run_track_orient:
+        from orientation import track_orient
+        otracksets = {track: track_orient(otracksets[track], onetrack=True)
+                      for track in longtracks}
+    return tracksets, otracksets
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,
