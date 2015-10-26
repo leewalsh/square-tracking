@@ -36,29 +36,26 @@ import helpy
 def compile_for_hist(spfprefix):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
+    #TODO: orientation.track_orient() on todata before derivative?
     data, trackids, odata, omask = helpy.load_data(spfprefix)
-    data = data[omask]
-    odata = odata[omask]
+    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
 
-    trackcount = 0
-    for track in np.unique(data['lab'])[1:]:
-        mask = data['lab']==track
-        if np.count_nonzero(mask) > 0:
-            trackcount += 1
-            tdata = data[mask]
-            todata = odata[mask]['orient']
-            vx = helpy.der(tdata['x']/args.side, iwidth=3)
-            vy = helpy.der(tdata['y']/args.side, iwidth=3)
+    for track in tracksets:
+        tdata = tracksets[track]
+        todata = otracksets[track]
+        vx = helpy.der(tdata['x']/args.side, iwidth=3)
+        vy = helpy.der(tdata['y']/args.side, iwidth=3)
 
-            histv.extend(vx)
-            histv.extend(vy)
+        histv.extend(vx)
+        histv.extend(vy)
 
-            vnot = vx * np.cos(todata) + vy * np.sin(todata)
-            etax = vx - vnot * np.cos(todata)
-            etay = vy - vnot * np.sin(todata)
-            eta.extend(etax)
-            eta.extend(etay)
-    return trackcount
+        vnot = vx * np.cos(todata) + vy * np.sin(todata)
+        etax = vx - vnot * np.cos(todata)
+        etay = vy - vnot * np.sin(todata)
+
+        eta.extend(etax)
+        eta.extend(etay)
+    return len(tracksets)
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.

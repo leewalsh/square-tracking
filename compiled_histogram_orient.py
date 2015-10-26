@@ -36,19 +36,15 @@ import helpy
 def compile_for_hist(spfprefix):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
+    #TODO: orientation.track_orient() on todata before derivative?
     data, trackids, odata, omask = helpy.load_data(spfprefix)
-    data = data[omask]
-    odata = odata[omask]
+    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
 
-    trackcount = 0
-    for track in range(data['lab'].max()):
-        mask = data['lab']==track
-        if np.count_nonzero(mask) > 0:
-            trackcount += 1
-            todata = odata[mask]['orient']
-            vo = helpy.der(todata, iwidth=3)
-            histv.extend(vo)
-    return trackcount
+    for track in tracksets:
+        todata = otracksets[track]
+        vo = helpy.der(todata, iwidth=3)
+        histv.extend(vo)
+    return len(tracksets)
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
