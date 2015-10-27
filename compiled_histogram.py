@@ -19,12 +19,16 @@ p.add_argument('--sets', type=int, default=1, metavar='N', help='Number of sets'
 p.add_argument('--particle', type=str, default='', metavar='NAME', help='Particle type name')
 p.add_argument('--savefig', action='store_true', dest='savefig',
                help='Save figure?')
+p.add_argument('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
+p.add_argument('--log', action='store_true', help='Plot on a log scale?')
+p.add_argument('--torient', action='store_true', help='Track orientation?')
+p.add_argument('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
 p.add_argument('--subtract', action='store_true', help='Subtract v0?')
 p.add_argument('-s', '--side', type=float, default=17,
-               help='Particle size in pixels, for unit normalization')
+               help='Particle size in pixels, for unit normalization. Default: %(default)s')
 p.add_argument('-f', '--fps', type=float, default=2.4,
                help="Number of frames per second (or per shake) "
-                    "for unit normalization")
+                    "for unit normalization. Default: %(default)s")
 args = p.parse_args()
 prefix = args.prefix
 
@@ -38,7 +42,8 @@ def compile_for_hist(spfprefix):
     histograms.'''
     #TODO: orientation.track_orient() on todata before derivative?
     data, trackids, odata, omask = helpy.load_data(spfprefix)
-    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask)
+    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
+            min_length=args.minlen, run_track_orient=args.torient)
 
     for track in tracksets:
         tdata = tracksets[track]
@@ -98,9 +103,9 @@ def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
 
 prefix = prefix.strip('/._')
 
-plot_hist(histv)
+plot_hist(histv, log=args.log)
 if args.subtract:
-    plot_hist(eta, ax=2, title_suf=' with $v_0$ subtracted')
+    plot_hist(eta, ax=2, log=args.log, title_suf=' with $v_0$ subtracted')
 
 if args.savefig:
     print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
