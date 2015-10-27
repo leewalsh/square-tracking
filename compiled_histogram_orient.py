@@ -14,21 +14,20 @@ from __future__ import division
 
 from argparse import ArgumentParser
 p = ArgumentParser()
-p.add_argument('prefix', help='Prefix without trial number')
-p.add_argument('--sets', type=int, default=1, metavar='N', help='Number of sets')
-p.add_argument('--particle', type=str, default='', metavar='NAME', help='Particle type name')
-p.add_argument('--savefig', action='store_true', dest='savefig',
-               help='Save figure?')
-p.add_argument('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
-p.add_argument('--log', action='store_true', help='Plot on a log scale?')
-p.add_argument('--torient', action='store_true', help='Track orientation?')
-p.add_argument('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
-p.add_argument('--subtract', action='store_true', help='Subtract v0?')
-p.add_argument('-s', '--side', type=float, default=17,
-               help='Particle size in pixels, for unit normalization. Default: %(default)s')
-p.add_argument('-f', '--fps', type=float, default=2.4,
-               help="Number of frames per second (or per shake) "
-                    "for unit normalization. Default: %(default)s")
+arg = p.add_argument
+arg('prefix', help='Prefix without trial number')
+arg('--sets', type=int, default=1, metavar='N', help='Number of sets')
+arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
+arg('--savefig', action='store_true', dest='savefig', help='Save figure?')
+arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
+arg('--log', action='store_true', help='Plot on a log scale?')
+arg('--torient', action='store_true', help='Track orientation?')
+arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
+arg('--subtract', action='store_true', help='Subtract v0?')
+arg('-s', '--side', type=float, default=17, help='Particle size in pixels, '
+    'for unit normalization. Default: %(default)s')
+arg('-f', '--fps', type=float, default=2.4, help="Number of frames per second "
+    "(or per shake) for unit normalization. Default: %(default)s")
 args = p.parse_args()
 prefix = args.prefix
 
@@ -37,11 +36,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import helpy
 
-def compile_for_hist(spfprefix):
+def compile_for_hist(prefix):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
     #TODO: orientation.track_orient() on todata before derivative?
-    data, trackids, odata, omask = helpy.load_data(spfprefix)
+    data, trackids, odata, omask = helpy.load_data(prefix)
     tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
             min_length=args.minlen, run_track_orient=args.torient)
 
