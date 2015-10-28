@@ -34,6 +34,7 @@ args = p.parse_args()
 prefix = args.prefix
 
 import os
+from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 import helpy
@@ -51,22 +52,22 @@ def compile_for_hist(prefix):
 
         if args.do_orientation:
             vo = helpy.der(todata, iwidth=3)
-            histvo.extend(vo)
+            vs['o'].extend(vo)
 
         if args.do_translation:
             tdata = tracksets[track]
             vx = helpy.der(tdata['x']/args.side, iwidth=3)
             vy = helpy.der(tdata['y']/args.side, iwidth=3)
-            histv.extend(vx)
-            histv.extend(vy)
+            vs['x'].extend(vx)
+            vs['y'].extend(vy)
 
             if args.subtract:
                 vnot = vx * np.cos(todata) + vy * np.sin(todata)
                 etax = vx - vnot * np.cos(todata)
                 etay = vy - vnot * np.sin(todata)
 
-                eta.extend(etax)
-                eta.extend(etay)
+                vs['etax'].extend(etax)
+                vs['etay'].extend(etay)
     return len(tracksets)
 
 def get_stats(hist):
@@ -80,9 +81,7 @@ def get_stats(hist):
     return mean, D, SE
 
 trackcount = 0
-histv = []
-histvo = []
-eta = []
+vs = defaultdict(list)
 
 if args.sets > 1:
     for setnum in range(1, args.sets+1):
@@ -113,13 +112,13 @@ prefix = prefix.strip('/._')
 nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
 axi = 1
 if args.do_orientation:
-    plot_hist(histvo, nax, axi, log=args.log, orient=True)
+    plot_hist(vs['o'], nax, axi, log=args.log, orient=True)
     axi += 1
 if args.do_translation:
-    plot_hist(histv, nax, axi, log=args.log)
+    plot_hist(vs['x'] + vs['y'], nax, axi, log=args.log)
     axi += 1
     if args.subtract:
-        plot_hist(eta, nax, axi, log=args.log, title_suf=' with $v_0$ subtracted')
+        plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log, title_suf=' with $v_0$ subtracted')
         axi += 1
 
 if args.savefig:
