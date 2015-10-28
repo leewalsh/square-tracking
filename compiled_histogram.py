@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # encoding: utf-8
-''' This script plots a histogram of the translational velocity noise
-for a one or several data sets. Includes option to subtract v_0.
-The histogram figure is saved to file prefix.plothist.pdf
-
-Run from the folder containing the positions file.
-
-Sarah Schlossberg
-August 2015
-'''
 
 from __future__ import division
 
+description = """This script plots a histogram of the velocity noise for one or
+several data sets. Includes option to subtract v_0 from translational noise.
+The histogram figure is optionally saved to file prefix.plothist[orient].pdf
+Run from the folder containing the positions file.
+Copyright (c) 2015 Sarah Schlossberg, Lee Walsh; all rights reserved.
+"""
+
 from argparse import ArgumentParser
-p = ArgumentParser()
+p = ArgumentParser(description=description)
 arg = p.add_argument
 arg('prefix', help='Prefix without trial number')
+arg('-o', '--orientation', action='store_false',
+    dest='do_translation', help='Only orientational noise?')
+arg('-t', '--translation', action='store_false',
+    dest='do_orientation', help='Only translational noise?')
 arg('--sets', type=int, default=1, metavar='N', help='Number of sets')
 arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
 arg('--savefig', action='store_true', dest='savefig', help='Save figure?')
@@ -45,20 +47,26 @@ def compile_for_hist(prefix):
             min_length=args.minlen, run_track_orient=args.torient)
 
     for track in tracksets:
-        tdata = tracksets[track]
         todata = otracksets[track]
-        vx = helpy.der(tdata['x']/args.side, iwidth=3)
-        vy = helpy.der(tdata['y']/args.side, iwidth=3)
 
-        histv.extend(vx)
-        histv.extend(vy)
+        if args.do_orientation:
+            vo = helpy.der(todata, iwidth=3)
+            histvo.extend(vo)
 
-        vnot = vx * np.cos(todata) + vy * np.sin(todata)
-        etax = vx - vnot * np.cos(todata)
-        etay = vy - vnot * np.sin(todata)
+        if args.do_translation:
+            tdata = tracksets[track]
+            vx = helpy.der(tdata['x']/args.side, iwidth=3)
+            vy = helpy.der(tdata['y']/args.side, iwidth=3)
+            histv.extend(vx)
+            histv.extend(vy)
 
-        eta.extend(etax)
-        eta.extend(etay)
+            if args.subtract:
+                vnot = vx * np.cos(todata) + vy * np.sin(todata)
+                etax = vx - vnot * np.cos(todata)
+                etay = vy - vnot * np.sin(todata)
+
+                eta.extend(etax)
+                eta.extend(etay)
     return len(tracksets)
 
 def get_stats(hist):
@@ -73,6 +81,7 @@ def get_stats(hist):
 
 trackcount = 0
 histv = []
+histvo = []
 eta = []
 
 if args.sets > 1:
@@ -85,26 +94,33 @@ if args.sets > 1:
 elif args.sets == 1:
     trackcount = compile_for_hist(prefix)
 
-def plot_hist(hist, ax=1, bins=100, log=True, title_suf=''):
+def plot_hist(hist, nax=1, axi=1, bins=100, log=True, orient=False, title_suf=''):
     stats = get_stats(hist)
-    if isinstance(ax, int):
-        ax = plt.subplot(2, 1, ax)
+    ax = plt.subplot(nax, 1, axi)
     ax.hist(hist, bins, log=log, color='b',
             label=('$\\langle v \\rangle = {:.5f}$\n'
-                   '$D_T = {:.5f}$\n'
+                   '$D = {:.5f}$\n'
                    '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(*stats))
     ax.legend(loc='best')
     ax.set_ylabel('Frequency')
-    ax.set_xlabel('Velocity step size (particle/frame)')
+    ax.set_xlabel('Velocity ({}/vibation)'.format('rad' if orient else 'particle'))
     ax.set_title("{} tracks of {} ({}){}".format(
                  trackcount, prefix, args.particle, title_suf))
     return ax
 
 prefix = prefix.strip('/._')
 
-plot_hist(histv, log=args.log)
-if args.subtract:
-    plot_hist(eta, ax=2, log=args.log, title_suf=' with $v_0$ subtracted')
+nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
+axi = 1
+if args.do_orientation:
+    plot_hist(histvo, nax, axi, log=args.log, orient=True)
+    axi += 1
+if args.do_translation:
+    plot_hist(histv, nax, axi, log=args.log)
+    axi += 1
+    if args.subtract:
+        plot_hist(eta, nax, axi, log=args.log, title_suf=' with $v_0$ subtracted')
+        axi += 1
 
 if args.savefig:
     print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
