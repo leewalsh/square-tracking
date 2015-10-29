@@ -63,20 +63,20 @@ def compile_for_hist(prefix):
             vs['y'].extend(vy)
 
             if args.subtract:
-                vnot = vx * np.cos(todata) + vy * np.sin(todata)
-                etax = vx - vnot * np.cos(todata)
-                etay = vy - vnot * np.sin(todata)
-
+                v0 = vx*np.cos(todata) + vy*np.sin(todata)
+                etax = vx - v0*np.cos(todata)
+                etay = vy - v0*np.sin(todata)
                 vs['etax'].extend(etax)
                 vs['etay'].extend(etay)
     return len(tracksets)
 
-def get_stats(hist):
+def get_stats(a):
     #Computes mean, D_T or D_R, and standard error for a list.
-    M = np.mean(hist)
-    variance = np.var(hist)
+    a = np.asarray(a)
+    M = a.mean()
+    variance = np.var(a)
     D = 0.5*variance
-    SE = np.sqrt(variance) / np.sqrt(len(hist))
+    SE = np.sqrt(variance) / np.sqrt(len(a))
     return M, D, SE
 
 trackcount = 0
@@ -92,10 +92,10 @@ if args.sets > 1:
 elif args.sets == 1:
     trackcount = compile_for_hist(prefix)
 
-def plot_hist(hist, nax=1, axi=1, bins=100, log=True, orient=False, title_suf=''):
-    stats = get_stats(hist)
+def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, title_suf=''):
+    stats = get_stats(a)
     ax = plt.subplot(nax, 1, axi)
-    ax.hist(hist, bins, log=log, color='b',
+    ax.hist(a, bins, log=log, color='b',
             label=('$\\langle v \\rangle = {:.5f}$\n'
                    '$D = {:.5f}$\n'
                    '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(*stats))
