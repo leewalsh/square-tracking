@@ -35,6 +35,7 @@ prefix = args.prefix
 
 import os
 from collections import defaultdict
+from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 import helpy
@@ -73,10 +74,12 @@ def compile_for_hist(prefix):
 def get_stats(a):
     #Computes mean, D_T or D_R, and standard error for a list.
     a = np.asarray(a)
+    n = len(a)
     M = a.mean()
-    variance = np.var(a)
+    c = a - M
+    variance = np.dot(c, c)/n
     D = 0.5*variance
-    SE = np.sqrt(variance) / np.sqrt(len(a))
+    SE = sqrt(variance)/sqrt(n)
     return M, D, SE
 
 trackcount = 0
