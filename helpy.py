@@ -367,7 +367,6 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
         -------
         df_dx : the derivative of f with respect to x
     """
-    from scipy.ndimage import gaussian_filter1d
 
     if dx is None and x is None:
         dx = 1
@@ -382,12 +381,13 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
     if iwidth is None:
         iwidth = xwidth / dx
 
-    if iwidth == 0:
+    if iwidth in (0, 1):
         df = np.diff(f)
-    elif iwidth <= 1:
+    elif iwidth < 2:
        raise ValueError("width of {} too small for reliable "
                         "results".format(iwidth))
     else:
+        from scipy.ndimage import gaussian_filter1d
         df = gaussian_filter1d(f, iwidth, order=1)
 
     return df/dx

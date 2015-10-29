@@ -49,15 +49,16 @@ def compile_for_hist(prefix):
 
     for track in tracksets:
         todata = otracksets[track]
+        dx = 1/args.fps
 
         if args.do_orientation:
-            vo = helpy.der(todata, iwidth=3)
+            vo = helpy.der(todata, dx=dx, iwidth=3)
             vs['o'].extend(vo)
 
         if args.do_translation:
             tdata = tracksets[track]
-            vx = helpy.der(tdata['x']/args.side, iwidth=3)
-            vy = helpy.der(tdata['y']/args.side, iwidth=3)
+            vx = helpy.der(tdata['x']/args.side, dx=dx, iwidth=3)
+            vy = helpy.der(tdata['y']/args.side, dx=dx, iwidth=3)
             vs['x'].extend(vx)
             vs['y'].extend(vy)
 
@@ -72,13 +73,11 @@ def compile_for_hist(prefix):
 
 def get_stats(hist):
     #Computes mean, D_T or D_R, and standard error for a list.
-    hist = np.asarray(hist)
-    hist *= args.fps
-    mean = np.mean(hist)
+    M = np.mean(hist)
     variance = np.var(hist)
     D = 0.5*variance
     SE = np.sqrt(variance) / np.sqrt(len(hist))
-    return mean, D, SE
+    return M, D, SE
 
 trackcount = 0
 vs = defaultdict(list)
