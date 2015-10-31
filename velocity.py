@@ -23,9 +23,9 @@ arg('--particle', type=str, default='', metavar='NAME', help='Particle type name
 arg('--savefig', action='store_true', dest='savefig', help='Save figure?')
 arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
 arg('--log', action='store_true', help='Plot on a log scale?')
-arg('--torient', action='store_true', help='Track orientation?')
+arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
 arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
-arg('--subtract', action='store_true', help='Subtract v0?')
+arg('--nosubtract', action='store_false', dest='subtract', help="Don't subtract v0?")
 arg('-s', '--side', type=float, default=17, help='Particle size in pixels, '
     'for unit normalization. Default: %(default)s')
 arg('-f', '--fps', type=float, default=2.4, help="Number of frames per second "
