@@ -344,7 +344,7 @@ def circle_click(im):
     plt.show()
     return c, r
 
-def der(f, dx=None, x=None, xwidth=None, iwidth=None):
+def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     """ Take a finite derivative of f(x) using convolution with the derivative
         of a gaussian kernel.  For any convolution:
             (f * g)' = f * g' = g * f'
@@ -371,7 +371,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
     if dx is None and x is None:
         dx = 1
     elif dx is None:
-        dx = np.diff(x)
+        dx = np.diff(x)**order
 
     if xwidth is None and iwidth is None:
         if x is None:
@@ -382,18 +382,18 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
         iwidth = xwidth / dx
 
     if iwidth in (0, 1):
-        df = np.diff(f)
+        df = np.diff(f, n=order)
     elif iwidth < 2:
        raise ValueError("width of {} too small for reliable "
                         "results".format(iwidth))
     else:
         from scipy.ndimage import gaussian_filter1d
-        df = gaussian_filter1d(f, iwidth, order=1)
+        df = gaussian_filter1d(f, iwidth, order=order)
 
     if not np.isscalar(dx):
         dx = dx[:len(df)]
         df = df[:len(dx)]
-    return df/dx
+    return df/dx**order
 
 # Pixel-Physical Unit Conversions
 # Physical measurements
