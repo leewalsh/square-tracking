@@ -40,30 +40,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 import helpy
 
-def compile_for_hist(prefix):
+def compile_for_hist(prefix, do_orientation=True, do_translation=True,
+                     subtract=True, minlen=10, torient=True, side=1, fps=1):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
     #TODO: orientation.track_orient() on todata before derivative?
     data, trackids, odata, omask = helpy.load_data(prefix)
     tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
-            min_length=args.minlen, run_track_orient=args.torient)
+            min_length=minlen, run_track_orient=torient)
 
     for track in tracksets:
         todata = otracksets[track]
-        dx = 1/args.fps
+        dx = 1/fps
 
-        if args.do_orientation:
+        if do_orientation:
             vo = helpy.der(todata, dx=dx, iwidth=3)
             vs['o'].extend(vo)
 
-        if args.do_translation:
+        if do_translation:
             tdata = tracksets[track]
-            vx = helpy.der(tdata['x']/args.side, dx=dx, iwidth=3)
-            vy = helpy.der(tdata['y']/args.side, dx=dx, iwidth=3)
+            vx = helpy.der(tdata['x']/side, dx=dx, iwidth=3)
+            vy = helpy.der(tdata['y']/side, dx=dx, iwidth=3)
             vs['x'].extend(vx)
             vs['y'].extend(vy)
 
-            if args.subtract:
+            if subtract:
                 v0 = vx*np.cos(todata) + vy*np.sin(todata)
                 etax = vx - v0*np.cos(todata)
                 etay = vy - v0*np.sin(todata)
@@ -89,13 +90,19 @@ if args.sets > 1:
     for setnum in range(1, args.sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-        settrackcount = compile_for_hist(spfprefix)
+        settrackcount = compile_for_hist(spfprefix,
+                do_orientation=args.do_orientation, do_translation=args.do_translation,
+                subtract=args.subtract, minlen=args.minlen,
+                torient=args.torient, side=args.side, fps=args.fps)
         trackcount += settrackcount
 
 elif args.sets == 1:
-    trackcount = compile_for_hist(prefix)
+    trackcount = compile_for_hist(prefix,
+            do_orientation=args.do_orientation, do_translation=args.do_translation,
+            subtract=args.subtract, minlen=args.minlen,
+            torient=args.torient, side=args.side, fps=args.fps)
 
-def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, title_suf=''):
+def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, subtitle=''):
     stats = get_stats(a)
     ax = plt.subplot(nax, 1, axi)
     ax.hist(a, bins, log=log, color='b',
@@ -105,8 +112,7 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, title_suf=''):
     ax.legend(loc='best')
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Velocity ({}/vibation)'.format('rad' if orient else 'particle'))
-    ax.set_title("{} tracks of {} ({}){}".format(
-                 trackcount, prefix, args.particle, title_suf))
+    ax.set_title("{} tracks of {} ({})".format(trackcount, prefix, subtitle))
     return ax
 
 prefix = prefix.strip('/._')
@@ -114,13 +120,14 @@ prefix = prefix.strip('/._')
 nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
 axi = 1
 if args.do_orientation:
-    plot_hist(vs['o'], nax, axi, log=args.log, orient=True)
+    plot_hist(vs['o'], nax, axi, log=args.log, orient=True, subtitle=args.particle)
     axi += 1
 if args.do_translation:
-    plot_hist(vs['x'] + vs['y'], nax, axi, log=args.log)
+    plot_hist(vs['x'] + vs['y'], nax, axi, log=args.log, subtitle=args.particle)
     axi += 1
     if args.subtract:
-        plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log, title_suf=' with $v_0$ subtracted')
+        plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
+                  subtitle=', '.join([args.particle, '$v_0$ subtracted']))
         axi += 1
 
 if args.savefig:
