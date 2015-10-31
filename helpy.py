@@ -376,6 +376,8 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
         nx = len(x)
         dx = x.copy()
         dx[:-1] = dx[1:] - dx[:-1]
+        assert dx[:-1].min() > 1e-6, ("Non-increasing independent variable "
+                                      "(min step {})".format(dx[:-1].min()))
         dx[-1] = dx[-2]
         dx **= order
 
