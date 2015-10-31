@@ -367,11 +367,17 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
         -------
         df_dx : the derivative of f with respect to x
     """
+    nf = len(f)
 
     if dx is None and x is None:
         dx = 1
+        nx = 1
     elif dx is None:
-        dx = np.diff(x)**order
+        nx = len(x)
+        dx = x.copy()
+        dx[:-1] = dx[1:] - dx[:-1]
+        dx[-1] = dx[-2]
+        dx **= order
 
     if xwidth is None and iwidth is None:
         if x is None:
@@ -382,7 +388,15 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
         iwidth = xwidth / dx
 
     if iwidth in (0, 1):
-        df = np.diff(f, n=order)
+        if order == 1:
+            df = f.copy()
+            df[:-1] = df[1:] - df[:-1]
+            df[-1] = df[-2]
+        else:
+            df = np.diff(f, n=order)
+            beg, end = order//2, (order+1)//2
+            df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
+
     elif iwidth < 2:
        raise ValueError("width of {} too small for reliable "
                         "results".format(iwidth))
@@ -390,9 +404,10 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
         from scipy.ndimage import gaussian_filter1d
         df = gaussian_filter1d(f, iwidth, order=order)
 
-    if not np.isscalar(dx):
-        dx = dx[:len(df)]
-        df = df[:len(dx)]
+    newnf = len(df)
+    assert nf==newnf, "df was len {}, now len {}".format(nf, newnf)
+    newnx = len(np.atleast_1d(dx))
+    assert nx==newnx, "dx was len {}, now len {}".format(nx, newnx)
     return df/dx**order
 
 # Pixel-Physical Unit Conversions
