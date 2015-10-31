@@ -358,7 +358,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
             use xwidth for the physical units of x (x array is required)
             use 0 for no smoothing. Gives an array shorter by 1.
         x or dx : required for normalization
-            if x is provided, dx = x[1] - x[0]
+            if x is provided, dx = np.diff(x)
             otherwise, a scalar dx is presumed
             if dx=1, use a simple finite difference with np.diff
             if dx>1, convolves with the derivative of a gaussian, sigma=dx
@@ -371,7 +371,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
     if dx is None and x is None:
         dx = 1
     elif dx is None:
-        dx = x[1] - x[0]
+        dx = np.diff(x)
 
     if xwidth is None and iwidth is None:
         if x is None:
@@ -390,8 +390,10 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None):
         from scipy.ndimage import gaussian_filter1d
         df = gaussian_filter1d(f, iwidth, order=1)
 
+    if not np.isscalar(dx):
+        dx = dx[:len(df)]
+        df = df[:len(dx)]
     return df/dx
-
 
 # Pixel-Physical Unit Conversions
 # Physical measurements

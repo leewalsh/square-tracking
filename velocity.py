@@ -50,17 +50,17 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
             min_length=minlen, run_track_orient=torient)
 
     for track in tracksets:
+        tdata = tracksets[track]
         todata = otracksets[track]
-        dx = 1/fps
+        x = tdata['f']/fps
 
         if do_orientation:
-            vo = helpy.der(todata, dx=dx, iwidth=3)
+            vo = helpy.der(todata, x=x, iwidth=3)
             vs['o'].extend(vo)
 
         if do_translation:
-            tdata = tracksets[track]
-            vx = helpy.der(tdata['x']/side, dx=dx, iwidth=3)
-            vy = helpy.der(tdata['y']/side, dx=dx, iwidth=3)
+            vx = helpy.der(tdata['x']/side, x=x, iwidth=3)
+            vy = helpy.der(tdata['y']/side, x=x, iwidth=3)
             vs['x'].extend(vx)
             vs['y'].extend(vy)
 
