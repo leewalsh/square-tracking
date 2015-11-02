@@ -122,14 +122,12 @@ pi = np.pi
 twopi = 2*pi
 locdir = extdir = ''
 
-def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
-                 cut=False):
+def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
     frame = thisdot['f']
-    if cut is False: cut = np.full(len(trackids), False)
-    if cut[thisdot['id']]:
+    if cut is not False and cut[thisdot['id']]:
         return -1
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = trackids.max() + 1
@@ -164,7 +162,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10,
                 print 'dot:', thisdot['id'],
                 print 'closer:', curdots[mini2]['id']
             return newtrackid
-        if cut[closest['id']]:
+        if cut is not False and cut[closest['id']]:
             newtrackid = trackids.max() + 1
             if verbose:
                 print "cutting track:", trackids[closest['id']]
