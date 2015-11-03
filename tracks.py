@@ -135,27 +135,20 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot['id']
         return newtrackid
-    olddots = fsets[frame-n]
-    dists = ((thisdot['x'] - olddots['x'])**2 +
-             (thisdot['y'] - olddots['y'])**2)
-    mini = np.argmin(dists)
-    mindist = dists[mini]
-#    oldtree = ftrees[frame-n]
-#    mindist, mini = oldtree.query([thisdot['x'], thisdot['y']])
-    closest = olddots[mini]
+    oldtree = ftrees[frame-n]
+    thisdotxy = [thisdot['x'], thisdot['y']]
+    mindist, mini = oldtree.query(thisdotxy, distance_upper_bound=maxdist)
     if mindist < maxdist:
         # a close one! Is there another dot in the current frame that's closer?
-        curdots = fsets[frame]
-        curdists = ((curdots['x'] - closest['x'])**2 +
-                    (curdots['y'] - closest['y'])**2)
-        mini2 = np.argmin(curdists)
-        mindist2 = curdists[mini2]
-#        curtree = ftrees[frame]
-#        mindist2, closest2 = curtree.query([closest['x'], closest['y']])
+        closest = fsets[frame-n][mini]
+        curtree = ftrees[frame]
+        closestxy = [closest['x'], closest['y']]
+        mindist2, mini2 = curtree.query(closestxy, distance_upper_bound=mindist)
         if mindist2 < mindist:
             # create new trackid to be deleted (or overwritten?)
             newtrackid = trackids.max() + 1
             if verbose:
+                curdots = fsets[frame]
                 print "found a closer child dot to the this dot's parent"
                 print "New track:", newtrackid
                 print '\tframe:', frame,'n:', n,
@@ -258,7 +251,7 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         cut = rs > R - margin
 
     print "seeking tracks"
-    for i in range(len(data)):
+    for i in xrange(len(data)):
         # This must remain a simple loop because trackids gets modified and
         # passed into the function with each iteration
         trackids[i] = find_closest(data[i], trackids,
@@ -574,9 +567,9 @@ if __name__=='__main__':
         if not args.load:
             data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         fsets = helpy.splitter(data, ret_dict=True)
-#        from scipy.spatial.kdtree import KDTree
-#        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
-#                   for f, fset in fsets.iteritems() }
+        from scipy.spatial import cKDTree as KDTree
+        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
+                   for f, fset in fsets.iteritems() }
         trackids = find_tracks(maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
         # save the data record array and the trackids array
