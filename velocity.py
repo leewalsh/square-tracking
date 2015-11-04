@@ -19,10 +19,12 @@ arg('-o', '--orientation', action='store_false',
 arg('-t', '--translation', action='store_false',
     dest='do_orientation', help='Only translational noise?')
 arg('--sets', type=int, default=1, metavar='N', help='Number of sets')
+arg('--width', type=float, default=3, metavar='W', help='Smoothing width for derivative')
 arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
-arg('--savefig', action='store_true', dest='savefig', help='Save figure?')
+arg('--save', type=str, nargs='?', const='plothist', default='', help='Save figure?')
 arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
 arg('--log', action='store_true', help='Plot on a log scale?')
+arg('--dupes', action='store_true', help='Remove duplicates from tracks')
 arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
 arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
 arg('--nosubtract', action='store_false', dest='subtract', help="Don't subtract v0?")
@@ -39,12 +41,16 @@ from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 import helpy
+if args.dupes:
+    from tracks import remove_duplicates
 
-def compile_for_hist(prefix, do_orientation=True, do_translation=True,
-                     subtract=True, minlen=10, torient=True, side=1, fps=1):
+def compile_for_hist(prefix, do_orientation=True, do_translation=True, width=3,
+                     subtract=True, minlen=10, torient=True, side=1, fps=1, dupes=False):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
     data, trackids, odata, omask = helpy.load_data(prefix)
+    if dupes:
+        trackids = remove_duplicates(trackids, data)
     tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
             min_length=minlen, run_track_orient=torient)
 
@@ -54,7 +60,7 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
         x = tdata['f']/fps
 
         if do_orientation:
-            vo = helpy.der(todata, x=x, iwidth=3)
+            vo = helpy.der(todata, x=x, iwidth=width)
             vs['o'].extend(vo)
 
         if do_translation:
@@ -62,8 +68,8 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
             vs['cos'].extend(cos)
             vs['sin'].extend(sin)
 
-            vx = helpy.der(tdata['x']/side, x=x, iwidth=3)
-            vy = helpy.der(tdata['y']/side, x=x, iwidth=3)
+            vx = helpy.der(tdata['x']/side, x=x, iwidth=width)
+            vy = helpy.der(tdata['y']/side, x=x, iwidth=width)
             vs['x'].extend(vx)
             vs['y'].extend(vy)
 
@@ -99,21 +105,18 @@ def get_stats(a):
 trackcount = 0
 vs = defaultdict(list)
 
+compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_translation,
+                subtract=args.subtract, minlen=args.minlen, dupes=args.dupes,
+                torient=args.torient, side=args.side, fps=args.fps, width=args.width)
 if args.sets > 1:
     for setnum in range(1, args.sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-        settrackcount = compile_for_hist(spfprefix,
-                do_orientation=args.do_orientation, do_translation=args.do_translation,
-                subtract=args.subtract, minlen=args.minlen,
-                torient=args.torient, side=args.side, fps=args.fps)
+        settrackcount = compile_for_hist(spfprefix, **compile_args)
         trackcount += settrackcount
 
 elif args.sets == 1:
-    trackcount = compile_for_hist(prefix,
-            do_orientation=args.do_orientation, do_translation=args.do_translation,
-            subtract=args.subtract, minlen=args.minlen,
-            torient=args.torient, side=args.side, fps=args.fps)
+    trackcount = compile_for_hist(prefix, **compile_args)
 
 def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, subtitle=''):
     stats = get_stats(a)
@@ -143,8 +146,9 @@ if args.do_translation:
                   subtitle=', '.join([args.particle, '$v_0$ subtracted']))
         axi += 1
 
-if args.savefig:
-    print 'Saving plot to {}.plothist.pdf'.format(os.path.abspath(prefix))
-    plt.savefig(prefix+'.plothist.pdf')
+if args.save:
+    savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
+    print 'Saving plot to {}'.format(savename)
+    plt.savefig(savename)
 else:
     plt.show()
