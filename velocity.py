@@ -58,18 +58,31 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
             vs['o'].extend(vo)
 
         if do_translation:
+            cos, sin = np.cos(todata), np.sin(todata)
+            vs['cos'].extend(cos)
+            vs['sin'].extend(sin)
+
             vx = helpy.der(tdata['x']/side, x=x, iwidth=3)
             vy = helpy.der(tdata['y']/side, x=x, iwidth=3)
             vs['x'].extend(vx)
             vs['y'].extend(vy)
 
+            vI = vx*cos + vy*sin
+            vT = vx*sin - vy*cos
+            vs['I'].extend(vI)
+            vs['T'].extend(vT)
+
             if subtract:
-                cos, sin = np.cos(todata), np.sin(todata)
-                v0 = np.mean(vx*cos + vy*sin)
+                v0 = vI.mean()
                 etax = vx - v0*cos
                 etay = vy - v0*sin
                 vs['etax'].extend(etax)
                 vs['etay'].extend(etay)
+
+                etaI = vI - v0
+                etaT = vT
+                vs['etaI'].extend(etaI)
+                vs['etaT'].extend(etaT)
     return len(tracksets)
 
 def get_stats(a):
