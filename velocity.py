@@ -44,7 +44,6 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
                      subtract=True, minlen=10, torient=True, side=1, fps=1):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
-    #TODO: orientation.track_orient() on todata before derivative?
     data, trackids, odata, omask = helpy.load_data(prefix)
     tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
             min_length=minlen, run_track_orient=torient)
@@ -65,9 +64,10 @@ def compile_for_hist(prefix, do_orientation=True, do_translation=True,
             vs['y'].extend(vy)
 
             if subtract:
-                v0 = vx*np.cos(todata) + vy*np.sin(todata)
-                etax = vx - v0*np.cos(todata)
-                etay = vy - v0*np.sin(todata)
+                cos, sin = np.cos(todata), np.sin(todata)
+                v0 = np.mean(vx*cos + vy*sin)
+                etax = vx - v0*cos
+                etay = vy - v0*sin
                 vs['etax'].extend(etax)
                 vs['etay'].extend(etay)
     return len(tracksets)
