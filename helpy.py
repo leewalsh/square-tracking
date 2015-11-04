@@ -133,7 +133,7 @@ def load_tracksets(data, trackids, odata=None, omask=None, min_length=10, run_tr
 
     #NOTE: check min_length after omask:
     longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
-    tmasks = {track: np.where(data['lab']==track) for track in longtracks}
+    tmasks = {track: np.where(trackids==track) for track in longtracks}
     tracksets = {track: data[tmasks[track]] for track in longtracks}
 
     if odata is None:
