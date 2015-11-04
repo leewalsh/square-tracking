@@ -118,32 +118,39 @@ if args.sets > 1:
 elif args.sets == 1:
     trackcount = compile_for_hist(prefix, **compile_args)
 
-def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, subtitle=''):
+def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', title='', subtitle=''):
     stats = get_stats(a)
-    ax = plt.subplot(nax, 1, axi)
-    ax.hist(a, bins, log=log, color='b',
-            label=('$\\langle v \\rangle = {:.5f}$\n'
+    ax = axi[0] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2-1)
+    ax.hist(a, bins, log=False, alpha=0.7,
+            label=('$\\langle {} \\rangle = {:.5f}$\n'
                    '$D = {:.5f}$\n'
-                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(*stats))
-    ax.legend(loc='best')
+                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(label, *stats))
+    ax.legend(loc='upper left', fontsize='xx-small', frameon=False)
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Velocity ({}/vibation)'.format('rad' if orient else 'particle'))
-    ax.set_title("{} tracks of {} ({})".format(trackcount, prefix, subtitle))
-    return ax
+    ax.set_title("{} ({})".format(title, subtitle), fontsize='medium')
+    ax2 = axi[1] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2)
+    ax2.hist(a, bins, log=True, alpha=0.7)
+    return ax, ax2
 
-prefix = prefix.strip('/._')
 
 nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
 axi = 1
 if args.do_orientation:
-    plot_hist(vs['o'], nax, axi, log=args.log, orient=True, subtitle=args.particle)
+    plot_hist(vs['o'], nax, axi, bins=np.linspace(-1,1), log=args.log, orient=True,
+            label=r'\xi', title='Orientation',
+            subtitle = args.particle or prefix.strip('/._'))
     axi += 1
 if args.do_translation:
-    plot_hist(vs['x'] + vs['y'], nax, axi, log=args.log, subtitle=args.particle)
+    ax, ax2 = plot_hist(vs['I'], nax, axi, log=args.log,
+            bins=np.linspace(-1,1), label='v_\parallel')
+    plot_hist(vs['T'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1), label='v_\perp',
+            title='Parallel & Transverse', subtitle = args.particle or prefix.strip('/._'))
     axi += 1
     if args.subtract:
         plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
-                  subtitle=', '.join([args.particle, '$v_0$ subtracted']))
+            label=r'\eta_\alpha', bins=np.linspace(-1,1),
+            title='$v_0$ subtracted', subtitle = args.particle or prefix.strip('/._'))
         axi += 1
 
 if args.save:
