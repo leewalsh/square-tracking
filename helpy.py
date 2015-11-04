@@ -399,9 +399,9 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
             beg, end = order//2, (order+1)//2
             df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
 
-    elif iwidth < .5:
-       raise ValueError("width of {} too small for reliable "
-                        "results".format(iwidth))
+    #elif iwidth < .5:
+    #   raise ValueError("width of {} too small for reliable "
+    #                    "results".format(iwidth))
     else:
         from scipy.ndimage import gaussian_filter1d
         df = gaussian_filter1d(f, iwidth, order=order)

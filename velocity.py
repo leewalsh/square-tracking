@@ -108,6 +108,28 @@ vs = defaultdict(list)
 compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_translation,
                 subtract=args.subtract, minlen=args.minlen, dupes=args.dupes,
                 torient=args.torient, side=args.side, fps=args.fps, width=args.width)
+
+if args.allwidths:
+    widths = np.arange(0, 4, args.allwidths) + args.allwidths
+    allvs = defaultdict(lambda: defaultdict(list))
+    stats = {v: {s: np.empty_like(widths)
+                 for s in 'mean var stderr'.split()}
+             for v in 'o I T etaI etaT'.split()}
+    for i, width in enumerate(widths):
+        compile_args['width'] = width
+        vs = allvs[width]
+        for setnum in range(1, args.sets+1):
+            spfprefix = prefix + str(setnum)
+            spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
+            compile_for_hist(spfprefix, **compile_args)
+        for v in stats:
+            for s, stat in zip(stats[v], get_stats(vs[v])):
+                stats[v][s][i] = stat
+    for v in stats:
+        for s in stats[v]:
+            plt.plot(widths, stats[v][s], label=' '.join([v,s]))
+    import sys; sys.exit()
+
 if args.sets > 1:
     for setnum in range(1, args.sets+1):
         spfprefix = prefix + str(setnum)
