@@ -389,7 +389,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     if iwidth is None:
         iwidth = xwidth / dx
 
-    if iwidth in (0, 1):
+    if iwidth == 0:
         if order == 1:
             df = f.copy()
             df[:-1] = df[1:] - df[:-1]
@@ -399,7 +399,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
             beg, end = order//2, (order+1)//2
             df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
 
-    elif iwidth < 2:
+    elif iwidth < .5:
        raise ValueError("width of {} too small for reliable "
                         "results".format(iwidth))
     else:
