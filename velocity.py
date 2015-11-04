@@ -121,23 +121,33 @@ elif args.sets == 1:
 def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', title='', subtitle=''):
     stats = get_stats(a)
     ax = axi[0] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2-1)
-    ax.hist(a, bins, log=False, alpha=0.7,
+    bins = ax.hist(a, bins, log=False, alpha=0.7,
             label=('$\\langle {} \\rangle = {:.5f}$\n'
                    '$D = {:.5f}$\n'
-                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(label, *stats))
+                   '$\\sigma/\\sqrt{{N}} = {:.5f}$').format(label, *stats))[1]
     ax.legend(loc='upper left', fontsize='xx-small', frameon=False)
     ax.set_ylabel('Frequency')
+    if orient:
+        l, r = ax.set_xlim(bins[0], bins[-1])
+        xticks = np.linspace(l, r, 5)
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
     ax.set_xlabel('Velocity ({}/vibation)'.format('rad' if orient else 'particle'))
     ax.set_title("{} ({})".format(title, subtitle), fontsize='medium')
     ax2 = axi[1] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2)
-    ax2.hist(a, bins, log=True, alpha=0.7)
+    bins = ax2.hist(a, bins*2, log=True, alpha=0.7)[1]
+    if orient:
+        l, r = ax2.set_xlim(bins[0], bins[-1])
+        xticks = np.linspace(l, r, 9)
+        ax2.set_xticks(xticks)
+        ax2.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
     return ax, ax2
 
 
 nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
 axi = 1
 if args.do_orientation:
-    plot_hist(vs['o'], nax, axi, bins=np.linspace(-1,1), log=args.log, orient=True,
+    plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log, orient=True,
             label=r'\xi', title='Orientation',
             subtitle = args.particle or prefix.strip('/._'))
     axi += 1
@@ -149,7 +159,7 @@ if args.do_translation:
     axi += 1
     if args.subtract:
         plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
-            label=r'\eta_\alpha', bins=np.linspace(-1,1),
+            label=r'\eta_\alpha', bins=np.linspace(-1,1,51),
             title='$v_0$ subtracted', subtitle = args.particle or prefix.strip('/._'))
         axi += 1
 
