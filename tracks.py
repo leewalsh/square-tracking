@@ -301,6 +301,9 @@ def remove_duplicates(trackids, data=None, tsets=None):
             seps = np.zeros(count[f])
             for neigh in (prv, nxt):
                 if neigh is not None:
+                    if count[neigh] > 1:
+                        ftset = ftsets[neigh]
+                        ftsets[neigh] = ftset[trackids[ftset['id']]>=0]
                     sepx = ftsets[f]['x'] - ftsets[neigh]['x']
                     sepy = ftsets[f]['y'] - ftsets[neigh]['y']
                     seps += sepx*sepx + sepy*sepy
