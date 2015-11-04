@@ -270,9 +270,42 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
     if n or stub > 0:
         stubs = np.in1d(trackids, stubs)
         trackids[stubs] = -1
+    trackids = remove_duplicates(trackids, data=data)
     # Michael used the data['lab'] field (as line[3] for line in data) to store
     # trackids. I'll keep doing that:
     data['lab'] = trackids
+    return trackids
+
+def remove_duplicates(trackids, data=None, tsets=None):
+    if tsets is None:
+        if data is None:
+            raise ValueError, "Either data or tsets is required"
+        tsets = helpy.load_tracksets(data, trackids, min_length=0)
+
+    for t, tset in tsets.iteritems():
+        fs = tset['f']
+        count = np.bincount(fs)
+        dup_fs = np.where(count>1)[0]
+        if not len(dup_fs):
+            continue
+        ftsets = helpy.splitter(tset, fs, ret_dict=True)
+        for f in dup_fs:
+            prv = fs[np.searchsorted(fs, f, 'left') - 1] if f > fs[0] else None
+            nxt = fs[np.searchsorted(fs, f, 'right')] if f < fs[-1] else None
+            if nxt in dup_fs:
+                nxt = fs[np.searchsorted(fs, nxt, 'right')] if nxt < fs[-1] else None
+                if nxt in dup_fs:
+                    nxt = None
+                    assert prv is not None, ("Duplicate track particles in too many "
+                            "frames in a row at frame {} for track {}".format(f, t))
+            seps = np.zeros(count[f])
+            for neigh in (prv, nxt):
+                if neigh is not None:
+                    sepx = ftsets[f]['x'] - ftsets[neigh]['x']
+                    sepy = ftsets[f]['y'] - ftsets[neigh]['y']
+                    seps += sepx*sepx + sepy*sepy
+            reject = ftsets[f][seps > seps.min()]
+            trackids[reject['id']] = -1
     return trackids
 
 # Plotting tracks:
