@@ -120,20 +120,22 @@ def plot_widths(widths):
             spfprefix = prefix + str(setnum)
             spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
             compile_for_hist(spfprefix, vs, **compile_args)
-        for v in stats:
-            for s, stat in zip(stats[v], get_stats(vs[v])):
-                stats[v][s][i] = stat
+        for v, s in stats.items():
+            s['mean'][i], s['var'][i], s['stderr'][i] = get_stats(vs[v])
     return stats
 
 if args.width < 0:
     widths = np.arange(0, 4, -args.width) - args.width
     stats = plot_widths(widths)
-    ls = {'o': '--', 'I': '.-', 'T': ':', 'etaI': '-.', 'etaT': '-'}
+    ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--', 'etaT': ':'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
-    for v in stats:
-        for s in stats[v]:
-            plt.plot(widths, stats[v][s], ls[v]+cs[s], label=' '.join([v,s]))
-    plt.legend()
+    fig = plt.figure(figsize=(8,12))
+    for i, s in enumerate(stats['o']):
+        ax = fig.add_subplot(len(stats['o']), 1, i+1)
+        for v in stats:
+            ax.plot(widths, stats[v][s], '.'+ls[v]+cs[s], label='$'+v.replace('eta', r'\eta_')+'$')
+        ax.set_title(s)
+        ax.legend(loc='best')
     if args.save:
         savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
         print 'Saving plot to {}'.format(savename)
