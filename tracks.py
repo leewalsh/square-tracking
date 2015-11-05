@@ -292,9 +292,9 @@ def remove_duplicates(trackids, data=None, tsets=None):
         for f in dup_fs:
             prv = fs[np.searchsorted(fs, f, 'left') - 1] if f > fs[0] else None
             nxt = fs[np.searchsorted(fs, f, 'right')] if f < fs[-1] else None
-            if nxt in dup_fs:
+            if nxt is not None and nxt in dup_fs:
                 nxt = fs[np.searchsorted(fs, nxt, 'right')] if nxt < fs[-1] else None
-                if nxt in dup_fs:
+                if nxt is not None and nxt in dup_fs:
                     nxt = None
                     assert prv is not None, ("Duplicate track particles in too many "
                             "frames in a row at frame {} for track {}".format(f, t))
