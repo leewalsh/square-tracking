@@ -88,9 +88,7 @@ def compile_for_hist(prefix, vs=defaultdict(list), width=3,
                 vs['etay'].extend(etay)
 
                 etaI = vI - v0
-                etaT = vT
                 vs['etaI'].extend(etaI)
-                vs['etaT'].extend(etaT)
     return len(tracksets)
 
 def get_stats(a):
@@ -111,7 +109,7 @@ compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_t
 def plot_widths(widths):
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
-             for v in 'o I T etaI etaT'.split()}
+             for v in 'o I T etaI'.split()}
     for i, width in enumerate(widths):
         print "width {} ({} of {})".format(width, i, len(widths))
         compile_args['width'] = width
@@ -127,7 +125,7 @@ def plot_widths(widths):
 if args.width < 0:
     widths = np.arange(0, 4, -args.width) - args.width
     stats = plot_widths(widths)
-    ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--', 'etaT': ':'}
+    ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     fig = plt.figure(figsize=(8,12))
     for i, s in enumerate(stats['o']):
