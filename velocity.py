@@ -19,7 +19,8 @@ arg('-o', '--orientation', action='store_false',
 arg('-t', '--translation', action='store_false',
     dest='do_orientation', help='Only translational noise?')
 arg('--sets', type=int, default=1, metavar='N', help='Number of sets')
-arg('--width', type=float, default=3, metavar='W', help='Smoothing width for derivative')
+arg('--width', type=float, default=3, metavar='W', nargs='?', const=-.5,
+        help='Smoothing width for derivative')
 arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
 arg('--save', type=str, nargs='?', const='plothist', default='', help='Save figure?')
 arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
@@ -109,13 +110,14 @@ compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_t
                 subtract=args.subtract, minlen=args.minlen, dupes=args.dupes,
                 torient=args.torient, side=args.side, fps=args.fps, width=args.width)
 
-if args.allwidths:
-    widths = np.arange(0, 4, args.allwidths) + args.allwidths
+if args.width < 0:
+    widths = np.arange(0, 4, -args.width) - args.width
     allvs = defaultdict(lambda: defaultdict(list))
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
              for v in 'o I T etaI etaT'.split()}
     for i, width in enumerate(widths):
+        print "width {} ({} of {})".format(width, i, len(widths))
         compile_args['width'] = width
         vs = allvs[width]
         for setnum in range(1, args.sets+1):
@@ -125,9 +127,18 @@ if args.allwidths:
         for v in stats:
             for s, stat in zip(stats[v], get_stats(vs[v])):
                 stats[v][s][i] = stat
+    ls = {'o': '--', 'I': '.-', 'T': ':', 'etaI': '-.', 'etaT': '-'}
+    cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     for v in stats:
         for s in stats[v]:
-            plt.plot(widths, stats[v][s], label=' '.join([v,s]))
+            plt.plot(widths, stats[v][s], ls[v]+cs[s], label=' '.join([v,s]))
+    plt.legend()
+    if args.save:
+        savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
+        print 'Saving plot to {}'.format(savename)
+        plt.savefig(savename)
+    else:
+        plt.show()
     import sys; sys.exit()
 
 if args.sets > 1:
