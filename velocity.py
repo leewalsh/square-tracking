@@ -45,8 +45,9 @@ import helpy
 if args.dupes:
     from tracks import remove_duplicates
 
-def compile_for_hist(prefix, do_orientation=True, do_translation=True, width=3,
-                     subtract=True, minlen=10, torient=True, side=1, fps=1, dupes=False):
+def compile_for_hist(prefix, vs=defaultdict(list), width=3,
+                     do_orientation=True, do_translation=True, subtract=True,
+                     minlen=10, torient=True, side=1, fps=1, dupes=False):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
     data, trackids, odata, omask = helpy.load_data(prefix)
@@ -103,30 +104,30 @@ def get_stats(a):
     SE = sqrt(variance)/sqrt(n)
     return M, D, SE
 
-trackcount = 0
-vs = defaultdict(list)
-
 compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_translation,
                 subtract=args.subtract, minlen=args.minlen, dupes=args.dupes,
                 torient=args.torient, side=args.side, fps=args.fps, width=args.width)
 
-if args.width < 0:
-    widths = np.arange(0, 4, -args.width) - args.width
-    allvs = defaultdict(lambda: defaultdict(list))
+def plot_widths(widths):
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
              for v in 'o I T etaI etaT'.split()}
     for i, width in enumerate(widths):
         print "width {} ({} of {})".format(width, i, len(widths))
         compile_args['width'] = width
-        vs = allvs[width]
+        vs = defaultdict(list)
         for setnum in range(1, args.sets+1):
             spfprefix = prefix + str(setnum)
             spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-            compile_for_hist(spfprefix, **compile_args)
+            compile_for_hist(spfprefix, vs, **compile_args)
         for v in stats:
             for s, stat in zip(stats[v], get_stats(vs[v])):
                 stats[v][s][i] = stat
+    return stats
+
+if args.width < 0:
+    widths = np.arange(0, 4, -args.width) - args.width
+    stats = plot_widths(widths)
     ls = {'o': '--', 'I': '.-', 'T': ':', 'etaI': '-.', 'etaT': '-'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     for v in stats:
@@ -141,15 +142,17 @@ if args.width < 0:
         plt.show()
     import sys; sys.exit()
 
+vs = defaultdict(list)
 if args.sets > 1:
+    trackcount = 0
     for setnum in range(1, args.sets+1):
         spfprefix = prefix + str(setnum)
         spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-        settrackcount = compile_for_hist(spfprefix, **compile_args)
+        settrackcount = compile_for_hist(spfprefix, vs, **compile_args)
         trackcount += settrackcount
 
 elif args.sets == 1:
-    trackcount = compile_for_hist(prefix, **compile_args)
+    trackcount = compile_for_hist(prefix, vs, **compile_args)
 
 def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', title='', subtitle=''):
     stats = get_stats(a)
