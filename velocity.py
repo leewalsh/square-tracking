@@ -45,9 +45,9 @@ import helpy
 if args.dupes:
     from tracks import remove_duplicates
 
-def compile_for_hist(prefix, vs=defaultdict(list), width=3,
+def compile_for_hist(prefix, vs=defaultdict(list), width=3, side=1, fps=1,
                      do_orientation=True, do_translation=True, subtract=True,
-                     minlen=10, torient=True, side=1, fps=1, dupes=False):
+                     minlen=10, torient=True, dupes=False, **ignored):
     '''Adds data from one trial to two lists for transverse and orientation
     histograms.'''
     data, trackids, odata, omask = helpy.load_data(prefix)
@@ -102,29 +102,25 @@ def get_stats(a):
     SE = sqrt(variance)/sqrt(n)
     return M, D, SE
 
-compile_args = dict(do_orientation=args.do_orientation, do_translation=args.do_translation,
-                subtract=args.subtract, minlen=args.minlen, dupes=args.dupes,
-                torient=args.torient, side=args.side, fps=args.fps, width=args.width)
-
-def plot_widths(widths):
+def plot_widths(widths, prefix, sets, **compile_args):
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
              for v in 'o I T etaI'.split()}
+    ps = ["{}{i}_d/{}{i}".format(prefix, os.path.basename(prefix), i=i+1)
+          for i in xrange(sets)]
     for i, width in enumerate(widths):
         print "width {} ({} of {})".format(width, i, len(widths))
         compile_args['width'] = width
         vs = defaultdict(list)
-        for setnum in range(1, args.sets+1):
-            spfprefix = prefix + str(setnum)
-            spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-            compile_for_hist(spfprefix, vs, **compile_args)
+        for p in ps:
+            compile_for_hist(p, vs, **compile_args)
         for v, s in stats.items():
             s['mean'][i], s['var'][i], s['stderr'][i] = get_stats(vs[v])
     return stats
 
 if args.width < 0:
     widths = np.arange(0, 4, -args.width) - args.width
-    stats = plot_widths(widths)
+    stats = plot_widths(widths, **args.__dict__)
     ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     fig = plt.figure(figsize=(8,12))
@@ -143,6 +139,8 @@ if args.width < 0:
     import sys; sys.exit()
 
 vs = defaultdict(list)
+compile_args = dict(args.__dict__)
+prefix = compile_args.pop('prefix')
 if args.sets > 1:
     trackcount = 0
     for setnum in range(1, args.sets+1):
