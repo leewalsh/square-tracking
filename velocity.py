@@ -161,46 +161,40 @@ if __name__=='__main__':
         widths = np.arange(0, 4, -args.width) - args.width
         stats = compile_widths(widths, **args.__dict__)
         plot_widths(widths, stats)
-        if args.save:
-            savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
-            print 'Saving plot to {}'.format(savename)
-            plt.savefig(savename)
-        else:
-            plt.show()
-        import sys; sys.exit()
 
-    vs = defaultdict(list)
-    compile_args = dict(args.__dict__)
-    prefix = compile_args.pop('prefix')
-    if args.sets > 1:
-        trackcount = 0
-        for setnum in range(1, args.sets+1):
-            spfprefix = prefix + str(setnum)
-            spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-            settrackcount = compile_for_hist(spfprefix, vs, **compile_args)
-            trackcount += settrackcount
+    else:
+        vs = defaultdict(list)
+        compile_args = dict(args.__dict__)
+        prefix = compile_args.pop('prefix')
+        if args.sets > 1:
+            trackcount = 0
+            for setnum in range(1, args.sets+1):
+                spfprefix = prefix + str(setnum)
+                spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
+                settrackcount = compile_for_hist(spfprefix, vs, **compile_args)
+                trackcount += settrackcount
 
-    elif args.sets == 1:
-        trackcount = compile_for_hist(prefix, vs, **compile_args)
+        elif args.sets == 1:
+            trackcount = compile_for_hist(prefix, vs, **compile_args)
 
-    nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
-    axi = 1
-    if args.do_orientation:
-        plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log, orient=True,
-                label=r'\xi', title='Orientation',
-                subtitle = args.particle or prefix.strip('/._'))
-        axi += 1
-    if args.do_translation:
-        ax, ax2 = plot_hist(vs['I'], nax, axi, log=args.log,
-                bins=np.linspace(-1,1), label='v_\parallel')
-        plot_hist(vs['T'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1), label='v_\perp',
-                title='Parallel & Transverse', subtitle = args.particle or prefix.strip('/._'))
-        axi += 1
-        if args.subtract:
-            plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
-                label=r'\eta_\alpha', bins=np.linspace(-1,1,51),
-                title='$v_0$ subtracted', subtitle = args.particle or prefix.strip('/._'))
+        nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
+        axi = 1
+        if args.do_orientation:
+            plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log, orient=True,
+                    label=r'\xi', title='Orientation',
+                    subtitle=args.particle or prefix.strip('/._'))
             axi += 1
+        if args.do_translation:
+            ax, ax2 = plot_hist(vs['I'], nax, axi, log=args.log,
+                    bins=np.linspace(-1,1), label='v_\parallel')
+            plot_hist(vs['T'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1), label='v_\perp',
+                    title='Parallel & Transverse', subtitle=args.particle or prefix.strip('/._'))
+            axi += 1
+            if args.subtract:
+                plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
+                    label=r'\eta_\alpha', bins=np.linspace(-1,1,51),
+                    title='$v_0$ subtracted', subtitle = args.particle or prefix.strip('/._'))
+                axi += 1
 
     if args.save:
         savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
