@@ -102,7 +102,7 @@ def get_stats(a):
     SE = sqrt(variance)/sqrt(n)
     return M, D, SE
 
-def plot_widths(widths, prefix, sets, **compile_args):
+def compile_widths(widths, prefix, sets, **compile_args):
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
              for v in 'o I T etaI'.split()}
@@ -117,6 +117,19 @@ def plot_widths(widths, prefix, sets, **compile_args):
         for v, s in stats.items():
             s['mean'][i], s['var'][i], s['stderr'][i] = get_stats(vs[v])
     return stats
+
+def plot_widths(widths, stats):
+    ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--'}
+    cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
+    fig = plt.figure(figsize=(8,12))
+    for i, s in enumerate(stats['o']):
+        ax = fig.add_subplot(len(stats['o']), 1, i+1)
+        for v in stats:
+            ax.plot(widths, stats[v][s], '.'+ls[v]+cs[s],
+                    label='$'+v.replace('eta', r'\eta_')+'$')
+        ax.set_title(s)
+        ax.legend(loc='best')
+    return fig
 
 def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', title='', subtitle=''):
     stats = get_stats(a)
@@ -146,16 +159,8 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
 if __name__=='__main__':
     if args.width < 0:
         widths = np.arange(0, 4, -args.width) - args.width
-        stats = plot_widths(widths, **args.__dict__)
-        ls = {'o': '-', 'I': '-.', 'T': ':', 'etaI': '--'}
-        cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
-        fig = plt.figure(figsize=(8,12))
-        for i, s in enumerate(stats['o']):
-            ax = fig.add_subplot(len(stats['o']), 1, i+1)
-            for v in stats:
-                ax.plot(widths, stats[v][s], '.'+ls[v]+cs[s], label='$'+v.replace('eta', r'\eta_')+'$')
-            ax.set_title(s)
-            ax.legend(loc='best')
+        stats = compile_widths(widths, **args.__dict__)
+        plot_widths(widths, stats)
         if args.save:
             savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
             print 'Saving plot to {}'.format(savename)
