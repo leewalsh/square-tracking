@@ -35,7 +35,6 @@ if __name__=='__main__':
     arg('-f', '--fps', type=float, default=2.4, help="Number of frames per second "
         "(or per shake) for unit normalization. Default: %(default)s")
     args = p.parse_args()
-    prefix = args.prefix
 
 import os
 from collections import defaultdict
@@ -102,18 +101,16 @@ def get_stats(a):
     SE = sqrt(variance)/sqrt(n)
     return M, D, SE
 
-def compile_widths(widths, prefix, sets, **compile_args):
+def compile_widths(widths, prefixes, **compile_args):
     stats = {v: {s: np.empty_like(widths)
                  for s in 'mean var stderr'.split()}
              for v in 'o I T etaI'.split()}
-    ps = ["{}{i}_d/{}{i}".format(prefix, os.path.basename(prefix), i=i+1)
-          for i in xrange(sets)]
     for i, width in enumerate(widths):
         print "width {} ({} of {})".format(width, i, len(widths))
         compile_args['width'] = width
         vs = defaultdict(list)
-        for p in ps:
-            compile_for_hist(p, vs, **compile_args)
+        for prefix in prefixes:
+            compile_for_hist(prefix, vs, **compile_args)
         for v, s in stats.items():
             s['mean'][i], s['var'][i], s['stderr'][i] = get_stats(vs[v])
     return stats
@@ -157,43 +154,38 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
     return ax, ax2
 
 if __name__=='__main__':
+    compile_args = dict(args.__dict__)
+    prefix = compile_args.pop('prefix')
+    prefixes = ["{}{i}_d/{}{i}".format(
+                        args.prefix, os.path.basename(args.prefix), i=i+1)
+                for i in xrange(args.sets)]
     if args.width < 0:
         widths = np.arange(0, 4, -args.width) - args.width
-        stats = compile_widths(widths, **args.__dict__)
+        stats = compile_widths(widths, prefixes, **compile_args)
         plot_widths(widths, stats)
-
     else:
         vs = defaultdict(list)
-        compile_args = dict(args.__dict__)
-        prefix = compile_args.pop('prefix')
-        if args.sets > 1:
-            trackcount = 0
-            for setnum in range(1, args.sets+1):
-                spfprefix = prefix + str(setnum)
-                spfprefix = os.path.join(spfprefix+'_d', os.path.basename(spfprefix))
-                settrackcount = compile_for_hist(spfprefix, vs, **compile_args)
-                trackcount += settrackcount
-
-        elif args.sets == 1:
-            trackcount = compile_for_hist(prefix, vs, **compile_args)
+        trackcount = 0
+        for prefix in prefixes:
+            trackcount += compile_for_hist(prefix, vs, **compile_args)
 
         nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
         axi = 1
+        subtitle = args.particle or os.path.basename(args.prefix).strip('/._')
         if args.do_orientation:
-            plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log, orient=True,
-                    label=r'\xi', title='Orientation',
-                    subtitle=args.particle or prefix.strip('/._'))
+            plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log,
+                    orient=True, label=r'\xi', title='Orientation', subtitle=subtitle)
             axi += 1
         if args.do_translation:
             ax, ax2 = plot_hist(vs['I'], nax, axi, log=args.log,
                     bins=np.linspace(-1,1), label='v_\parallel')
-            plot_hist(vs['T'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1), label='v_\perp',
-                    title='Parallel & Transverse', subtitle=args.particle or prefix.strip('/._'))
+            plot_hist(vs['T'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1),
+                    label='v_\perp', title='Parallel & Transverse', subtitle=subtitle)
             axi += 1
             if args.subtract:
                 plot_hist(vs['etax'] + vs['etay'], nax, axi, log=args.log,
                     label=r'\eta_\alpha', bins=np.linspace(-1,1,51),
-                    title='$v_0$ subtracted', subtitle = args.particle or prefix.strip('/._'))
+                    title='$v_0$ subtracted', subtitle=subtitle)
                 axi += 1
 
     if args.save:
