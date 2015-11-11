@@ -43,6 +43,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import helpy
 
+def noise_derivatives(tdata, todata, width=1, side=1, fps=1, xy=False,
+                      do_orientation=True, do_translation=True, subtract=True):
+    x = tdata['f']/fps
+    ret = ()
+    if do_orientation:
+        vo = helpy.der(todata, x=x, iwidth=width)
+        ret += vo,
+    if do_translation:
+        cos, sin = np.cos(todata), np.sin(todata)
+        vx, vy = [helpy.der(tdata[i]/side, x=x, iwidth=width) for i in 'xy']
+        if xy:
+            ret += vx, vy
+        else:
+            vI = vx*cos + vy*sin
+            vT = vx*sin - vy*cos
+            ret += vI, vT
+        if subtract:
+            v0 = vI.mean()
+            if xy:
+                etax = vx - v0*cos
+                etay = vy - v0*sin
+                ret += etax, etay
+            else:
+                etaI = vI - v0
+                ret += etaI,
+    return ret
+
 def compile_for_hist(prefix, vs=defaultdict(list), width=3, side=1, fps=1,
                      do_orientation=True, do_translation=True, subtract=True,
                      minlen=10, torient=True, dupes=False, **ignored):
@@ -58,36 +85,13 @@ def compile_for_hist(prefix, vs=defaultdict(list), width=3, side=1, fps=1,
     for track in tracksets:
         tdata = tracksets[track]
         todata = otracksets[track]
-        x = tdata['f']/fps
-
-        if do_orientation:
-            vo = helpy.der(todata, x=x, iwidth=width)
-            vs['o'].extend(vo)
-
-        if do_translation:
-            cos, sin = np.cos(todata), np.sin(todata)
-            vs['cos'].extend(cos)
-            vs['sin'].extend(sin)
-
-            vx = helpy.der(tdata['x']/side, x=x, iwidth=width)
-            vy = helpy.der(tdata['y']/side, x=x, iwidth=width)
-            vs['x'].extend(vx)
-            vs['y'].extend(vy)
-
-            vI = vx*cos + vy*sin
-            vT = vx*sin - vy*cos
-            vs['I'].extend(vI)
-            vs['T'].extend(vT)
-
-            if subtract:
-                v0 = vI.mean()
-                etax = vx - v0*cos
-                etay = vy - v0*sin
-                vs['etax'].extend(etax)
-                vs['etay'].extend(etay)
-
-                etaI = vI - v0
-                vs['etaI'].extend(etaI)
+        vo, vI, vT, etaI = noise_derivatives(tdata, todata, width=width,
+                side=side, fps=fps, do_orientation=do_orientation,
+                do_translation=do_translation, subtract=subtract)
+        vs['o'].extend(vo)
+        vs['I'].extend(vI)
+        vs['T'].extend(vT)
+        vs['etaI'].extend(etaI)
     return len(tracksets)
 
 def get_stats(a):
