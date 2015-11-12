@@ -76,6 +76,22 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
+def transpose_dict(outerdict={}, **innerdicts):
+    isdict = lambda d: hasattr(d, 'keys')
+    if not isdict(outerdict):
+        outerdict = dict(outerdict)
+    outerdict.update(innerdicts)
+    innerdicts = outerdict.viewvalues()
+    assert all(map(isdict, innerdicts))
+    innerkeys = {innerkey for innerdict in innerdicts for innerkey in innerdict}
+    return {ki: {ko: di.get(ki) for ko, di in outerdict.iteritems()} for ki in innerkeys}
+
+def dmap(f, d):
+    return { k: f(v) for k, v in d.iteritems() }
+
+def dfilter(f, d):
+    return {k: d[k] for k in filter(f, d)}
+
 def str_union(a, b):
     if a==b:
         return a
