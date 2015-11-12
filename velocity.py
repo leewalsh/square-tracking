@@ -71,9 +71,9 @@ def noise_derivatives(tdata, todata, width=1, side=1, fps=1, xy=False,
                 ret['etapar'] = vI - v0
     return ret
 
-def compile_for_hist(prefixes, vs=defaultdict(list), width=3, side=1, fps=1,
-                     do_orientation=True, do_translation=True, subtract=True,
-                     minlen=10, torient=True, dupes=False, **ignored):
+def compile_noise(prefixes, vs=defaultdict(list), width=3, side=1, fps=1,
+                  do_orientation=True, do_translation=True, subtract=True,
+                  minlen=10, torient=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     for prefix in prefixes:
@@ -112,7 +112,7 @@ def compile_widths(widths, prefixes, **compile_args):
              for v in 'o par perp etapar'.split()}
     compile_args['width'] = widths
     vs = defaultdict(list)
-    compile_for_hist(prefixes, vs, **compile_args)
+    compile_noise(prefixes, vs, **compile_args)
     for v, s in stats.items():
         s['mean'], s['var'], s['stderr'] = get_stats(vs[v])
     return stats
@@ -176,7 +176,7 @@ if __name__=='__main__':
         plot_widths(widths, stats, normalize=args.normalize)
     else:
         vs = defaultdict(list)
-        trackcount = compile_for_hist(prefixes, vs, **compile_args)
+        trackcount = compile_noise(prefixes, vs, **compile_args)
 
         nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
         axi = 1
