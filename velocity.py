@@ -30,6 +30,8 @@ if __name__=='__main__':
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
     arg('--autocorr', action='store_true', help='Plot the <vv> autocorrelation?')
+    arg('--decimate', type=int, default=0, metavar='MOD', nargs='?', const=1,
+            help='Decimate by vibration phase? Default: numerator of simplified fps')
     arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
     arg('--interp', action='store_true', dest='interp', help='interpolate gaps?')
     arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
@@ -75,11 +77,16 @@ def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
                 ret['etapar'] = vI - v0
     return ret
 
-def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
+def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True, decimate=False,
                   do_orientation=True, do_translation=True, subtract=True,
                   minlen=10, torient=True, interp=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
+    if decimate and len(prefixes)>1:
+        raise ValueError, "Cannot decimate more than one dataset"
+    if int(decimate)==1:
+        from fractions import Fraction
+        decimate = Fraction(str(fps)).numerator
     for prefix in prefixes:
         if args.verbose:
             print "Loading data for", prefix
@@ -94,7 +101,28 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
                     side=side, fps=fps, do_orientation=do_orientation,
                     do_translation=do_translation, subtract=subtract)
             for v in velocities:
-                vs[v].append(velocities[v])
+                if decimate:
+                    # reshape last axis from (tracklen) to (decimate, tracklen/decimate)
+                    # but make sure it starts from phase 0 first, and ends on phase decimate-1
+                    veloc = velocities[v]
+                    frame = tdata['f']
+                    assert len(frame)==len(veloc), '{} frames, {} velocities'.format(len(frame), len(veloc))
+                    phase = frame % decimate
+                    start = np.where(phase[:2*decimate])[-1][0]
+                    exend = (len(frame) - start) % decimate
+                    frame = frame[start:-exend]
+                    phase = phase[start:-exend]
+                    veloc = veloc[start:-exend]
+                    vdiff = np.diff(frame)-1
+                    fgaps = vdiff.nonzero()[0]
+                    fgaps = np.repeat(fgaps, vdiff[fgaps]) + 1
+                    veloc = np.insert(veloc, fgaps, np.nan)
+                    shape = veloc.shape
+                    veloc.resize(shape[:-1] + (shape[-1]//decimate, decimate))
+                    veloc = np.swapaxes(veloc, -1, -2)
+                    vs[v].append(veloc)
+                else:
+                    vs[v].append(velocities[v])
     if cat:
         for v in vs:
             vs[v] = np.concatenate(vs[v], -1)
@@ -106,20 +134,20 @@ def get_stats(a):
     if a.ndim==1:
         a = a[np.isfinite(a)]
     else:
-        print 'ndims = ',a.ndim
-    n = a.shape[-1]
-    M = a.mean(-1, keepdims=a.ndim>1)
-    c = a - M
+        print 'ndims =', a.ndim
+    n = np.sum(np.isfinite(a), -1)# if np.all(np.isfinite(a)) else a.shape[-1]
+    M = np.nanmean(a, -1, keepdims=a.ndim>1)
+    c = np.nan_to_num(a - M)
     variance = np.einsum('...j,...j->...', c, c)/n
     D = 0.5*variance
-    SE = np.sqrt(variance)/sqrt(n)
+    SE = np.sqrt(variance/n)
     return M, D, SE
 
-def compile_widths(widths, prefixes, **compile_args):
-    stats = {v: {s: np.empty_like(widths)
+def compile_widths(width, prefixes, **compile_args):
+    stats = {v: {s: np.empty_like(width)
                  for s in 'mean var stderr'.split()}
              for v in 'o par perp etapar'.split()}
-    compile_args['width'] = widths
+    compile_args['width'] = width
     vs = defaultdict(list)
     compile_noise(prefixes, vs, **compile_args)
     for v, s in stats.items():
@@ -233,6 +261,13 @@ if __name__=='__main__':
             plt.errorbar(t, vv , yerr=dvv, label=label[v], ls=ls[v])
         plt.title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         plt.legend(loc='best')
+    elif args.decimate:
+        if int(args.decimate)==1:
+            from fractions import Fraction
+            args.decimate = Fraction(str(args.fps)).numerator
+        print 'decimating by', args.decimate
+        stats = compile_widths(prefixes=prefixes, cat=True, **compile_args)
+        plot_widths(np.arange(args.decimate), stats, normalize=args.normalize)
     else:
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
