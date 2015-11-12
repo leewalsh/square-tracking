@@ -29,6 +29,7 @@ if __name__=='__main__':
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
+    arg('--autocorr', action='store_true', help='Plot the <vv> autocorrelation?')
     arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
     arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
     arg('--nosubtract', action='store_false', dest='subtract', help="Don't subtract v0?")
@@ -43,7 +44,7 @@ from collections import defaultdict
 from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
-import helpy, tracks
+import helpy, tracks, correlation as corr
 
 def noise_derivatives(tdata, todata, width=1, side=1, fps=1, xy=False,
                       do_orientation=True, do_translation=True, subtract=True):
@@ -72,7 +73,7 @@ def noise_derivatives(tdata, todata, width=1, side=1, fps=1, xy=False,
                 ret['etapar'] = vI - v0
     return ret
 
-def compile_noise(prefixes, vs=defaultdict(list), width=3, side=1, fps=1,
+def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
                   do_orientation=True, do_translation=True, subtract=True,
                   minlen=10, torient=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
@@ -92,8 +93,9 @@ def compile_noise(prefixes, vs=defaultdict(list), width=3, side=1, fps=1,
                     do_translation=do_translation, subtract=subtract)
             for v in velocities:
                 vs[v].append(velocities[v])
-    for v in vs:
-        vs[v] = np.concatenate(vs[v], -1)
+    if cat:
+        for v in vs:
+            vs[v] = np.concatenate(vs[v], -1)
     return len(tracksets)
 
 def get_stats(a):
@@ -121,7 +123,8 @@ def compile_widths(widths, prefixes, **compile_args):
 def plot_widths(widths, stats, normalize=False):
     ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
-    label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$', 'etapar': r'$\eta_\perp$'}
+    label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
+             'etapar': r'$\eta_\parallel$'}
     fig = plt.figure(figsize=(8,12))
     for i, s in enumerate(stats['o']):
         ax = fig.add_subplot(len(stats['o']), 1, i+1)
@@ -135,6 +138,8 @@ def plot_widths(widths, stats, normalize=False):
             ax.plot(widths, val, '.'+ls[v]+cs[s], label=label[v])
         ax.set_title(s)
         ax.margins(y=0.1)
+        ax.minorticks_on()
+        ax.grid(axis='x', which='both')
         if normalize:
             ax.set_ylim(-0.1, 1.1)
         ax.legend(loc='best')
@@ -165,6 +170,23 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
         ax2.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
     return ax, ax2
 
+def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
+    vs = defaultdict(list)
+    compile_noise(prefixes, vs, cat=False, **compile_args)
+    vvs = {}
+    for v, tvs in vs.iteritems():
+        vcorrlen = int(corrlen*max(map(len, tvs))) if corrlen < 1 else corrlen
+        vv = np.full((len(tvs), vcorrlen), np.nan, float)
+        for i, tv in enumerate(tvs):
+            ac = corr.autocorr(tv, norm=1, cumulant=False)
+            vv[i, :len(ac)] = ac[:corrlen]
+        vvcount = np.isfinite(vv).sum(0)
+        vv = vv[:, vvcount > 0]
+        vv = np.nanmean(vv, 0)
+        dvv = np.nanstd(vv, 0)/np.sqrt(vvcount)
+        vvs[v] = vv, dvv
+    return vvs
+
 if __name__=='__main__':
     compile_args = dict(args.__dict__)
     full_prefix = compile_args.pop('prefix')
@@ -179,11 +201,25 @@ if __name__=='__main__':
         basm = prefix.strip('/._')
         endm = '*_TRACKS.npz'
         prefixes = (p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm))
+
+    label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
+             'etapar': r'$\eta_\parallel$'}
+    ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
+    cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     if args.width < 0:
         widths = np.arange(0, 1.5, -args.width) - args.width
         widths = np.append(widths, [1.5, 2, 2.5, 3])
         stats = compile_widths(widths, prefixes, **compile_args)
         plot_widths(widths, stats, normalize=args.normalize)
+    elif args.autocorr:
+        vvs = vv_autocorr(prefixes, corrlen=10*args.fps, **compile_args)
+        plt.figure()
+        for v in vvs:
+            vv, dvv = vvs[v]
+            t = np.arange(len(vv))/args.fps
+            plt.errorbar(t, vv , yerr=dvv, label=label[v], ls=ls[v])
+        plt.title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
+        plt.legend(loc='best')
     else:
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
