@@ -21,7 +21,7 @@ if __name__=='__main__':
         dest='do_orientation', help='Only translational noise?')
     arg('--sets', type=int, default=1, metavar='N', nargs='?', const=0,
             help='Number of sets')
-    arg('--width', type=float, default=3, metavar='W', nargs='?', const=-.5,
+    arg('--width', type=float, default=0.75, metavar='W', nargs='?', const=-.5,
             help='Smoothing width for derivative')
     arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
     arg('--save', type=str, nargs='?', const='plothist', default='', help='Save figure?')
@@ -180,7 +180,8 @@ if __name__=='__main__':
         endm = '*_TRACKS.npz'
         prefixes = (p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm))
     if args.width < 0:
-        widths = np.arange(0, 4, -args.width) - args.width
+        widths = np.arange(0, 1.5, -args.width) - args.width
+        widths = np.append(widths, [1.5, 2, 2.5, 3])
         stats = compile_widths(widths, prefixes, **compile_args)
         plot_widths(widths, stats, normalize=args.normalize)
     else:
