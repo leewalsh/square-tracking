@@ -19,7 +19,8 @@ if __name__=='__main__':
         dest='do_translation', help='Only orientational noise?')
     arg('-t', '--translation', action='store_false',
         dest='do_orientation', help='Only translational noise?')
-    arg('--sets', type=int, default=1, metavar='N', help='Number of sets')
+    arg('--sets', type=int, default=1, metavar='N', nargs='?', const=0,
+            help='Number of sets')
     arg('--width', type=float, default=3, metavar='W', nargs='?', const=-.5,
             help='Smoothing width for derivative')
     arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
@@ -166,10 +167,18 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
 
 if __name__=='__main__':
     compile_args = dict(args.__dict__)
-    prefix = compile_args.pop('prefix')
-    prefixes = ["{}{i}_d/{}{i}".format(
-                        args.prefix, os.path.basename(args.prefix), i=i+1)
-                for i in xrange(args.sets)]
+    full_prefix = compile_args.pop('prefix')
+    dirname, prefix = os.path.split(full_prefix)
+    if args.sets:
+        prefixes = ["{}{i}_d/{}{i}".format(full_prefix, prefix, i=i+1)
+                    for i in xrange(args.sets)]
+    else:
+        from glob import iglob
+        depth = 1
+        dirm = (dirname or '*') + (prefix + '*/')*depth
+        basm = prefix.strip('/._')
+        endm = '*_TRACKS.npz'
+        prefixes = (p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm))
     if args.width < 0:
         widths = np.arange(0, 4, -args.width) - args.width
         stats = compile_widths(widths, prefixes, **compile_args)
@@ -180,7 +189,7 @@ if __name__=='__main__':
 
         nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
         axi = 1
-        subtitle = args.particle or os.path.basename(args.prefix).strip('/._')
+        subtitle = args.particle or prefix.strip('/._')
         if args.do_orientation:
             plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log,
                     orient=True, label=r'\xi', title='Orientation', subtitle=subtitle)
@@ -198,7 +207,7 @@ if __name__=='__main__':
                 axi += 1
 
     if args.save:
-        savename = '.'.join([os.path.abspath(args.prefix.rstrip('/._')), args.save, 'pdf'])
+        savename = '.'.join([os.path.abspath(full_prefix.rstrip('/._')), args.save, 'pdf'])
         print 'Saving plot to {}'.format(savename)
         plt.savefig(savename)
     else:
