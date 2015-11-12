@@ -24,7 +24,7 @@ if __name__=='__main__':
     p.add_argument('--noshow', action='store_false', dest='show',
                    help="Don't show figures (just save them)")
     p.add_argument('--nosave', action='store_false', dest='save',
-                   help="Don't save figures (just show them)")
+                   help="Don't save outputs or figures")
     p.add_argument('--maxdist', type=int, default=0,
                    help="maximum single-frame travel distance in "
                         "pixels for track. default = S if S>1 else 20")
@@ -594,13 +594,41 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
+    if not args.load:
+        # Look in two places for an npz:
+        try:
+            datapath = locdir+prefix+'_TRACKS.npz'
+            datanpz = np.load(datapath)
+        except IOError as etracks:
+            try:
+                datapath = locdir+prefix+'_POSITIONS.npz'
+                datanpz = np.load(datapath)
+            except IOError as epos:
+                import sys
+                print etracks
+                print epos
+                args.load = helpy.bool_input("Would you like to load from "
+                                    "'POSITIONS.txt' file?") or sys.exit()
+            else:
+                if verbose:
+                    print etracks
+                    print "Loaded data (positions only) from", datapath
+        else:
+            if verbose: print "Loaded data from", datapath
     if args.load:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
         data = helpy.gen_data(datapath)
-        if verbose: print "\t...loaded"
+        if verbose: print "Loaded data from", datapath
+    else:
+        data = datanpz['data']
+        if not args.track:
+            try:
+                trackids = datanpz['trackids']
+            except KeyError:
+                args.track = helpy.bool_input("No tracks found; would you like to track?")
+            else:
+                if verbose: print "Loaded data from", datapath
     if args.track:
-        if not args.load:
-            data = np.load(locdir+prefix+'_POSITIONS.npz')['data']
         fsets = helpy.splitter(data, ret_dict=True)
         from scipy.spatial import cKDTree as KDTree
         ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
@@ -608,41 +636,29 @@ if __name__=='__main__':
         trackids = find_tracks(maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
         # save the data record array and the trackids array
-        print "saving track data to",
-        print locdir+prefix+dotfix+"_TRACKS"
-        np.savez(locdir+prefix+dotfix+"_TRACKS",
-                data=data, trackids=trackids)
+        if args.save:
+            print "saving track data to",
+            print locdir+prefix+dotfix+"_TRACKS"
+            np.savez(locdir+prefix+dotfix+"_TRACKS",
+                    data=data, trackids=trackids)
 
     elif args.load:
-        print "saving " + dotfix.strip('_').lower() + " data (no tracks) to",
-        print prefix + dotfix + "_POSITIONS.npz"
-        np.savez(locdir+prefix+dotfix+"_POSITIONS",
-                data = data)
-        if verbose: print '\t...saved'
-    else:
-        # assume existing tracks.npz
-        try:
-            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-            trackids = tracksnpz['trackids']
-            if verbose:
-                print "loading data and tracks from",
-                print prefix + "_TRACKS.npz"
-        except IOError:
-            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            if verbose:
-                print "loading positions data from",
-                print prefix + "_POSITIONS.npz"
-        data = tracksnpz['data']
-        if verbose: print "\t...loaded"
+        if args.save or helpy.bool_input("Save loaded tracks?"):
+            print "saving " + dotfix.strip('_').lower() + " data (no tracks) to",
+            print prefix + dotfix + "_POSITIONS.npz"
+            np.savez(locdir+prefix+dotfix+"_POSITIONS",
+                    data = data)
+            if verbose: print '\t...saved'
 
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
-        np.savez(locdir+prefix+"_MSD",
-                 msds = np.asarray(msds),
-                 msdids = np.asarray(msdids),
-                 dt0  = np.asarray(dt0),
-                 dtau = np.asarray(dtau))
-        print "saved msd data to", prefix+"_MSD.npz"
+        if args.save:
+            np.savez(locdir+prefix+"_MSD",
+                     msds = np.asarray(msds),
+                     msdids = np.asarray(msdids),
+                     dt0  = np.asarray(dt0),
+                     dtau = np.asarray(dtau))
+            print "saved msd data to", prefix+"_MSD.npz"
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
         msdnpz = np.load(locdir+prefix+"_MSD.npz")
