@@ -300,16 +300,18 @@ def bin_average(r, f, bins=10):
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
-def autocorr(f, side='right', cumulant=True, norm=True, mode='same',
+def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
              verbose=False, reverse=False, ret_dx=False):
     """ autocorr(f, side='right', cumulant=True, norm=True, mode='same',
                  verbose=False, reverse=False, ret_dx=False):
 
-        The cross-correlation of f and g
-        returns the cross-correlation function
-            <f(x) g(x - dx)> averaged over x
+        The auto-correlation of function f
+        returns the auto-correlation function
+            <f(x) f(x - dx)> averaged over x
 
-        f, g:   1d arrays, as function of x, with same lengths
+        See also `crosscorr(f, g, ...)`
+
+        f:      1d array, as function of x
         side:   'right' returns only dx > 0, (x' < x)
                 'left'  returns only dx < 0, (x < x')
                 'both'  returns entire correlation
