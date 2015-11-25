@@ -10,6 +10,11 @@ Run from the folder containing the positions file.
 Copyright (c) 2015 Sarah Schlossberg, Lee Walsh; all rights reserved.
 """
 
+try:
+    profile = profile
+except NameError:
+    profile = lambda f: f
+
 if __name__=='__main__':
     from argparse import ArgumentParser
     p = ArgumentParser(description=description)
@@ -43,13 +48,14 @@ if __name__=='__main__':
     arg('-v', '--verbose', action='count', help="Be verbose")
     args = p.parse_args()
 
-import os
+import os, sys
 from collections import defaultdict
 from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 import helpy, tracks, correlation as corr
 
+@profile
 def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
                       do_orientation=True, do_translation=True, subtract=True):
     x = tdata['f']/fps
@@ -77,7 +83,9 @@ def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
                 ret['etapar'] = vI - v0
     return ret
 
+@profile
 def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True, decimate=False,
+
                   do_orientation=True, do_translation=True, subtract=True,
                   minlen=10, torient=True, interp=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
@@ -89,13 +97,17 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True, decimate=False
         decimate = Fraction(str(fps)).numerator
     for prefix in prefixes:
         if args.verbose:
-            print "Loading data for", prefix
+            print "Loading data for", prefix, '\t',
         data = helpy.load_data(prefix, 'tracks')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
         tracksets = helpy.load_tracksets(data, min_length=minlen,
                 run_track_orient=torient, run_fill_gaps=interp)
-        for track in tracksets:
+        L = len(tracksets)//10
+        for i, track in enumerate(tracksets):
+            if args.verbose and i%L==L-1:
+                print '.',
+                sys.stdout.flush()
             tdata = tracksets[track]
             velocities = noise_derivatives(tdata, width=width,
                     side=side, fps=fps, do_orientation=do_orientation,
@@ -123,11 +135,14 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True, decimate=False
                     vs[v].append(veloc)
                 else:
                     vs[v].append(velocities[v])
+        if args.verbose:
+            print
     if cat:
         for v in vs:
             vs[v] = np.concatenate(vs[v], -1)
     return len(tracksets)
 
+@profile
 def get_stats(a):
     #Computes mean, D_T or D_R, and standard error for a list.
     a = np.asarray(a)
@@ -143,6 +158,7 @@ def get_stats(a):
     SE = np.sqrt(variance/n)
     return M, D, SE
 
+@profile
 def compile_widths(width, prefixes, **compile_args):
     stats = {v: {s: np.empty_like(width)
                  for s in 'mean var stderr'.split()}
@@ -154,6 +170,7 @@ def compile_widths(width, prefixes, **compile_args):
         s['mean'], s['var'], s['stderr'] = get_stats(vs[v])
     return stats
 
+@profile
 def plot_widths(widths, stats, normalize=False):
     ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
@@ -169,7 +186,7 @@ def plot_widths(widths, stats, normalize=False):
                 val = sign*val
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
-            ax.plot(widths, val, '.'+ls[v]+cs[s], label=label[v])
+            ax.plot(widths, val, ls[v]+cs[s], label=label[v])
         ax.set_title(s)
         ax.margins(y=0.1)
         ax.minorticks_on()
@@ -179,6 +196,7 @@ def plot_widths(widths, stats, normalize=False):
         ax.legend(loc='best')
     return fig
 
+@profile
 def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', title='', subtitle=''):
     stats = get_stats(a)
     ax = axi[0] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2-1)
@@ -204,6 +222,7 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
         ax2.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
     return ax, ax2
 
+@profile
 def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
     vs = defaultdict(list)
     compile_noise(prefixes, vs, cat=False, **compile_args)
@@ -221,7 +240,8 @@ def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
         vvs[v] = vv, dvv
     return vvs
 
-if __name__=='__main__':
+@profile
+def main(args):
     compile_args = dict(args.__dict__)
     full_prefix = compile_args.pop('prefix')
     dirname, prefix = os.path.split(full_prefix)
@@ -248,8 +268,9 @@ if __name__=='__main__':
     ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
     cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
     if args.width < 0:
-        widths = np.arange(0, 1.5, -args.width) - args.width
-        widths = np.append(widths, [1.5, 2, 2.5, 3])
+        widths = np.arange(0, 3, -args.width) - args.width
+        #widths = np.arange(0, 1.5, -args.width) - args.width
+        #widths = np.append(widths, [2, 2.5, 3])
         stats = compile_widths(widths, prefixes, **compile_args)
         plot_widths(widths, stats, normalize=args.normalize)
     elif args.autocorr:
@@ -297,3 +318,6 @@ if __name__=='__main__':
         plt.savefig(savename)
     else:
         plt.show()
+
+if __name__=='__main__':
+    main(args)
