@@ -771,6 +771,7 @@ if __name__=='__main__' and args.rn:
         data, trackids, odata, omask = helpy.load_data(prefix, True, False)
         tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
                                                    min_length=max(100, args.stub))
+        D_R = 1/12
 
     corr_args = {'side': 'both', 'ret_dx': True,
                  'cumulant': (True, False), 'norm': 0 }
@@ -781,7 +782,7 @@ if __name__=='__main__' and args.rn:
                  **corr_args) for t in tracksets ]
 
     # Align and merge them
-    fmax = int(2*fps/(D_R if args.nn else 1/12))
+    fmax = int(2*fps/D_R)
     fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
@@ -799,12 +800,13 @@ if __name__=='__main__' and args.rn:
         print "Merged rn corrs"
 
     # Fit to capped exponential growth
-    if not args.nn: D_R = 1
-
     fitform = lambda s, v_D, D=D_R:\
                   np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
     fitstr = r'$\frac{v_0}{D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
-    p0 = [1] if args.nn else [1, D_R] # [v_0/D_R, D_R]
+    # p0 = [v_0/D_R, D_R]
+    p0 = [1]
+    if not args.nn:
+        p0 += [D_R]
 
     print "============="
     print "Fits to <rn>:"
@@ -814,8 +816,8 @@ if __name__=='__main__' and args.rn:
         print "RuntimeError:", e.message
         print "Using inital guess", p0
         popt = p0
-    fit = fitform(tcorr, *popt)
-    if not args.nn: D_R = popt[-1]
+    if len(popt) > 1:
+        D_R = popt[1]
     v0 = D_R*popt[0]
     shift = popt[1] if len(popt) > 1 else 0
     print '\n'.join(['v0/D_R: {:.4f}',
@@ -827,6 +829,7 @@ if __name__=='__main__' and args.rn:
                     ).format(*[v0, D_R][:4-len(popt)])
 
     pl.figure()
+    fit = fitform(tcorr, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
@@ -868,16 +871,17 @@ if __name__=='__main__' and args.rr:
     sigma = msderr + 1e-5*S*S
     tmax = 200
     fmax = np.searchsorted(taus, tmax)
+
+    if not args.nn:
+        D_R = 1
+    if not args.rn:
+        v0 = sgn = 1
+
+    p0 = [0]
     if not (args.nn or args.rn):
-        D_R = v0 = 1
-        p0 = [0, v0, D_R]
-        sgn = 1
-    elif not args.rn:
-        v0 = 1
-        p0 = [0, v0]
-        sgn = 1
-    else:
-        p0 = [0, v0] if args.fitv0 else [0]# [D_T, v_0, D_R]
+        p0 += [v0, D_R]
+    elif args.fitv0 or not args.rn:
+        p0 += [v0]
     fitform = lambda s, D, v=v0, DR=D_R:\
               2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
