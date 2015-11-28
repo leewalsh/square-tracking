@@ -3,6 +3,7 @@
 
 from __future__ import division
 from itertools import izip
+from math import log
 
 import numpy as np
 
@@ -266,10 +267,11 @@ def bool_input(question):
     answer = raw_input(question)
     return answer.lower().startswith('y') or answer.lower().startswith('t')
 
-def farange(start,stop,factor):
-    start_power = np.log(start)/np.log(factor)
-    stop_power = np.log(stop)/np.log(factor)
-    return factor**np.arange(start_power,stop_power, dtype=type(factor))
+def farange(start, stop, factor):
+    start_power = log(start, factor)
+    stop_power = log(stop, factor)
+    dt = np.result_type(start, stop, factor)
+    return factor**np.arange(start_power, stop_power, dtype=dt)
 
 def loglog_slope(x, y, smooth=0):
     dx = 0.5*(x[1:] + x[:-1])
