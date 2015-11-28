@@ -819,14 +819,12 @@ if __name__=='__main__' and args.rn:
     if len(popt) > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
-    shift = popt[1] if len(popt) > 1 else 0
     print '\n'.join(['v0/D_R: {:.4f}',
-                     ' shift: {:.4f}',
                      '   D_R: {:.4f}'][:len(popt)]).format(*popt)
     print "Giving:"
     print '\n'.join(['    v0: {:.4f}',
-                     '   D_R: {:.4f}'][:4-len(popt)]
-                    ).format(*[v0, D_R][:4-len(popt)])
+                     '   D_R: {:.4f}'][:3-len(popt)]
+                    ).format(*[v0, D_R][:3-len(popt)])
 
     pl.figure()
     fit = fitform(tcorr, *popt)
@@ -841,8 +839,8 @@ if __name__=='__main__' and args.rn:
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr+'\n'+
-                   ', '.join(['$v_0 = {:.3f}$', '$c_0 = {:.3f}$', '$D_R = {:.3f}$'
-                              ][:len(popt)]).format(*(abs(v0), shift, D_R)[:len(popt)])
+                   ', '.join(['$v_0 = {:.3f}$', '$D_R = {:.3f}$'
+                              ][:len(popt)]).format(*(abs(v0), D_R)[:len(popt)])
            )
 
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
