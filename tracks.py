@@ -81,6 +81,10 @@ if __name__ == '__main__':
                    help='Calculate and plot the <rr> correlation')
     p.add_argument('--fitdr', action='store_true',
                    help='Let D_R be a free parameter in fit to MSD (<rn>)')
+    p.add_argument('-w', '--omega', action='store_true',
+                   help='Consider omega_0 a nonzero parameter in fits')
+    p.add_argument('--fitomega', action='store_true',
+                   help='Let omega_0 be a free parameter in fit to MSD (<rr>)')
     p.add_argument('--fitv0', action='store_true',
                    help='Let v_0 be a free parameter in fit to MSD (<rr>)')
     p.add_argument('-z', '--zoom', metavar="ZOOM", type=float, default=1,
@@ -993,9 +997,14 @@ if __name__=='__main__' and args.nn:
     # Fit to exponential decay
     tmax = int(50*args.zoom)
     fmax = np.searchsorted(tcorr, tmax)
-    fitform = lambda s, DR: 0.5*np.exp(-DR*s)
-    fitstr = r"$\frac{1}{2}e^{-D_R t}$"
-    p0 = [1]
+    if args.omega:
+        fitform = lambda s, DR, w: 0.5*np.exp(-(w*s)**2 - DR*s)
+        fitstr = r"$\frac{1}{2}e^{-\omega_0^2 t^2 - D_R t}$"
+        p0 = [1, 1]
+    else:
+        fitform = lambda s, DR: 0.5*np.exp(-DR*s)
+        fitstr = r"$\frac{1}{2}e^{-D_R t}$"
+        p0 = [1]
     try:
         popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1006,7 +1015,13 @@ if __name__=='__main__' and args.nn:
     D_R = float(popt[0])
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
-    helpy.save_meta(saveprefix, nn_fit_DR=D_R)
+
+    if args.omega:
+        w0 = popt[1]
+        print 'omega0: {:.4g}'.format(w0)
+
+    helpy.save_meta(saveprefix,
+            dict(zip(['nn_fit_DR', 'nn_fit_w0'], popt)))
 
     plt.figure()
     plot_individual = True
@@ -1016,8 +1031,10 @@ if __name__=='__main__' and args.nn:
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
     plt.plot(tcorr, fitform(tcorr, *popt), 'r',
-            label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
-                                      D_R, 1/D_R))
+            label=fitstr + '\n' +
+                  sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$", D_R, 1/D_R) +
+                  sf(r", $\omega_0 = {0:.4T}$", w0) if args.omega else '')
+
     plt.xlim(0, tmax)
     plt.ylim(fitform(tmax, *popt), 1)
     plt.yscale('log')
@@ -1155,12 +1172,44 @@ if __name__=='__main__' and args.rr:
 
     p0 = [0]
     if not (args.nn or args.rn):
-        p0 += [v0, D_R]
+        if args.omega:
+            w0 = 1
+            print 'originally fitomega', args.fitomega
+            args.fitomega = True
+            print 'now fitomega is', args.fitomega
+            p0 += [v0, w0, D_R]
+        else:
+            p0 += [v0, D_R]
     elif args.fitv0 or not args.rn:
         p0 += [v0]
-    fitform = lambda s, D, v=v0, DR=D_R:\
-              2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
-    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
+    elif args.fitomega:
+        if w0 < 1e-4: w0 = 1
+        p0 += [v0, w0]
+
+    if args.omega:
+        from scipy.special import erf
+        fitstr = ("$"
+            r"\frac{1}{2} v_0^2 e^{\frac{1}{2}D_R\tau}"
+            r"\left[\sqrt{\pi}\omega_0(t+\tau)"
+            r"\left(\operatorname{erf}\,\omega_0(t+\tau)-"
+            r"\operatorname{erf}\,\omega_0\tau \right)"
+            r"+e^{-\omega_0^2(t+\tau)^2} - e^{-\omega_0^2\tau^2}"
+            r"\right] + 2D_Tt"
+            "$")
+        def fitform(s, D, v=v0, w=w0, DR=D_R):
+            tdiff = 2*D*s
+            T = 0.5*DR/w # omega*tau
+            TT = T*T     # (omega*tau)^2 = 0.5*D_R*tau
+            coeff = 0.5*v*v*np.exp(TT)
+            tt = w*s + T
+            first = sqrt(pi)*tt*(erf(tt) - erf(T))
+            secnd = np.exp(-tt*tt) - np.exp(-TT)
+            return tdiff + coeff*(first + secnd)
+    else:
+        fitform = lambda s, D, v=v0, DR=D_R:\
+                  2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+        fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{-D_Rt} - 1) + 2D_Tt$"
+
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1173,29 +1222,38 @@ if __name__=='__main__' and args.rr:
     print "============="
     print "Fits to <rr>:"
 
+    if args.fitomega:
+        popt = list(popt)
+        w0 = popt.pop(2)
+        popt = np.asarray(popt)
+
     D_T = popt[0]
     if len(popt) > 1:
         v0 = popt[1]
         if len(popt) > 2:
             D_R = popt[2]
+    rr_fits = dict(zip(['rr_fit_DT', 'rr_fit_v0', 'rr_fit_DR'], popt))
 
     print '\n'.join(['   D_T: {:.3g}',
                      'v0(rr): {:.3g}',
                      '   D_R: {:.3g}'][:len(popt)]).format(*popt)
+    if args.fitomega:
+        rr_fits['rr_fit_w0'] = w0
+        print 'omega0: {:.3g}'.format(w0)
+    helpy.save_meta(saveprefix, rr_fits)
     if len(popt) > 1:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
-    helpy.save_meta(saveprefix, dict(
-        [('rr_fit_DT', D_T), ('rr_fit_v0', v0), ('rr_fit_DR', D_R)][:len(popt)]
-        ))
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + sf(', '.join(
                 ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
-                ), *(popt*[1, sgn, 1][:len(popt)])))
+                ), *(popt*[1, sgn, 1][:len(popt)])) +
+                sf(r", $\omega_0 = {0:.3T}$", w0) if args.fitomega else '')
 
     ylim = plt.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = plt.xlim(taus[0], tmax)
+
     plt.legend(loc='upper left')
 
     tau_T = D_T/v0**2
@@ -1206,6 +1264,11 @@ if __name__=='__main__' and args.rr:
     if xlim[0] < tau_R < xlim[1]:
         plt.axvline(tau_R, 0, 2/3, ls='--', c='k')
         plt.text(tau_R, 2e-1, ' $1/D_R$')
+    if args.omega:
+        tau_w0 = D_R/w0**2
+        if xlim[0] < tau_w0 < xlim[1]:
+            plt.axvline(tau_w0, 0, 2/3, ls='--', c='k')
+            plt.text(tau_w0, 2e-1, r' $D_R/\omega_0^2$')
 
     if args.save:
         save = saveprefix+'_rr-corr.pdf'
