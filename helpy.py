@@ -225,7 +225,7 @@ def merge_data(data, savename=None, do_orient=True):
         if '*' in data or '?' in data:
             from glob import glob
             suf = '_TRACKS.npz'
-            data = [ s.strip(suf) for s in glob(data+suf) ]
+            data = [ s[:-len(suf)] for s in glob(data+suf) ]
         elif data.endsith('.npz'):
             raise ValueError, "please give only the prefix"
         else:
@@ -249,6 +249,11 @@ def merge_data(data, savename=None, do_orient=True):
     merged = map(np.concatenate, data)
 
     if savename:
+        from os import makedirs, path
+        fulldir = path.abspath(path.dirname(savename))
+        if not path.exists(fulldir):
+            print "Creating new directory", fulldir
+            makedirs(fulldir)
         np.savez_compressed(savename+'_MERGED_TRACKS.npz',
                             **dict(zip(['data', 'trackids'], merged)))
         if do_orient and len(data) > 2:
