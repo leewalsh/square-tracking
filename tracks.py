@@ -806,6 +806,8 @@ if __name__=='__main__' and args.rn:
     fitstr = r'$\frac{v_0}{D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
     p0 = [1] if args.nn else [1, D_R] # [v_0/D_R, D_R]
 
+    print "============="
+    print "Fits to <rn>:"
     try:
         popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
     except RuntimeError as e:
@@ -816,7 +818,6 @@ if __name__=='__main__' and args.rn:
     if not args.nn: D_R = popt[-1]
     v0 = D_R*popt[0]
     shift = popt[1] if len(popt) > 1 else 0
-    print "Fits to <rn>:"
     print '\n'.join(['v0/D_R: {:.4f}',
                      ' shift: {:.4f}',
                      '   D_R: {:.4f}'][:len(popt)]).format(*popt)
@@ -889,13 +890,15 @@ if __name__=='__main__' and args.rr:
         print "Using inital guess", p0
         popt = p0
 
+    print "============="
+    print "Fits to <rr>:"
+
     D_T = popt[0]
     if len(popt) > 1:
         v0 = popt[1]
         if len(popt) > 2:
             D_R = popt[2]
 
-    print "Fits to <rr>:"
     print '\n'.join(['   D_T: {:.3f}',
                      'v0(rr): {:.3f}',
                      '   D_R: {:.3f}'][:len(popt)]).format(*popt)
