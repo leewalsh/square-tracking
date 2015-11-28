@@ -12,6 +12,7 @@ import platform, getpass
 from time import strftime
 
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 SYSTEM, HOST, USER = None, None, None
 COMMIT = None
@@ -659,7 +660,6 @@ def loglog_slope(x, y, smooth=0):
     dy = np.diff(np.log(y)) / np.diff(np.log(x))
 
     if smooth:
-        from scipy.ndimage import gaussian_filter1d
         dy = gaussian_filter1d(dy, smooth, mode='reflect')
     return dx, dy
 
@@ -842,7 +842,6 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     #   raise ValueError("width of {} too small for reliable "
     #                    "results".format(iwidth))
     else:
-        from scipy.ndimage import gaussian_filter1d
         df = gaussian_filter1d(f, iwidth, order=order)
 
     newnf = len(df)
