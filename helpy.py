@@ -419,6 +419,19 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     assert nx==newnx, "dx was len {}, now len {}".format(nx, newnx)
     return df/dx**order
 
+from string import Formatter
+class SciFormatter(Formatter):
+    def format_field(self, value, format_spec):
+        if format_spec.endswith('T'):
+            s = format(value, format_spec[:-1])
+            if 'e' in s:
+                s = s.replace('e', r'\times10^{') + '}'
+        elif format_spec.endswith('t'):
+            s = format(value, format_spec[:-1]).replace('e', '*10**')
+        else:
+            s = format(value, format_spec)
+        return s
+
 # Pixel-Physical Unit Conversions
 # Physical measurements
 R_inch = 4.0           # as machined

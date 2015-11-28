@@ -118,6 +118,8 @@ from scipy.optimize import curve_fit
 import helpy
 import correlation as corr
 
+sf = helpy.SciFormatter().format
+
 pi = np.pi
 twopi = 2*pi
 locdir = extdir = ''
@@ -724,6 +726,7 @@ if __name__=='__main__' and args.nn:
     tmax = 50
     fmax = np.searchsorted(tcorr, tmax)
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
+    fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     p0 = [1]
     try:
         popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
@@ -734,7 +737,7 @@ if __name__=='__main__' and args.nn:
         popt = p0
     D_R = popt[0]
     print "Fits to <nn>:"
-    print '   D_R: {:.4f}'.format(D_R)
+    print '   D_R: {:.4g}'.format(D_R)
 
     pl.figure()
     plot_individual = True
@@ -744,9 +747,8 @@ if __name__=='__main__' and args.nn:
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
     pl.plot(tcorr, fitform(tcorr, *popt), 'r',
-             label=r"$\frac{1}{2}e^{-D_R t}$" + '\n' +\
-                    "$D_R = {:.4f}$, $D_R^{{-1}} = {:.3f}$".format(D_R, 1/D_R))
-
+            label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
+                                      D_R, 1/D_R))
     pl.xlim(0, tmax)
     pl.ylim(fitform(tmax, *popt), 1)
     pl.yscale('log')
@@ -819,8 +821,8 @@ if __name__=='__main__' and args.rn:
     if len(popt) > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
-    print '\n'.join(['v0/D_R: {:.4f}',
-                     '   D_R: {:.4f}'][:len(popt)]).format(*popt)
+    print '\n'.join(['v0/D_R: {:.4g}',
+                     '   D_R: {:.4g}'][:len(popt)]).format(*popt)
     print "Giving:"
     print '\n'.join(['    v0: {:.4f}',
                      '   D_R: {:.4f}'][:3-len(popt)]
@@ -838,10 +840,9 @@ if __name__=='__main__' and args.rn:
     pl.plot(tcorr, sgn*fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
-            label=fitstr+'\n'+
-                   ', '.join(['$v_0 = {:.3f}$', '$D_R = {:.3f}$'
-                              ][:len(popt)]).format(*(abs(v0), D_R)[:len(popt)])
-           )
+            label=fitstr + '\n' + sf(', '.join(
+                  ['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:len(popt)]
+                  ), *(abs(v0), D_R)[:len(popt)]))
 
     pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
     pl.text(1/D_R, 1e-2, ' $1/D_R$')
@@ -901,17 +902,17 @@ if __name__=='__main__' and args.rr:
         if len(popt) > 2:
             D_R = popt[2]
 
-    print '\n'.join(['   D_T: {:.3f}',
-                     'v0(rr): {:.3f}',
-                     '   D_R: {:.3f}'][:len(popt)]).format(*popt)
+    print '\n'.join(['   D_T: {:.3g}',
+                     'v0(rr): {:.3g}',
+                     '   D_R: {:.3g}'][:len(popt)]).format(*popt)
     if len(popt) > 1:
         print "Giving:"
-        print "v0/D_R: {:.3f}".format(v0/D_R)
+        print "v0/D_R: {:.3g}".format(v0/D_R)
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
-            label=fitstr + "\n" + ', '.join(
-                  ["$D_T= {:.3f}$", "$v_0 = {:.3f}$", "$D_R = {:.3f}$"][:len(popt)]
-                  ).format(*(popt*np.array([1, sgn, 1][:len(popt)]))))
+            label=fitstr + "\n" + sf(', '.join(
+                ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
+                ), *(popt*[1, sgn, 1][:len(popt)])))
 
     pl.axvline(D_T/v0**2, 0, 1/3, ls='--', c='k')
     pl.text(D_T/v0**2, 2e-2, ' $D_T/v_0^2$')
