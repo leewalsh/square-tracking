@@ -801,8 +801,8 @@ if __name__=='__main__' and args.rn:
 
     # Fit to capped exponential growth
     fitform = lambda s, v_D, D=D_R:\
-                  np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
-    fitstr = r'$\frac{v_0}{D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
+                  0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+    fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
     # p0 = [v_0/D_R, D_R]
     p0 = [1]
     if not args.nn:
