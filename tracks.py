@@ -814,9 +814,14 @@ if __name__=='__main__' and args.rn:
     try:
         popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
     except RuntimeError as e:
-        print "RuntimeError:", e.message
-        print "Using inital guess", p0
-        popt = p0
+        try:
+            p0[0] = -1 # If dots are backwards, has trouble fitting with v0>0
+            popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
+        except RuntimeError as e:
+            p[0] = 1 # restore original positive value
+            print "RuntimeError:", e.message
+            print "Using inital guess", p0
+            popt = p0
     if len(popt) > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
