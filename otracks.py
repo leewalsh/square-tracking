@@ -96,11 +96,10 @@ def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
     """
     tmask = (trackids==track) & omask
     trackdots = data[tmask]
-    if mod_2pi:
-        trackodata = odata[tmask]['orient']
-    else:
+    trackodata = odata[tmask]['orient']
+    if not mod_2pi:
         from orientation import track_orient
-        trackodata = track_orient(odata, track, trackids, omask)
+        trackodata = track_orient(trackodata)
 
         if dt0 == dtau == 1:
             if verbose: print "Using correlation"

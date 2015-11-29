@@ -153,7 +153,7 @@ def load_tracksets(data, omask=None, trackids=None, min_length=10, run_track_ori
     if run_track_orient:
         from orientation import track_orient
         for track in longtracks:
-            tracksets[track]['o'] = track_orient(tracksets[track]['o'], onetrack=True)
+            tracksets[track]['o'] = track_orient(tracksets[track]['o'], omask)
 
     return tracksets
 

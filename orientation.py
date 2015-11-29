@@ -298,23 +298,28 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     pl.show()
     return qq, cb
 
-def track_orient(odata, track=None, tracks=None, omask=None, onetrack=False):
+def track_orient(orients, omask=None, cutoff=3*pi/2):
     """ tracks branch cut crossings for orientation data
-        assumes that dtheta << pi for each frame
+        assumes that dtheta << cutoff for each frame
     """
-    cutoff = 3*pi/2
-    if onetrack:
-        orients = odata
+    if not isinstance(omask, np.ndarray):
+        omask = np.isfinite(orients)
+    masked = not omask.all()
+    if masked:
+        omask = omask.nonzero()[0]
+        orients = orients[omask]
     else:
-        if omask is None:
-            omask = np.isfinite(odata['orient'])
-        mask = (track == tracks) & omask
-        orients = odata['orient'][mask]
+        orients = orients.copy()
     deltas = np.diff(orients)
-    deltas = np.concatenate(([0], deltas))
-    crossings = (deltas < -cutoff).astype(int) - (deltas > cutoff).astype(int)
-    crossings = crossings.cumsum() * twopi
-    return orients + crossings
+    crossings = (np.abs(deltas) > cutoff)*np.sign(deltas)
+    orients[1:] -= twopi*crossings.cumsum()
+    if masked:
+        gaps = np.diff(omask) - 1
+        gapi = gaps.nonzero()[0]
+        gaps = gaps[gapi]
+        gapi = np.repeat(gapi, gaps)
+        orients = np.insert(orients, gapi+1, np.nan)
+    return orients
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
     if omask is None:
@@ -346,7 +351,7 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
                     'o', c=c,label='delta {}'.format(goodtrack))
         else:
             pl.plot(data['f'][fullmask][plotrange]/fps,
-                    track_orient(odata, goodtrack, tracks, omask)[plotrange],
+                    track_orient(odata['orient'][fullmask])[plotrange],
                     '--', label='tracked {}'.format(goodtrack))
     if delta:
         for n in np.arange(-2 if delta else 0,2.5,0.5):
