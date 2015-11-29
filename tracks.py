@@ -399,6 +399,7 @@ def trackmsd(track, dt0, dtau):
         parameters
         ----------
         track : a single integer giving the track id to be calculated
+            or, a subset of the data for a given track (a 'trackset')
         dt0 : spacing stepsize for values of t0, gives the number of starting
             points averaged over in `t0avg`
         dtau : spacing stepsize for values of tau, gives the spacing of the
@@ -415,7 +416,10 @@ def trackmsd(track, dt0, dtau):
         displacement for a single track at that value of tau
 
     """
-    trackdots = data[trackids==track]
+    if np.isscalar(track):
+        trackdots = data[trackids==track]
+    else:
+        trackdots = track
 
     if dt0 == dtau == 1:
         if verbose: print "Using correlation"
@@ -462,15 +466,10 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
     msds = []
     msdids = []
     if tracks is None:
-        if min_length:
-            tracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
-        else:
-            tracks = np.unique(trackids)
-            if tracks[0] == -1:
-                tracks = tracks[1:]
-    for trackid in tracks:
+        tracks = helpy.load_tracksets(data, trackids, min_length=min_length)
+    for trackid in sorted(tracks):
         if verbose: print "calculating msd for track", trackid
-        tmsd = trackmsd(trackid, dt0, dtau)
+        tmsd = trackmsd(tracks[trackid], dt0, dtau)
         if len(tmsd) > 1:
             msds.append(tmsd)
             msdids.append(trackid)
