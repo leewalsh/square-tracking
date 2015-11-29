@@ -127,6 +127,77 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
         else:
             return it.izip(u, sects)
 
+
+def is_sorted(a):
+    return np.all(np.diff(a) >= 0)
+
+
+def groupby(arr, key, method, min_size=1):
+    """method = 'counter,filterer,getter'
+    """
+    if method == 'bin,bool,bool':
+        cs = np.bincount(key+1)
+        us = np.where(cs >= min_size)[0] - 1
+        return {u: arr[key == u] for u in us}
+    elif method == 'uniq,bool,bool':
+        us, cs = np.unique(key, return_counts=True)
+        us = us[cs >= min_size]
+        return {u: arr[key == u] for u in us}
+    elif method == 'uniq,filt,bool':
+        us, cs = np.unique(key, return_counts=True)
+        return {u: arr[key == u] for u, c in it.izip(us, cs) if c >= min_size}
+    elif method == 'bin,bool,sort':
+        cs = np.bincount(key+1)
+        us = np.where(cs >= min_size)[0] - 1
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))[us+1]
+        return {u: arr[i] for i, u in it.izip(inds, us)}
+    elif method == 'uniq,bool,sort':
+        us, cs = np.unique(key, return_counts=True)
+        cbool = cs >= min_size
+        us = us[cbool]
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))[cbool]
+        return {u: arr[i] for i, u in it.izip(inds, us)}
+    elif method == 'uniq,where,sort':
+        us, cs = np.unique(key, return_counts=True)
+        where = np.where(cs >= min_size)
+        us = us[where]
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))[where]
+        return {u: arr[i] for i, u in it.izip(inds, us)}
+    elif method == 'uniq,filt,sort':
+        us, cs = np.unique(key, return_counts=True)
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))
+        return {u: arr[i] for u, i, c in it.izip(us, inds, cs) if c >= min_size}
+    elif method == 'uniq,comp,sort':
+        us, cs = np.unique(key, return_counts=True)
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))
+        return {u: arr[i] for u, i in it.compress(it.izip(us, inds), cs >= min_size)}
+    elif method == 'test':
+        methods = ['bin,bool,bool', 'uniq,bool,bool', 'uniq,filt,bool',
+                   #'bin,bool,sort', 'uniq,bool,sort', 'uniq,where,sort',
+                   'uniq,filt,sort', 'uniq,comp,sort']
+        print 'grouping'
+        groups = [groupby(arr, key, method=m, min_size=min_size)
+                  for m in methods]
+        print 'checking'
+        keys = [sorted(group.keys()) for group in groups]
+        for ks in it.izip(*keys):
+            for i in xrange(len(methods) - 1):
+                m, n = methods[i:i+2]
+                k, l = ks[i:i+2]
+                g, h = groups[i:i+2]
+                msg = 'unique key mismatch: {}: {}, {}: {}'.format
+                assert k == l, msg(m, k, n, l)
+                msg = 'mismatch at {} between {} and {}'.format
+                assert np.allclose(g[l], h[l]), msg(l, m, n)
+        print 'Success!'
+        return
+
+
 def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
         return new 2d array with shorter lists padded with fill value
