@@ -303,6 +303,44 @@ def remove_duplicates(trackids, data=None, tsets=None):
             trackids[reject['id']] = -1
     return trackids
 
+def fill_gaps(tracksets=None, data=None, max_gap=5, inplace=False):
+    if tracksets is None:
+        if data is None:
+            raise ValueError, "Either data or tsets is required"
+        tracksets = helpy.load_tracksets(data, min_length=1)
+        inplace = True
+    elif not inplace:
+        filledsets = {}
+    for t, trackset in tracksets.items():
+        fs = trackset['f']
+        gaps = np.diff(fs) - 1
+        mx = gaps.max()
+        if not mx:
+            if not inplace:
+                filledsets[t] = trackset
+            continue
+        elif mx > max_gap:
+            if inplace: tracksets.pop(t)
+            continue
+        gapi = gaps.nonzero()[0]
+        gaps = gaps[gapi]
+        gapi = np.repeat(gapi, gaps)
+        missing = np.full(len(gapi), fill_value=-1, dtype=trackset.dtype)
+        f = np.concatenate(map(range, gaps)) + fs[gapi] + 1
+        missing['f'] = f
+        for dim in 'xy':
+            missing[dim] = np.interp(f, fs, trackset[dim])
+        missing['t'] = t
+        trackset = np.insert(trackset, gapi+1, missing)
+        if inplace:
+            tracksets[t] = trackset
+        else:
+            filledsets[t] = trackset
+    if inplace:
+        return tracksets
+    else:
+        return filledsets
+
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None, mask=None,
                 fignum=None, save=True, show=True):
