@@ -376,6 +376,51 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
+def is_sorted(a):
+    return np.all(np.diff(a) >= 0)
+
+def groupby(arr, key, method, min_count=1):
+    if method=='binbool':
+        cs = np.bincount(key+1)[1:]
+        us = np.where(cs >= min_count)[0]
+        return {u: arr[key==u] for u in us}
+    elif method=='uniqbool':
+        us, cs = np.unique(key, return_counts=True)
+        us = us[cs >= min_count]
+        return {u: arr[key==u] for u in us}
+    elif method=='uniqboolfilter':
+        us, cs = np.unique(key, return_counts=True)
+        return {u: arr[key==u] for u, c in izip(us, cs) if c >= min_count}
+    elif method=='binsort':
+        cs = np.bincount(key+1)[1:]
+        us = np.where(cs >= min_count)[0]
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))
+        return {u: arr[inds[u]] for u in us}
+    elif method=='uniqsort':
+        us, cs = np.unique(key, return_counts=True)
+        us = us[cs >= min_count]
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))
+        return {u: arr[inds[u]] for u in us}
+    elif method=='uniqsortfilter':
+        us, cs = np.unique(key, return_counts=True)
+        sort = key.argsort(kind='mergesort')
+        inds = np.split(sort, np.cumsum(cs[:-1]))
+        return {u: arr[i] for u, i, c in izip(us, inds, cs) if c >= min_count}
+    elif method=='test':
+        methods = 'binbool uniqbool uniqboolfilter binsort uniqsort uniqsortfilter'.split()
+        groups = [groupby(arr, key, method=m, min_count=min_count) for m in methods]
+        for g in izip(*groups):
+            for i, m in enumerate(methods[1:]):
+                assert g[i-1]==g[i], 'unique key mismatch: {}: {}, {}: {}'.format(
+                                        methods[i-1], g[i-1], m, g[i])
+                assert np.allclose(groups[i-1][g[i]], groups[i][g[i]]), \
+                        'mismatch at {} between {} and {}'.format(g[i], methods[i-1], m)
+            assert is_sorted(groups[0][g[0]][:, 0]), 'not stably sorted'
+        print 'Success!'
+        return
+
 def load_tracksets(data, trackids=None, min_length=10, verbose=False,
         run_remove_dupes=False, run_fill_gaps=False, run_track_orient=False):
     """ Returns a dict of slices into data based on trackid
