@@ -178,13 +178,7 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
         pts = pts[np.argsort(-strengths)]
     return pts[:max_detect]
 
-def find_particles(imfile, method='edge', return_image=False, circ=None, **kwargs):
-    """ find_particles(imfile, gaussian_size=3, **kwargs) -> [Segment],labels
-        Find the particles in image im. The arguments in kwargs is
-        passed to label_particles and filter_segments.
-
-        Returns the list of found particles and the label image.
-    """
+def prep_image(imfile):
     if args.verbose: print "opening", imfile
     im = imread(imfile).astype(float)
     if imfile.lower().endswith('tif'):
@@ -202,7 +196,15 @@ def find_particles(imfile, method='edge', return_image=False, circ=None, **kwarg
     im -= m - s
     im /= 2*s
     np.clip(im, 0, 1, out=im)
+    return im
 
+def find_particles(im, method='edge', return_image=False, circ=None, **kwargs):
+    """ find_particles(im, gaussian_size=3, **kwargs) -> [Segment],labels
+        Find the particles in image im. The arguments in kwargs is
+        passed to label_particles and filter_segments.
+
+        Returns the list of found particles and the label image.
+    """
     intensity = None
 
     #print "Seeking particles using", method
@@ -344,9 +346,9 @@ if __name__ == '__main__':
 
     def get_positions((n,filename)):
         circ = (co, ro) if args.select else None
-        out = find_particles(filename, method='convolve',
-                            return_image=args.plot>2,
-                            circ=circ, **threshargs)
+        image = prep_image(filename)
+        out = find_particles(image, method='convolve', circ=circ,
+                             return_image=args.plot>2, **threshargs)
         if args.plot > 2:
             pts, labels, convolved = out
         else:
@@ -364,8 +366,8 @@ if __name__ == '__main__':
             plot_positions(savebase, args.plot, *out)
 
         if args.both:
-            out = find_particles(filename, method='convolve', return_image=args.plot>2,
-                    rmv=(pts, abs(args.kern)), circ=circ, **cthreshargs)
+            out = find_particles(image, method='convolve', circ=circ,
+                    rmv=(pts, abs(args.kern)), return_image=args.plot>2, **cthreshargs)
             if args.plot > 2:
                 cpts, clabels, cconvolved = out
             else:
