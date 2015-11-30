@@ -75,6 +75,20 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
+def str_union(a, b):
+    if a==b:
+        return a
+    elif len(a)==len(b):
+        l = [ac if ac==bc else '?' for ac, bc in izip(a, b)]
+        return ''.join(l)
+    else:
+        raise ValueError, "can only compare equal length strings"
+        i = 1
+        while a.startswith(b[:1]):
+            i += 1
+        for i in itertools.count(1):
+            a.startswith(b[:i])
+
 def load_data(fullprefix, choices='tracks orientation', verbose=False):
     """ Load data from an npz file
 
