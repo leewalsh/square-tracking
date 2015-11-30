@@ -625,7 +625,8 @@ if __name__=='__main__':
             try:
                 trackids = datanpz['trackids']
             except KeyError:
-                args.track = helpy.bool_input("No tracks found; would you like to track?")
+                args.track = helpy.bool_input("No tracks found; "
+                                              "would you like to track?")
             else:
                 if verbose: print "Loaded data from", datapath
     if args.track:
@@ -637,31 +638,31 @@ if __name__=='__main__':
                                n=args.number, cut=args.cut, stub=args.stub)
         # save the data record array and the trackids array
         if args.save:
-            print "saving track data to",
-            print locdir+prefix+dotfix+"_TRACKS"
-            np.savez(locdir+prefix+dotfix+"_TRACKS",
-                    data=data, trackids=trackids)
+            save = locdir+prefix+dotfix+"_TRACKS.npz"
+            print "saving track data to", save
+            np.savez(save, data=data, trackids=trackids)
 
     elif args.load:
         if args.save or helpy.bool_input("Save loaded tracks?"):
-            print "saving " + dotfix.strip('_').lower() + " data (no tracks) to",
-            print prefix + dotfix + "_POSITIONS.npz"
-            np.savez(locdir+prefix+dotfix+"_POSITIONS",
-                    data = data)
-            if verbose: print '\t...saved'
+            save = prefix + dotfix + "_POSITIONS.npz"
+            print "saving" + dotfix.replace('_', ' ').lower(),
+            print "data (no tracks) to", save
+            np.savez(save, data=data)
 
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
         if args.save:
-            np.savez(locdir+prefix+"_MSD",
+            save = locdir+prefix+"_MSD.npz"
+            print "saving msd data to", save
+            np.savez(save,
                      msds = np.asarray(msds),
                      msdids = np.asarray(msdids),
                      dt0  = np.asarray(dt0),
                      dtau = np.asarray(dtau))
-            print "saved msd data to", prefix+"_MSD.npz"
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
-        msdnpz = np.load(locdir+prefix+"_MSD.npz")
+        datapath = locdir+prefix+"_MSD.npz"
+        msdnpz = np.load(datapath)
         msds = msdnpz['msds']
         try: msdids = msdnpz['msdids']
         except KeyError: msdids = None
@@ -757,7 +758,7 @@ if __name__=='__main__' and args.nn:
 
     if args.save:
         save = locdir+prefix+'_nn-corr.pdf'
-        print 'saving to', save
+        print 'saving <nn> correlation plot to', save
         pl.savefig(save)
     if not (args.rn or args.rr) and args.show: pl.show()
 
@@ -852,7 +853,7 @@ if __name__=='__main__' and args.rn:
 
     if args.save:
         save = locdir + prefix + '_rn-corr.pdf'
-        print 'saving to', save
+        print 'saving <rn> correlation plot to', save
         pl.savefig(save)
     if not args.rr and args.show: pl.show()
 
@@ -918,7 +919,7 @@ if __name__=='__main__' and args.rr:
 
     if args.save:
         save = locdir + prefix + '_rr-corr.pdf'
-        print 'saving to', save
+        print 'saving <rr> correlation plot to', save
         fig.savefig(save)
     if args.show: pl.show()
 
