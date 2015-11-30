@@ -3,26 +3,8 @@
 
 from __future__ import division
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
-    import matplotlib
-    matplotlib.use("agg")
-
-from math import sqrt
-
-import numpy as np
-from matplotlib import cm, pyplot as pl
-
-import helpy
-
-pi = np.pi
-twopi = 2*pi
-locdir = extdir = ''
-
 if __name__=='__main__':
     from argparse import ArgumentParser
-
     p = ArgumentParser()
     p.add_argument('prefix', metavar='PRE',
                    help="Filename prefix with full or relative path "
@@ -71,7 +53,6 @@ if __name__=='__main__':
     args = p.parse_args()
 
     prefix = args.prefix
-    #dotfix = '_CORNER' if args.corner else ''
 
     S = args.side
     if args.drcorner == -1:
@@ -91,6 +72,23 @@ if __name__=='__main__':
         filterwarnings('ignore', category=RuntimeWarning, module='matpl')
 else:
     verbose = False
+
+from socket import gethostname
+hostname = gethostname()
+if 'foppl' in hostname:
+    import matplotlib
+    matplotlib.use("agg")
+
+from math import sqrt
+
+import numpy as np
+from matplotlib import cm, pyplot as pl
+
+import helpy
+
+pi = np.pi
+twopi = 2*pi
+locdir = extdir = ''
 
 def load_from_npz(prefix, locdir=None):
     """ given a prefix, returns:
@@ -197,17 +195,16 @@ def find_msds(dt0, dtau, data, trackids, odata, omask, tracks=None, mod_2pi=Fals
     return msds, msdids
 
 if __name__=='__main__':
-    if True:
-        # assume existing tracks.npz
-        try:
-            tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-            trackids = tracksnpz['trackids']
-            print "loading data and tracks from "+prefix+"_TRACKS.npz"
-        except IOError:
-            tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
-            print "loading positions data from "+prefix+"_POSITIONS.npz"
-        data = tracksnpz['data']
-        if verbose: print "\t...loaded"
+    # assume existing tracks.npz
+    try:
+        tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
+        trackids = tracksnpz['trackids']
+        print "loading data and tracks from "+prefix+"_TRACKS.npz"
+    except IOError:
+        tracksnpz = np.load(locdir+prefix+"_POSITIONS.npz")
+        print "loading positions data from "+prefix+"_POSITIONS.npz"
+    data = tracksnpz['data']
+    if verbose: print "\t...loaded"
     try:
         cdatanpz = np.load(locdir+prefix+'_CORNER_POSITIONS.npz')
         cdata = cdatanpz['data']
@@ -246,7 +243,6 @@ if __name__=='__main__':
             dtau = 10 #  should be true for all from before dt* was saved
         if verbose: print "\t...loaded"
 
-if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting now!'
         from tracks import plot_msd

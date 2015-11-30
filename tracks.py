@@ -19,6 +19,14 @@ if __name__=='__main__':
                         'prefix[_CORNER]_POSITIONS.txt file')
     p.add_argument('-t','--track', action='store_true',
                    help='Connect the dots and save in the array')
+    p.add_argument('-o','--orient', action='store_true',
+                   help='Find the orientations and save')
+    p.add_argument('--ncorners', type=int, default=2,
+                   help='Number of corner dots per particle. default = 2')
+    p.add_argument('-r', '--rcorner', type=float, default=-1,
+                   help='Distance to corner dot from central dot, in pixels.')
+    p.add_argument('--drcorner', type=float, default=-1,
+                   help='Allowed error in r (rcorner), in pixels. Default is sqrt(r)')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
     p.add_argument('--noshow', action='store_false', dest='show',
@@ -77,7 +85,9 @@ if __name__=='__main__':
     args = p.parse_args()
 
     prefix = args.prefix
-    dotfix = '_CORNER' if args.corner else ''
+    if args.orient and args.rcorner <= 0:
+        raise ValueError, "argument -r/--rcorner is required"
+    dotfix = '_CORNER' if (args.corner and not args.orient) else ''
 
     S = args.side
     A = S**2
@@ -109,7 +119,6 @@ if 'foppl' in hostname:
     matplotlib.use("agg")
 
 from itertools import izip
-from math import sqrt
 
 import numpy as np
 from matplotlib import cm, pyplot as pl
@@ -609,17 +618,33 @@ if __name__=='__main__':
                 print etracks
                 print epos
                 args.load = helpy.bool_input("Would you like to load from "
-                                    "'POSITIONS.txt' file?") or sys.exit()
+                                    "'POSITIONS.txt' file? ") or sys.exit()
             else:
                 if verbose:
                     print etracks
                     print "Loaded data (positions only) from", datapath
         else:
             if verbose: print "Loaded data from", datapath
+        if args.orient:
+            try:
+                cdatapath = locdir+prefix+'_CORNER_POSITIONS.npz'
+                cdatanpz = np.load(cdatapath)
+            except IOError as ecorn:
+                import sys
+                print ecorn
+                args.load = helpy.bool_input("Would you like to load from "
+                             "'CORNER_POSITIONS.txt' file? ") or sys.exit()
+            else:
+                if verbose:
+                    print "Loaded corner data from", cdatapath
     if args.load:
         datapath = locdir+prefix+dotfix+'_POSITIONS.txt'
         data = helpy.gen_data(datapath)
         if verbose: print "Loaded data from", datapath
+        if args.orient:
+            cdatapath = locdir+prefix+'_CORNER_POSITIONS.txt'
+            cdata = helpy.gen_data(cdatapath)
+            if verbose: print "Loaded corner data from", cdatapath
     else:
         data = datanpz['data']
         if not args.track:
@@ -627,9 +652,11 @@ if __name__=='__main__':
                 trackids = datanpz['trackids']
             except KeyError:
                 args.track = helpy.bool_input("No tracks found; "
-                                              "would you like to track?")
+                                              "would you like to track? ")
             else:
                 if verbose: print "Loaded data from", datapath
+        if args.orient:
+            cdata = cdatanpz['data']
     if args.track:
         fsets = helpy.splitter(data, ret_dict=True)
         from scipy.spatial import cKDTree as KDTree
@@ -639,15 +666,27 @@ if __name__=='__main__':
                                n=args.number, cut=args.cut, stub=args.stub)
         # save the data record array and the trackids array
         if args.save:
-            save = locdir+prefix+dotfix+"_TRACKS.npz"
+            save = locdir+prefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez(save, data=data, trackids=trackids)
-
     elif args.load:
-        if args.save or helpy.bool_input("Save loaded tracks?"):
+        dottype = dotfix.replace('_', ' ').lower()
+        if args.save or helpy.bool_input("Save loaded"+dottype+" positions? "):
             save = prefix + dotfix + "_POSITIONS.npz"
-            print "saving" + dotfix.replace('_', ' ').lower(),
+            print "saving" + dottype,
             print "data (no tracks) to", save
+            np.savez(save, data=data)
+    if args.orient:
+        from orientation import get_angles_loop
+        odata, omask = get_angles_loop(data, cdata,
+                           nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
+        if args.save:
+            save = locdir+prefix+'_ORIENTATION.npz'
+            print "saving orientation data to", save
+            np.savez(save, odata=odata, omask=omask)
+        if args.load and (args.save or helpy.bool_input("Save corner positions? ")):
+            save = prefix + "_CORNER_POSITIONS.npz"
+            print "saving corner positions (no tracks) to", save
             np.savez(save, data=data)
 
     if args.msd:

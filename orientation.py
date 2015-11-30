@@ -2,6 +2,7 @@
 
 from __future__ import division
 from itertools import izip
+from math import sqrt
 import numpy as np
 #from scipy.stats import nanmean
 from scipy.spatial import cKDTree
@@ -41,7 +42,7 @@ def get_fft(ifile=None,location=None):
         #x = 386.27; y = 263.62; area = 141
         #x = 35.39; y = 305.92; area = 154
         location = x,y
-    wdth = int(24 * np.sqrt(2))
+    wdth = int(24 * sqrt(2))
     hght = wdth
     cropbox = map(int,(x - wdth/2., y - hght/2.,\
             x + wdth/2., y + hght/2.))
@@ -88,7 +89,7 @@ def get_orientation(b):
     return s, p
 
 def find_corner(particle, corners, tree=None,
-                nc=1, rc=11, drc=4, slr=False, do_average=True):
+                nc=1, rc=11, drc=0, slr=False, do_average=True):
     """ find_corner(particle, corners, **kwargs)
 
         looks in the given frame for the corner-marking dot closest to (and in
@@ -111,6 +112,8 @@ def find_corner(particle, corners, tree=None,
             cdisp   - (mean) vector(s) (x,y) from particle center to corner(s)
     """
 
+    if drc <= 0:
+        drc = sqrt(rc)
     if slr:
         rc = 43 # 56 ?
         drc = 10
@@ -197,7 +200,7 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=4, do_average=True):
+def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=0, do_average=True):
     """ get_angles(data, cdata, framestep=1, nc=3, do_average=True)
         
         arguments:
