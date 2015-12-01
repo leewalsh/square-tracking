@@ -56,6 +56,7 @@ else:
     from skimage.measure import regionprops, label as sklabel
 from skimage.morphology import disk as _disk
 from collections import namedtuple
+from itertools import izip
 
 import helpy
 
@@ -281,8 +282,12 @@ if __name__ == '__main__':
         makedirs(outdir)
     if output.endswith('.txt'):
         output = output[:-4]
-    if not output.endswith(suffix):
+    if output.endswith(suffix):
+        prefix = output[:-len(suffix)]
+    else:
+        prefix = output
         output += suffix
+    outs = output, prefix + '_CORNER' + suffix
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
@@ -306,6 +311,7 @@ if __name__ == '__main__':
                          'min_area': args.cmin,
                          'max_area': args.cmax,
                          'csize'   : args.ckern}})
+    dots = sorted(thresh)
 
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
@@ -339,36 +345,27 @@ if __name__ == '__main__':
     def get_positions((n,filename)):
         circ = (co, ro) if args.select else None
         image = prep_image(filename)
-        out = find_particles(image, method='convolve', circ=circ,
-                             return_image=args.plot>2, **thresh['center'])
-        pts = out[0]
-
-        nfound = len(pts)
-        if nfound:
-            centers = np.hstack([np.full((nfound,1), n, 'f8'), pts])
-        else:
-            centers = np.empty((0, 6)) # 6 = id + len(Segment)
-        print '%20s: Found %d particles' % (path.basename(filename), nfound)
-        if args.plot:
-            savebase = path.join(outdir, path.splitext(path.basename(filename))[0])
-            plot_positions(savebase, args.plot, *out)
-
-        if args.both:
+        ret = []
+        for dot in dots:
+            rmv = None if dot=='center' else (pts, abs(args.kern))
             out = find_particles(image, method='convolve', circ=circ,
-                    rmv=(pts, abs(args.kern)), return_image=args.plot>2, **thresh['corner'])
-            cpts = out[0]
-
-            nfound = len(cpts)
+                    rmv=rmv, return_image=args.plot>2, **thresh[dot])
+            pts = out[0]
+            nfound = len(pts)
             if nfound:
-                corners = np.hstack([np.full((nfound,1), n, 'f8'), cpts])
+                centers = np.hstack([np.full((nfound,1), n, 'f8'), pts])
             else:
-                corners = np.empty((0, 6)) # 6 = id + len(Segment)
-            print '%20s: Found %d corners' % (path.basename(filename), nfound)
+                centers = np.empty((0, 6)) # 6 = id + len(Segment)
             if args.plot:
-                plot_positions(savebase+'_CORNER', args.plot, *out)
-            return centers, corners
-        return centers
+                savebase = path.join(outdir, path.splitext(path.basename(filename))[0])
+                plot_positions(savebase+'_'+dot.upper(), args.plot, *out)
+            ret += [centers]
+        if not n % print_freq:
+            print path.basename(filename).rjust(20), 'Found',\
+              ', '.join(['{:3d} {}s'.format(len(r),d) for r,d in zip(ret,dots)])
+        return ret if args.both else ret[0]
 
+    print_freq = 1 if args.verbose else len(filenames)//100 + 1
     if args.threads > 1:
         print "Multiprocessing with {} threads".format(args.threads)
         p = Pool(args.threads)
@@ -376,32 +373,12 @@ if __name__ == '__main__':
     else:
         mapper = map
     points = mapper(get_positions, enumerate(filenames))
+    points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
-    if args.both:
-        points, corners = map(np.vstack, zip(*points))
-        if 'CORNER' in output:
-            coutput = output
-        else:
-            coutput = output[:-len(suffix)] + '_CORNER' + suffix
-        with open(coutput+'.txt', 'w') as coutput:
-            print "Saving corner positions to ", coutput.name
-            coutput.write('# Kern     Min area    Max area      Max eccen\n')
-            coutput.write('#%5.2f%7d%13d%15.2f\n' % (
-                          args.ckern, args.cmin, args.cmax, args.cecc))
-            coutput.write('#\n')
-            coutput.write('# Frame    X           Y             Label  Eccen        Area\n')
-            np.savetxt(coutput, corners, delimiter='     ',
-                    fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
-    else:
-        points = np.vstack(points)
-
-    if 'CORNER' in output:
-        output = output.replace('CORNER','').replace('__','_')
-    with open(output+'.txt', 'w') as output:
-        print "Saving positions to ", output.name
-        output.write('# Kern     Min area    Max area      Max eccen\n')
-        output.write('#%5.2f%7d%13d%15.2f\n' % (args.kern, args.min, args.max, args.ecc))
-        output.write('#\n')
-        output.write('# Frame    X           Y             Label  Eccen        Area\n')
-        np.savetxt(output, points, delimiter='     ',
+    for dot, point, output in zip(dots, points, outs):
+        print "Saving", dot, "positions to", output+'.txt'
+        header = ('Kern {csize:.2f}, Min area {min_area:d}, '
+          'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
+          'Frame    X           Y             Label  Eccen        Area').format
+        np.savetxt(output+'.txt', point, delimiter='     ', header=header(**thresh[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
