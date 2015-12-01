@@ -16,15 +16,16 @@ if __name__ == '__main__':
                    help='Output file')
     p.add_argument('-z', '--nozip', action='store_false', dest='gz',
                    help="Don't compress output files?")
-    p.add_argument('-N', '--threads', default=1, type=int,
-                   help='Number of worker threads')
+    p.add_argument('-N', '--threads', default=-1, type=int,
+                   help='Number of worker threads for parallel processing. '
+                        'Uses all available cores if 0')
     p.add_argument('-s', '--select', action='store_true',
                    help='Open the first image and specify the circle of interest')
     p.add_argument('-b', '--both', action='store_true',
                    help='find both center and corner dots')
     p.add_argument('--slr', action='store_true',
                    help='Full resolution SLR was used')
-    p.add_argument('-k', '--kern', default=0, type=float,
+    p.add_argument('-k', '--kern', default=0, type=float, required=True,
                    help='Kernel size for convolution')
     p.add_argument('--min', default=-1, type=int,
                    help='Minimum area')
@@ -262,7 +263,7 @@ if __name__ == '__main__':
     import matplotlib
     if 'foppl' in hostname: matplotlib.use('Agg')
     import matplotlib.pyplot as pl
-    from multiprocessing import Pool
+    from multiprocessing import Pool, cpu_count
     from os import path, makedirs
 
     if '*' in args.files[0] or '?' in args.files[0]:
@@ -308,6 +309,8 @@ if __name__ == '__main__':
                          'max_area': args.max,
                          'csize'   : args.kern}}
 
+    if args.ckern:
+        args.both = True
     if args.both:
         ckern_area = np.pi*args.ckern**2
         if args.cmin == -1: args.cmin = ckern_area/2
@@ -372,9 +375,16 @@ if __name__ == '__main__':
         return ret if args.both else ret[0]
 
     print_freq = 1 if args.verbose else len(filenames)//100 + 1
-    if args.threads > 1:
-        print "Multiprocessing with {} threads".format(args.threads)
-        p = Pool(args.threads)
+    threads = args.threads
+    if threads < 1:
+        cpus = cpu_count()
+        if threads==-1:
+            threads = int(raw_input(
+                "How many cpu threads to use? [{}] ".format(cpus)) or 0)
+    threads = threads or cpus
+    if threads > 1:
+        print "Multiprocessing with {} threads".format(threads)
+        p = Pool(threads)
         mapper = p.map
     else:
         mapper = map
