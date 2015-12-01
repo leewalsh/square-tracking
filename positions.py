@@ -48,8 +48,7 @@ import skimage
 skversion = version(skimage.__version__)
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, median_filter, binary_erosion, convolve, center_of_mass, imread
-from skimage import segmentation
+from scipy.ndimage import gaussian_filter, binary_erosion, convolve, center_of_mass, imread
 if skversion < version('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
@@ -94,12 +93,13 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
         min_thresh   -- The lower limit for binary threshold
         max_thresh   -- The upper limit for binary threshold
     """
+    from skimage.segmentation import random_walker
     if sigma>0:
         im = gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
     labels[im<min_thresh*im.max()] = 1
     labels[im>max_thresh*im.max()] = 2
-    return segmentation.random_walker(im, labels)
+    return random_walker(im, labels)
 
 def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
@@ -156,15 +156,9 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
     for rprop in rprops:
         area = rprop['area']
         ecc = rprop['eccentricity']
-        if area < min_area:
-            #print 'too small:', area
-            continue
-        elif area > max_area:
-            #print 'too big:', area
+        if area < min_area or area > max_area:
             continue
         elif ecc > max_ecc:
-            #print 'too eccentric:', ecc
-            #labels[labels==rprop.label] = np.ma.masked
             continue
         x, y = rprop[centroid]
         if circ:
@@ -181,12 +175,8 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
 def prep_image(imfile):
     if args.verbose: print "opening", imfile
     im = imread(imfile).astype(float)
-    if imfile.lower().endswith('tif'):
-        # clean pixel noise from phantom images
-        pass #im = median_filter(im, size=2)
-    elif imfile.lower().endswith('jpg') and im.ndim == 3:
+    if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
-        raise StandardError, "Only do this for red lego's"
         im = im[..., 1]
 
     # clip to two standard deviations about the mean
@@ -198,16 +188,14 @@ def prep_image(imfile):
     np.clip(im, 0, 1, out=im)
     return im
 
-def find_particles(im, method='edge', return_image=False, circ=None, **kwargs):
-    """ find_particles(im, gaussian_size=3, **kwargs) -> [Segment],labels
+def find_particles(im, method, return_image=False, **kwargs):
+    """ find_particles(im, method, **kwargs) -> [Segment],labels
         Find the particles in image im. The arguments in kwargs is
         passed to label_particles and filter_segments.
 
         Returns the list of found particles and the label image.
     """
     intensity = None
-
-    #print "Seeking particles using", method
     if method == 'walker':
         labels = label_particles_walker(im, **kwargs)
     elif method == 'edge':
@@ -218,7 +206,7 @@ def find_particles(im, method='edge', return_image=False, circ=None, **kwargs):
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
-    pts = filter_segments(labels, intensity=intensity, circ=circ, **kwargs)
+    pts = filter_segments(labels, intensity=intensity, **kwargs)
     return (pts, labels) + ((convolved,) if return_image else ())
 
 def disk(n):
@@ -258,7 +246,7 @@ def remove_disks(orig, particles, dsk):
             the original image with big dots removed
     """
     if np.isscalar(dsk): dsk = disk(dsk)
-    disks = np.ones(orig.shape, int)
+    disks = np.ones(orig.shape, 'uint8')
     if isinstance(particles[0], Segment):
         xys = zip(*(map(int, (p.x, p.y)) for p in particles))
     elif 'X' in particles.dtype.names:
@@ -285,6 +273,17 @@ if __name__ == '__main__':
                     "Are you sure you want to make plots for all {} frames?"
                     " ".format(len(filenames)))
 
+    suffix = '_POSITIONS'
+    output = args.output
+    outdir = path.abspath(path.dirname(output))
+    if not path.exists(outdir):
+        print "Creating new directory", outdir
+        makedirs(outdir)
+    if output.endswith('.txt'):
+        output = output[:-4]
+    if not output.endswith(suffix):
+        output += suffix
+
     kern_area = np.pi*args.kern**2
     if args.min == -1:
         args.min = kern_area/2
@@ -293,30 +292,23 @@ if __name__ == '__main__':
         args.max = 2*kern_area
         if args.verbose: print "using max =", args.max
 
+    thresh = {'center': {'max_ecc' : args.ecc,
+                         'min_area': args.min,
+                         'max_area': args.max,
+                         'csize'   : args.kern}}
+
     if args.both:
         ckern_area = np.pi*args.ckern**2
         if args.cmin == -1: args.cmin = ckern_area/2
         if args.cmax == -1: args.cmax = 2*ckern_area
+        thresh.update({'corner':
+                        {'max_ecc' : args.cecc,
+                         'min_area': args.cmin,
+                         'max_area': args.cmax,
+                         'csize'   : args.ckern}})
 
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
-
-    threshargs =  {'max_ecc' : args.ecc,
-                   'min_area': args.min,
-                   'max_area': args.max,
-                   'csize'   : args.kern}
-    cthreshargs = {'max_ecc' : args.cecc,
-                   'min_area': args.cmin,
-                   'max_area': args.cmax,
-                   'csize'   : args.ckern}
-    #threshargs =  {'max_ecc' :   .7 if args.slr else  .7, # .6
-    #               'min_area':  800 if args.slr else  15, # 870
-    #               'max_area': 1600 if args.slr else 200, # 1425
-    #               'csize'   :   22 if args.slr else  10}
-    #cthreshargs = {'max_ecc' :  .8 if args.slr else .8,
-    #               'min_area':  80 if args.slr else  3, # 92
-    #               'max_area': 200 if args.slr else 36, # 180
-    #               'csize'   :   5 if args.slr else  2}
 
     def plot_positions(savebase, level, pts, labels, convolved=None,):
         cm = pl.cm.prism_r
@@ -348,52 +340,33 @@ if __name__ == '__main__':
         circ = (co, ro) if args.select else None
         image = prep_image(filename)
         out = find_particles(image, method='convolve', circ=circ,
-                             return_image=args.plot>2, **threshargs)
-        if args.plot > 2:
-            pts, labels, convolved = out
-        else:
-            pts, labels = out
+                             return_image=args.plot>2, **thresh['center'])
+        pts = out[0]
 
         nfound = len(pts)
-        if nfound < 1:
-            print 'Found no particles in ', path.basename(filename)
-            return
-        centers = np.hstack([n*np.ones((nfound,1)), pts])
+        if nfound:
+            centers = np.hstack([np.full((nfound,1), n, 'f8'), pts])
+        else:
+            centers = np.empty((0, 6)) # 6 = id + len(Segment)
         print '%20s: Found %d particles' % (path.basename(filename), nfound)
         if args.plot:
-            pdir = path.dirname(path.abspath(args.output))
-            savebase = path.join(pdir, path.splitext(path.basename(filename))[0])
+            savebase = path.join(outdir, path.splitext(path.basename(filename))[0])
             plot_positions(savebase, args.plot, *out)
 
         if args.both:
             out = find_particles(image, method='convolve', circ=circ,
-                    rmv=(pts, abs(args.kern)), return_image=args.plot>2, **cthreshargs)
-            if args.plot > 2:
-                cpts, clabels, cconvolved = out
-            else:
-                cpts, clabels = out
-
-            #Keep only cpts that are near at least one big point
-            # TODO: this may be a waste of time (michael added it)
-            # Much faster now with cdist, not nested loops
-            # Still it's not the point of this function.
-            #dist_thresh = 20
-            #from scipy.spatial.distance import cdist
-            ## TODO: cpts and pts are lists of Segments, not arrays of x,y
-            #close = (cdist(cpts, pts) < dist_thresh).any(axis=1)
-            #cpts = cpts[close] #TODO: cant index a list with bools
-            #clabels = clabels[close]
+                    rmv=(pts, abs(args.kern)), return_image=args.plot>2, **thresh['corner'])
+            cpts = out[0]
 
             nfound = len(cpts)
-            if nfound < 1:
-                print 'Found no corners, returning only centers'
-                return centers
+            if nfound:
+                corners = np.hstack([np.full((nfound,1), n, 'f8'), cpts])
+            else:
+                corners = np.empty((0, 6)) # 6 = id + len(Segment)
             print '%20s: Found %d corners' % (path.basename(filename), nfound)
             if args.plot:
-                plot_positions(savebase+'_CORNER', args.plot, cpts, clabels)
-            corners = np.hstack([n*np.ones((nfound,1)), cpts])
+                plot_positions(savebase+'_CORNER', args.plot, *out)
             return centers, corners
-
         return centers
 
     if args.threads > 1:
@@ -403,30 +376,14 @@ if __name__ == '__main__':
     else:
         mapper = map
     points = mapper(get_positions, enumerate(filenames))
-    points = filter(lambda x: len(x) > 0, points)
 
-    fulldir = path.abspath(path.dirname(args.output))
-    if not path.exists(fulldir):
-        print "Creating new directory", fulldir
-        makedirs(fulldir)
-
-    if not args.output.endswith('_POSITIONS.txt'):
-        if args.output.endswith('.txt'):
-            args.output = args.output.replace('.txt', '_POSITIONS.txt')
-        else:
-            args.output += '_POSITIONS.txt'
     if args.both:
         points, corners = map(np.vstack, zip(*points))
-        if 'CORNER' in args.output:
-            coutput = args.output
+        if 'CORNER' in output:
+            coutput = output
         else:
-            if 'POSITIONS' in args.output:
-                coutput = args.output.replace('POS','CORNER_POS')
-            else:
-                coutput = args.output.split('.')
-                coutput.insert(-1, '_CORNER.')
-                coutput = ''.join(coutput)
-        with open(coutput, 'w') as coutput:
+            coutput = output[:-len(suffix)] + '_CORNER' + suffix
+        with open(coutput+'.txt', 'w') as coutput:
             print "Saving corner positions to ", coutput.name
             coutput.write('# Kern     Min area    Max area      Max eccen\n')
             coutput.write('#%5.2f%7d%13d%15.2f\n' % (
@@ -438,16 +395,13 @@ if __name__ == '__main__':
     else:
         points = np.vstack(points)
 
-    if 'CORNER_' in args.output:
-        args.output = args.output.replace('CORNER_','')
-    elif 'CORNER' in args.output:
-        args.output = args.output.replace('CORNER','')
-    with open(args.output, 'w') as output:
-        print "Saving positions to ", args.output
+    if 'CORNER' in output:
+        output = output.replace('CORNER','').replace('__','_')
+    with open(output+'.txt', 'w') as output:
+        print "Saving positions to ", output.name
         output.write('# Kern     Min area    Max area      Max eccen\n')
         output.write('#%5.2f%7d%13d%15.2f\n' % (args.kern, args.min, args.max, args.ecc))
         output.write('#\n')
         output.write('# Frame    X           Y             Label  Eccen        Area\n')
         np.savetxt(output, points, delimiter='     ',
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
- 
