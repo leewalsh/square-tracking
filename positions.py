@@ -158,10 +158,10 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
         rprops = regionprops(labels, intensity)
     for rprop in rprops:
         area = rprop['area']
-        ecc = rprop['eccentricity']
         if area < min_area or area > max_area:
             continue
-        elif ecc > max_ecc:
+        ecc = rprop['eccentricity']
+        if ecc > max_ecc:
             continue
         x, y = rprop[centroid]
         if circ:
