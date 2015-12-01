@@ -164,14 +164,15 @@ def loadall(fullprefix, ret_msd=True, ret_fsets=False):
         ret += (fsets, fosets)
     return ret
 
-def gen_data(datapath):
+def gen_data(datapath, verbose=False):
     """ Reads raw positions data into a numpy array and saves it as an npz file
 
         `datapath` is the path to the output file from finding particles
         it must end with "results.txt" or "POSITIONS.txt", depending on its
         source, and its structure is assumed to match a certain pattern
     """
-    print "loading positions data from", datapath
+    if verbose:
+        print "loading positions data from", datapath
     if  datapath.endswith('results.txt'):
         shapeinfo = False
         # imagej output (called *_results.txt)
@@ -182,20 +183,19 @@ def gen_data(datapath):
                  {  'usecols' : [0,1,2,3,4,5,6],
                     'names'   : "id,area,mean,x,y,circ,f",
                     'dtype'   : [int,float,float,float,float,float,int]}
-        data = np.genfromtxt(datapath, skip_header = 1,**dtargs)
+        data = np.genfromtxt(datapath, skip_header=1, **dtargs)
         data['id'] -= 1 # data from imagej is 1-indexed
-    elif datapath.endswith('POSITIONS.txt'):
-        # positions.py output (called *_POSITIONS.txt)
+    elif 'POSITIONS.txt' in datapath:
+        # positions.py output (called *_POSITIONS.txt[.gz])
         from numpy.lib.recfunctions import append_fields
-        data = np.genfromtxt(datapath,
-                             skip_header = 1,
-                             names = "f,x,y,lab,ecc,area",
-                             dtype = [int,float,float,int,float,int])
+        data = np.genfromtxt(datapath, skip_header=1,
+                             names="f,x,y,lab,ecc,area",
+                             dtype=[int,float,float,int,float,int])
         ids = np.arange(len(data))
         data = append_fields(data, 'id', ids, usemask=False)
     else:
-        print "is {} from imagej or positions.py?".format(datapath.split('/')[-1])
-        print "Please rename it to end with _results.txt or _POSITIONS.txt"
+        raise ValueError, ("is {} from imagej or positions.py?".format(datapath.rsplit('/')[-1]) +
+                "Please rename it to end with _results.txt[.gz] or _POSITIONS.txt[.gz]")
     return data
 
 def merge_data(data, savename=None, do_orient=True):

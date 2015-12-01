@@ -14,6 +14,8 @@ if __name__ == '__main__':
                    help="Control verbosity")
     p.add_argument('-o', '--output', default='POSITIONS.txt',
                    help='Output file')
+    p.add_argument('-z', '--nozip', action='store_false', dest='gz',
+                   help="Don't compress output files?")
     p.add_argument('-N', '--threads', default=1, type=int,
                    help='Number of worker threads')
     p.add_argument('-s', '--select', action='store_true',
@@ -275,11 +277,15 @@ if __name__ == '__main__':
                     " ".format(len(filenames)))
 
     suffix = '_POSITIONS'
+    gz = args.gz
     output = args.output
     outdir = path.abspath(path.dirname(output))
     if not path.exists(outdir):
         print "Creating new directory", outdir
         makedirs(outdir)
+    if output.endswith('.gz'):
+        gz = 1
+        output = output[:-3]
     if output.endswith('.txt'):
         output = output[:-4]
     if output.endswith(suffix):
@@ -375,10 +381,13 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
-    for dot, point, output in zip(dots, points, outs):
-        print "Saving", dot, "positions to", output+'.txt'
+    for dot, point, out in zip(dots, points, outs):
+        txt = '.txt'+'.gz'*gz
+        print "Saving {} positions to {}{{{},.npz}}".format(dot, out, txt)
         header = ('Kern {csize:.2f}, Min area {min_area:d}, '
           'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
           'Frame    X           Y             Label  Eccen        Area').format
-        np.savetxt(output+'.txt', point, delimiter='     ', header=header(**thresh[dot]),
+        np.savetxt(out+txt, point, delimiter='     ', header=header(**thresh[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
+        data = helpy.gen_data(out+txt, verbose=args.verbose)
+        (np.savez, np.savez_compressed)[gz](out, data=data)
