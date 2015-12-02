@@ -2,8 +2,10 @@
 # encoding: utf-8
 
 from __future__ import division
+
 from itertools import izip
 from math import log
+import os
 
 import numpy as np
 
@@ -171,6 +173,13 @@ def gen_data(datapath, verbose=False):
         it must end with "results.txt" or "POSITIONS.txt", depending on its
         source, and its structure is assumed to match a certain pattern
     """
+    if not os.path.exists(datapath):
+        if os.path.exists(datapath+'.gz'):
+            datapath += '.gz'
+        elif os.path.exists(datapath[:-3]):
+            datapath = datapath[:-3]
+        else:
+            raise ValueError, 'file {} not found'.format(datapath)
     if verbose:
         print "loading positions data from", datapath
     if  datapath.endswith('results.txt'):
@@ -250,11 +259,10 @@ def merge_data(data, savename=None, do_orient=True):
     merged = map(np.concatenate, data)
 
     if savename:
-        from os import makedirs, path
-        fulldir = path.abspath(path.dirname(savename))
-        if not path.exists(fulldir):
+        fulldir = os.path.abspath(os.path.dirname(savename))
+        if not os.path.exists(fulldir):
             print "Creating new directory", fulldir
-            makedirs(fulldir)
+            os.makedirs(fulldir)
         np.savez_compressed(savename+'_MERGED_TRACKS.npz',
                             **dict(zip(['data', 'trackids'], merged)))
         if do_orient and len(data) > 2:
