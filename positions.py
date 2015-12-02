@@ -265,6 +265,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     from multiprocessing import Pool, cpu_count
     from os import path, makedirs
+    import shutil
 
     if '*' in args.files[0] or '?' in args.files[0]:
         from glob import glob
@@ -390,6 +391,9 @@ if __name__ == '__main__':
         mapper = map
     points = mapper(get_positions, enumerate(filenames))
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
+
+    firstframe = prefix+'_'+path.basename(filenames[0])
+    shutil.copy(filenames[0], firstframe)
 
     for dot, point, out in zip(dots, points, outs):
         txt = '.txt'+'.gz'*gz
