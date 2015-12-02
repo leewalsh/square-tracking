@@ -79,8 +79,10 @@ if __name__=='__main__':
                    help='Calculate and plot the <rn> correlation')
     p.add_argument('--rr', action='store_true',
                    help='Calculate and plot the <rr> correlation')
+    p.add_argument('--fitdr', action='store_true',
+                   help='Let D_R be a free parameter in fit to MSD (<rn>)')
     p.add_argument('--fitv0', action='store_true',
-                   help='Allow v_0 to be a free parameter in fit to MSD (<rr>)')
+                   help='Let v_0 be a free parameter in fit to MSD (<rr>)')
     p.add_argument('-v', '--verbose', action='count',
                         help='Print verbosity')
 
@@ -1041,7 +1043,7 @@ if __name__=='__main__' and args.rn:
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
     # p0 = [v_0/D_R, D_R]
     p0 = [1]
-    if not args.nn:
+    if not args.nn or args.fitdr:
         p0 += [D_R]
 
     print "============="
