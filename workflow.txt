@@ -1,29 +1,24 @@
 Typical workflow
 
-Directory structure:
+Example directory structure:
 
 Tracking/*.py
-Data/example_tifs/example_NNNN.tif
+Data/example_tifs/prefix.tif
 
 (the Data directory may be in the same directory as Tracking, so if your
 current working directory is Tracking, you can access it with
-`../Data/example`..., using backslashes `\` for windows)
-
+`../Data/prefix`..., using backslashes `\` for windows)
 
 First, find the positions from the images
 
-    positions.py -b [size parameters] ../Data/example_*.tif -o ../Data/example_POSITIONS.txt
+    positions.py -b [size parameters, other options] ../Data/example_*.tif -o ../Data/prefix
 
-Second, load (-l) and track (-t) the positions
+Second, track (-t) the positions
 
-    tracks.py -lt ../Data/example
+    tracks.py -t [other options] ../Data/prefix
 
-and load (-l) the corners (-c)
+Third, find the orientations (-o)
 
-    tracks.py -lc ../Data/example
-
-Third, find the orientations (-o) (with otracks.py) given 
-
-    otracks.py -o -r <separation> ../Data/example
+    tracks.py -o -r <separation> [other options] ../Data/prefix
 
 And all the data is now extracted and tracked, and is ready for analysis.
