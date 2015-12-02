@@ -87,11 +87,15 @@ if __name__=='__main__':
                    help="Factor by which to zoom out (in if ZOOM < 1)")
     p.add_argument('-v', '--verbose', action='count',
                    help='Print verbosity, may be repeated: -vv')
+    p.add_argument('--suffix', type=str, default='',
+                    help='suffix to add to end of savenames')
 
     args = p.parse_args()
 
     import os.path
     absprefix = os.path.abspath(args.prefix)
+    readprefix = absprefix
+    saveprefix = absprefix + args.suffix
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
     if args.orient and args.rcorner <= 0:
@@ -543,7 +547,7 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     bgimage : a background image to plot on top of (the first frame tif, e.g.)
     mask : a boolean mask to filter the data (to show certain frames or tracks)
     fignum : a pyplot figure number to add the plot to
-    save : whether to save the figure
+    save : where to save the figure
     show : whether to show the figure
     """
     plt.figure(fignum)
@@ -564,8 +568,8 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     plt.ylim(data['x'].min()-10, data['x'].max()+10)
     plt.title(prefix)
     if save:
-        print "saving tracks image to", absprefix+"_tracks.png"
-        plt.savefig(absprefix+"_tracks.png")
+        print "saving tracks image to", save+"_tracks.png"
+        plt.savefig(save+"_tracks.png")
     if show: plt.show()
 
 # Mean Squared Displacement
@@ -807,11 +811,11 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
-    helpy.save_log_entry(absprefix, 'argv')
-    meta = helpy.load_meta(absprefix)
+    helpy.save_log_entry(saveprefix, 'argv')
+    meta = helpy.load_meta(readprefix)
     if args.load:
-        datapath = absprefix+'_CORNER'*args.corner+'_POSITIONS.txt'
-        helpy.txt_to_npz(datapath, verbose=True, compress=True)
+        helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
+                         verbose=True, compress=True)
         if args.orient or args.track:
             print 'NOTICE: not tracking, only converting file from txt to npz'
             print '        please run again without `-l` to track/orient'
@@ -823,9 +827,9 @@ if __name__=='__main__':
                 "simultaneously track and find orientations? (It's faster)\n"):
             args.track = args.orient = True
         if args.orient:
-            pdata, cdata = helpy.load_data(absprefix, 'position corner')
+            pdata, cdata = helpy.load_data(readprefix, 'position corner')
         else:
-            pdata = helpy.load_data(absprefix, 'position')
+            pdata = helpy.load_data(readprefix, 'position')
         pfsets = helpy.splitter(pdata, ret_dict=True)
         pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
                    for f, pfset in pfsets.iteritems() }
@@ -848,7 +852,7 @@ if __name__=='__main__':
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
-            save = absprefix+'_ORIENTATION.npz'
+            save = saveprefix+'_ORIENTATION.npz'
             print "saving orientation data to", save
             np.savez_compressed(save, odata=odata, omask=omask)
         orients = odata['orient']
@@ -857,11 +861,11 @@ if __name__=='__main__':
     if args.track or args.orient:
         data = helpy.initialize_tdata(pdata, trackids, orients)
         if args.save:
-            save = absprefix+"_TRACKS.npz"
+            save = saveprefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez_compressed(save, data=data)
     else:
-        data = helpy.load_data(absprefix, 'track')
+        data = helpy.load_data(readprefix, 'track')
 
     if args.check:
         from glob import glob
@@ -880,7 +884,7 @@ if __name__=='__main__':
                            "({} available) ".format(len(imfiles)))
         fslice = slice(*[int(s) if s else None for s in frange.split(':')])
         imstack = map(plt.imread, sorted(imfiles)[fslice])
-        datas = helpy.load_data(absprefix, 't c o')
+        datas = helpy.load_data(readprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
                           verbose=args.verbose)
@@ -892,7 +896,7 @@ if __name__=='__main__':
     if args.msd:
         msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
         if args.save:
-            save = absprefix+"_MSD.npz"
+            save = saveprefix+"_MSD.npz"
             print "saving msd data to", save
             np.savez(save,
                      msds = np.asarray(msds),
@@ -901,8 +905,7 @@ if __name__=='__main__':
                      dtau = np.asarray(dtau))
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
-        datapath = absprefix+"_MSD.npz"
-        msdnpz = np.load(datapath)
+        msdnpz = np.load(readprefix+"_MSD.npz")
         msds = msdnpz['msds']
         try: msdids = msdnpz['msdids']
         except KeyError: msdids = None
@@ -914,13 +917,13 @@ if __name__=='__main__':
             dtau = 10 #  should be true for all from before dt* was saved
 
     if args.save:
-        helpy.save_meta(absprefix, meta)
+        helpy.save_meta(saveprefix, meta)
 
 if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting msd now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-                 prefix=absprefix, show_tracks=args.showtracks, show=args.show,
+                 prefix=saveprefix, show_tracks=args.showtracks, show=args.show,
                  singletracks=args.singletracks, fps=fps, S=S, save=args.save,
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
@@ -931,7 +934,7 @@ if __name__=='__main__':
         else:
             mask = None
         plot_tracks(data, trackids, bgimage, mask=mask,
-                    save=args.save, show=args.show)
+                    save=saveprefix*args.save, show=args.show)
 
 if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
@@ -1007,7 +1010,7 @@ if __name__=='__main__' and args.nn:
     plt.legend(loc='upper right' if args.zoom<=1 else 'lower left', framealpha=1)
 
     if args.save:
-        save = absprefix+'_nn-corr.pdf'
+        save = saveprefix+'_nn-corr.pdf'
         print 'saving <nn> correlation plot to', save
         plt.savefig(save)
     if not (args.rn or args.rr) and args.show: plt.show()
@@ -1104,7 +1107,7 @@ if __name__=='__main__' and args.rn:
     plt.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save = absprefix + '_rn-corr.pdf'
+        save = saveprefix+'_rn-corr.pdf'
         print 'saving <rn> correlation plot to', save
         plt.savefig(save)
     if not args.rr and args.show: plt.show()
@@ -1112,9 +1115,9 @@ if __name__=='__main__' and args.rn:
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
             msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-            errorbars=5, prefix=absprefix, show_tracks=True, meancol='ok',
+            errorbars=5, prefix=saveprefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
-            kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
+            save=False, kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
 
     sigma = msderr + 1e-5*S*S
     tmax = int(200*args.zoom)
@@ -1173,7 +1176,7 @@ if __name__=='__main__' and args.rr:
     plt.legend(loc='upper left')
 
     if args.save:
-        save = absprefix + '_rr-corr.pdf'
+        save = saveprefix+'_rr-corr.pdf'
         print 'saving <rr> correlation plot to', save
         fig.savefig(save)
     if args.show: plt.show()
