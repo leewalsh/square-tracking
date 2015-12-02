@@ -603,51 +603,8 @@ if __name__=='__main__':
         if args.orient or args.track:
             print 'not tracking, only converting file from txt to npz'
         import sys; sys.exit()
-    try:
-        datapath = locdir+prefix+'_TRACKS.npz'
-        datanpz = np.load(datapath)
-    except IOError as etracks:
-        try:
-            datapath = locdir+prefix+'_POSITIONS.npz'
-            datanpz = np.load(datapath)
-        except IOError as epos:
-            print etracks
-            print epos
-            print ("Found no npz files. Please run `tracks --load` to convert"
-                   " a POSITIONS.txt to POSITIONS.npz file, or rerun"
-                   " `positions` on your tiffs")
-            raise
-        else:
-            if verbose:
-                print etracks
-                print "Loaded positions data from", datapath
-    else:
-        if verbose: print "Loaded tracks data from", datapath
-    if args.orient:
-        try:
-            cdatapath = locdir+prefix+'_CORNER_POSITIONS.npz'
-            cdatanpz = np.load(cdatapath)
-        except IOError as ecorn:
-            print ecorn
-            print ("Found no npz files. Please run `tracks --load` to convert"
-                   " a POSITIONS.txt to POSITIONS.npz file, or rerun"
-                   " `positions` on your tiffs")
-            raise
-        else:
-            if verbose:
-                print "Loaded corner data from", cdatapath
-    data = datanpz['data']
-    if not args.track:
-        try:
-            trackids = datanpz['trackids']
-        except KeyError:
-            args.track = helpy.bool_input("No tracks found; "
-                                          "would you like to track? ")
-        else:
-            if verbose: print "Loaded data from", datapath
-    if args.orient:
-        cdata = cdatanpz['data']
     if args.track:
+        data = helpy.load_data(locdir+prefix, 'position')
         fsets = helpy.splitter(data, ret_dict=True)
         from scipy.spatial import cKDTree as KDTree
         ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
@@ -659,8 +616,12 @@ if __name__=='__main__':
             save = locdir+prefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez(save, data=data, trackids=trackids)
+    else:
+        data = helpy.load_data(locdir+prefix, 'track')
+
     if args.orient:
         from orientation import get_angles_loop
+        cdata = helpy.load_data(locdir+prefix, 'corner')
         odata, omask = get_angles_loop(data, cdata,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
@@ -713,9 +674,10 @@ if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
-    data, trackids, odata, omask = helpy.load_data(prefix, True, False)
-    tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
-                                                 min_length=args.stub)
+    data, odata = helpy.load_data(prefix, 'tracks orient')
+    omask = np.isfinite(odata['orient'])
+    tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
+                                                 omask, min_length=args.stub)
 
     coscorrs = [ corr.autocorr(np.cos(otrackset), cumulant=False, norm=False)
                 for otrackset in otracksets.values() ]
@@ -781,9 +743,10 @@ if __name__=='__main__' and args.rn:
 
     if not args.nn:
         # if args.nn, then these have been loaded already
-        data, trackids, odata, omask = helpy.load_data(prefix, True, False)
-        tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
-                                                   min_length=max(100, args.stub))
+        data, odata = helpy.load_data(prefix, 'tracks orient')
+        omask = np.isfinite(odata['orient'])
+        tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
+                                           omask, min_length=max(100, args.stub))
         D_R = 1/12
 
     corr_args = {'side': 'both', 'ret_dx': True,

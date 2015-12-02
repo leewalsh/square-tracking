@@ -80,7 +80,9 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
         prefixes = [prefixes]
     for prefix in prefixes:
         print "Loading data for", prefix
-        data, trackids, odata, omask = helpy.load_data(prefix)
+        data, odata = helpy.load_data(prefix, 'tracks orientation')
+        trackids = data['lab']
+        omask = np.isfinite(odata['orient'])
         if dupes:
             trackids = tracks.remove_duplicates(trackids, data)
         tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,

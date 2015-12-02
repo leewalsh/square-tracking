@@ -75,28 +75,36 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
-def load_data(fullprefix, ret_odata=True, ret_cdata=False):
-    """ Load data from a TRACKS.npz file
+def load_data(fullprefix, choices='tracks orientation', verbose=False):
+    """ Load data from an npz file
 
-        Given `fullprefix`
-
-        returns: `data`, `trackids`,[ `odata`, `omask`],[ `cdata`]
+        Given `fullprefix`, returns data arrays from a choice of:
+            tracks, orientation, position, corner
     """
-    ret = ()
+    choices = [c[0].lower() for c in choices.replace(',',' ').split()]
 
-    datanpz = np.load(fullprefix+'_TRACKS.npz')
-    ret += datanpz['data'], datanpz['trackids']
+    name = {'t': 'tracks', 'o': 'orientation',
+            'p': 'positions', 'c': 'corner_positions'}
 
-    if ret_odata:
-        odatanpz = np.load(fullprefix+'_ORIENTATION.npz')
-        ret += odatanpz['odata'], odatanpz['omask']
-
-    if ret_cdata:
-        cdatanpz = np.load(fullprefix+'_CORNER_POSITIONS.npz')
-        ret += (cdatanpz['data'],)
-
-    #print 'loaded data for', fullprefix
-    return ret
+    npzs = {}
+    data = {}
+    for c in choices:
+        datapath = fullprefix+'_'+name[c].upper()+'.npz'
+        try:
+            npzs[c] = np.load(datapath)
+        except IOError as e:
+            print e
+            print ("Found no {} npz file. Please run ".format(name[c]) +
+                ("`tracks -l` to convert a {0}.txt to {0}.npz".format(name[c].upper()) +
+                 "file, or rerun `positions` on your tiffs" if c in 'pc' else
+                 "`tracks -{}` to generate a {}.npz file".format(c, name[c].upper())))
+            raise
+        else:
+            if verbose:
+                print "Loaded {} data from {}".format(name[c], datapath)
+            data[c] = npzs[c][c*(c=='o')+'data']
+    ret = [data[c] for c in choices]
+    return ret if len(ret)>1 else ret[0]
 
 def load_MSD(fullprefix, pos=True, ang=True):
     """ Loads ms(a)ds from an MS(A)D.npz file
@@ -154,8 +162,8 @@ def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,
          + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
     """
-    data, trackids, odata, omask = \
-            load_data(fullprefix, ret_odata=True, ret_cdata=False)
+    data, odata = load_data(fullprefix, 'tracks orients')
+    trackids, omask = data['lab'], np.isfinite(odata['orient'])
     tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
     ret = data, tracksets, odata, otracksets
     if ret_msd:
