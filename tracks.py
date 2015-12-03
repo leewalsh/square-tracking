@@ -189,12 +189,13 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             print '\tframe:', frame, 'n:', n, 'dot:', thisdot[-1]
         return newtrackid
 
-def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
+def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
     """ Track dots from frame-to-frame, giving each particle a unique and
         persistent id, called the trackid.
 
         parameters
         ----------
+        pdata : the main positions data array
         maxdist : maximal separation in pixels between a particles current
             and previous position. i.e., the maximum distance a particle is
             allowed to travel to be considered part of the same track
@@ -211,28 +212,20 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         stub : minimal length of a track for it to be kept. trackids of any
             track with length less than `stub` will be set to -1
 
-        accesses
-        --------
-        data : the main data array
-
-        modifies
-        --------
-        data : replaces the `data['lab']` field with the values from `trackids`
-
         returns
         -------
-        trackids : an array of length `len(data)`, giving the track id number
+        trackids : an array of length `len(pdata)`, giving the track id number
             for each point in data. Any point not belonging to any track has a
             track id of -1
     """
     from sys import setrecursionlimit, getrecursionlimit
     setrecursionlimit(max(getrecursionlimit(), 2*giveup))
 
-    trackids = -np.ones(data.shape, dtype=int)
+    trackids = -np.ones(pdata.shape, dtype=int)
     if n is True:
         # use the mode of number of particles per frame
         # np.argmax(np.bincount(x)) == mode(x)
-        n = np.argmax(np.bincount(np.bincount(data['f'])))
+        n = np.argmax(np.bincount(np.bincount(pdata['f'])))
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
@@ -248,19 +241,19 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         mm = R/101.6 # R = 4 in = 101.6 mm
         margin = S if S>1 else 6*mm
         print 'Cutting with margin {:.1f} pix = {:.1f} mm'.format(margin, margin/mm)
-        rs = np.hypot(data['x'] - x0, data['y'] - y0)
+        rs = np.hypot(pdata['x'] - x0, pdata['y'] - y0)
         cut = rs > R - margin
 
     print "seeking tracks"
-    for i in xrange(len(data)):
+    for i in xrange(len(pdata)):
         # This must remain a simple loop because trackids gets modified and
         # passed into the function with each iteration
-        trackids[i] = find_closest(data.item(i), trackids,
+        trackids[i] = find_closest(pdata.item(i), trackids,
                                    maxdist=maxdist, giveup=giveup, cut=cut)
 
     if verbose:
-        assert len(data) == len(trackids), "too few/many trackids"
-        assert np.allclose(data['id'], np.arange(len(data))), "gap in particle id"
+        assert len(pdata) == len(trackids), "too few/many trackids"
+        assert np.allclose(pdata['id'], np.arange(len(pdata))), "gap in particle id"
 
     if n or stub > 0:
         track_lens = np.bincount(trackids+1)[1:]
@@ -272,10 +265,6 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
     if n or stub > 0:
         stubs = np.in1d(trackids, stubs)
         trackids[stubs] = -1
-    trackids = remove_duplicates(trackids, data=data)
-    # Michael used the data['lab'] field (as line[3] for line in data) to store
-    # trackids. I'll keep doing that:
-    data['lab'] = trackids
     return trackids
 
 def remove_duplicates(trackids, data=None, tsets=None):
@@ -609,15 +598,17 @@ if __name__=='__main__':
         from scipy.spatial import cKDTree as KDTree
         ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
                    for f, fset in fsets.iteritems() }
-        trackids = find_tracks(maxdist=args.maxdist, giveup=args.giveup,
+        trackids = find_tracks(data, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
-        # save the data record array and the trackids array
+        trackids = remove_duplicates(trackids, data=data)
+        data['lab'] = trackids
         if args.save:
             save = locdir+prefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez(save, data=data, trackids=trackids)
     else:
         data = helpy.load_data(locdir+prefix, 'track')
+        trackids = data['lab']
 
     if args.orient:
         from orientation import get_angles_loop
