@@ -469,5 +469,3 @@ pi = np.pi
 # N = max number of particles (πR^2)/S^2 where S = 1
 Nb = lambda margin: pi * (R - margin)**2
 N = Nb(0)
-
-bobby = 10
