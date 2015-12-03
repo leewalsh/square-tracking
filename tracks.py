@@ -604,12 +604,10 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
 
 if __name__=='__main__':
     if args.load:
-        datapath = locdir+prefix+'_CORNER'*args.corner+'_POSITIONS'
-        data = helpy.gen_data(datapath+'.txt', verbose=args.verbose)
-        if args.verbose:
-            print 'saving{} positions to {}.npz'.format(
-                  ' corner'*args.corner, datapath)
-        np.savez_compressed(datapath, data=data)
+        datapath = locdir+prefix+'_CORNER'*args.corner+'_POSITIONS.txt'
+        helpy.txt_to_npz(datapath, verbose=True, compress=True)
+        if args.orient or args.track:
+            print 'not tracking, only converting file from txt to npz'
         import sys; sys.exit()
     try:
         datapath = locdir+prefix+'_TRACKS.npz'

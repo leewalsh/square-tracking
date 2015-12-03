@@ -166,8 +166,8 @@ def loadall(fullprefix, ret_msd=True, ret_fsets=False):
         ret += (fsets, fosets)
     return ret
 
-def gen_data(datapath, verbose=False):
-    """ Reads raw positions data into a numpy array and saves it as an npz file
+def txt_to_npz(datapath, verbose=False, compress=True):
+    """ Reads raw txt positions data into a numpy array and saves to an npz file
 
         `datapath` is the path to the output file from finding particles
         it must end with "results.txt" or "POSITIONS.txt", depending on its
@@ -179,10 +179,10 @@ def gen_data(datapath, verbose=False):
         elif os.path.exists(datapath[:-3]):
             datapath = datapath[:-3]
         else:
-            raise ValueError, 'file {} not found'.format(datapath)
+            raise IOError, 'File {} not found'.format(datapath)
     if verbose:
-        print "loading positions data from", datapath
-    if  datapath.endswith('results.txt'):
+        print "loading positions data from", datapath,
+    if datapath.endswith('results.txt'):
         shapeinfo = False
         # imagej output (called *_results.txt)
         dtargs = {  'usecols' : [0,2,3,5],
@@ -205,7 +205,11 @@ def gen_data(datapath, verbose=False):
     else:
         raise ValueError, ("is {} from imagej or positions.py?".format(datapath.rsplit('/')[-1]) +
                 "Please rename it to end with _results.txt[.gz] or _POSITIONS.txt[.gz]")
-    return data
+    if verbose: print '...',
+    outpath = datapath[:datapath.rfind('txt')] + 'npz'
+    (np.savez, np.savez_compressed)[compress](outpath, data=data)
+    if verbose: print 'and saved to', outpath
+    return
 
 def merge_data(data, savename=None, do_orient=True):
     """ returns (and optionally saves) new `data` array merged from list or

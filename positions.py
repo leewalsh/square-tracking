@@ -403,5 +403,4 @@ if __name__ == '__main__':
           'Frame    X           Y             Label  Eccen        Area').format
         np.savetxt(out+txt, point, delimiter='     ', header=header(**thresh[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
-        data = helpy.gen_data(out+txt, verbose=args.verbose)
-        (np.savez, np.savez_compressed)[gz](out, data=data)
+        helpy.txt_to_npz(out+txt, verbose=args.verbose, compress=gz)
