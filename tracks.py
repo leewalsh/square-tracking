@@ -68,9 +68,8 @@ if __name__=='__main__':
                    help='Show individual tracks')
     p.add_argument('--cut', action='store_true',
                    help='cut individual tracks at collision with boundary')
-    p.add_argument('--center', type=float, nargs=3, default=False,
-                   metavar=('X0', 'Y0', 'R'),
-                   help='Optionally provide center and radius')
+    p.add_argument('--boundary', type=float, nargs=3, default=False,
+                   metavar=('X0','Y0','R'), help='Optionally provide boundary')
     p.add_argument('--nn', action='store_true',
                    help='Calculate and plot the <nn> correlation')
     p.add_argument('--rn', action='store_true',
@@ -206,8 +205,8 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
             cut when the particle hits the boundary
         cut : whether or not to cut tracks (assign a new trackid to the same
             physical particle) when the particle nears or hits the boundary
-            if True, it requires either args.center or for user to click on an
-            image to mark the center and boundary. Particle at the boundary
+            if True, it requires either args.boundary or for user to click on
+            an image to mark the center and boundary. Particle at the boundary
             (between two tracks) will have track id of -1
         stub : minimal length of a track for it to be kept. trackids of any
             track with length less than `stub` will be set to -1
@@ -237,9 +236,8 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
-        if args.center:
-            C = args.center[:2]
-            R = args.center[2]
+        if args.boundary:
+            x0, y0, R = args.boundary
         else:
             from glob import glob
             bgimage = glob(locdir + prefix + "*.tif")
@@ -253,10 +251,13 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
             else:
                 bgimage = bgimage[0]
                 print 'Opening', bgimage
-            C, R = helpy.circle_click(bgimage)
-            print "Boundary:", C, R
-        margin = S if S>1 else R/16.9 # assume 6mm particles if S not specified
-        rs = np.hypot(data['x'] - C[0], data['y'] - C[1])
+            x0, y0, R = helpy.circle_click(bgimage)
+            print "Boundary (x0, y0, r):", x0, y0, R
+        # assume 6mm particles if S not specified
+        mm = R/101.6 # R = 4 in = 101.6 mm
+        margin = S if S>1 else 6*mm
+        print 'Cutting with margin {:.1f} pix = {:.1f} mm'.format(margin, margin/mm)
+        rs = np.hypot(data['x'] - x0, data['y'] - y0)
         cut = rs > R - margin
 
     print "seeking tracks"

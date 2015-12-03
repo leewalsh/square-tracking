@@ -313,17 +313,18 @@ def circle_three_points(*xs):
     xo = ma*mb*(y1-y3) + mb*(x1+x2) - ma*(x2+x3)
     xo /= 2*(mb-ma)
     yo = (y1+y2)/2 - (xo - (x1+x2)/2)/ma
-    c = np.array([xo, yo])         # center
-    r = np.hypot(*(c - [x1, y1]))  # radius
+    r = ((xo - x1)**2 + (yo - y1)**2)**0.5
 
-    return c, r
+    return xo, yo, r
 
 def circle_click(im):
     """ saves points as they are clicked
         once three points have been saved, calculate the center and
         radius of the circle pass through them all. Draw it and save it.
     """
-
+    import matplotlib
+    if matplotlib.is_interactive():
+        raise RuntimeError, "Cannot do circle_click when in interactive/pylab mode"
     print """
     To use:
         when image is shown, click three non-co-linear points along the
@@ -331,8 +332,6 @@ def circle_click(im):
         (gives divide by zero) when three points have been clicked, a circle
         should appear. Then close the figure to allow the script to continue.
     """
-
-    import matplotlib
     from matplotlib import pyplot as plt
     if isinstance(im, str):
         im = plt.imread(im)
@@ -353,15 +352,16 @@ def circle_click(im):
         if len(xs) == 3:
             # With three points, calculate circle
             print 'got three points'
-            global c, r # can't access connector function's returned value
-            c, r = circle_three_points(xs, ys)
-            cpatch = matplotlib.patches.Circle(c, radius=r, color='g', fill=False)
+            global xo, yo, r # can't access connector function's returned value
+            xo, yo, r = circle_three_points(xs, ys)
+            cpatch = matplotlib.patches.Circle([xo, yo], r,
+                        linewidth=3, color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
 
     fig.canvas.mpl_connect('button_press_event', circle_click_connector)
     plt.show()
-    return c, r
+    return xo, yo, r
 
 def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     """ Take a finite derivative of f(x) using convolution with the derivative
