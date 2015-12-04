@@ -317,6 +317,28 @@ def circle_three_points(*xs):
 
     return xo, yo, r
 
+def find_first_frame(paths, ext='.tif', err=None, load=False):
+    from glob import glob
+    join = lambda p: os.path.join(*p)
+    patterns = [join(paths)+"*", join(paths)+"/*"]
+    paths.insert(-1, '..')
+    patterns.extend([join(paths)+"*", join(paths)+"/*"])
+    for pattern in patterns:
+        bgimage = glob(pattern+ext)
+        if bgimage:
+            bgimage = bgimage[0]
+            break
+    else:
+        if isinstance(err, basestring):
+            bgimage = raw_input(err or 'Please give path to tif:\n')
+        else:
+            return err
+    if load:
+        from scipy.ndimage import imread
+        return imread(bgimage)
+    else:
+        return bgimage
+
 def circle_click(im):
     """ saves points as they are clicked
         once three points have been saved, calculate the center and

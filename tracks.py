@@ -239,18 +239,9 @@ def find_tracks(maxdist=20, giveup=10, n=0, cut=False, stub=0):
         if args.boundary:
             x0, y0, R = args.boundary
         else:
-            from glob import glob
-            bgimage = glob(locdir + prefix + "*.tif")
-            if not bgimage:
-                bgimage = glob(locdir + prefix + "/*.tif")
-            if not bgimage:
-                bgimage = glob(locdir + '../' + prefix + "/*.tif")
-            if not bgimage:
-                bgimage = raw_input('Please give the path to a tiff image '
-                                    'from this dataset to identify boundary\n')
-            else:
-                bgimage = bgimage[0]
-                print 'Opening', bgimage
+            not_found = ('Please give the path to a tiff image '
+                         'from this dataset to identify boundary\n')
+            bgimage = helpy.find_first_frame([locdir, prefix], err=not_found)
             x0, y0, R = helpy.circle_click(bgimage)
             print "Boundary (x0, y0, r):", x0, y0, R
         # assume 6mm particles if S not specified
@@ -338,6 +329,10 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     show : whether to show the figure
     """
     pl.figure(fignum)
+    if bgimage:
+        if isinstance(bgimage, basestring):
+            bgimage = pl.imread(bgimage)
+        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
     if mask is None:
         mask = (trackids >= 0)
     else:
@@ -346,8 +341,6 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     trackids = trackids[mask]
     pl.scatter(data['y'], data['x'],
             c=np.array(trackids)%12, marker='o', alpha=.5, lw=0)
-    if bgimage:
-        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
     pl.gca().set_aspect('equal')
     pl.xlim(data['y'].min()-10, data['y'].max()+10)
     pl.ylim(data['x'].min()-10, data['x'].max()+10)
@@ -708,13 +701,7 @@ if __name__=='__main__':
                  singletracks=args.singletracks, fps=fps, S=S, save=args.save,
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
-        try:
-            bgimage = pl.imread(extdir+prefix+'_0001.tif')
-        except IOError:
-            try:
-                bgimage = pl.imread(locdir+prefix+'_001.tif')
-            except IOError:
-                bgimage = None
+        bgimage = helpy.find_first_frame([locdir, prefix])
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
         else:
