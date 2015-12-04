@@ -83,7 +83,9 @@ if __name__=='__main__':
 
     args = p.parse_args()
 
-    prefix = args.prefix
+    import os.path
+    locdir, prefix = os.path.split(os.path.abspath(args.prefix))
+    locdir += '/'
     if args.orient and args.rcorner <= 0:
         raise ValueError, "argument -r/--rcorner is required"
 
@@ -129,7 +131,6 @@ sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
-locdir = extdir = ''
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """ recursive function to find nearest dot in previous frame.
@@ -665,7 +666,7 @@ if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
-    data, odata = helpy.load_data(prefix, 'tracks orient')
+    data, odata = helpy.load_data(locdir+prefix, 'tracks orient')
     omask = np.isfinite(odata['orient'])
     tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
                                                  omask, min_length=args.stub)
@@ -734,7 +735,7 @@ if __name__=='__main__' and args.rn:
 
     if not args.nn:
         # if args.nn, then these have been loaded already
-        data, odata = helpy.load_data(prefix, 'tracks orient')
+        data, odata = helpy.load_data(locdir+prefix, 'tracks orient')
         omask = np.isfinite(odata['orient'])
         tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
                                            omask, min_length=max(100, args.stub))
