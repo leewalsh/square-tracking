@@ -33,8 +33,8 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
             fsets = splitter(data, method='unique', ret_dict=True)
             fset = fsets[f]
 
-            for trackid, trackset in splitter(data, data['lab'], noncontiguous=True)
-            tracksets = splitter(data, data['lab'], noncontiguous=True, ret_dict=True)
+            for trackid, trackset in splitter(data, data['t'], noncontiguous=True)
+            tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
             trackset = tracksets[trackid]
     """
     if frame is None:
@@ -103,6 +103,10 @@ def load_data(fullprefix, choices='tracks orientation', verbose=False):
             if verbose:
                 print "Loaded {} data from {}".format(name[c], datapath)
             data[c] = npzs[c][c*(c=='o')+'data']
+    if 't' in choices and 'trackids' in npzs['t'].files:
+        # separate trackids means this is an old-style TRACKS.npz, convert it:
+        orient = npzs['o']['odata']['orient'] if 'o' in npzs else np.nan
+        data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
     ret = [data[c] for c in choices]
     return ret if len(ret)>1 else ret[0]
 
@@ -133,38 +137,33 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, trackids, odata=None, omask=None, min_length=10, run_track_orient=False):
+def load_tracksets(data, omask=None, trackids=None, min_length=10, run_track_orient=False):
     """ Returns a dict of slices into data based on trackid
     """
     if omask is not None:
-        trackids = trackids[omask]
         data = data[omask]
-        if odata is not None:
-            odata = odata[omask]
+    if trackids is None:
+        trackids = data['t']
 
     #NOTE: check min_length after omask:
     longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
     tmasks = {track: np.where(trackids==track) for track in longtracks}
     tracksets = {track: data[tmasks[track]] for track in longtracks}
 
-    if odata is None:
-        return tracksets
-
-    otracksets = {track: odata[tmasks[track]]['orient']
-                  for track in longtracks}
     if run_track_orient:
         from orientation import track_orient
-        otracksets = {track: track_orient(otracksets[track], onetrack=True)
-                      for track in longtracks}
-    return tracksets, otracksets
+        for track in longtracks:
+            tracksets[track]['o'] = track_orient(tracksets[track]['o'], onetrack=True)
+
+    return tracksets
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,
          + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
     """
-    data, odata = load_data(fullprefix, 'tracks orients')
-    trackids, omask = data['lab'], np.isfinite(odata['orient'])
-    tracksets, otracksets = load_tracksets(data, trackids, odata, omask)
+    print "warning, this may not return what you want"
+    data = load_data(fullprefix, 'tracks')
+    tracksets = load_tracksets(data, odata, omask)
     ret = data, tracksets, odata, otracksets
     if ret_msd:
         ret += load_MSD(fullprefix, True, True)
@@ -205,6 +204,43 @@ def consecutive_fields_view(arr, fields, careful=True):
         assert all([df[f][0]==dt for f in fields[1:]]), 'fields must have same type'
         assert all([arr.item(1)[ind+f]==out[1,f] for f in xrange(j)])
     return out
+
+track_dtype = np.dtype({'names': 'id f  t  x  y  o'.split(),
+                      'formats': 'u4 u2 i4 f4 f4 f4'.split()})
+pos_dtype = np.dtype({  'names': 'f  x  y  lab ecc area id'.split(),
+                      'formats': 'i4 f8 f8 i4  f8  i4   i4'.split()})
+
+def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
+    if pdata.dtype==track_dtype:
+        data = pdata
+    else:
+        data = np.empty(len(pdata), dtype=track_dtype)
+        for field in pdata.dtype.names:
+            if field in track_dtype.names:
+                data[field] = pdata[field]
+    if trackids is not None:
+        data['t'] = trackids
+    if orientations is not None:
+        data['o'] = orientations
+    return data
+
+def dtype_info(dtype='all'):
+    if dtype=='all':
+        [dtype_info(s+b) for s in 'ui' for b in '1248']
+        return
+    dt = np.dtype(dtype)
+    bits = 8*dt.itemsize
+    if dt.kind=='f':
+        print np.finfo(dt)
+        return
+    if dt.kind=='u':
+        mn = 0
+        mx = 2**bits - 1
+    elif dt.kind=='i':
+        mn = -2**(bits-1)
+        mx = 2**(bits-1) - 1
+    print "{:6} ({}{}) min: {:20}, max: {:20}".format(
+                dt.name, dt.kind, dt.itemsize, mn, mx)
 
 def txt_to_npz(datapath, verbose=False, compress=True):
     """ Reads raw txt positions data into a numpy array and saves to an npz file
