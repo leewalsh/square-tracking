@@ -211,6 +211,17 @@ def txt_to_npz(datapath, verbose=False, compress=True):
     if verbose: print 'and saved to', outpath
     return
 
+def compress_existing_npz(path, overwrite=False, test=False):
+    orig = np.load(path)
+    arrs = {n: orig[n] for n in orig.files}
+    out = path[:-4]+'compressed'*(not overwrite)
+    np.savez_compressed(out, **arrs)
+    if test:
+        comp = np.load(out+'.npz')
+        assert comp.files==orig.files
+        assert all([orig[n]==comp[n] for n in comp.files])
+        print 'Success!'
+
 def merge_data(data, savename=None, do_orient=True):
     """ returns (and optionally saves) new `data` array merged from list or
         tuple of individual `data` arrays or path prefixes.
