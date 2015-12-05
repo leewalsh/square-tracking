@@ -166,6 +166,38 @@ def loadall(fullprefix, ret_msd=True, ret_fsets=False):
         ret += (fsets, fosets)
     return ret
 
+def fields_view(arr, fields):
+    """ by [HYRY](https://stackoverflow.com/users/772649/hyry)
+        at http://stackoverflow.com/a/21819324/"""
+    dtype2 = np.dtype({name:arr.dtype.fields[name] for name in fields})
+    return np.ndarray(arr.shape, dtype2, arr, 0, arr.strides)
+
+def quick_field_view(arr, field, careful=True):
+    if isinstance(field, basestring):
+        fieldname = field
+        fieldind = arr.dtype.names.index(fieldname)
+    else:
+        fieldind = field
+        fieldname = arr.dtype.names[fieldind]
+    dt, off = arr.dtype.fields[fieldname]
+    out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
+    if careful:
+        assert arr.item(1)[fieldind]==out[1]
+    return out
+
+def consecutive_fields_view(arr, fields, careful=True):
+    i, j = len(arr), len(fields)
+    df = arr.dtype.fields
+    dt, offset = df[fields[0]]
+    out = np.ndarray((i, j), dt, arr, offset, arr.strides+(dt.itemsize,))
+    if careful:
+        names = arr.dtype.names
+        ind = names.index(fields[0])
+        assert tuple(fields)==names[ind:ind+len(fields)]
+        assert all([df[f][0]==dt for f in fields[1:]]), 'fields must have same type'
+        assert all([arr.item(1)[ind+f]==out[1,f] for f in xrange(j)])
+    return out
+
 def txt_to_npz(datapath, verbose=False, compress=True):
     """ Reads raw txt positions data into a numpy array and saves to an npz file
 
