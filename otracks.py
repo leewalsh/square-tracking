@@ -90,20 +90,6 @@ pi = np.pi
 twopi = 2*pi
 locdir = extdir = ''
 
-def load_from_npz(prefix, locdir=None):
-    """ given a prefix, returns:
-        data, cdata, odata, omask
-        [used in equilibrium.ipynb]
-        """
-    if locdir is None:
-        from os import getcwd
-        locdir = getcwd() +'/'
-    odatanpz = np.load(locdir+prefix+'_ORIENTATION.npz')
-    return (np.load(locdir+prefix+'_POSITIONS.npz')['data'],
-            np.load(locdir+prefix+'_CORNER_POSITIONS.npz')['data'],
-            odatanpz['odata'], odatanpz['omask'])
-
-
 def trackmsd(track, dt0, dtau, data, trackids, odata, omask, mod_2pi=False):
     """ trackmsd(track, dt0, dtau, data, trackids, odata, omask)
         finds the track msd, as function of tau, averaged over t0, for one track (worldline)
