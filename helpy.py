@@ -229,10 +229,15 @@ def txt_to_npz(datapath, verbose=False, compress=True):
     elif 'POSITIONS.txt' in datapath:
         # positions.py output (called *_POSITIONS.txt[.gz])
         from numpy.lib.recfunctions import append_fields
+        # successfully tested the following reduced datatype sizes on
+        # Squares/diffusion/orientational/n464_CORNER_POSITIONS.npz
+        # with no real loss in float precision nor cutoff in ints
+        # names:   'f  x  y  lab ecc area id'
+        # formats: 'u2 f4 f4 i4  f2  u2   u4'
         data = np.genfromtxt(datapath, skip_header=1,
                              names="f,x,y,lab,ecc,area",
-                             dtype=[int,float,float,int,float,int])
-        ids = np.arange(len(data))
+                             dtype="u2,f4,f4,i4,f2,u2")
+        ids = np.arange(len(data), dtype='u4')
         data = append_fields(data, 'id', ids, usemask=False)
     else:
         raise ValueError, ("is {} from imagej or positions.py?".format(datapath.rsplit('/')[-1]) +
