@@ -593,33 +593,41 @@ if __name__=='__main__':
         if args.orient or args.track:
             print 'not tracking, only converting file from txt to npz'
         import sys; sys.exit()
+
+    if args.track or args.orient:
+        if args.orient:
+            pdata, cdata = helpy.load_data(locdir+prefix, 'position corner')
+        else:
+            pdata = helpy.load_data(locdir+prefix, 'position')
     if args.track:
-        data = helpy.load_data(locdir+prefix, 'position')
-        fsets = helpy.splitter(data, ret_dict=True)
+        fsets = helpy.splitter(pdata, ret_dict=True)
         from scipy.spatial import cKDTree as KDTree
         ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
                    for f, fset in fsets.iteritems() }
-        trackids = find_tracks(data, maxdist=args.maxdist, giveup=args.giveup,
+        trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
-        trackids = remove_duplicates(trackids, data=data)
-        data['lab'] = trackids
-        if args.save:
-            save = locdir+prefix+"_TRACKS.npz"
-            print "saving track data to", save
-            np.savez(save, data=data, trackids=trackids)
+        trackids = remove_duplicates(trackids, data=pdata)
     else:
-        data = helpy.load_data(locdir+prefix, 'track')
-        trackids = data['lab']
-
+        trackids = None
     if args.orient:
         from orientation import get_angles_loop
-        cdata = helpy.load_data(locdir+prefix, 'corner')
         odata, omask = get_angles_loop(data, cdata,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
             save = locdir+prefix+'_ORIENTATION.npz'
             print "saving orientation data to", save
-            np.savez(save, odata=odata, omask=omask)
+            np.savez_compressed(save, odata=odata, omask=omask)
+        orients = odata['orient']
+    else:
+        orients = None
+    if args.track or args.orient:
+        data = helpy.initialize_tdata(pdata, trackids, orients)
+        if args.save:
+            save = locdir+prefix+"_TRACKS.npz"
+            print "saving track data to", save
+            np.savez_compressed(save, data=data)
+    else:
+        data = helpy.load_data(locdir+prefix, 'track')
 
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
