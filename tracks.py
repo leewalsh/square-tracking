@@ -272,7 +272,7 @@ def remove_duplicates(trackids, data=None, tsets=None):
     if tsets is None:
         if data is None:
             raise ValueError, "Either data or tsets is required"
-        tsets = helpy.load_tracksets(data, trackids, min_length=0)
+        tsets = helpy.load_tracksets(data, trackids=trackids, min_length=0)
 
     for t, tset in tsets.iteritems():
         fs = tset['f']
@@ -454,11 +454,11 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
         msdids : a list of the trackids corresponding to each msd
     """
     print "Calculating MSDs with",
-    print "dtau = {}, dtau = {}".format(dt0, dtau)
+    print "dt0 = {}, dtau = {}".format(dt0, dtau)
     msds = []
     msdids = []
     if tracks is None:
-        tracks = helpy.load_tracksets(data, trackids, min_length=min_length)
+        tracks = helpy.load_tracksets(data, min_length=min_length)
     for trackid in sorted(tracks):
         if verbose: print "calculating msd for track", trackid
         tmsd = trackmsd(tracks[trackid], dt0, dtau)
@@ -674,15 +674,14 @@ if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
-    data, odata = helpy.load_data(locdir+prefix, 'tracks orient')
-    omask = np.isfinite(odata['orient'])
-    tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
-                                                 omask, min_length=args.stub)
+    data = helpy.load_data(locdir+prefix, 'tracks')
+    omask = np.isfinite(data['o'])
+    tracksets = helpy.load_tracksets(data, omask, min_length=args.stub)
 
-    coscorrs = [ corr.autocorr(np.cos(otrackset), cumulant=False, norm=False)
-                for otrackset in otracksets.values() ]
-    sincorrs = [ corr.autocorr(np.sin(otrackset), cumulant=False, norm=False)
-                for otrackset in otracksets.values() ]
+    coscorrs = [ corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
+                for trackset in tracksets.values() ]
+    sincorrs = [ corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
+                for trackset in tracksets.values() ]
 
     # Gather all the track correlations and average them
     allcorr = coscorrs + sincorrs
@@ -743,19 +742,19 @@ if __name__=='__main__' and args.rn:
 
     if not args.nn:
         # if args.nn, then these have been loaded already
-        data, odata = helpy.load_data(locdir+prefix, 'tracks orient')
-        omask = np.isfinite(odata['orient'])
-        tracksets, otracksets = helpy.load_tracksets(data, data['lab'], odata,
-                                           omask, min_length=max(100, args.stub))
+        data = helpy.load_data(locdir+prefix, 'tracks')
+        omask = np.isfinite(data['o'])
+        tracksets = helpy.load_tracksets(data, omask,
+                                    min_length=max(100, args.stub))
         D_R = 1/12
 
     corr_args = {'side': 'both', 'ret_dx': True,
                  'cumulant': (True, False), 'norm': 0 }
 
-    xcoscorrs = [ corr.crosscorr(tracksets[t]['x']/S, np.cos(otracksets[t]),
-                 **corr_args) for t in tracksets ]
-    ysincorrs = [ corr.crosscorr(tracksets[t]['y']/S, np.sin(otracksets[t]),
-                 **corr_args) for t in tracksets ]
+    xcoscorrs = [ corr.crosscorr(trackset['x']/S, np.cos(trackset['o']),
+                 **corr_args) for trackset in tracksets.values() ]
+    ysincorrs = [ corr.crosscorr(trackset['y']/S, np.sin(trackset['o']),
+                 **corr_args) for trackset in tracksets.values() ]
 
     # Align and merge them
     fmax = int(2*fps/D_R)

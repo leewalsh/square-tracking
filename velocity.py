@@ -46,16 +46,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import helpy, tracks, correlation as corr
 
-def noise_derivatives(tdata, todata, width=1, side=1, fps=1, xy=False,
+def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
                       do_orientation=True, do_translation=True, subtract=True):
     x = tdata['f']/fps
     ret = {}
     ws = [width] if np.isscalar(width) else width
     if do_orientation:
-        ret['o'] = np.array([helpy.der(todata, x=x, iwidth=w)
+        ret['o'] = np.array([helpy.der(tdata['o'], x=x, iwidth=w)
                              for w in ws]).squeeze()
     if do_translation:
-        cos, sin = np.cos(todata), np.sin(todata)
+        cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
         vx, vy = [np.array([helpy.der(tdata[i]/side, x=x, iwidth=w)
                             for w in ws]).squeeze() for i in 'xy']
         if xy:
@@ -80,17 +80,15 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
         prefixes = [prefixes]
     for prefix in prefixes:
         print "Loading data for", prefix
-        data, odata = helpy.load_data(prefix, 'tracks orientation')
-        trackids = data['lab']
-        omask = np.isfinite(odata['orient'])
+        data = helpy.load_data(prefix, 'tracks')
+        omask = np.isfinite(data['o'])
         if dupes:
-            trackids = tracks.remove_duplicates(trackids, data)
-        tracksets, otracksets = helpy.load_tracksets(data, trackids, odata, omask,
+            data['t'] = tracks.remove_duplicates(data['t'], data)
+        tracksets = helpy.load_tracksets(data, omask,
                 min_length=minlen, run_track_orient=torient)
         for track in tracksets:
             tdata = tracksets[track]
-            todata = otracksets[track]
-            velocities = noise_derivatives(tdata, todata, width=width,
+            velocities = noise_derivatives(tdata, width=width,
                     side=side, fps=fps, do_orientation=do_orientation,
                     do_translation=do_translation, subtract=subtract)
             for v in velocities:

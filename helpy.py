@@ -346,11 +346,11 @@ def merge_data(data, savename=None, do_orient=True):
 
     track_increment = 0
     for i, datum in enumerate(data[0]):
-        goodtracks = datum['lab'] >= 0
-        datum['lab'][goodtracks] += track_increment
+        goodtracks = datum['t'] >= 0
+        datum['t'][goodtracks] += track_increment
         if len(data) > 1:
             data[1][i][goodtracks] += track_increment # trackids
-        track_increment = datum['lab'].max() + 1
+        track_increment = datum['t'].max() + 1
 
     merged = map(np.concatenate, data)
 
