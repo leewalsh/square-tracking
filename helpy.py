@@ -137,7 +137,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, omask=None, trackids=None, min_length=10, run_track_orient=False):
+def load_tracksets(data, omask=None, trackids=None, min_length=10, run_track_orient=False, run_fill_gaps=False):
     """ Returns a dict of slices into data based on trackid
     """
     if omask is not None:
@@ -145,10 +145,16 @@ def load_tracksets(data, omask=None, trackids=None, min_length=10, run_track_ori
     if trackids is None:
         trackids = data['t']
 
-    #NOTE: check min_length after omask:
-    longtracks = np.where(np.bincount(trackids+1)[1:] >= min_length)[0]
+    lengths = np.bincount(trackids+1)[1:]
+    if min_length > 1:
+        lengths = lengths >= min_length
+    longtracks = np.where(lengths)[0]
     tmasks = {track: np.where(trackids==track) for track in longtracks}
     tracksets = {track: data[tmasks[track]] for track in longtracks}
+
+    if run_fill_gaps:
+        from tracks import fill_gaps
+        fill_gaps(tracksets=tracksets, inplace=True)
 
     if run_track_orient:
         from orientation import track_orient
