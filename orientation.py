@@ -123,9 +123,9 @@ def find_corner(particle, corners, tree=None,
         corners = corners[icnear]
 
     cdisps = corners - particle
-    cdists = np.hypot(*cdisps.T)    # distances corner to center
-    legal = abs(cdists - rc) < drc  # within acceptable range
-    nfound = np.count_nonzero(legal)     # number of corners found
+    cdiffs = np.abs(np.hypot(*cdisps.T) - rc) # diff from preferred distance
+    legal = cdiffs < drc
+    nfound = np.count_nonzero(legal)
     if nfound == nc:
         # good.
         pass
@@ -134,9 +134,9 @@ def find_corner(particle, corners, tree=None,
         return (None,)*3
     elif nfound > nc:
         # too many, keep only the nc closest to rc away
-        #legal[np.argsort(abs(cdists-rc))[nc:]] = False
+        #legal[np.argsort(cdiffs)[nc:]] = False
         # the following is marginally faster than the above:
-        legal[legal.nonzero()[0][np.argsort(np.abs((cdists-rc)[legal]))[nc:]]] = False
+        legal[legal.nonzero()[0][np.argsort(cdiffs[legal])[nc:]]] = False
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
@@ -220,9 +220,6 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
-    #from correlation import get_id
-    field_rename(data,'s','f')
-    field_rename(cdata,'s','f')
     if do_average or nc == 1:
         dt = [('corner',float,(2,)),
               ('orient',float),
@@ -232,6 +229,7 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
               ('orient',float,(nc,)),
               ('cdisp',float,(nc,2,))]
     odata = np.zeros(len(pdata), dtype=dt)
+    iids = pdata['id']
     for f in pfsets:
         fpdata = pfsets[f]
         fcdata = cfsets[f]
@@ -239,12 +237,12 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
         positions = np.column_stack([fpdata['x'], fpdata['y']])
         cpositions = np.column_stack([fcdata['x'], fcdata['y']])
         for iid, posi in izip(fpdata['id'], positions):
+            #TODO could probably be sped up by looping through the output of
+            #     ptree.query_ball_tree(ctree)
             icorner, iorient, idisp = \
                 find_corner(posi, cpositions, tree=tree,
                             nc=nc, rc=rc, drc=drc, do_average=do_average)
-            #iid = get_id(data, posi, frame) # what was this even for?
-            #imask = np.nonzero(data['id']==iid) # faster than using boolean mask directly
-            imask = np.searchsorted(pdata['id'], iid) # much faster than above
+            imask = np.searchsorted(iids, iid)
             odata['corner'][imask] = icorner
             odata['orient'][imask] = iorient
             odata['cdisp'][imask] = idisp
@@ -300,7 +298,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     pl.show()
     return qq, cb
 
-def track_orient(orients, omask=None, cutoff=3*pi/2):
+def track_orient(orients, omask=None, cutoff=pi):
     """ tracks branch cut crossings for orientation data
         assumes that dtheta << cutoff for each frame
     """
@@ -339,8 +337,8 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
     colors = ['red','green','blue','cyan','black','magenta','yellow']
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
-        fullmask = np.all(np.asarray(zip(omask, tmask)), axis=1)
-        if fullmask.sum() < 1:
+        fullmask = omask & tmask
+        if np.count_nonzero(fullmask) < 1:
             continue
         plotrange = slice(None, 600 if singletracks is True else None)
         if delta:
