@@ -4,8 +4,6 @@ from __future__ import division
 from itertools import izip
 from math import sqrt
 import numpy as np
-#from scipy.stats import nanmean
-from scipy.spatial import cKDTree
 from PIL import Image as Im
 
 import matplotlib.pyplot as pl
@@ -200,16 +198,20 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=0, do_average=True):
-    """ get_angles(data, cdata, framestep=1, nc=3, do_average=True)
+def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True):
+    """ get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True)
         
         arguments:
-            data    - data array with 'x' and 'y' fields for particle centers
+            pdata   - data array with 'x' and 'y' fields for particle centers
             cdata   - data array wity 'x' and 'y' fields for corners
-            (these arrays need not have the same length,
-                but both must have 'f' field for the image frame)
-            framestep - only analyze every `framestep` frames
+                (these arrays need not have the same length,
+                    but both must have 'f' field for the image frame)
+            pfsets  - slices into pdata, by frame
+            cfsets  -    and for cdata
+            cftrees - dict of KDTrees for corners, by frame
             nc      - number of corner dots
+            rc      - distance between center and corner dot
+            drc     - tolerance for rc
             do_average - whether to average the nc corners to one value for return
             
         returns:
@@ -229,20 +231,20 @@ def get_angles_loop(data, cdata, framestep=1, nc=3, rc=11, drc=0, do_average=Tru
         dt = [('corner',float,(nc,2,)),
               ('orient',float,(nc,)),
               ('cdisp',float,(nc,2,))]
-    odata = np.zeros(len(data), dtype=dt)
-    for fdata, fcdata in izip(np.split(data, np.where(np.diff(data['f']))[0]+1),
-                              np.split(cdata, np.where(np.diff(cdata['f']))[0]+1)):
-        frame = fdata['f'][0]
-        positions = np.column_stack([fdata['x'], fdata['y']])
+    odata = np.zeros(len(pdata), dtype=dt)
+    for f in pfsets:
+        fpdata = pfsets[f]
+        fcdata = cfsets[f]
+        tree = cftrees[f]
+        positions = np.column_stack([fpdata['x'], fpdata['y']])
         cpositions = np.column_stack([fcdata['x'], fcdata['y']])
-        tree = cKDTree(cpositions)
-        for iid, posi in izip(fdata['id'], positions):
+        for iid, posi in izip(fpdata['id'], positions):
             icorner, iorient, idisp = \
                 find_corner(posi, cpositions, tree=tree,
                             nc=nc, rc=rc, drc=drc, do_average=do_average)
             #iid = get_id(data, posi, frame) # what was this even for?
             #imask = np.nonzero(data['id']==iid) # faster than using boolean mask directly
-            imask = np.searchsorted(data['id'], iid) # much faster than above
+            imask = np.searchsorted(pdata['id'], iid) # much faster than above
             odata['corner'][imask] = icorner
             odata['orient'][imask] = iorient
             odata['cdisp'][imask] = idisp

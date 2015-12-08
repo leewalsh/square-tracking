@@ -145,13 +145,13 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             print "New track:", newtrackid
             print '\tframe:', frame,'n:', n,'dot:', thisdot[-1]
         return newtrackid
-    oldtree = ftrees[frame-n]
+    oldtree = pftrees[frame-n]
     thisdotxy = thisdot[1:3]
     mindist, mini = oldtree.query(thisdotxy, distance_upper_bound=maxdist)
     if mindist < maxdist:
         # a close one! Is there another dot in the current frame that's closer?
-        closest = fsets[frame-n].item(mini)
-        curtree = ftrees[frame]
+        closest = pfsets[frame-n].item(mini)
+        curtree = pftrees[frame]
         closestxy = closest[1:3]
         mindist2, mini2 = curtree.query(closestxy, distance_upper_bound=mindist)
         if mindist2 < mindist:
@@ -162,7 +162,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
                 print "New track:", newtrackid
                 print '\tframe:', frame,'n:', n,
                 print 'dot:', thisdot[-1],
-                print 'closer:', fsets[frame].item(mini2)[-1]
+                print 'closer:', pfsets[frame].item(mini2)[-1]
             return newtrackid
         if cut is not False and cut[closest[-1]]:
             newtrackid = trackids.max() + 1
@@ -595,15 +595,18 @@ if __name__=='__main__':
         import sys; sys.exit()
 
     if args.track or args.orient:
+        from scipy.spatial import cKDTree as KDTree
+        if args.track != args.orient and helpy.bool_input("Would you like to "
+                "simultaneously track and find orientations? (It's faster)\n"):
+            args.track = args.orient = True
         if args.orient:
             pdata, cdata = helpy.load_data(locdir+prefix, 'position corner')
         else:
             pdata = helpy.load_data(locdir+prefix, 'position')
+        pfsets = helpy.splitter(pdata, ret_dict=True)
+        pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
+                   for f, pfset in pfsets.iteritems() }
     if args.track:
-        fsets = helpy.splitter(pdata, ret_dict=True)
-        from scipy.spatial import cKDTree as KDTree
-        ftrees = { f: KDTree(np.column_stack([fset['x'], fset['y']]), leafsize=50)
-                   for f, fset in fsets.iteritems() }
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
         trackids = remove_duplicates(trackids, data=pdata)
@@ -611,7 +614,10 @@ if __name__=='__main__':
         trackids = None
     if args.orient:
         from orientation import get_angles_loop
-        odata, omask = get_angles_loop(data, cdata,
+        cfsets = helpy.splitter(cdata, ret_dict=True)
+        cftrees = { f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
+                   for f, cfset in cfsets.iteritems() }
+        odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
             save = locdir+prefix+'_ORIENTATION.npz'
