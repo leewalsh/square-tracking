@@ -13,12 +13,8 @@ First, find the positions from the images
 
     positions.py -b [size parameters, other options] ../Data/example_*.tif -o ../Data/prefix
 
-Second, track (-t) the positions
+Second, track (-t) the positions and calculate the orientations (-o)
 
-    tracks.py -t [other options] ../Data/prefix
-
-Third, find the orientations (-o)
-
-    tracks.py -o -r <separation> [other options] ../Data/prefix
+    tracks.py -to -r <separation> [other options] ../Data/prefix
 
 And all the data is now extracted and tracked, and is ready for analysis.
