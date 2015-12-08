@@ -298,27 +298,22 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     pl.show()
     return qq, cb
 
-def track_orient(orients, omask=None, cutoff=pi):
+def track_orient(orients, omask=None, cutoff=pi, inplace=True):
     """ tracks branch cut crossings for orientation data
         assumes that dtheta << cutoff for each frame
     """
-    if not isinstance(omask, np.ndarray):
+    if omask is None:
         omask = np.isfinite(orients)
-    masked = not omask.all()
-    if masked:
-        omask = omask.nonzero()[0]
-        orients = orients[omask]
-    else:
+    if not omask.any():
+        # all nan, return as is
+        return orients
+    if not inplace:
         orients = orients.copy()
-    deltas = np.diff(orients)
+    tracked = orients[omask]
+    deltas = np.diff(tracked)
     crossings = (np.abs(deltas) > cutoff)*np.sign(deltas)
-    orients[1:] -= twopi*crossings.cumsum()
-    if masked:
-        gaps = np.diff(omask) - 1
-        gapi = gaps.nonzero()[0]
-        gaps = gaps[gapi]
-        gapi = np.repeat(gapi, gaps)
-        orients = np.insert(orients, gapi+1, np.nan)
+    tracked[1:] -= twopi*crossings.cumsum()
+    orients[omask] = tracked
     return orients
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
