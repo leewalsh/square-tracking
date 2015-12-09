@@ -304,7 +304,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
             continue
         ftsets = helpy.splitter(tset, fs, ret_dict=True)
         for f in dup_fs:
-            prv = fs[np.searchsorted(fs, f, 'left') - 1] if f > fs[0] else None
+            prv = fs[np.searchsorted(fs, f, 'left')-1] if f > fs[0] else None
             nxt = fs[np.searchsorted(fs, f, 'right')] if f < fs[-1] else None
             if nxt is not None and nxt in dup_fs:
                 nxt = fs[np.searchsorted(fs, nxt, 'right')] if nxt < fs[-1] else None
@@ -911,7 +911,7 @@ if __name__=='__main__':
             save = saveprefix+"_MSD.npz"
             print "saving msd data to",
             print save if verbose else os.path.basename(save)
-            np.savez(save,
+            np.savez_compressed(save,
                      msds = np.asarray(msds),
                      msdids = np.asarray(msdids),
                      dt0  = np.asarray(dt0),

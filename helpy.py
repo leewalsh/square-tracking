@@ -470,9 +470,14 @@ def fields_view(arr, fields):
     dtype2 = np.dtype({name:arr.dtype.fields[name] for name in fields})
     return np.ndarray(arr.shape, dtype2, arr, 0, arr.strides)
 
-def quick_field_view(arr, field, careful=True):
+def quick_field_view(arr, field, careful=True, method='view'):
     dt, off = arr.dtype.fields[field]
-    out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
+    if method=='getfield':
+        out = arr.getfield(dt, off)
+    elif method=='view':
+        out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
+    else:
+        out = arr[field]
     if careful:
         i = arr.dtype.names.index(field)
         a, o = arr.item(-1)[i], out[-1]
@@ -520,6 +525,15 @@ def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
     if orientations is not None:
         data['o'] = orientations
     return data
+
+def dtype_summary(dtype):
+    names = dtype.names
+    fields = dtype.fields
+    w = max(map(len, names))
+    s = "{0:>"+str(w)+"}: {1:2} {2:2} {3:>7} ({4}{2})"
+    for name in names:
+        dt, off = fields[name]
+        print s.format(name, off, dt.itemsize, dt, dt.kind)
 
 def dtype_info(dtype='all'):
     if dtype=='all':
