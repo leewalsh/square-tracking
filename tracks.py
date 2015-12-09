@@ -332,43 +332,37 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
         c[inan] = np.interp(xnan, xfin, c[ifin])
     return f
 
-def fill_gaps(tracksets=None, data=None, max_gap=5, inplace=False):
-    if tracksets is None:
-        if data is None:
-            raise ValueError, "Either data or tsets is required"
-        tracksets = helpy.load_tracksets(data, min_length=1)
-        inplace = True
-    elif not inplace:
-        filledsets = {}
-    for t, trackset in tracksets.items():
-        fs = trackset['f']
+def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=False):
+    if not inplace:
+        tracksets = {t: s.copy() for t,s in tracksets.iteritems()}
+    for t, tset in tracksets.items():
+        fs = tset['f']
         gaps = np.diff(fs) - 1
         mx = gaps.max()
         if not mx:
-            if not inplace:
-                filledsets[t] = trackset
+            if 'o' in interp:
+                interp_nans(tset['o'], tset['f'], inplace=True)
             continue
         elif mx > max_gap:
-            if inplace: tracksets.pop(t)
+            print "Dropped track {}: has gap of {} > {}".format(t, mx, max_gap)
+            tracksets.pop(t)
             continue
         gapi = gaps.nonzero()[0]
         gaps = gaps[gapi]
         gapi = np.repeat(gapi, gaps)
-        missing = np.full(len(gapi), fill_value=-1, dtype=trackset.dtype)
-        f = np.concatenate(map(range, gaps)) + fs[gapi] + 1
-        missing['f'] = f
-        for dim in 'xy':
-            missing[dim] = np.interp(f, fs, trackset[dim])
+        missing = np.full(len(gapi), np.nan, tset.dtype)
+        if verbose:
+            print ("track {:4d}: missing {} frames in {} gaps"
+                   " (biggest {})").format(t, len(gapi), len(gaps), mx)
+        missing['f'] = np.concatenate(map(range, gaps)) + fs[gapi] + 1
         missing['t'] = t
-        trackset = np.insert(trackset, gapi+1, missing)
-        if inplace:
-            tracksets[t] = trackset
-        else:
-            filledsets[t] = trackset
-    if inplace:
-        return tracksets
-    else:
-        return filledsets
+        tset = np.insert(tset, gapi+1, missing)
+        if interp:
+            for field in interp:
+                view = helpy.consecutive_fields_view(tset, field, careful=False)
+                interp_nans(view, inplace=True)
+        tracksets[t] = tset
+    return tracksets
 
 # Plotting tracks:
 def plot_tracks(data, trackids, bgimage=None, mask=None,
