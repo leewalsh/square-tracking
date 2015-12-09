@@ -179,29 +179,31 @@ def fields_view(arr, fields):
     return np.ndarray(arr.shape, dtype2, arr, 0, arr.strides)
 
 def quick_field_view(arr, field, careful=True):
-    if isinstance(field, basestring):
-        fieldname = field
-        fieldind = arr.dtype.names.index(fieldname)
-    else:
-        fieldind = field
-        fieldname = arr.dtype.names[fieldind]
-    dt, off = arr.dtype.fields[fieldname]
+    dt, off = arr.dtype.fields[field]
     out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
     if careful:
-        assert arr.item(1)[fieldind]==out[1]
+        i = arr.dtype.names.index(field)
+        a, o = arr.item(-1)[i], out[-1]
+        assert a==o or np.isnan(a) and np.isnan(o)
     return out
 
 def consecutive_fields_view(arr, fields, careful=True):
-    i, j = len(arr), len(fields)
+    shape, j = arr.shape, len(fields)
     df = arr.dtype.fields
     dt, offset = df[fields[0]]
-    out = np.ndarray((i, j), dt, arr, offset, arr.strides+(dt.itemsize,))
+    strides = arr.strides
+    if j>1:
+        shape += (j,)
+        strides += (dt.itemsize,)
+    out = np.ndarray(shape, dt, arr, offset, strides)
     if careful:
         names = arr.dtype.names
-        ind = names.index(fields[0])
-        assert tuple(fields)==names[ind:ind+len(fields)]
-        assert all([df[f][0]==dt for f in fields[1:]]), 'fields must have same type'
-        assert all([arr.item(1)[ind+f]==out[1,f] for f in xrange(j)])
+        i = names.index(fields[0])
+        assert tuple(fields)==names[i:i+j], 'fields not consecutive'
+        assert all([df[f][0]==dt for f in fields[1:]]), 'fields not same type'
+        l, r = arr.item(-1)[i:i+j], out[-1]
+        assert all([a==o or np.isnan(a) and np.isnan(o) for a,o in izip(l,r)]),\
+            "last row mismatch\narr: {}\nout: {}".format(l, r)
     return out
 
 track_dtype = np.dtype({'names': 'id f  t  x  y  o'.split(),
