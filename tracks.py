@@ -303,6 +303,35 @@ def remove_duplicates(trackids, data=None, tsets=None):
             trackids[reject['id']] = -1
     return trackids
 
+def interp_nans(f, x=None, max_gap=5, inplace=False):
+    """ Replace nans in function f(x) with their linear interpolation"""
+    n = len(f)
+    if n < 3:
+        return f
+    nans = np.isnan(f)
+    if f.ndim > 1:
+        nans = nans.all(1)
+    if np.count_nonzero(nans) in (0, n):
+        return f
+    if not inplace:
+        f = f.copy()
+    ifin = (~nans).nonzero()[0]
+    if len(ifin) < 2:
+        return f
+    inan = nans.nonzero()[0]
+    gaps = np.diff(ifin) - 1
+    mx = gaps.max()
+    if mx > max_gap:
+        spl = gaps.argmax()
+        args = (max_gap, True)
+        interp_nans(f[:spl], x if x is None else x[:spl], *args)
+        interp_nans(f[spl+mx+1:], x if x is None else x[spl+mx+1:], *args)
+        return f
+    xnan, xfin = (inan, ifin) if x is None else (x[inan], x[ifin])
+    for c in f.T if f.ndim>1 else [f]:
+        c[inan] = np.interp(xnan, xfin, c[ifin])
+    return f
+
 def fill_gaps(tracksets=None, data=None, max_gap=5, inplace=False):
     if tracksets is None:
         if data is None:
