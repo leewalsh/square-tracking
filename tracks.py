@@ -269,15 +269,17 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
         trackids[stubs] = -1
     return trackids
 
-def remove_duplicates(trackids, data=None, tsets=None, ret_tracksets=False):
-    trackids = trackids.copy()
-    if tsets is None:
-        if data is None:
-            raise ValueError, "Either data or tsets is required"
-        tsets = helpy.load_tracksets(data, trackids=trackids, min_length=0)
-
+def remove_duplicates(trackids=None, data=None, tracksets=None,
+                      target='', inplace=False):
+    if tracksets is None:
+        target = target or 'trackids'
+        tracksets = helpy.load_tracksets(data, trackids, min_length=0)
+    elif trackids is None:
+        target = target or 'tracksets'
+    else:
+        target = target or 'trackids'
     rejects = defaultdict(dict)
-    for t, tset in tsets.iteritems():
+    for t, tset in tracksets.iteritems():
         fs = tset['f']
         count = np.bincount(fs)
         dup_fs = np.where(count>1)[0]
@@ -297,22 +299,38 @@ def remove_duplicates(trackids, data=None, tsets=None, ret_tracksets=False):
             for neigh in (prv, nxt):
                 if neigh is None: continue
                 if count[neigh] > 1 and neigh in rejects[t]:
-                    isreject = np.in1d(ftsets[neigh]['id'], rejects[t][neigh])
+                    isreject = np.in1d(ftsets[neigh]['id'], rejects[t][neigh], assume_unique=True)
                     ftsets[neigh] = ftsets[neigh][~isreject]
                 sepx = ftsets[f]['x'] - ftsets[neigh]['x']
                 sepy = ftsets[f]['y'] - ftsets[neigh]['y']
                 seps += sepx*sepx + sepy*sepy
             rejects[t][f] = ftsets[f][seps > seps.min()]['id']
-    if ret_tracksets:
+    if target=='tracksets':
+        if not inplace:
+            tracksets = tracksets.copy()
         for t, tr in rejects.iteritems():
-            tr = np.in1d(tsets[t]['id'], np.concatenate(tr.values()))
-            tsets[t] = tsets[t][~tr]
-        return tsets
-    else:
+            trs = np.concatenate(tr.values())
+            tr = np.in1d(tracksets[t]['id'], trs, True, True)
+            new = tracksets[t][tr]
+            if inplace:
+                tracksets[t] = new
+        return None if inplace else tracksets
+    elif target=='trackids':
+        if not inplace:
+            trackids = trackids.copy()
         rejects = np.concatenate([tfr for tr in rejects.itervalues()
                                 for tfr in tr.itervalues()])
+        if data is None:
+            data_from_tracksets = np.concatenate(tracksets.values())
+            if len(data_from_tracksets)!=len(trackids):
+                raise ValueError, "You must provide data to return/modify trackids"
+            ids = data_from_tracksets['id']
+            ids.sort()
+        else:
+            ids = data['id']
+        rejects = np.searchsorted(ids, rejects)
         trackids[rejects] = -1
-        return trackids
+        return None if inplace else trackids
 
 def interp_nans(f, x=None, max_gap=5, inplace=False):
     """ Replace nans in function f(x) with their linear interpolation"""

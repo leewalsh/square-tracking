@@ -137,16 +137,24 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, trackids=None, min_length=10, run_fill_gaps=False, run_track_orient=False):
+def load_tracksets(data, trackids=None, min_length=10,
+        run_remove_dupes=False, run_fill_gaps=False, run_track_orient=False):
     """ Returns a dict of slices into data based on trackid
     """
     if trackids is None:
-        trackids = data['t']
+        # copy actually speeds it up by a factor of two
+        trackids = data['t'].copy()
+    elif not trackids.flags.owndata:
+        # copy in case called as ...(data, data['t'])
+        trackids = trackids.copy()
     lengths = np.bincount(trackids+1)[1:]
     if min_length > 1:
         lengths = lengths >= min_length
     longtracks = np.where(lengths)[0]
     tracksets = {track: data[trackids==track] for track in longtracks}
+    if run_remove_dupes:
+        from tracks import remove_duplicates
+        remove_duplicates(tracksets=tracksets, inplace=True)
     if run_fill_gaps:
         from tracks import fill_gaps
         fill_gaps(tracksets=tracksets, inplace=True)
