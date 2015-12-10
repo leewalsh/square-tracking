@@ -119,6 +119,7 @@ if 'foppl' in hostname:
     matplotlib.use("agg")
 
 from itertools import izip
+from collections import defaultdict
 
 import numpy as np
 from matplotlib import cm, pyplot as pl
@@ -268,12 +269,14 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
         trackids[stubs] = -1
     return trackids
 
-def remove_duplicates(trackids, data=None, tsets=None):
+def remove_duplicates(trackids, data=None, tsets=None, ret_tracksets=False):
+    trackids = trackids.copy()
     if tsets is None:
         if data is None:
             raise ValueError, "Either data or tsets is required"
         tsets = helpy.load_tracksets(data, trackids=trackids, min_length=0)
 
+    rejects = defaultdict(dict)
     for t, tset in tsets.iteritems():
         fs = tset['f']
         count = np.bincount(fs)
@@ -292,16 +295,24 @@ def remove_duplicates(trackids, data=None, tsets=None):
                             "frames in a row at frame {} for track {}".format(f, t))
             seps = np.zeros(count[f])
             for neigh in (prv, nxt):
-                if neigh is not None:
-                    if count[neigh] > 1:
-                        ftset = ftsets[neigh]
-                        ftsets[neigh] = ftset[trackids[ftset['id']]>=0]
-                    sepx = ftsets[f]['x'] - ftsets[neigh]['x']
-                    sepy = ftsets[f]['y'] - ftsets[neigh]['y']
-                    seps += sepx*sepx + sepy*sepy
-            reject = ftsets[f][seps > seps.min()]
-            trackids[reject['id']] = -1
-    return trackids
+                if neigh is None: continue
+                if count[neigh] > 1 and neigh in rejects[t]:
+                    isreject = np.in1d(ftsets[neigh]['id'], rejects[t][neigh])
+                    ftsets[neigh] = ftsets[neigh][~isreject]
+                sepx = ftsets[f]['x'] - ftsets[neigh]['x']
+                sepy = ftsets[f]['y'] - ftsets[neigh]['y']
+                seps += sepx*sepx + sepy*sepy
+            rejects[t][f] = ftsets[f][seps > seps.min()]['id']
+    if ret_tracksets:
+        for t, tr in rejects.iteritems():
+            tr = np.in1d(tsets[t]['id'], np.concatenate(tr.values()))
+            tsets[t] = tsets[t][~tr]
+        return tsets
+    else:
+        rejects = np.concatenate([tfr for tr in rejects.itervalues()
+                                for tfr in tr.itervalues()])
+        trackids[rejects] = -1
+        return trackids
 
 def interp_nans(f, x=None, max_gap=5, inplace=False):
     """ Replace nans in function f(x) with their linear interpolation"""
