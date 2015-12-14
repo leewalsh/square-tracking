@@ -118,6 +118,7 @@ if 'foppl' in hostname:
     import matplotlib
     matplotlib.use("agg")
 
+import sys
 from itertools import izip
 from collections import defaultdict
 
@@ -331,6 +332,95 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         rejects = np.searchsorted(ids, rejects)
         trackids[rejects] = -1
         return None if inplace else trackids
+
+def animate_detection(imstack, fsets, fcsets, rc=0, side=10, verbose=False):
+
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+
+    def advance(event):
+        key = event.key
+        if verbose:
+            print 'pressed', key, 'next frame:',
+        global f_display
+        if key=='left':
+            if f_display>=1:
+                f_display -= 1
+        elif key=='right':
+            f_display += 1
+        else:
+            plt.close()
+            f_display = -1
+        if verbose:
+            print f_display
+            sys.stdout.flush()
+
+    plt_text = np.vectorize(plt.text)
+
+    def draw_circles(ax, centers, r, *args, **kwargs):
+        patches = [Circle(cent, r, *args, **kwargs) for cent in centers]
+        map(ax.add_patch, patches)
+        ax.figure.canvas.draw()
+        return patches
+
+    fig = plt.figure(figsize=(12, 12))
+    p = plt.imshow(imstack[0], cmap='gray')
+    ax = p.axes
+    global f_display
+    f_display = repeat = f_old = 0
+    lengths = map(len, [imstack, fsets, fcsets])
+    f_max = min(lengths)
+    assert f_max, 'Lengths imstack: {}, fsets: {}, fcsets: {}'.format(*lengths)
+    while 0 <= f_display < f_max:
+        if repeat > 5:
+            if verbose:
+                print 'stuck on frame', f_display
+            break
+        f_display %= f_max
+        if f_display==f_old:
+            repeat += 1
+        else:
+            repeat = 0
+        f_old = f_display
+        if verbose:
+            print 'starting loop with f_display =', f_display
+        xyo = helpy.consecutive_fields_view(fsets[f_display], 'xyo', False)
+        xyc = helpy.consecutive_fields_view(fcsets[f_display], 'xy', False)
+        x, y, o = xyo.T
+        omask = np.isfinite(o)
+        xo, yo, oo = xyo[omask].T
+
+        p.set_data(imstack[f_display])
+        remove = []
+        if rc:
+            patches = draw_circles(ax, xyo[:, 1::-1], rc,
+                                color='g', fill=False, zorder=.5)
+            remove.extend(patches)
+        q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy',
+                       units='xy', width=side/8, scale_units='xy', scale=1/side)
+        ps = plt.scatter(y, x, c='r')#c=np.where(omask, 'r', 'b'))
+        cs = plt.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
+        remove.extend([q, ps, cs])
+
+        tstr = fsets[f_display]['t'].astype('S')
+        txt = plt_text(y+rc, x+rc, tstr, color='r')
+        remove.extend(txt)
+
+        plt.xlim(0, imstack.shape[2])
+        plt.ylim(0, imstack.shape[1])
+        plt.title("frame {}\n{} orientations / {} particles detected".format(
+                    f_display, np.count_nonzero(omask), len(o)))
+        fig.canvas.draw()
+
+        plt.waitforbuttonpress()
+        fig.canvas.mpl_connect('key_press_event', advance)
+        for rem in remove:
+            rem.remove()
+        if verbose:
+            print 'ending frame', f_display
+            sys.stdout.flush()
+    if verbose:
+        print 'loop broken'
 
 def interp_nans(f, x=None, max_gap=5, inplace=False):
     """ Replace nans in function f(x) with their linear interpolation"""
@@ -682,7 +772,7 @@ if __name__=='__main__':
         helpy.txt_to_npz(datapath, verbose=True, compress=True)
         if args.orient or args.track:
             print 'not tracking, only converting file from txt to npz'
-        import sys; sys.exit()
+        sys.exit()
 
     if args.track or args.orient:
         from scipy.spatial import cKDTree as KDTree
