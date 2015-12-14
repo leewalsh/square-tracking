@@ -31,6 +31,7 @@ if __name__=='__main__':
     arg('--normalize', action='store_true', help='Normalize by max?')
     arg('--autocorr', action='store_true', help='Plot the <vv> autocorrelation?')
     arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
+    arg('--interp', action='store_true', dest='interp', help='interpolate gaps?')
     arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
     arg('--nosubtract', action='store_false', dest='subtract', help="Don't subtract v0?")
     arg('-s', '--side', type=float, default=17, help='Particle size in pixels, '
@@ -75,17 +76,16 @@ def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
 
 def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
                   do_orientation=True, do_translation=True, subtract=True,
-                  minlen=10, torient=True, dupes=False, **ignored):
+                  minlen=10, torient=True, interp=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     for prefix in prefixes:
         print "Loading data for", prefix
-        data = helpy.load_data(prefix, 'tracks')
-        omask = np.isfinite(data['o'])
+        data, _ = helpy.load_data(prefix, 'tracks orient')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
-        tracksets = helpy.load_tracksets(data, omask,
-                min_length=minlen, run_track_orient=torient)
+        tracksets = helpy.load_tracksets(data, min_length=minlen,
+                run_track_orient=torient, run_fill_gaps=interp)
         for track in tracksets:
             tdata = tracksets[track]
             velocities = noise_derivatives(tdata, width=width,
@@ -101,6 +101,10 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
 def get_stats(a):
     #Computes mean, D_T or D_R, and standard error for a list.
     a = np.asarray(a)
+    if a.ndim==1:
+        a = a[np.isfinite(a)]
+    else:
+        print 'ndims = ',a.ndim
     n = a.shape[-1]
     M = a.mean(-1, keepdims=a.ndim>1)
     c = a - M
