@@ -375,10 +375,17 @@ def merge_data(data, savename=None, do_orient=True):
                                 odata=merged[2], omask=merged[3])
     return merged
 
-def bool_input(question):
+def bool_input(question, default=None):
     "Returns True or False from yes/no user-input question"
-    answer = raw_input(question)
-    return answer.lower().startswith('y') or answer.lower().startswith('t')
+    if question and question[-1] not in ' \n\t':
+        question += ' '
+    answer = raw_input(question).strip().lower()
+    if answer=='':
+        if default is None:
+            return bool_input(question, default)
+        else:
+            return default
+    return answer.startswith('y') or answer.startswith('t')
 
 def farange(start, stop, factor):
     start_power = log(start, factor)
