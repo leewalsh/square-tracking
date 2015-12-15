@@ -333,7 +333,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         trackids[rejects] = -1
         return None if inplace else trackids
 
-def animate_detection(imstack, fsets, fcsets, rc=0, side=10, verbose=False):
+def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbose=False):
 
     import matplotlib.pyplot as plt
     from matplotlib.patches import Circle
@@ -400,6 +400,10 @@ def animate_detection(imstack, fsets, fcsets, rc=0, side=10, verbose=False):
                        units='xy', width=side/8, scale_units='xy', scale=1/side)
         ps = plt.scatter(y, x, c='r')#c=np.where(omask, 'r', 'b'))
         cs = plt.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
+        if fosets is not None:
+            oc = helpy.quick_field_view(fosets[f_display], 'corner').reshape(-1, 2)
+            ocs = plt.scatter(oc[:,1], oc[:,0], c='orange', s=8)
+            remove.append(ocs)
         remove.extend([q, ps, cs])
 
         tstr = fsets[f_display]['t'].astype('S')
