@@ -105,7 +105,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return random_walker(im, labels)
 
-def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
+def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
         Segments using a threshold after convolution with proper gaussian kernel
@@ -117,18 +117,15 @@ def label_particles_convolve(im, thresh=3, rmv=None, csize=0, **extra_args):
                         if integer, in units of intensity std dev
                         if float, in absolute units of intensity
             rmv     if given, the positions at which to remove large dots
-            csize   kernel size
+            kern   kernel size
     """
     # Michael removed disks post-convolution
     if rmv is not None:
         im = remove_disks(im, *rmv)
-    if csize == 0:
-        raise ValueError('kernel size `csize` not set')
-    elif csize < 0:
-        ckern = -gdisk(-csize)
-    else:
-        ckern = gdisk(csize)
-    convolved = convolve(im, ckern)
+    if kern == 0:
+        raise ValueError('kernel size `kern` not set')
+    kernel = np.sign(kern)*gdisk(abs(kern))
+    convolved = convolve(im, kernel)
 
     convolved -= convolved.min()
     convolved /= convolved.max()
@@ -206,7 +203,7 @@ def find_particles(im, method, return_image=False, **kwargs):
         labels = label_particles_edge(im, **kwargs)
     elif method == 'convolve':
         labels, convolved = label_particles_convolve(im, **kwargs)
-        intensity = im if kwargs['csize'] > 0 else 1 - im
+        intensity = im if kwargs['kern'] > 0 else 1 - im
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
@@ -308,7 +305,7 @@ if __name__ == '__main__':
     thresh = {'center': {'max_ecc' : args.ecc,
                          'min_area': args.min,
                          'max_area': args.max,
-                         'csize'   : args.kern}}
+                         'kern'   : args.kern}}
 
     if args.ckern:
         args.both = True
@@ -320,7 +317,7 @@ if __name__ == '__main__':
                         {'max_ecc' : args.cecc,
                          'min_area': args.cmin,
                          'max_area': args.cmax,
-                         'csize'   : args.ckern}})
+                         'kern'   : args.ckern}})
     dots = sorted(thresh)
 
     if args.select:
@@ -398,7 +395,7 @@ if __name__ == '__main__':
     for dot, point, out in zip(dots, points, outs):
         txt = '.txt'+'.gz'*gz
         print "Saving {} positions to {}{{{},.npz}}".format(dot, out, txt)
-        header = ('Kern {csize:.2f}, Min area {min_area:d}, '
+        header = ('Kern {kern:.2f}, Min area {min_area:d}, '
           'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
           'Frame    X           Y             Label  Eccen        Area').format
         np.savetxt(out+txt, point, delimiter='     ', header=header(**thresh[dot]),
