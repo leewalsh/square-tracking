@@ -123,7 +123,7 @@ from itertools import izip
 from collections import defaultdict
 
 import numpy as np
-from matplotlib import cm, pyplot as pl
+from matplotlib import cm, pyplot as plt
 from scipy.optimize import curve_fit
 
 import helpy
@@ -335,7 +335,6 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
 
 def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbose=False):
 
-    import matplotlib.pyplot as plt
     from matplotlib.patches import Circle
 
     def advance(event):
@@ -502,27 +501,27 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     save : whether to save the figure
     show : whether to show the figure
     """
-    pl.figure(fignum)
+    plt.figure(fignum)
     if bgimage:
         if isinstance(bgimage, basestring):
-            bgimage = pl.imread(bgimage)
-        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
+            bgimage = plt.imread(bgimage)
+        plt.imshow(bgimage, cmap=cm.gray, origin='upper')
     if mask is None:
         mask = (trackids >= 0)
     else:
         mask = mask & (trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    pl.scatter(data['y'], data['x'],
+    plt.scatter(data['y'], data['x'],
             c=np.array(trackids)%12, marker='o', alpha=.5, lw=0)
-    pl.gca().set_aspect('equal')
-    pl.xlim(data['y'].min()-10, data['y'].max()+10)
-    pl.ylim(data['x'].min()-10, data['x'].max()+10)
-    pl.title(prefix)
+    plt.gca().set_aspect('equal')
+    plt.xlim(data['y'].min()-10, data['y'].max()+10)
+    plt.ylim(data['x'].min()-10, data['x'].max()+10)
+    plt.title(prefix)
     if save:
         print "saving tracks image to", prefix+"_tracks.png"
-        pl.savefig(locdir+prefix+"_tracks.png")
-    if show: pl.show()
+        plt.savefig(locdir+prefix+"_tracks.png")
+    if show: plt.show()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -688,12 +687,12 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         msd_err = np.nanstd(msd, 0) + 1e-9
         msd_err /= np.nan_to_num(np.sqrt(added-1))
     if show_tracks:
-        pl.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
+        plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
     msd = np.nanmean(msd, 0)
     return (msd, msd_err) if errorbars else msd
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(8,6), plfunc=pl.semilogx, meancol='',
+        show_tracks=True, figsize=(8,6), plfunc=plt.semilogx, meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
         lw=1, singletracks=None, fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
@@ -710,7 +709,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         taus = helpy.farange(dt0, nframes+1, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes+1, dtau, dtype=float)
-    fig = pl.figure(fignum, figsize)
+    fig = plt.figure(fignum, figsize)
 
     # Get the mean of msds
     msd = mean_msd(msds, taus, msdids,
@@ -737,37 +736,37 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         plfunc(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
                'k--', lw=2, label=r"$(2\pi)^2$" if ang else
                ("One particle area" if S>1 else "One Pixel"))
-        pl.ylim([0, 1.3*np.max(msd/taus**tnormalize)])
+        plt.ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
-        pl.loglog(taus, msd, meancol, lw=lw,
+        plt.loglog(taus, msd, meancol, lw=lw,
                   label="Mean Squared {}Displacement".format('Angular '*ang))
-        #pl.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
+        #plt.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
-        pl.errorbar(taus, msd/taus**tnormalize,
+        plt.errorbar(taus, msd/taus**tnormalize,
                     msd_err/taus**tnormalize,
                     fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
-        pl.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
-    pl.title("Mean Sq {}Disp".format("Angular " if ang else "") if title is None else title)
-    pl.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
+        plt.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
+    plt.title("Mean Sq {}Disp".format("Angular " if ang else "") if title is None else title)
+    plt.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
     if ang:
-        pl.ylabel('Squared Angular Displacement ($rad^2$)',
+        plt.ylabel('Squared Angular Displacement ($rad^2$)',
               fontsize='x-large')
     else:
-        pl.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
+        plt.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
               fontsize='x-large')
     if xlim is not None:
-        pl.xlim(*xlim)
+        plt.xlim(*xlim)
     if ylim is not None:
-        pl.ylim(*ylim)
-    if show_legend: pl.legend(loc='best')
+        plt.ylim(*ylim)
+    if show_legend: plt.legend(loc='best')
     if save is True:
         save = locdir + prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
         print "saving to", save
-        pl.savefig(save)
-    if show: pl.show()
+        plt.savefig(save)
+    if show: plt.show()
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
@@ -901,30 +900,30 @@ if __name__=='__main__' and args.nn:
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
 
-    pl.figure()
+    plt.figure()
     plot_individual = True
     if plot_individual:
-        pl.plot(tcorr, allcorr.T, 'b', alpha=.2)
-    pl.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+        plt.plot(tcorr, allcorr.T, 'b', alpha=.2)
+    plt.errorbar(tcorr, meancorr, errcorr, None, 'ok',
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
-    pl.plot(tcorr, fitform(tcorr, *popt), 'r',
+    plt.plot(tcorr, fitform(tcorr, *popt), 'r',
             label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
                                       D_R, 1/D_R))
-    pl.xlim(0, tmax)
-    pl.ylim(fitform(tmax, *popt), 1)
-    pl.yscale('log')
+    plt.xlim(0, tmax)
+    plt.ylim(fitform(tmax, *popt), 1)
+    plt.yscale('log')
 
-    pl.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
-    pl.xlabel("$tf$")
-    pl.title("Orientation Autocorrelation\n"+prefix)
-    pl.legend(loc='upper right', framealpha=1)
+    plt.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
+    plt.xlabel("$tf$")
+    plt.title("Orientation Autocorrelation\n"+prefix)
+    plt.legend(loc='upper right', framealpha=1)
 
     if args.save:
         save = locdir+prefix+'_nn-corr.pdf'
         print 'saving <nn> correlation plot to', save
-        pl.savefig(save)
-    if not (args.rn or args.rr) and args.show: pl.show()
+        plt.savefig(save)
+    if not (args.rn or args.rr) and args.show: plt.show()
 
 if __name__=='__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
@@ -996,37 +995,37 @@ if __name__=='__main__' and args.rn:
                      '   D_R: {:.4f}'][:3-len(popt)]
                     ).format(*[v0, D_R][:3-len(popt)])
 
-    pl.figure()
+    plt.figure()
     fit = fitform(tcorr, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
-        pl.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
-    pl.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
+        plt.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
+    plt.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
                 label="Mean Position-Orientation Correlation",
                 capthick=0, elinewidth=1, errorevery=3)
-    pl.plot(tcorr, sgn*fit, 'r', lw=2,
+    plt.plot(tcorr, sgn*fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr + '\n' + sf(', '.join(
                   ['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:len(popt)]
                   ), *(abs(v0), D_R)[:len(popt)]))
 
-    pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-    pl.text(1/D_R, 1e-2, ' $1/D_R$')
+    plt.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+    plt.text(1/D_R, 1e-2, ' $1/D_R$')
 
-    pl.ylim(1.5*fit.min(), 1.5*fit.max())
-    pl.xlim(tcorr.min(), tcorr.max())
-    pl.title("Position - Orientation Correlation")
-    pl.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
-    pl.xlabel("$tf$")
-    pl.legend(loc='upper left', framealpha=1)
+    plt.ylim(1.5*fit.min(), 1.5*fit.max())
+    plt.xlim(tcorr.min(), tcorr.max())
+    plt.title("Position - Orientation Correlation")
+    plt.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
+    plt.xlabel("$tf$")
+    plt.legend(loc='upper left', framealpha=1)
 
     if args.save:
         save = locdir + prefix + '_rn-corr.pdf'
         print 'saving <rn> correlation plot to', save
-        pl.savefig(save)
-    if not args.rr and args.show: pl.show()
+        plt.savefig(save)
+    if not args.rr and args.show: plt.show()
 
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
@@ -1082,20 +1081,20 @@ if __name__=='__main__' and args.rr:
                 ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
                 ), *(popt*[1, sgn, 1][:len(popt)])))
 
-    pl.axvline(D_T/v0**2, 0, 1/3, ls='--', c='k')
-    pl.text(D_T/v0**2, 2e-2, ' $D_T/v_0^2$')
-    pl.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-    pl.text(1/D_R, 2e-1, ' $1/D_R$')
+    plt.axvline(D_T/v0**2, 0, 1/3, ls='--', c='k')
+    plt.text(D_T/v0**2, 2e-2, ' $D_T/v_0^2$')
+    plt.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+    plt.text(1/D_R, 2e-1, ' $1/D_R$')
 
-    pl.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
-    pl.xlim(taus[0], tmax)
-    pl.legend(loc='upper left')
+    plt.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
+    plt.xlim(taus[0], tmax)
+    plt.legend(loc='upper left')
 
     if args.save:
         save = locdir + prefix + '_rr-corr.pdf'
         print 'saving <rr> correlation plot to', save
         fig.savefig(save)
-    if args.show: pl.show()
+    if args.show: plt.show()
 
 if __name__=='__main__' and not args.show:
-    pl.close('all')
+    plt.close('all')
