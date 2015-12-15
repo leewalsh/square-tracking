@@ -5,7 +5,8 @@ from __future__ import division
 
 from itertools import izip
 from math import log
-import os
+import sys, os
+from time import strftime
 
 import numpy as np
 
@@ -123,6 +124,18 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     with open(path, 'w') as f:
         f.writelines(lines)
+
+def save_log_entry(prefix, entries, mode='a'):
+    timestamp = strftime('%Y-%m-%d %H:%M:%S %Z ')
+    suffix = '_LOG.txt'
+    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    if entries=='argv':
+        entries = [' '.join(sys.argv)]
+    elif isinstance(entries, basestring):
+        entries = filter(None, entries.split('\n'))
+    entries = [timestamp + (e if e.endswith('\n') else e+'\n') for e in entries]
+    with open(path, mode) as f:
+        f.writelines(entries)
 
 def load_data(fullprefix, choices='tracks orientation', verbose=False):
     """ Load data from an npz file
