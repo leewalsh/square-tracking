@@ -264,11 +264,14 @@ if __name__ == '__main__':
     from os import path, makedirs
     import shutil
 
-    if '*' in args.files[0] or '?' in args.files[0]:
+    first = args.files[0]
+    if '*' in first or '?' in first:
         from glob import glob
-        filenames = sorted(glob(args.files[0]))
+        filenames = sorted(glob(first))
+        filepattern = path.abspath(first)
     else:
         filenames = sorted(args.files)
+        filepattern = path.abspath(helpy.str_union(args.files))
 
     if args.plot and len(filenames) > 10:
         args.plot = helpy.bool_input(
