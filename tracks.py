@@ -27,6 +27,8 @@ if __name__=='__main__':
                         'prefix[_CORNER]_POSITIONS.txt file')
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
+    p.add_argument('-k', '--check', action='store_true',
+                   help='Load corners instead of centers')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
     p.add_argument('--noshow', action='store_false', dest='show',
@@ -335,7 +337,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         trackids[rejects] = -1
         return None if inplace else trackids
 
-def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbose=False):
+def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbose=False):
 
     from matplotlib.patches import Circle
 
@@ -363,6 +365,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbos
         map(ax.add_patch, patches)
         ax.figure.canvas.draw()
         return patches
+
+    if side==1:
+        side = 15
+    txtoff = max(rc, side, 10)
 
     fig = plt.figure(figsize=(12, 12))
     p = plt.imshow(imstack[0], cmap='gray')
@@ -393,7 +399,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbos
 
         p.set_data(imstack[f_display])
         remove = []
-        if rc:
+        if rc > 0:
             patches = draw_circles(ax, xyo[:, 1::-1], rc,
                                 color='g', fill=False, zorder=.5)
             remove.extend(patches)
@@ -408,11 +414,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=10, verbos
         remove.extend([q, ps, cs])
 
         tstr = fsets[f_display]['t'].astype('S')
-        txt = plt_text(y+rc, x+rc, tstr, color='r')
+        txt = plt_text(y+txtoff, x+txtoff, tstr, color='r')
         remove.extend(txt)
 
-        plt.xlim(0, imstack.shape[2])
-        plt.ylim(0, imstack.shape[1])
+        plt.xlim(0, imstack[f_display].shape[1])
+        plt.ylim(0, imstack[f_display].shape[0])
         plt.title("frame {}\n{} orientations / {} particles detected".format(
                     f_display, np.count_nonzero(omask), len(o)))
         fig.canvas.draw()
@@ -838,6 +844,16 @@ if __name__=='__main__':
             np.savez_compressed(save, data=data)
     else:
         data = helpy.load_data(locdir+prefix, 'track')
+
+    if args.check:
+        from glob import glob
+        meta = helpy.load_meta(locdir+prefix)
+        pattern = meta['path_to_tiffs']
+        imstack = map(plt.imread, sorted(glob(pattern)))
+        datas = helpy.load_data(locdir+prefix, 't c o')
+        fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
+        animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
+                          verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
