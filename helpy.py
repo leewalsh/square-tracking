@@ -89,6 +89,41 @@ def str_union(a, b):
         for i in itertools.count(1):
             a.startswith(b[:i])
 
+def eval_string(s, hashable=False):
+    s = s.strip()
+    first = s[0]
+    if first==s[-1] and first in '\'\"':
+        return s[1:-1]
+    nums = '-0123456789'
+    issub = set(s).issubset
+    if issub(set(nums + 'L')):
+        return int(s)
+    if issub(set(nums + '.+eE')) and not hashable:
+        return float(s)
+    return s
+
+def load_meta(prefix):
+    suffix = '_META.txt'
+    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    with open(path, 'r') as f:
+        lines = f.readlines()
+    return dict((eval_string(i) for i in l.split(':', 1)) for l in lines)
+
+def save_meta(prefix, meta_dict=None, **meta_kw):
+    try:
+        meta = load_meta(prefix)
+    except IOError:
+        meta = {}
+    if meta_dict:
+        meta.update(meta_dict)
+    meta.update(meta_kw)
+    lines = map('{0[0]!r:18}: {0[1]!r}\n'.format, meta.iteritems())
+
+    suffix = '_META.txt'
+    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    with open(path, 'w') as f:
+        f.writelines(lines)
+
 def load_data(fullprefix, choices='tracks orientation', verbose=False):
     """ Load data from an npz file
 
