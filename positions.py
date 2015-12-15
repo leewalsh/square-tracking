@@ -262,16 +262,22 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     from multiprocessing import Pool, cpu_count
     from os import path, makedirs
+    import sys
     import shutil
 
     first = args.files[0]
     if '*' in first or '?' in first:
         from glob import glob
         filenames = sorted(glob(first))
-        filepattern = path.abspath(first)
-    else:
+        filepattern = first
+        argv = 'argv'
+    elif len(args.files) > 1:
         filenames = sorted(args.files)
-        filepattern = path.abspath(reduce(helpy.str_union, args.files))
+        filepattern = reduce(helpy.str_union, args.files)
+        i = sys.argv.index(first)
+        argv = filter(lambda s: s not in filenames, sys.argv)
+        argv.insert(i, filepattern)
+        argv = ' '.join(argv)
 
     if args.plot and len(filenames) > 10:
         args.plot = helpy.bool_input(
@@ -297,8 +303,8 @@ if __name__ == '__main__':
         output += suffix
     outs = output, prefix + '_CORNER' + suffix
 
-    helpy.save_log_entry(prefix, 'argv')
-    helpy.save_meta(prefix, path_to_tiffs=filepattern)
+    helpy.save_log_entry(prefix, argv)
+    helpy.save_meta(prefix, path_to_tiffs=path.abspath(filepattern))
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
