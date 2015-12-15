@@ -254,7 +254,11 @@ def quick_field_view(arr, field, careful=True):
     if careful:
         i = arr.dtype.names.index(field)
         a, o = arr.item(-1)[i], out[-1]
-        assert a==o or np.isnan(a) and np.isnan(o)
+        if dt.shape is ():
+            assert a==o or np.isnan(a) and np.isnan(o)
+        else:
+            eq = a==o
+            assert np.all(eq) or np.all(eq[np.isfinite(a*o)])
     return out
 
 def consecutive_fields_view(arr, fields, careful=True):

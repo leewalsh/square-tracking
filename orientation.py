@@ -123,7 +123,8 @@ def find_corner(particle, corners, tree=None,
         corners = corners[icnear]
 
     cdisps = corners - particle
-    cdiffs = np.abs(np.hypot(*cdisps.T) - rc) # diff from preferred distance
+    cdists = np.hypot(*cdisps.T)
+    cdiffs = np.abs(cdists - rc)
     legal = cdiffs < drc
     nfound = np.count_nonzero(legal)
     if nfound == nc:
@@ -140,17 +141,17 @@ def find_corner(particle, corners, tree=None,
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
+    cdist = cdists[legal]
 
     if do_average and nc > 1:
-        amps = np.hypot(*cdisp.T)[...,None]
-        ndisp = cdisp/amps
-        porient = np.arctan2(*ndisp.mean(0)[::-1]) % twopi
-        cdisp = np.array([np.cos(porient), np.sin(porient)])*amps.mean()
-        pcorner = cdisp + particle
+        # average the angle by finding angle of mean vector displacement
+        # keep the corner displacements (as amplitude) and positions
+        meandisp = (cdisp/cdist[...,None]).mean(0)
+        porient = np.arctan2(*meandisp[::-1]) % twopi
     else:
         porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % twopi
 
-    return pcorner, porient, cdisp
+    return pcorner, porient, cdist
 
 #TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
@@ -221,13 +222,13 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
             (odata has the same shape as data)
     """
     if do_average or nc == 1:
-        dt = [('corner',float,(2,)),
+        dt = [('corner',float,(nc,2)),
               ('orient',float),
-              ('cdisp',float,(2,))]
+              ('cdisp',float,(nc,))]
     elif nc > 1:
         dt = [('corner',float,(nc,2,)),
               ('orient',float,(nc,)),
-              ('cdisp',float,(nc,2,))]
+              ('cdisp',float,(nc,))]
     odata = np.zeros(len(pdata), dtype=dt)
     iids = pdata['id']
     for f in pfsets:
