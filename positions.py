@@ -271,7 +271,7 @@ if __name__ == '__main__':
         filepattern = path.abspath(first)
     else:
         filenames = sorted(args.files)
-        filepattern = path.abspath(helpy.str_union(args.files))
+        filepattern = path.abspath(reduce(helpy.str_union, args.files))
 
     if args.plot and len(filenames) > 10:
         args.plot = helpy.bool_input(
@@ -296,6 +296,9 @@ if __name__ == '__main__':
         prefix = output
         output += suffix
     outs = output, prefix + '_CORNER' + suffix
+
+    helpy.save_log_entry(prefix, 'argv')
+    helpy.save_meta(prefix, path_to_tiffs=filepattern)
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
@@ -404,3 +407,6 @@ if __name__ == '__main__':
         np.savetxt(out+txt, point, delimiter='     ', header=header(**thresh[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
         helpy.txt_to_npz(out+txt, verbose=args.verbose, compress=gz)
+        key_prefix = 'corner_' if dot=='corner' else ''
+        helpy.save_meta(prefix, {key_prefix+k: v
+                                 for k, v in thresh[dot].iteritems()})
