@@ -306,6 +306,8 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
                 sepy = ftsets[f]['y'] - ftsets[neigh]['y']
                 seps += sepx*sepx + sepy*sepy
             rejects[t][f] = ftsets[f][seps > seps.min()]['id']
+    if not rejects:
+        return None if inplace else trackids if target=='trackids' else tracksets
     if target=='tracksets':
         if not inplace:
             tracksets = tracksets.copy()
