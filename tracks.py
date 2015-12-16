@@ -246,6 +246,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
         # assume 6mm particles if S not specified
         mm = R/101.6 # R = 4 in = 101.6 mm
         margin = S if S>1 else 6*mm
+        meta['track_cut_margin'] = margin
         print 'Cutting with margin {:.1f} pix = {:.1f} mm'.format(margin, margin/mm)
         rs = np.hypot(pdata['x'] - x0, pdata['y'] - y0)
         cut = rs > R - margin
@@ -798,6 +799,8 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
+    helpy.save_log_entry(absprefix, 'argv')
+    meta = helpy.load_meta(absprefix)
     if args.load:
         datapath = absprefix+'_CORNER'*args.corner+'_POSITIONS.txt'
         helpy.txt_to_npz(datapath, verbose=True, compress=True)
@@ -818,6 +821,12 @@ if __name__=='__main__':
         pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
                    for f, pfset in pfsets.iteritems() }
     if args.track:
+        meta['track_sidelength'] = args.side
+        meta['track_maxdist'] = args.maxdist
+        meta['track_maxtime'] = args.giveup
+        meta['track_cut'] = args.cut
+        meta['track_cut_margin'] = args.cut
+        meta['track_stub'] = args.stub
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
         trackids = remove_duplicates(trackids, data=pdata)
@@ -828,6 +837,9 @@ if __name__=='__main__':
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = { f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
                    for f, cfset in cfsets.iteritems() }
+        meta['orient_ncorners'] = args.ncorners
+        meta['orient_rcorner'] = args.rcorner
+        meta['orient_drcorner'] = args.drcorner
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
@@ -840,6 +852,7 @@ if __name__=='__main__':
     if args.track or args.orient:
         data = helpy.initialize_tdata(pdata, trackids, orients)
         if args.save:
+            helpy.save_meta(absprefix, meta)
             save = absprefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez_compressed(save, data=data)
@@ -848,8 +861,7 @@ if __name__=='__main__':
 
     if args.check:
         from glob import glob
-        meta = helpy.load_meta(absprefix)
-        pattern = meta['path_to_tiffs']
+        pattern = helpy.load_meta(absprefix)['path_to_tiffs']
         imstack = map(plt.imread, sorted(glob(pattern)))
         datas = helpy.load_data(absprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
