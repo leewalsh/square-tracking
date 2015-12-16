@@ -86,8 +86,9 @@ if __name__=='__main__':
     args = p.parse_args()
 
     import os.path
-    locdir, prefix = os.path.split(os.path.abspath(args.prefix))
-    locdir += '/'
+    absprefix = os.path.abspath(args.prefix)
+    locdir, prefix = os.path.split(absprefix)
+    locdir += os.path.sep
     if args.orient and args.rcorner <= 0:
         raise ValueError, "argument -r/--rcorner is required"
 
@@ -546,8 +547,8 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     plt.ylim(data['x'].min()-10, data['x'].max()+10)
     plt.title(prefix)
     if save:
-        print "saving tracks image to", prefix+"_tracks.png"
-        plt.savefig(locdir+prefix+"_tracks.png")
+        print "saving tracks image to", absprefix+"_tracks.png"
+        plt.savefig(absprefix+"_tracks.png")
     if show: plt.show()
 
 # Mean Squared Displacement
@@ -789,7 +790,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         plt.ylim(*ylim)
     if show_legend: plt.legend(loc='best')
     if save is True:
-        save = locdir + prefix + "_MS{}D.pdf".format('A' if ang else '')
+        save = prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
         print "saving to", save
         plt.savefig(save)
@@ -798,7 +799,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
 
 if __name__=='__main__':
     if args.load:
-        datapath = locdir+prefix+'_CORNER'*args.corner+'_POSITIONS.txt'
+        datapath = absprefix+'_CORNER'*args.corner+'_POSITIONS.txt'
         helpy.txt_to_npz(datapath, verbose=True, compress=True)
         if args.orient or args.track:
             print 'not tracking, only converting file from txt to npz'
@@ -810,9 +811,9 @@ if __name__=='__main__':
                 "simultaneously track and find orientations? (It's faster)\n"):
             args.track = args.orient = True
         if args.orient:
-            pdata, cdata = helpy.load_data(locdir+prefix, 'position corner')
+            pdata, cdata = helpy.load_data(absprefix, 'position corner')
         else:
-            pdata = helpy.load_data(locdir+prefix, 'position')
+            pdata = helpy.load_data(absprefix, 'position')
         pfsets = helpy.splitter(pdata, ret_dict=True)
         pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
                    for f, pfset in pfsets.iteritems() }
@@ -830,7 +831,7 @@ if __name__=='__main__':
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
-            save = locdir+prefix+'_ORIENTATION.npz'
+            save = absprefix+'_ORIENTATION.npz'
             print "saving orientation data to", save
             np.savez_compressed(save, odata=odata, omask=omask)
         orients = odata['orient']
@@ -839,18 +840,18 @@ if __name__=='__main__':
     if args.track or args.orient:
         data = helpy.initialize_tdata(pdata, trackids, orients)
         if args.save:
-            save = locdir+prefix+"_TRACKS.npz"
+            save = absprefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez_compressed(save, data=data)
     else:
-        data = helpy.load_data(locdir+prefix, 'track')
+        data = helpy.load_data(absprefix, 'track')
 
     if args.check:
         from glob import glob
-        meta = helpy.load_meta(locdir+prefix)
+        meta = helpy.load_meta(absprefix)
         pattern = meta['path_to_tiffs']
         imstack = map(plt.imread, sorted(glob(pattern)))
-        datas = helpy.load_data(locdir+prefix, 't c o')
+        datas = helpy.load_data(absprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
                           verbose=args.verbose)
@@ -858,7 +859,7 @@ if __name__=='__main__':
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
         if args.save:
-            save = locdir+prefix+"_MSD.npz"
+            save = absprefix+"_MSD.npz"
             print "saving msd data to", save
             np.savez(save,
                      msds = np.asarray(msds),
@@ -867,7 +868,7 @@ if __name__=='__main__':
                      dtau = np.asarray(dtau))
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
-        datapath = locdir+prefix+"_MSD.npz"
+        datapath = absprefix+"_MSD.npz"
         msdnpz = np.load(datapath)
         msds = msdnpz['msds']
         try: msdids = msdnpz['msdids']
@@ -884,7 +885,7 @@ if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-                 prefix=prefix, show_tracks=args.showtracks, show=args.show,
+                 prefix=absprefix, show_tracks=args.showtracks, show=args.show,
                  singletracks=args.singletracks, fps=fps, S=S, save=args.save,
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
@@ -900,7 +901,7 @@ if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
-    data = helpy.load_data(locdir+prefix, 'tracks')
+    data = helpy.load_data(absprefix, 'tracks')
     omask = np.isfinite(data['o'])
     tracksets = helpy.load_tracksets(data, omask, min_length=args.stub)
 
@@ -957,7 +958,7 @@ if __name__=='__main__' and args.nn:
     plt.legend(loc='upper right', framealpha=1)
 
     if args.save:
-        save = locdir+prefix+'_nn-corr.pdf'
+        save = absprefix+'_nn-corr.pdf'
         print 'saving <nn> correlation plot to', save
         plt.savefig(save)
     if not (args.rn or args.rr) and args.show: plt.show()
@@ -968,7 +969,7 @@ if __name__=='__main__' and args.rn:
 
     if not args.nn:
         # if args.nn, then these have been loaded already
-        data = helpy.load_data(locdir+prefix, 'tracks')
+        data = helpy.load_data(absprefix, 'tracks')
         omask = np.isfinite(data['o'])
         tracksets = helpy.load_tracksets(data, omask,
                                     min_length=max(100, args.stub))
@@ -1059,7 +1060,7 @@ if __name__=='__main__' and args.rn:
     plt.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save = locdir + prefix + '_rn-corr.pdf'
+        save = absprefix + '_rn-corr.pdf'
         print 'saving <rn> correlation plot to', save
         plt.savefig(save)
     if not args.rr and args.show: plt.show()
@@ -1067,7 +1068,7 @@ if __name__=='__main__' and args.rn:
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
             msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-            errorbars=5, prefix=prefix, show_tracks=True, meancol='ok',
+            errorbars=5, prefix=absprefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
             kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
 
@@ -1128,7 +1129,7 @@ if __name__=='__main__' and args.rr:
     plt.legend(loc='upper left')
 
     if args.save:
-        save = locdir + prefix + '_rr-corr.pdf'
+        save = absprefix + '_rr-corr.pdf'
         print 'saving <rr> correlation plot to', save
         fig.savefig(save)
     if args.show: plt.show()
