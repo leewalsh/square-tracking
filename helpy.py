@@ -5,7 +5,7 @@ from __future__ import division
 
 from itertools import izip
 from math import log
-import sys, os
+import sys, os, ntpath
 from time import strftime
 
 import numpy as np
@@ -93,6 +93,8 @@ def str_union(a, b):
 def eval_string(s, hashable=False):
     s = s.strip()
     first = s[0]
+    if '\\' in s:
+        s = ntpath.normpath(s)
     if first==s[-1] and first in '\'\"':
         return s[1:-1]
     nums = '-0123456789'
@@ -119,7 +121,6 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
         meta.update(meta_dict)
     meta.update(meta_kw)
     lines = map('{0[0]!r:18}: {0[1]!r}\n'.format, meta.iteritems())
-
     suffix = '_META.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     with open(path, 'w') as f:
