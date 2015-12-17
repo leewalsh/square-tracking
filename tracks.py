@@ -275,7 +275,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
     return trackids
 
 def remove_duplicates(trackids=None, data=None, tracksets=None,
-                      target='', inplace=False):
+                      target='', inplace=False, verbose=False):
     if tracksets is None:
         target = target or 'trackids'
         tracksets = helpy.load_tracksets(data, trackids, min_length=0)
@@ -486,16 +486,23 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
 def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=False):
     if not inplace:
         tracksets = {t: s.copy() for t,s in tracksets.iteritems()}
+    if verbose:
+        print 'filling gaps with nans'
+        if interp:
+            print 'and interpolating nans in', ', '.join(interp)
     for t, tset in tracksets.items():
+        if verbose: print "\ttrack {:4d}:".format(t),
         fs = tset['f']
         gaps = np.diff(fs) - 1
         mx = gaps.max()
         if not mx:
+            if verbose: print "not any gaps"
             if 'o' in interp:
                 interp_nans(tset['o'], tset['f'], inplace=True)
             continue
         elif mx > max_gap:
-            print "Dropped track {}: has gap of {} > {}".format(t, mx, max_gap)
+            if verbose:
+                print "dropped, gap too big: {} > {}".format(mx, max_gap)
             tracksets.pop(t)
             continue
         gapi = gaps.nonzero()[0]
@@ -503,8 +510,8 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
         gapi = np.repeat(gapi, gaps)
         missing = np.full(len(gapi), np.nan, tset.dtype)
         if verbose:
-            print ("track {:4d}: missing {} frames in {} gaps"
-                   " (biggest {})").format(t, len(gapi), len(gaps), mx)
+            print ("missing {:3} frames in {:2} gaps (biggest {})"
+                    ).format(len(gapi), len(gaps), mx)
         missing['f'] = np.concatenate(map(range, gaps)) + fs[gapi] + 1
         missing['t'] = t
         tset = np.insert(tset, gapi+1, missing)
@@ -577,7 +584,6 @@ def t0avg(trackdots, tracklen, tau):
     totsqdisp = 0.0
     nt0s = 0.0
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        #print "t0=%d, tau=%d, t0+tau=%d, tracklen=%d"%(t0,tau,t0+tau,tracklen)
         olddot = trackdots[trackdots['f']==t0]
         newdot = trackdots[trackdots['f']==t0+tau]
         if len(newdot) != 1 or len(olddot) != 1:
@@ -626,25 +632,21 @@ def trackmsd(track, dt0, dtau):
         trackdots = track
 
     if dt0 == dtau == 1:
-        if verbose: print "Using correlation"
         xy = np.column_stack([trackdots['x'], trackdots['y']])
         return corr.msd(xy, ret_taus=True)
 
     trackbegin, trackend = trackdots['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
     if verbose:
-        print "tracklen =",tracklen
-        print "\t from %d to %d"%(trackbegin, trackend)
+        print "length {} from {} to {}".format(tracklen, trackbegin, trackend)
     if isinstance(dtau, float):
         taus = helpy.farange(dt0, tracklen, dtau)
     elif isinstance(dtau, int):
         taus = xrange(dtau, tracklen, dtau)
 
     tmsd = []
-    for tau in taus:  # for tau in T, by factor dtau
-        #print "tau =", tau
+    for tau in taus:
         avg = t0avg(trackdots, tracklen, tau)
-        #print "avg =", avg
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]])
     if verbose:
@@ -667,16 +669,20 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
     """
     print "Calculating MSDs with",
     print "dt0 = {}, dtau = {}".format(dt0, dtau)
+    if verbose: print "for track",
     msds = []
     msdids = []
     if tracks is None:
         tracks = helpy.load_tracksets(data, min_length=min_length)
     for trackid in sorted(tracks):
-        if verbose: print "calculating msd for track", trackid
+        if verbose:
+            print t,
+            sys.stdout.flush()
         tmsd = trackmsd(tracks[trackid], dt0, dtau)
         if len(tmsd) > 1:
             msds.append(tmsd)
             msdids.append(trackid)
+    if verbose: print
     return msds, msdids
 
 # Mean Squared Displacement:
@@ -805,7 +811,8 @@ if __name__=='__main__':
         datapath = absprefix+'_CORNER'*args.corner+'_POSITIONS.txt'
         helpy.txt_to_npz(datapath, verbose=True, compress=True)
         if args.orient or args.track:
-            print 'not tracking, only converting file from txt to npz'
+            print 'NOTICE: not tracking, only converting file from txt to npz'
+            print '        please run again without `-l` to track/orient'
         sys.exit()
 
     if args.track or args.orient:
@@ -891,16 +898,16 @@ if __name__=='__main__':
         except KeyError:
             dt0  = 10 # here's assuming...
             dtau = 10 #  should be true for all from before dt* was saved
-        if verbose: print "\t...loaded"
 
 if __name__=='__main__':
     if args.plotmsd:
-        if verbose: print 'plotting now!'
+        if verbose: print 'plotting msd now!'
         plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
                  prefix=absprefix, show_tracks=args.showtracks, show=args.show,
                  singletracks=args.singletracks, fps=fps, S=S, save=args.save,
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
+        if verbose: print 'plotting tracks now!'
         bgimage = helpy.find_first_frame([locdir, prefix])
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
@@ -915,12 +922,30 @@ if __name__=='__main__' and args.nn:
 
     data = helpy.load_data(absprefix, 'tracks')
     omask = np.isfinite(data['o'])
-    tracksets = helpy.load_tracksets(data, omask, min_length=args.stub)
+    tracksets = helpy.load_tracksets(data, omask,
+                            min_length=args.stub, verbose=args.verbose)
 
-    coscorrs = [ corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
-                for trackset in tracksets.values() ]
-    sincorrs = [ corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
-                for trackset in tracksets.values() ]
+    if args.verbose:
+        print 'calculating <nn> correlations for track'
+        coscorrs = []
+        sincorrs = []
+        for t, trackset in tracksets.iteritems():
+            print t,
+            o = trackset['o']
+            if args.verbose > 1:
+                print o.shape, o.dtype
+            sys.stdout.flush()
+            cos = np.cos(o)
+            sin = np.sin(o)
+            coscorr = corr.autocorr(cos, cumulant=False, norm=False)
+            sincorr = corr.autocorr(sin, cumulant=False, norm=False)
+            coscorrs.append(coscorr)
+            sincorrs.append(sincorr)
+    else:
+        coscorrs = [ corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
+                    for trackset in tracksets.values() ]
+        sincorrs = [ corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
+                    for trackset in tracksets.values() ]
 
     # Gather all the track correlations and average them
     allcorr = coscorrs + sincorrs
@@ -930,7 +955,7 @@ if __name__=='__main__' and args.nn:
     added = np.sum(np.isfinite(allcorr), 0)
     errcorr = np.nanstd(allcorr, 0)/np.sqrt(added - 1)
     sigma = errcorr + 1e-5*errcorr.std() # add something small to prevent 0
-    if verbose:
+    if args.verbose:
         print "Merged nn corrs"
 
     # Fit to exponential decay
@@ -984,7 +1009,7 @@ if __name__=='__main__' and args.rn:
         data = helpy.load_data(absprefix, 'tracks')
         omask = np.isfinite(data['o'])
         tracksets = helpy.load_tracksets(data, omask,
-                                    min_length=max(100, args.stub))
+                        min_length=max(100, args.stub), verbose=args.verbose)
         D_R = 1/12
 
     corr_args = {'side': 'both', 'ret_dx': True,
@@ -1010,7 +1035,7 @@ if __name__=='__main__' and args.rn:
     added = np.sum(np.isfinite(rncorrs), 0)
     errcorr = np.nanstd(rncorrs, 0)/np.sqrt(added - 1)
     sigma = errcorr + errcorr.std() # add something small to prevent 0
-    if verbose:
+    if args.verbose:
         print "Merged rn corrs"
 
     # Fit to capped exponential growth

@@ -200,7 +200,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, trackids=None, min_length=10,
+def load_tracksets(data, trackids=None, min_length=10, verbose=False,
         run_remove_dupes=False, run_fill_gaps=False, run_track_orient=False):
     """ Returns a dict of slices into data based on trackid
     """
@@ -217,10 +217,10 @@ def load_tracksets(data, trackids=None, min_length=10,
     tracksets = {track: data[trackids==track] for track in longtracks}
     if run_remove_dupes:
         from tracks import remove_duplicates
-        remove_duplicates(tracksets=tracksets, inplace=True)
+        remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
     if run_fill_gaps:
         from tracks import fill_gaps
-        fill_gaps(tracksets=tracksets, inplace=True)
+        fill_gaps(tracksets=tracksets, inplace=True, verbose=verbose)
     if run_track_orient:
         from orientation import track_orient
         for track in tracksets:
