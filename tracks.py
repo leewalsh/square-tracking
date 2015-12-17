@@ -875,6 +875,10 @@ if __name__=='__main__':
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
                           verbose=args.verbose)
 
+    if args.msd or args.nn or args.rn:
+        tracksets = helpy.load_tracksets(data, min_length=args.stub,
+                            run_fill_gaps=True, verbose=args.verbose)
+
     if args.msd:
         msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
         if args.save:
@@ -919,11 +923,6 @@ if __name__=='__main__':
 if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
-
-    data = helpy.load_data(absprefix, 'tracks')
-    omask = np.isfinite(data['o'])
-    tracksets = helpy.load_tracksets(data, omask,
-                            min_length=args.stub, verbose=args.verbose)
 
     if args.verbose:
         print 'calculating <nn> correlations for track'
@@ -1005,11 +1004,6 @@ if __name__=='__main__' and args.rn:
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
     if not args.nn:
-        # if args.nn, then these have been loaded already
-        data = helpy.load_data(absprefix, 'tracks')
-        omask = np.isfinite(data['o'])
-        tracksets = helpy.load_tracksets(data, omask,
-                        min_length=max(100, args.stub), verbose=args.verbose)
         D_R = 1/12
 
     corr_args = {'side': 'both', 'ret_dx': True,
