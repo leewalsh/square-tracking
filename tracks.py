@@ -563,7 +563,7 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
-def t0avg(trackdots, tracklen, tau):
+def t0avg(trackset, tracklen, tau):
     """ Averages the squared displacement of a track for a certain value of tau
         over all valid values of t0 (such that t0 + tau < tracklen)
 
@@ -573,7 +573,7 @@ def t0avg(trackdots, tracklen, tau):
 
         parameters
         ----------
-        trackdots : a subset of data for all points in the given track
+        trackset : a subset of data for all points in the given track
         tracklen : the length (duration) of the track
         tau : the time separation for the displacement: r(tau) - r(0)
 
@@ -583,9 +583,10 @@ def t0avg(trackdots, tracklen, tau):
     """
     totsqdisp = 0.0
     nt0s = 0.0
+    tfsets = helpy.splitter(trackset, trackset['f'], ret_dict=True)
     for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
-        olddot = trackdots[trackdots['f']==t0]
-        newdot = trackdots[trackdots['f']==t0+tau]
+        olddot = tfsets[t0]
+        newdot = tfsets[t0+tau]
         if len(newdot) != 1 or len(olddot) != 1:
             continue
         sqdisp  = (newdot['x'] - olddot['x'])**2 \
@@ -602,14 +603,13 @@ def t0avg(trackdots, tracklen, tau):
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
 
-def trackmsd(track, dt0, dtau):
+def trackmsd(trackset, dt0, dtau):
     """ finds the mean squared displacement as a function of tau,
         averaged over t0, for one track (particle)
 
         parameters
         ----------
-        track : a single integer giving the track id to be calculated
-            or, a subset of the data for a given track (a 'trackset')
+        trackset : a subset of the data for a given track
         dt0 : spacing stepsize for values of t0, gives the number of starting
             points averaged over in `t0avg`
         dtau : spacing stepsize for values of tau, gives the spacing of the
@@ -626,16 +626,11 @@ def trackmsd(track, dt0, dtau):
         displacement for a single track at that value of tau
 
     """
-    if np.isscalar(track):
-        trackdots = data[trackids==track]
-    else:
-        trackdots = track
-
     if dt0 == dtau == 1:
-        xy = np.column_stack([trackdots['x'], trackdots['y']])
+        xy = helpy.consecutive_fields_view(trackset, 'xy')
         return corr.msd(xy, ret_taus=True)
 
-    trackbegin, trackend = trackdots['f'][[0,-1]]
+    trackbegin, trackend = trackset['f'][[0,-1]]
     tracklen = trackend - trackbegin + 1
     if verbose:
         print "length {} from {} to {}".format(tracklen, trackbegin, trackend)
@@ -646,20 +641,20 @@ def trackmsd(track, dt0, dtau):
 
     tmsd = []
     for tau in taus:
-        avg = t0avg(trackdots, tracklen, tau)
+        avg = t0avg(trackset, tracklen, tau)
         if avg > 0 and not np.isnan(avg):
             tmsd.append([tau,avg[0]])
     if verbose:
         print "\t...actually", len(tmsd)
     return tmsd
 
-def find_msds(dt0, dtau, tracks=None, min_length=0):
+def find_msds(tracksets, dt0, dtau, min_length=0):
     """ Calculates the MSDs for all tracks
 
         parameters
         ----------
         dt0, dtau : see documentation for `trackmsd`
-        tracks : iterable of individual track numbers, or None for all tracks
+        tracksets : dict of subsets of the data for a given track
         min_length : a cutoff to exclude tracks shorter than min_length
 
         returns
@@ -672,16 +667,14 @@ def find_msds(dt0, dtau, tracks=None, min_length=0):
     if verbose: print "for track",
     msds = []
     msdids = []
-    if tracks is None:
-        tracks = helpy.load_tracksets(data, min_length=min_length)
-    for trackid in sorted(tracks):
+    for t in sorted(tracksets):
         if verbose:
             print t,
             sys.stdout.flush()
-        tmsd = trackmsd(tracks[trackid], dt0, dtau)
+        tmsd = trackmsd(tracksets[t], dt0, dtau)
         if len(tmsd) > 1:
             msds.append(tmsd)
-            msdids.append(trackid)
+            msdids.append(t)
     if verbose: print
     return msds, msdids
 
@@ -880,7 +873,7 @@ if __name__=='__main__':
                             run_fill_gaps=True, verbose=args.verbose)
 
     if args.msd:
-        msds, msdids = find_msds(dt0, dtau, min_length=args.stub)
+        msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
         if args.save:
             save = absprefix+"_MSD.npz"
             print "saving msd data to", save
