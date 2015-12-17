@@ -28,7 +28,8 @@ if __name__=='__main__':
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
     p.add_argument('-k', '--check', action='store_true',
-                   help='Load corners instead of centers')
+                   help='Play an animation of detected positions, orientations, '
+                        'and track numbers for checking their quality')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
     p.add_argument('--noshow', action='store_false', dest='show',
@@ -862,7 +863,12 @@ if __name__=='__main__':
     if args.check:
         from glob import glob
         pattern = helpy.load_meta(absprefix)['path_to_tiffs']
-        imstack = map(plt.imread, sorted(glob(pattern)))
+        imfiles = glob(pattern)
+        while not imfiles:
+            msg = 'No tifs found at the following pattern, please fix it\n{}\n'
+            pattern = raw_input(msg.format(pattern))
+            imfiles = glob(pattern)
+        imstack = map(plt.imread, sorted(imfiles))
         datas = helpy.load_data(absprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
