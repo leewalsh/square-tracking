@@ -221,6 +221,7 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
+    import helpy
     if do_average or nc == 1:
         dt = [('corner',float,(nc,2)),
               ('orient',float),
@@ -229,24 +230,30 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
         dt = [('corner',float,(nc,2,)),
               ('orient',float,(nc,)),
               ('cdisp',float,(nc,))]
-    odata = np.zeros(len(pdata), dtype=dt)
-    iids = pdata['id']
+    odata = np.full(len(pdata), np.nan, dtype=dt)
+    odata_corner = odata['corner']
+    odata_orient = odata['orient']
+    odata_cdisp  = odata['cdisp']
+    full_ids = pdata['id']
+    id_ok = full_ids[0]==0 and np.all(np.diff(full_ids)==1)
     for f in pfsets:
         fpdata = pfsets[f]
         fcdata = cfsets[f]
         tree = cftrees[f]
-        positions = np.column_stack([fpdata['x'], fpdata['y']])
-        cpositions = np.column_stack([fcdata['x'], fcdata['y']])
-        for iid, posi in izip(fpdata['id'], positions):
+        positions = helpy.consecutive_fields_view(fpdata, 'xy')
+        cpositions = helpy.consecutive_fields_view(fcdata, 'xy')
+        frame_ids = helpy.quick_field_view(fpdata, 'id')
+        for frame_id, posi in izip(frame_ids, positions):
             #TODO could probably be sped up by looping through the output of
             #     ptree.query_ball_tree(ctree)
-            icorner, iorient, idisp = \
+            corner, orient, disp = \
                 find_corner(posi, cpositions, tree=tree,
                             nc=nc, rc=rc, drc=drc, do_average=do_average)
-            imask = np.searchsorted(iids, iid)
-            odata['corner'][imask] = icorner
-            odata['orient'][imask] = iorient
-            odata['cdisp'][imask] = idisp
+            if orient is None: continue
+            full_id = frame_id if id_ok else np.searchsorted(full_ids, frame_id)
+            odata_corner[full_id] = corner
+            odata_orient[full_id] = orient
+            odata_cdisp[full_id] = disp
 
     if do_average or nc == 1:
         mask = np.isfinite(odata['orient'])
