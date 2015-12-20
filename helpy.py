@@ -92,11 +92,17 @@ def str_union(a, b):
 
 def eval_string(s, hashable=False):
     s = s.strip()
-    first = s[0]
+    if s=='True': return True
+    if s=='False': return False
+    if s=='None': return None
+    first, last = s[0], s[-1]
     if '\\' in s:
         s = ntpath.normpath(s)
-    if first==s[-1] and first in '\'\"':
+    if first==last and first in '\'\"':
         return s[1:-1]
+    if first in '[(' and last in ')]':
+        l = map(eval_string, s[1:-1].split(', '))
+        return l if first=='[' else tuple(l)
     nums = '-0123456789'
     issub = set(s).issubset
     if issub(set(nums + 'L')):
@@ -110,7 +116,7 @@ def load_meta(prefix):
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     with open(path, 'r') as f:
         lines = f.readlines()
-    return dict((eval_string(i) for i in l.split(':', 1)) for l in lines)
+    return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
 def save_meta(prefix, meta_dict=None, **meta_kw):
     try:
