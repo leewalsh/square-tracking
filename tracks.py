@@ -237,16 +237,21 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
 
     if cut:
         if args.boundary:
+            print "cutting at supplied boundary"
             x0, y0, R = args.boundary
+        elif 'track_cut_boundary' in meta:
+            print "cutting at previously saved boundary"
+            x0, y0, R = meta['track_cut_boundary']
         else:
             not_found = ('Please give the path to a tiff image '
                          'from this dataset to identify boundary\n')
             bgimage = helpy.find_first_frame([locdir, prefix], err=not_found)
             x0, y0, R = helpy.circle_click(bgimage)
-            print "Boundary (x0, y0, r):", x0, y0, R
+            print "cutting at selected boundary (x0, y0, r):", x0, y0, R
         # assume 6mm particles if S not specified
         mm = R/101.6 # R = 4 in = 101.6 mm
         margin = S if S>1 else 6*mm
+        meta['track_cut_boundary'] = (x0, y0, R)
         meta['track_cut_margin'] = margin
         print 'Cutting with margin {:.1f} pix = {:.1f} mm'.format(margin, margin/mm)
         rs = np.hypot(pdata['x'] - x0, pdata['y'] - y0)
@@ -826,7 +831,6 @@ if __name__=='__main__':
         meta['track_maxdist'] = args.maxdist
         meta['track_maxtime'] = args.giveup
         meta['track_cut'] = args.cut
-        meta['track_cut_margin'] = args.cut
         meta['track_stub'] = args.stub
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
