@@ -144,6 +144,15 @@ def save_log_entry(prefix, entries, mode='a'):
     with open(path, mode) as f:
         f.writelines(entries)
 
+def clear_execution_counts(nbpath, inplace=False):
+    import nbformat
+    nb = nbformat.read(nbpath, nbformat.current_nbformat)
+    for cell in nb['cells']:
+        if 'execution_count' in cell:
+            cell['execution_count'] = None
+    out = nbpath if inplace else nbpath.replace('.ipynb', '.nulled.ipynb')
+    nbformat.write(nb, out)
+
 def load_data(fullprefix, choices='tracks orientation', verbose=False):
     """ Load data from an npz file
 
