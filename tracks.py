@@ -382,6 +382,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbos
 
     fig = plt.figure(figsize=(12, 12))
     p = plt.imshow(imstack[0], cmap='gray')
+    h, w = imstack[0].shape
     ax = p.axes
     global f_display
     f_display = repeat = f_old = 0
@@ -427,8 +428,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbos
         txt = plt_text(y+txtoff, x+txtoff, tstr, color='r')
         remove.extend(txt)
 
-        plt.xlim(0, imstack[f_display].shape[1])
-        plt.ylim(0, imstack[f_display].shape[0])
+        plt.xlim(0, w)
+        plt.ylim(0, h)
         plt.title("frame {}\n{} orientations / {} particles detected".format(
                     f_display, np.count_nonzero(omask), len(o)))
         fig.canvas.draw()
@@ -868,12 +869,13 @@ if __name__=='__main__':
 
     if args.check:
         from glob import glob
-        pattern = helpy.load_meta(absprefix)['path_to_tiffs']
+        pattern = meta['path_to_tiffs']
         imfiles = glob(pattern)
         while not imfiles:
             msg = 'No tifs found at the following pattern, please fix it\n{}\n'
             pattern = raw_input(msg.format(pattern))
             imfiles = glob(pattern)
+        meta['path_to_tiffs'] = pattern
         imstack = map(plt.imread, sorted(imfiles))
         datas = helpy.load_data(absprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
@@ -958,7 +960,7 @@ if __name__=='__main__' and args.nn:
     meancorr = np.nanmean(allcorr, 0)
     added = np.sum(np.isfinite(allcorr), 0)
     errcorr = np.nanstd(allcorr, 0)/np.sqrt(added - 1)
-    sigma = errcorr + 1e-5*errcorr.std() # add something small to prevent 0
+    sigma = errcorr + 1e-5*np.nanstd(errcorr) # add something small to prevent 0
     if args.verbose:
         print "Merged nn corrs"
 
@@ -975,7 +977,7 @@ if __name__=='__main__' and args.nn:
         print "RuntimeError:", e.message
         print "Using inital guess", p0
         popt = p0
-    D_R = popt[0]
+    D_R = float(popt[0])
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
 

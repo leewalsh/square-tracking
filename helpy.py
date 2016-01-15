@@ -114,6 +114,8 @@ def eval_string(s, hashable=False):
 def load_meta(prefix):
     suffix = '_META.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
+    if not os.path.exists(path):
+        return {}
     with open(path, 'r') as f:
         lines = f.readlines()
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
