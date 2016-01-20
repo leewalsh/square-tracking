@@ -24,7 +24,7 @@ if __name__=='__main__':
     arg('--width', type=float, default=0.75, metavar='W', nargs='?', const=-.5,
             help='Smoothing width for derivative')
     arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
-    arg('--save', type=str, nargs='?', const='plothist', default='', help='Save figure?')
+    arg('--save', type=str, nargs='?', const='velocity', default='', help='Save figure?')
     arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
@@ -197,7 +197,11 @@ if __name__=='__main__':
     compile_args = dict(args.__dict__)
     full_prefix = compile_args.pop('prefix')
     dirname, prefix = os.path.split(full_prefix)
-    if args.sets:
+    if '*' in full_prefix or '?' in full_prefix:
+        from glob import iglob
+        suf = '_TRACKS.npz'
+        prefixes = [ s[:-len(suf)] for s in iglob(full_prefix+suf) ]
+    elif args.sets:
         prefixes = ["{}{i}_d/{}{i}".format(full_prefix, prefix, i=i+1)
                     for i in xrange(args.sets)]
     else:
@@ -206,7 +210,10 @@ if __name__=='__main__':
         dirm = (dirname or '*') + (prefix + '*/')*depth
         basm = prefix.strip('/._')
         endm = '*_TRACKS.npz'
-        prefixes = (p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm))
+        prefixes = [p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm)] or full_prefix
+    if args.verbose:
+        print 'using'
+        print '\n'.join([prefixes] if np.isscalar(prefixes) else prefixes)
 
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
              'etapar': r'$\eta_\parallel$'}
@@ -250,7 +257,7 @@ if __name__=='__main__':
                 axi += 1
 
     if args.save:
-        savename = '.'.join([os.path.abspath(full_prefix.rstrip('/._')), args.save, 'pdf'])
+        savename = '.'.join([os.path.abspath(full_prefix.rstrip('/._?*')), args.save, 'pdf'])
         print 'Saving plot to {}'.format(savename)
         plt.savefig(savename)
     else:
