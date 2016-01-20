@@ -83,6 +83,8 @@ if __name__=='__main__':
                    help='Let D_R be a free parameter in fit to MSD (<rn>)')
     p.add_argument('--fitv0', action='store_true',
                    help='Let v_0 be a free parameter in fit to MSD (<rr>)')
+    p.add_argument('-z', '--zoom', metavar="ZOOM", type=float, default=1,
+                   help="Factor by which to zoom out (in if ZOOM < 1)")
     p.add_argument('-v', '--verbose', action='count',
                         help='Print verbosity')
 
@@ -965,7 +967,7 @@ if __name__=='__main__' and args.nn:
         print "Merged nn corrs"
 
     # Fit to exponential decay
-    tmax = 50
+    tmax = int(50*args.zoom)
     fmax = np.searchsorted(tcorr, tmax)
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
     fitstr = r"$\frac{1}{2}e^{-D_R t}$"
@@ -998,7 +1000,7 @@ if __name__=='__main__' and args.nn:
     plt.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     plt.xlabel("$tf$")
     plt.title("Orientation Autocorrelation\n"+prefix)
-    plt.legend(loc='upper right', framealpha=1)
+    plt.legend(loc='upper right' if args.zoom<=1 else 'lower left', framealpha=1)
 
     if args.save:
         save = absprefix+'_nn-corr.pdf'
@@ -1022,7 +1024,7 @@ if __name__=='__main__' and args.rn:
                  **corr_args) for trackset in tracksets.values() ]
 
     # Align and merge them
-    fmax = int(2*fps/D_R)
+    fmax = int(2*fps/D_R*args.zoom)
     fmin = -fmax
     rncorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
@@ -1111,7 +1113,7 @@ if __name__=='__main__' and args.rr:
             kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
 
     sigma = msderr + 1e-5*S*S
-    tmax = 200
+    tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
 
     if not args.nn:
