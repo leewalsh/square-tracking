@@ -412,67 +412,65 @@ def compress_existing_npz(path, overwrite=False, test=False):
         assert all([orig[n]==comp[n] for n in comp.files])
         print 'Success!'
 
-def merge_data(data, savename=None, do_orient=True):
+def merge_data(datasets, savename=None, dupes=False, do_orient=False):
     """ returns (and optionally saves) new `data` array merged from list or
         tuple of individual `data` arrays or path prefixes.
 
         parameters
         ----------
-        data : list of arrays, prefixes, or single prefix with wildcards
+        datasets : list of arrays, prefixes, or single prefix with wildcards
         savename : path prefix at which to save the merged data,
             saved as "<savename>_MERGED_<TRACKS|ORIENTATION>.npz"
         do_orient : True or False, whether to merge the orientation data as
-            well. default is True
+            well. default is False, NOT IMPLEMENTED
 
         returns
         -------
-        data : always returned, the main merged data array
-        trackids : returned if paths are given
-        odata : returned if do_orient
-        omask : returned if do_orient
+        merged : always returned, the main merged data array
 
         if orientational data is to be merged, then a list of filenames or
         prefixes must be given instead of data objects.
 
         only data is returned if array objects are given.
     """
-    if isinstance(data, str):
-        if '*' in data or '?' in data:
+    if do_orient:
+        raise ValueError, 'do_orient is not possible yet'
+    if isinstance(datasets, str):
+        if '*' in datasets or '?' in datasets:
             from glob import glob
             suf = '_TRACKS.npz'
-            data = [ s[:-len(suf)] for s in glob(data+suf) ]
-        elif data.endsith('.npz'):
+            datasets = [ s[:-len(suf)] for s in glob(datasets+suf) ]
+        elif datasets.endsith('.npz'):
             raise ValueError, "please give only the prefix"
         else:
             raise ValueError, "only one file given"
 
-    if isinstance(data[0], str):
-        if data[0].endswith('.npz'):
+    if isinstance(datasets[0], str):
+        if datasets[0].endswith('.npz'):
             raise ValueError, "please only give the prefix"
-        data = zip(*map(lambda d: load_data(d, ret_odata=do_orient), data))
-    else:
-        data = (data,)
+        print 'Merging'
+        print '\t\n'.join(datasets)
+        datasets = map(load_data, datasets)
 
     track_increment = 0
-    for i, datum in enumerate(data[0]):
-        goodtracks = datum['t'] >= 0
-        datum['t'][goodtracks] += track_increment
-        if len(data) > 1:
-            data[1][i][goodtracks] += track_increment # trackids
-        track_increment = datum['t'].max() + 1
+    for dataset in datasets:
+        ts = quick_field_view(dataset, 't', False)
+        if dupes:
+            from tracks import remove_duplicates
+            ts[:] = remove_duplicates(ts, dataset)
+        ts[ts >= 0] += track_increment
+        track_increment = ts.max() + 1
 
-    merged = map(np.concatenate, data)
+    merged = np.concatenate(datasets)
 
     if savename:
         fulldir = os.path.abspath(os.path.dirname(savename))
         if not os.path.exists(fulldir):
             print "Creating new directory", fulldir
             os.makedirs(fulldir)
-        np.savez_compressed(savename+'_MERGED_TRACKS.npz',
-                            **dict(zip(['data', 'trackids'], merged)))
-        if do_orient and len(data) > 2:
-            np.savez_compressed(savename+'_MERGED_ORIENTATION.npz',
-                                odata=merged[2], omask=merged[3])
+        savename += '_MERGED_TRACKS.npz'
+        np.savez_compressed(savename, data=merged)
+        print "saved to", savename
     return merged
 
 def bool_input(question, default=None):
