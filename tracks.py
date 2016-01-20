@@ -86,7 +86,7 @@ if __name__=='__main__':
     p.add_argument('-z', '--zoom', metavar="ZOOM", type=float, default=1,
                    help="Factor by which to zoom out (in if ZOOM < 1)")
     p.add_argument('-v', '--verbose', action='count',
-                        help='Print verbosity')
+                   help='Print verbosity, may be repeated: -vv')
 
     args = p.parse_args()
 

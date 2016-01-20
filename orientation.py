@@ -199,7 +199,7 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True):
+def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True, verbose=False):
     """ get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True)
         
         arguments:
@@ -236,7 +236,12 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
     odata_cdisp  = odata['cdisp']
     full_ids = pdata['id']
     id_ok = full_ids[0]==0 and np.all(np.diff(full_ids)==1)
+    print_freq = len(pfsets)//(100 if verbose>1 else 5) + 1
+    if verbose:
+        print 'seeking orientations'
     for f in pfsets:
+        if verbose and not f % print_freq:
+            print f,
         fpdata = pfsets[f]
         fcdata = cfsets[f]
         tree = cftrees[f]

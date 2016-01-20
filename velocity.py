@@ -38,6 +38,7 @@ if __name__=='__main__':
         'for unit normalization. Default: %(default)s')
     arg('-f', '--fps', type=float, default=2.4, help="Number of frames per second "
         "(or per shake) for unit normalization. Default: %(default)s")
+    arg('-v', '--verbose', action='count', help="Be verbose")
     args = p.parse_args()
 
 import os
@@ -80,7 +81,8 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     for prefix in prefixes:
-        print "Loading data for", prefix
+        if args.verbose:
+            print "Loading data for", prefix
         data = helpy.load_data(prefix, 'tracks')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
