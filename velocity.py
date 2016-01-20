@@ -81,7 +81,7 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
         prefixes = [prefixes]
     for prefix in prefixes:
         print "Loading data for", prefix
-        data, _ = helpy.load_data(prefix, 'tracks orient')
+        data = helpy.load_data(prefix, 'tracks')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
         tracksets = helpy.load_tracksets(data, min_length=minlen,

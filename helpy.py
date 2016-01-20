@@ -171,7 +171,7 @@ def clear_execution_counts(nbpath, inplace=False):
     out = nbpath if inplace else nbpath.replace('.ipynb', '.nulled.ipynb')
     nbformat.write(nb, out)
 
-def load_data(fullprefix, choices='tracks orientation', verbose=False):
+def load_data(fullprefix, choices='tracks', verbose=False):
     """ Load data from an npz file
 
         Given `fullprefix`, returns data arrays from a choice of:
@@ -201,7 +201,7 @@ def load_data(fullprefix, choices='tracks orientation', verbose=False):
             data[c] = npzs[c][c*(c=='o')+'data']
     if 't' in choices and 'trackids' in npzs['t'].files:
         # separate trackids means this is an old-style TRACKS.npz, convert it:
-        orient = npzs['o']['odata']['orient'] if 'o' in npzs else np.nan
+        orient = (data['o'] if 'o' in choices else load_data(fullprefix, 'o'))['orient']
         data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
     ret = [data[c] for c in choices]
     return ret if len(ret)>1 else ret[0]
