@@ -877,7 +877,11 @@ if __name__=='__main__':
             pattern = raw_input(msg.format(pattern))
             imfiles = glob(pattern)
         meta['path_to_tiffs'] = pattern
-        imstack = map(plt.imread, sorted(imfiles))
+
+        frange = raw_input("Number or range (as slice: 'start:end') of frames to view? "
+                           "({} available) ".format(len(imfiles)))
+        fslice = slice(*[int(s) if s else None for s in frange.split(':')])
+        imstack = map(plt.imread, sorted(imfiles)[fslice])
         datas = helpy.load_data(absprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
