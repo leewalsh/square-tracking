@@ -832,11 +832,9 @@ if __name__=='__main__':
         pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
                    for f, pfset in pfsets.iteritems() }
     if args.track:
-        meta['track_sidelength'] = args.side
-        meta['track_maxdist'] = args.maxdist
-        meta['track_maxtime'] = args.giveup
-        meta['track_cut'] = args.cut
-        meta['track_stub'] = args.stub
+        meta.update(track_sidelength=args.side, track_maxdist=args.maxdist,
+                track_maxtime=args.giveup, track_stub=args.stub,
+                track_cut=args.cut)
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
         trackids = remove_duplicates(trackids, data=pdata)
@@ -847,9 +845,8 @@ if __name__=='__main__':
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = { f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
                    for f, cfset in cfsets.iteritems() }
-        meta['orient_ncorners'] = args.ncorners
-        meta['orient_rcorner'] = args.rcorner
-        meta['orient_drcorner'] = args.drcorner
+        meta.update(orient_ncorners=args.ncorners, orient_rcorner=args.rcorner,
+                orient_drcorner=args.drcorner)
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
@@ -862,7 +859,6 @@ if __name__=='__main__':
     if args.track or args.orient:
         data = helpy.initialize_tdata(pdata, trackids, orients)
         if args.save:
-            helpy.save_meta(absprefix, meta)
             save = absprefix+"_TRACKS.npz"
             print "saving track data to", save
             np.savez_compressed(save, data=data)
@@ -871,7 +867,10 @@ if __name__=='__main__':
 
     if args.check:
         from glob import glob
-        pattern = meta['path_to_tiffs']
+        try:
+            pattern = meta['path_to_tiffs']
+        except KeyError:
+            pattern = ''
         imfiles = glob(pattern)
         while not imfiles:
             msg = 'No tifs found at the following pattern, please fix it\n{}\n'
@@ -911,6 +910,9 @@ if __name__=='__main__':
         except KeyError:
             dt0  = 10 # here's assuming...
             dtau = 10 #  should be true for all from before dt* was saved
+
+    if args.save:
+        helpy.save_meta(absprefix, meta)
 
 if __name__=='__main__':
     if args.plotmsd:
