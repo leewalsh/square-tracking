@@ -3,7 +3,7 @@
 
 from __future__ import division
 
-from itertools import izip
+from itertools import izip, ifilter, imap
 from math import log
 import sys, os, ntpath
 from time import strftime
@@ -127,6 +127,12 @@ def eval_string(s, hashable=False):
         return float(s)
     return s
 
+def timestamp():
+    timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
+    if len(timezone) > 3:
+        timezone = ''.join(s[0] for s in timezone.split())
+    return timestamp+' '+timezone+' '
+
 def load_meta(prefix):
     suffix = '_META.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
@@ -137,30 +143,27 @@ def load_meta(prefix):
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
 def save_meta(prefix, meta_dict=None, **meta_kw):
-    try:
-        meta = load_meta(prefix)
-    except IOError:
-        meta = {}
-    if meta_dict:
-        meta.update(meta_dict)
-    meta.update(meta_kw)
-    lines = map('{0[0]!r:18}: {0[1]!r}\n'.format, meta.iteritems())
+    meta = load_meta(prefix)
+    meta.update(meta_dict or {}, **meta_kw)
+    fmt = '{0[0]!r:18}: {0[1]!r}\n'.format
+    lines = map(fmt, meta.iteritems())
     suffix = '_META.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     with open(path, 'w') as f:
         f.writelines(lines)
 
 def save_log_entry(prefix, entries, mode='a'):
-    timestamp = strftime('%Y-%m-%d %H:%M:%S %Z ')
+    tm = timestamp()
     suffix = '_LOG.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     if entries=='argv':
         entries = [' '.join(sys.argv)]
     elif isinstance(entries, basestring):
-        entries = filter(None, entries.split('\n'))
-    entries = [timestamp + (e if e.endswith('\n') else e+'\n') for e in entries]
+        entries = entries.split('\n')
+    entries = ifilter(None, imap(str.strip, entries))
+    entries = tm + ('\n' + tm).join(entries) + '\n'
     with open(path, mode) as f:
-        f.writelines(entries)
+        f.write(entries)
 
 def clear_execution_counts(nbpath, inplace=False):
     import nbformat
