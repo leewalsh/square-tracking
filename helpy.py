@@ -143,6 +143,30 @@ def eval_string(s, hashable=False):
         return float(s)
     return s
 
+DRIVES = {
+        'Walsh_Lab':  'Seagate15T', 'colson': 'Seagate4T',
+        'Seagate\\ Expansion\\ Drive': 'Seagate4T',
+        'Users':  'Darwin', 'home':   'Linux',
+        'C:': 'Windows', 'H:': 'hopper', }
+
+def drive_path(path):
+    """
+    split absolute paths from nt, osx, or linux into (drive, path) tuple
+    """
+    path = path.replace(ntpath.sep, '/')
+    drive, path = ntpath.splitdrive(path)
+    if ntpath.isabs(path):
+        split = path.split('/', 3)
+        if split[1] in ('Volumes', 'media', 'mnt'):
+            drive = split[2]
+            path = '/' + split[3]
+        elif split[1] in ('Users', 'home'):
+            drive = drive or split[1]
+        else:
+            raise ValueError, split[1]
+    drive = DRIVES.get(drive, drive)
+    return drive, path
+
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
     if len(timezone) > 3:
