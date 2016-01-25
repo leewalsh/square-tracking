@@ -23,8 +23,8 @@ def getsystem():
     return SYSTEM
 
 def gethost():
+    getsystem()
     global HOST
-    SYSTEM = getsystem()
     if not HOST:
         HOST = platform.node()
         if SYSTEM=='Darwin':
@@ -166,23 +166,34 @@ DRIVES = {
         'Users':  'Darwin', 'home':   'Linux',
         'C:': 'Windows', 'H:': 'hopper', }
 
-def drive_path(path):
+def drive_path(path, local=False):
     """
     split absolute paths from nt, osx, or linux into (drive, path) tuple
     """
-    path = path.replace(ntpath.sep, '/')
-    drive, path = ntpath.splitdrive(path)
-    if ntpath.isabs(path):
-        split = path.split('/', 3)
-        if split[1] in ('Volumes', 'media', 'mnt'):
-            drive = split[2]
-            path = '/' + split[3]
-        elif split[1] in ('Users', 'home'):
-            drive = drive or split[1]
-        else:
-            raise ValueError, split[1]
-    drive = DRIVES.get(drive, drive)
-    return drive, path
+    if isinstance(path, basestring):
+        if local:
+            path = os.path.abspath(path)
+        path = path.replace(ntpath.sep, '/')
+        drive, path = ntpath.splitdrive(path)
+        if ntpath.isabs(path):
+            split = path.split('/', 3)
+            if split[1] in ('Volumes', 'media', 'mnt'):
+                drive = split[2]
+                path = '/' + split[3]
+            elif split[1] in ('Users', 'home'):
+                drive = drive or split[1]
+            else:
+                raise ValueError, split[1]
+        drive = DRIVES.get(drive, drive)
+        if local and drive==getsystem():
+            drive = gethost()
+        return drive, path
+    elif isinstance(path, tuple):
+        letters = {'hopper': 'H:', 'Windows': 'C:'}
+        mount = {'Darwin': '/Volumes/{}'.format,
+                 'Linux': '/media/{}'.format,
+                 'Windows': letters.get}[getsystem()]
+        return mount(path[0]) + path[1]
 
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
