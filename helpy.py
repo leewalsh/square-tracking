@@ -11,20 +11,37 @@ from time import strftime
 
 import numpy as np
 
+SYSTEM, HOST, USER = None, None, None
+
 def replace_all(s, old, new=''):
     return reduce(lambda a, b: a.replace(b, new), old, s)
 
-def getuserhost(at=False):
-    if platform.system()=='Darwin':
-        from subprocess import check_output
-        gethostname = lambda: check_output(('scutil', '--get', 'ComputerName')).strip()
-    else:
-        from socket import gethostname
-    hostname = gethostname()
-    hostname = replace_all(hostname.partition('.')[0], """()'",""").replace(' ','-')
-    username = getpass.getuser().replace(' ', '_')
-    names = username, hostname
-    return '@'.join(names) if at else names
+def getsystem():
+    global SYSTEM
+    if not SYSTEM:
+        SYSTEM = platform.system()
+    return SYSTEM
+
+def gethost():
+    global HOST
+    SYSTEM = getsystem()
+    if not HOST:
+        HOST = platform.node()
+        if SYSTEM=='Darwin':
+            from subprocess import check_output, STDOUT, CalledProcessError
+            try:
+                HOST = check_output(('scutil', '--get', 'ComputerName'),
+                                    stderr=STDOUT).strip()
+            except CalledProcessError:
+                pass
+        HOST = replace_all(HOST.partition('.')[0], """()'",""").replace(' ','-')
+    return HOST
+
+def getuser():
+    global USER
+    if not USER:
+        USER = getpass.getuser().replace(' ', '_')
+    return USER
 
 def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
     """ Splits a dataset into subarrays with unique frame value
@@ -171,7 +188,7 @@ def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
     if len(timezone) > 3:
         timezone = ''.join(s[0] for s in timezone.split())
-    return timestamp+' '+timezone+' '
+    return timestamp+' '+timezone
 
 def load_meta(prefix):
     suffix = '_META.txt'
@@ -193,15 +210,15 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
         f.writelines(lines)
 
 def save_log_entry(prefix, entries, mode='a'):
-    tm = timestamp() + getuserhost(True)+' '
+    pre = '{} {}@{}: '.format(timestamp(), getuser(), gethost())
     suffix = '_LOG.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     if entries=='argv':
-        entries = [' '.join(sys.argv)]
+        entries = [' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])]
     elif isinstance(entries, basestring):
         entries = entries.split('\n')
     entries = ifilter(None, imap(str.strip, entries))
-    entries = tm + ('\n' + tm).join(entries) + '\n'
+    entries = pre + ('\n' + pre).join(entries) + '\n'
     with open(path, mode) as f:
         f.write(entries)
 

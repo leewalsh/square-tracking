@@ -277,6 +277,7 @@ if __name__ == '__main__':
         i = sys.argv.index(first)
         argv = filter(lambda s: s not in filenames, sys.argv)
         argv.insert(i, filepattern)
+        argv[0] = path.basename(argv[0])
         argv = ' '.join(argv)
 
     if args.plot and len(filenames) > 10:
