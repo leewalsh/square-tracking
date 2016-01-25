@@ -279,6 +279,8 @@ if __name__ == '__main__':
         argv.insert(i, filepattern)
         argv[0] = path.basename(argv[0])
         argv = ' '.join(argv)
+    elif len(args.files)==1:
+        filenames = sorted(args.files)
 
     if args.plot and len(filenames) > 10:
         args.plot = helpy.bool_input(
