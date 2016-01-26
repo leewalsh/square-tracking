@@ -92,6 +92,29 @@ if __name__ == '__main__':
 
     args = p.parse_args()
 
+import sys
+from itertools import izip
+from collections import defaultdict
+
+import helpy
+
+if helpy.gethost()=='foppl':
+    import matplotlib
+    matplotlib.use("agg")
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+import correlation as corr
+
+sf = helpy.SciFormatter().format
+
+pi = np.pi
+twopi = 2*pi
+
+
+if __name__=='__main__':
     import os.path
     absprefix = os.path.abspath(args.prefix)
     readprefix = absprefix
@@ -122,27 +145,6 @@ if __name__ == '__main__':
         filterwarnings('ignore', category=RuntimeWarning)
 else:
     verbose = False
-
-import sys
-from itertools import izip
-from collections import defaultdict
-
-import helpy
-
-if helpy.gethost()=='foppl':
-    import matplotlib
-    matplotlib.use("agg")
-
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-
-import correlation as corr
-
-sf = helpy.SciFormatter().format
-
-pi = np.pi
-twopi = 2*pi
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """ recursive function to find nearest dot in previous frame.
