@@ -120,21 +120,20 @@ if __name__=='__main__':
 else:
     verbose = False
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
-    import matplotlib
-    matplotlib.use("agg")
-
 import sys
 from itertools import izip
 from collections import defaultdict
 
+import helpy
+
+if helpy.gethost()=='foppl':
+    import matplotlib
+    matplotlib.use("agg")
+
 import numpy as np
-from matplotlib import cm, pyplot as plt
+import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 
-import helpy
 import correlation as corr
 
 sf = helpy.SciFormatter().format
@@ -447,7 +446,6 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbos
         print 'loop broken'
 
 def gapsize_distro(tracksetses, fields='fo', title=''):
-    import matplotlib.pyplot as plt
     plt.figure()
     for field in fields:
         ind = lambda tset: tset['f'] if field=='f' else np.where(~np.isnan(tset[field]))[0]
@@ -552,7 +550,7 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     if bgimage:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
-        plt.imshow(bgimage, cmap=cm.gray, origin='upper')
+        plt.imshow(bgimage, cmap=plt.cm.gray, origin='upper')
     if mask is None:
         mask = (trackids >= 0)
     else:

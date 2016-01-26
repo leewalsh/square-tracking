@@ -8,14 +8,14 @@ from PIL import Image as Im
 
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
+
+import helpy
+
 if __name__=='__main__':
-    from socket import gethostname
-    hostname = gethostname()
-    if 'foppl' in hostname:
-        computer = 'foppl'
+    HOST = helpy.gethost()
+    if HOST=='foppl':
         locdir = '/home/lawalsh/Granular/Squares/orientation/'
-    elif 'rock' in hostname:
-        computer = 'rock'
+    elif HOST=='rock':
         locdir = '/Users/leewalsh/Physics/Squares/orientation/'
     else:
         print "computer not defined"
@@ -74,7 +74,7 @@ def get_orientation(b):
         sm = np.average(p[si,1])
         s.append([sl*slicewidth,sm])
     s = np.asarray(s)
-    if do_plots and computer is 'rock':
+    if do_plots and HOST=='rock':
         pl.figure()
         #pl.plot(p[:,0],p[:,1],'.',label='p')
         #pl.plot(s[:,0],s[:,1],'o',label='s')
@@ -82,7 +82,7 @@ def get_orientation(b):
         pl.plot(s[:,0]%(pi/2),s[:,1],'o',label='s')
         pl.legend()
         pl.show()
-    elif do_plots and computer is 'foppl':
+    elif do_plots and HOST=='foppl':
         print "can't plot on foppl"
     return s, p
 
@@ -187,10 +187,10 @@ def get_angles_map(data, cdata, nthreads=None):
 
     from multiprocessing import Pool
     if nthreads is None or nthreads > 8:
-        nthreads = 8 if computer is 'foppl' else 2
-    elif nthreads > 2 and computer is 'rock':
+        nthreads = 8 if HOST=='foppl' else 2
+    elif nthreads > 2 and HOST=='rock':
         nthreads = 2
-    print "on {}, using {} threads".format(computer,nthreads)
+    print "on {}, using {} threads".format(HOST,nthreads)
     pool = Pool(nthreads)
 
     datums = [ (datum,cdata[cdata['f']==datum['f']])
@@ -221,7 +221,6 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
-    import helpy
     if do_average or nc == 1:
         dt = [('corner',float,(nc,2)),
               ('orient',float),
@@ -268,8 +267,8 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
     return odata, mask
 
 def plot_orient_hist(odata, figtitle=''):
-    if computer is not 'rock':
-        print 'computer must be on rock'
+    if HOST!='rock':
+        print 'computer must be rock'
         return False
     pl.figure()
     pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)

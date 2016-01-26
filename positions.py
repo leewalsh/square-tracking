@@ -43,9 +43,6 @@ if __name__ == '__main__':
                         help='Maximum eccentricity for corner dots')
     args = p.parse_args()
 
-from socket import gethostname
-hostname = gethostname()
-
 from distutils.version import StrictVersion as version
 import skimage
 skversion = version(skimage.__version__)
@@ -257,8 +254,9 @@ def remove_disks(orig, particles, dsk):
     return orig*disks
 
 if __name__ == '__main__':
-    import matplotlib
-    if 'foppl' in hostname: matplotlib.use('Agg')
+    if helpy.gethost()=='foppl':
+        import matplotlib
+        matplotlib.use('Agg')
     import matplotlib.pyplot as pl
     from multiprocessing import Pool, cpu_count
     from os import path, makedirs

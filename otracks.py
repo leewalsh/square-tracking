@@ -73,9 +73,9 @@ if __name__=='__main__':
 else:
     verbose = False
 
-from socket import gethostname
-hostname = gethostname()
-if 'foppl' in hostname:
+import helpy
+
+if helpy.gethost()=='foppl':
     import matplotlib
     matplotlib.use("agg")
 
@@ -83,8 +83,6 @@ from math import sqrt
 
 import numpy as np
 from matplotlib import cm, pyplot as pl
-
-import helpy
 
 pi = np.pi
 twopi = 2*pi

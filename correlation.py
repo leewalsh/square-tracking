@@ -20,14 +20,11 @@ from skimage.morphology import disk, binary_dilation
 import helpy
 
 if __name__=='__main__':
-    from socket import gethostname
-    hostname = gethostname()
-    if 'foppl' in hostname:
+    HOST = helpy.gethost()
+    if HOST=='foppl':
         locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-    elif 'rock' in hostname:
-        computer = 'rock'
+    elif HOST=='rock':
         import matplotlib.pyplot as pl
-        import matplotlib.cm as cm
         locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
     else:
         print "computer not defined\nwhere are you working?"
@@ -810,7 +807,7 @@ def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
         returns:
             nothing
     """
-    if computer is 'foppl':
+    if HOST=='foppl':
         print "cant do this on foppl"
         return
     pl.figure()
@@ -818,7 +815,7 @@ def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
         try:
             pl.plot(gdata[k]['rg'][:binmax]/22.,gdata[k]['g'][:binmax]/22.,',-',label=k)
             #pl.scatter(*np.asarray(peaks[k][0]).T,
-            #        marker='o', label=k, c = cm.jet((int(k[1:])-200)*255/300))
+            #        marker='o', label=k, c = pl.cm.jet((int(k[1:])-200)*255/300))
             #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
 
             if pksonly is False:
@@ -867,7 +864,7 @@ def gpeak_decay(peaks,f,pksonly=False):
         popt, a tuple of parameters for f
         pcov, their covariances
     """
-    if computer is 'foppl':
+    if HOST=='foppl':
         print "cant do this on foppl"
         return
     if pksonly is False:
