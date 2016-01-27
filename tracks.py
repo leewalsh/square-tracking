@@ -801,6 +801,8 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     added = np.sum(np.isfinite(msd), 0)
     enough = np.where(added > 2)[0]
     if verbose:
+        not_enough = np.where(added <= 2)[0]
+        bad_taus = taus[not_enough]
         print 'shapes of msd, taus:',
         print msd.shape, taus.shape
     msd = msd[:, enough]
@@ -817,6 +819,24 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
             print 'msd_std min max:', msd_std[:-1].min()/A, msd_std[:-1].max()/A
             print 'msd_err min max:', msd_err[:-1].min()/A, msd_err[:-1].max()/A
             print 'shape of msd_err:', msd_err.shape
+        if verbose > 1:
+            global errfig
+            oldax = plt.gca()
+            errfig = plt.figure()
+            erraxl = errfig.gca()
+            erraxl.set_xscale('log')
+            erraxl.set_yscale('log')
+            erraxl.plot(taus/fps, msd_std/A, '.c', label='stddev')
+            erraxl.plot(taus/fps, msd_err/A, '.g', label='stderr')
+            erraxr = erraxl.twinx()
+            erraxr.set_yscale('log')
+            erraxr.plot(taus/fps, added[enough], '.b', label='N added')
+            erraxr.plot(bad_taus/fps, np.maximum(added[not_enough], .8),
+                        'vr', mec='none', label='N <= 2')
+            erraxr.set_ylim(0.8, None)
+            erraxl.legend(loc='upper left', fontsize='x-small')
+            erraxr.legend(loc='upper right', fontsize='x-small')
+            plt.sca(oldax)
     else:
         msd_err = None
     if show_tracks:
@@ -849,7 +869,6 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
             kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
             singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars,
             fps=fps, A=A)
-
     if verbose:
         print '     taus:', taus.shape
         print ' from msd:', msd_taus.shape
@@ -905,6 +924,9 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         plt.show()
     return fig, ax, taus, msd, msd_err
 
+sigfmt = ('{:7.4g}, '*5)[:-2].format
+sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
+                                sigma.std(ddof=1), sigma.max()/sigma.min())
 if __name__=='__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
@@ -1043,7 +1065,7 @@ if __name__=='__main__' and args.nn:
             print t,
             o = trackset['o']
             if args.verbose > 1:
-                print o.shape, o.dtype
+                print o.shape,
             sys.stdout.flush()
             cos = np.cos(o)
             sin = np.sin(o)
@@ -1063,10 +1085,20 @@ if __name__=='__main__' and args.nn:
     tcorr = np.arange(allcorr.shape[1])/fps
     meancorr = np.nanmean(allcorr, 0)
     added = np.sum(np.isfinite(allcorr), 0)
+    #TODO: add `enough` (added > 2) requirement
     errcorr = np.nanstd(allcorr, 0, ddof=1)/np.sqrt(added)
-    sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged nn corrs"
+        sigma = errcorr
+        print 'stderr for <nn>:', sigprint(sigma)
+        sigadd = eps*np.nanstd(errcorr, ddof=1)
+        sigma = errcorr + sigadd
+        print '         adding:',
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(
+            eps, np.nanstd(errcorr, ddof=1), sigadd)
+        print ' sigma for <nn>:', sigprint(sigma)
+    else:
+        sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
 
     # Fit to exponential decay
     tmax = int(50*args.zoom)
@@ -1143,9 +1175,23 @@ if __name__=='__main__' and args.rn:
     meancorr = np.nanmean(rncorrs, 0)
     added = np.sum(np.isfinite(rncorrs), 0)
     errcorr = np.nanstd(rncorrs, 0, ddof=1)/np.sqrt(added)
-    sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
-    if args.verbose:
+    if verbose:
         print "Merged rn corrs"
+        sigma = errcorr
+        print 'stderr for <rn>:', sigprint(sigma)
+        sigadd = np.nanstd(errcorr, ddof=1)
+        print '         adding:', 'std = {:.4g}'.format(sigadd)
+        sigma = errcorr + sigadd
+        print ' sigma for <rn>:', sigprint(sigma)
+
+        sigadd = eps*np.nanstd(errcorr, ddof=1) - errcorr.min()
+        print '         adding:',
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(
+            eps, np.nanstd(errcorr, ddof=1), sigadd)
+        sigma = errcorr + sigadd
+        print ' sigma for <rn>:', sigprint(sigma)
+    else:
+        sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
 
     # Fit to capped exponential growth
     fitform = lambda s, v_D, D=D_R:\
@@ -1222,10 +1268,34 @@ if __name__=='__main__' and args.rr:
             errorbars=5, prefix=saveprefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
             save=False, kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
+    if verbose > 1:
+        erraxl, erraxr = errfig.axes
 
-    sigma = msderr + eps*A
+    if verbose:
+        sigma = msderr
+        helpy.nan_info(sigma, True)
+        if verbose > 1:
+            erraxl.plot(taus, sigma, '.k', label='sigma orig')
+            erraxl.plot(taus, taus, '-k', label='tau')
+            erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
+        print 'stderr for <rr>:', sigprint(sigma[np.isfinite(sigma)])
+        print '         adding:',
+        print 'A*eps = {:.4g}*{:.4g} = {:.4g}'.format(A, eps, sigadd)
+        sigma = msderr + sigadd
+        print ' sigma for <rr>:', sigprint(sigma[np.isfinite(sigma)])
+        if verbose > 1:
+            erraxl.plot(taus, sigma, '.g', label='sigma + A*eps')
+            erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
+            erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
+            erraxl.legend(loc='upper left', fontsize='x-small')
+        sigma *= np.log1p(taus)
+        print 'sigma*log(taus):', sigprint(sigma[np.isfinite(sigma)])
+    else:
+        sigma = msderr + eps*A
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
+    if verbose:
+        print np.count_nonzero(np.isnan(sigma[:fmax])), 'nans in fitting range'
 
     if not args.nn:
         D_R = 1
@@ -1277,6 +1347,9 @@ if __name__=='__main__' and args.rr:
 
     ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = ax.set_xlim(taus[0], tmax)
+    if verbose > 1:
+        erraxl.set_xlim(taus[0], taus[-1])
+        map(erraxl.axvline, xlim)
     ax.legend(loc='upper left')
 
     tau_T = D_T/v0**2
@@ -1293,6 +1366,8 @@ if __name__=='__main__' and args.rr:
         print 'saving <rr> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
+        if verbose > 1:
+            errfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
 if __name__ == '__main__' and need_plt:
     if args.show:

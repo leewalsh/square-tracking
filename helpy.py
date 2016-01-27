@@ -230,6 +230,8 @@ def nan_info(arr, verbose=False):
             print 'of', len(arr)
     else:
         wnan = []
+        if verbose:
+            print 'no nans'
     return isnan, nnan, wnan
 
 
