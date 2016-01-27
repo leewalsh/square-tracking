@@ -568,8 +568,10 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     plt.ylim(data['x'].min()-10, data['x'].max()+10)
     plt.title(prefix)
     if save:
-        print "saving tracks image to", save+"_tracks.png"
-        plt.savefig(save+"_tracks.png")
+        save = save + '_tracks.png'
+        print "saving tracks image to",
+        print save if verbose else os.path.basename(save)
+        plt.savefig(save)
     if show: plt.show()
 
 # Mean Squared Displacement
@@ -805,7 +807,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if save is True:
         save = prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
-        print "saving to", save
+        print "saving to", save if verbose else os.path.basename(save)
         plt.savefig(save)
     if show: plt.show()
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
@@ -853,7 +855,8 @@ if __name__=='__main__':
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
             save = saveprefix+'_ORIENTATION.npz'
-            print "saving orientation data to", save
+            print "saving orientation data to",
+            print save if verbose else os.path.basename(save)
             np.savez_compressed(save, odata=odata, omask=omask)
         orients = odata['orient']
     else:
@@ -862,7 +865,8 @@ if __name__=='__main__':
         data = helpy.initialize_tdata(pdata, trackids, orients)
         if args.save:
             save = saveprefix+"_TRACKS.npz"
-            print "saving track data to", save
+            print "saving track data to",
+            print save if verbose else os.path.basename(save)
             np.savez_compressed(save, data=data)
     else:
         data = helpy.load_data(readprefix, 'track')
@@ -897,7 +901,8 @@ if __name__=='__main__':
         msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
         if args.save:
             save = saveprefix+"_MSD.npz"
-            print "saving msd data to", save
+            print "saving msd data to",
+            print save if verbose else os.path.basename(save)
             np.savez(save,
                      msds = np.asarray(msds),
                      msdids = np.asarray(msdids),
@@ -1012,7 +1017,8 @@ if __name__=='__main__' and args.nn:
 
     if args.save:
         save = saveprefix+'_nn-corr.pdf'
-        print 'saving <nn> correlation plot to', save
+        print 'saving <nn> correlation plot to',
+        print save if verbose else os.path.basename(save)
         plt.savefig(save)
     if not (args.rn or args.rr) and args.show: plt.show()
 
@@ -1114,7 +1120,8 @@ if __name__=='__main__' and args.rn:
 
     if args.save:
         save = saveprefix+'_rn-corr.pdf'
-        print 'saving <rn> correlation plot to', save
+        print 'saving <rn> correlation plot to',
+        print save if verbose else os.path.basename(save)
         plt.savefig(save)
     if not args.rr and args.show: plt.show()
 
@@ -1190,7 +1197,8 @@ if __name__=='__main__' and args.rr:
 
     if args.save:
         save = saveprefix+'_rr-corr.pdf'
-        print 'saving <rr> correlation plot to', save
+        print 'saving <rr> correlation plot to',
+        print save if verbose else os.path.basename(save)
         fig.savefig(save)
     if args.show: plt.show()
 
