@@ -1096,11 +1096,13 @@ if __name__=='__main__' and args.rn:
                   ['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:len(popt)]
                   ), *(abs(v0), D_R)[:len(popt)]))
 
-    plt.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-    plt.text(1/D_R, 1e-2, ' $1/D_R$')
+    ylim = plt.ylim(1.5*fit.min(), 1.5*fit.max())
+    xlim = plt.xlim(tcorr.min(), tcorr.max())
+    tau_R = 1/D_R
+    if xlim[0] < tau_R < xlim[1]:
+        plt.axvline(tau_R, 0, 2/3, ls='--', c='k')
+        plt.text(tau_R, 1e-2, ' $1/D_R$')
 
-    plt.ylim(1.5*fit.min(), 1.5*fit.max())
-    plt.xlim(tcorr.min(), tcorr.max())
     plt.title("Position - Orientation Correlation")
     plt.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     plt.xlabel("$tf$")
@@ -1166,14 +1168,18 @@ if __name__=='__main__' and args.rr:
                 ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
                 ), *(popt*[1, sgn, 1][:len(popt)])))
 
-    plt.axvline(D_T/v0**2, 0, 1/3, ls='--', c='k')
-    plt.text(D_T/v0**2, 2e-2, ' $D_T/v_0^2$')
-    plt.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-    plt.text(1/D_R, 2e-1, ' $1/D_R$')
-
-    plt.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
-    plt.xlim(taus[0], tmax)
+    ylim = plt.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
+    xlim = plt.xlim(taus[0], tmax)
     plt.legend(loc='upper left')
+
+    tau_T = D_T/v0**2
+    tau_R = 1/D_R
+    if xlim[0] < tau_T < xlim[1]:
+        plt.axvline(tau_T, 0, 1/3, ls='--', c='k')
+        plt.text(tau_T, 2e-2, ' $D_T/v_0^2$')
+    if xlim[0] < tau_R < xlim[1]:
+        plt.axvline(tau_R, 0, 2/3, ls='--', c='k')
+        plt.text(tau_R, 2e-1, ' $1/D_R$')
 
     if args.save:
         save = saveprefix+'_rr-corr.pdf'
