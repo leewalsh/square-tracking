@@ -989,6 +989,7 @@ if __name__=='__main__' and args.nn:
     D_R = float(popt[0])
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
+    helpy.save_meta(saveprefix, nn_fit_DR=D_R)
 
     plt.figure()
     plot_individual = True
@@ -1073,12 +1074,15 @@ if __name__=='__main__' and args.rn:
     if len(popt) > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
-    print '\n'.join(['v0/D_R: {:.4g}',
-                     '   D_R: {:.4g}'][:len(popt)]).format(*popt)
+    print '\n'.join([' v0/D_R: {:.4g}',
+                     '    D_R: {:.4g}'][:len(popt)]).format(*popt)
     print "Giving:"
-    print '\n'.join(['    v0: {:.4f}',
-                     '   D_R: {:.4f}'][:3-len(popt)]
-                    ).format(*[v0, D_R][:3-len(popt)])
+    print '\n'.join(['     v0: {:.4f}',
+                     'D_R(rn): {:.4f}'][:len(popt)]
+                    ).format(*[v0, D_R][:len(popt)])
+    helpy.save_meta(saveprefix, dict(
+        [('rn_fit_v0', v0), ('rn_fit_DR', D_R)][:len(popt)]
+        ))
 
     plt.figure()
     fit = fitform(tcorr, *popt)
@@ -1162,6 +1166,9 @@ if __name__=='__main__' and args.rr:
     if len(popt) > 1:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
+    helpy.save_meta(saveprefix, dict(
+        [('rr_fit_DT', D_T), ('rr_fit_v0', v0), ('rr_fit_DR', D_R)][:len(popt)]
+        ))
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + sf(', '.join(
