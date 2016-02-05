@@ -132,12 +132,13 @@ def str_union(a, b):
         l = [ac if ac==bc else '?' for ac, bc in izip(a, b)]
         return ''.join(l)
     else:
-        raise ValueError, "can only compare equal length strings"
-        i = 1
-        while a.startswith(b[:1]):
-            i += 1
-        for i in itertools.count(1):
-            a.startswith(b[:i])
+        print 'WARNING!!! pattern may fit more than just the given strings'
+        l = [ac if ac==bc else '?' for ac, bc in izip(a, b)]
+        r = [ac if ac==bc else '?'
+                for ac, bc in reversed(izip(reversed(a), reversed(b)))]
+        l = l.partition('?')[0]
+        r = r.rpartition('?')[-1]
+        return '*'.join((l, r))
 
 def eval_string(s, hashable=False):
     s = s.strip()
