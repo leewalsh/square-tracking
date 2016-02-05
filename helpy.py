@@ -549,6 +549,7 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
     assert n > 1, "need more than {} file(s)".format(n)
 
     if isinstance(members[0], basestring):
+        members.sort()
         print '\n\t'.join(['Merging:'] + members)
         datasets = map(load_data, members)
     else:
@@ -570,7 +571,20 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         if not os.path.exists(savedir):
             print "Creating new directory", savedir
             os.makedirs(savedir)
-        savename += '_MRG_TRACKS.npz'
+        if n*len(members[0]) > 200:
+            pattern = pattern or reduce(str_union, members)
+        else:
+            pattern = members
+        args = ', dupes=True'*dupes + ', do_orient=True'*do_orient
+        entry = 'merge_data(members={!r}, savename={!r}{})'
+        entry = entry.format(pattern, savename, args)
+        suffix = '_MRG'
+        if not (savename.endswith(suffix) or savename.endswith('_MERGED')):
+            savename += suffix
+        save_log_entry(savename, entry)
+        merged_meta = merge_meta(*map(load_meta, members))
+        save_meta(savename, merged_meta, merged=members)
+        savename += '_TRACKS.npz'
         np.savez_compressed(savename, data=merged)
         print "saved merged tracks to", savename
     return merged
