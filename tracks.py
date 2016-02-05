@@ -899,6 +899,7 @@ if __name__=='__main__':
 
     if args.msd:
         msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
+        meta.update(msd_dt0=dt0, msd_dtau=dtau, msd_stub=args.stub)
         if args.save:
             save = saveprefix+"_MSD.npz"
             print "saving msd data to",
@@ -922,6 +923,8 @@ if __name__=='__main__':
             dtau = 10 #  should be true for all from before dt* was saved
 
     if args.save:
+        if args.fps != 1:
+            meta.update(fps=args.fps)
         helpy.save_meta(saveprefix, meta)
 
 if __name__=='__main__':
