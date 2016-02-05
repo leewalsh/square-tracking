@@ -211,6 +211,36 @@ def load_meta(prefix):
         lines = f.readlines()
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
+def merge_meta(*metas):
+    """
+    Merges several meta dicts into single dict without loss of data.
+
+    parameters
+    ----------
+    metas : any number of member meta dicts as separate arguments
+
+    returns
+    -------
+    merged : the result of the merger as a single dict.
+        the keys are the union of the members' keys. If a key is present in
+        only one member, the value is taken from that member. If the key is
+        present in multiple members, but the values match, the key and value
+        will be in the output. if any values differ, all values are combined in
+        a list, in the same order as the member dicts were given as arugments,
+        as the the new value for that key.
+    """
+
+    merged = {}
+    keys = {key for meta in metas for key in meta.keys()}
+    for key in keys:
+        val = [meta[key] for meta in metas if key in meta]
+        u = set(val)
+        if len(u) == 1:
+            merged[key] = u.pop()
+        else:
+            merged[key] = val
+    return merged
+
 def save_meta(prefix, meta_dict=None, **meta_kw):
     meta = load_meta(prefix)
     meta.update(meta_dict or {}, **meta_kw)
