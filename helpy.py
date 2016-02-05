@@ -6,6 +6,7 @@ from __future__ import division
 from itertools import izip, ifilter, imap
 from math import log
 import sys, os, ntpath
+import glob
 import platform, getpass
 from time import strftime
 
@@ -514,15 +515,15 @@ def compress_existing_npz(path, overwrite=False, test=False):
         assert all([orig[n]==comp[n] for n in comp.files])
         print 'Success!'
 
-def merge_data(datasets, savename=None, dupes=False, do_orient=False):
+def merge_data(members, savename=None, dupes=False, do_orient=False):
     """ returns (and optionally saves) new `data` array merged from list or
         tuple of individual `data` arrays or path prefixes.
 
         parameters
         ----------
-        datasets : list of arrays, prefixes, or single prefix with wildcards
+        members : list of arrays, prefixes, or single prefix with wildcards
         savename : path prefix at which to save the merged data,
-            saved as "<savename>_MERGED_<TRACKS|ORIENTATION>.npz"
+            saved as "<savename>_MRG_<TRACKS|ORIENTATION>.npz"
         do_orient : True or False, whether to merge the orientation data as
             well. default is False, NOT IMPLEMENTED
 
@@ -537,22 +538,21 @@ def merge_data(datasets, savename=None, dupes=False, do_orient=False):
     """
     if do_orient:
         raise ValueError, 'do_orient is not possible yet'
-    if isinstance(datasets, str):
-        if '*' in datasets or '?' in datasets:
-            from glob import glob
-            suf = '_TRACKS.npz'
-            datasets = [ s[:-len(suf)] for s in glob(datasets+suf) ]
-        elif datasets.endsith('.npz'):
-            raise ValueError, "please give only the prefix"
-        else:
-            raise ValueError, "only one file given"
+    if isinstance(members, basestring):
+        pattern = members
+        suf = '_TRACKS.npz'
+        l = len(suf)
+        pattern = pattern[:-l] if pattern.endswith(suf) else pattern
+        members = [ s[:-l] for s in glob.iglob(pattern+suf) ]
 
-    if isinstance(datasets[0], str):
-        if datasets[0].endswith('.npz'):
-            raise ValueError, "please only give the prefix"
-        print 'Merging'
-        print '\t\n'.join(datasets)
-        datasets = map(load_data, datasets)
+    n = len(members)
+    assert n > 1, "need more than {} file(s)".format(n)
+
+    if isinstance(members[0], basestring):
+        print '\n\t'.join(['Merging:'] + members)
+        datasets = map(load_data, members)
+    else:
+        datasets = members
 
     track_increment = 0
     for dataset in datasets:
@@ -566,13 +566,13 @@ def merge_data(datasets, savename=None, dupes=False, do_orient=False):
     merged = np.concatenate(datasets)
 
     if savename:
-        fulldir = os.path.abspath(os.path.dirname(savename))
-        if not os.path.exists(fulldir):
-            print "Creating new directory", fulldir
-            os.makedirs(fulldir)
-        savename += '_MERGED_TRACKS.npz'
+        savedir = os.path.dirname(savename) or os.path.curdir
+        if not os.path.exists(savedir):
+            print "Creating new directory", savedir
+            os.makedirs(savedir)
+        savename += '_MRG_TRACKS.npz'
         np.savez_compressed(savename, data=merged)
-        print "saved to", savename
+        print "saved merged tracks to", savename
     return merged
 
 def bool_input(question, default=None):
@@ -626,13 +626,12 @@ def circle_three_points(*xs):
     return xo, yo, r
 
 def find_first_frame(paths, ext='.tif', err=None, load=False):
-    from glob import glob
     join = lambda p: os.path.join(*p)
     patterns = [join(paths)+"*", join(paths)+"/*"]
     paths.insert(-1, '..')
     patterns.extend([join(paths)+"*", join(paths)+"/*"])
     for pattern in patterns:
-        bgimage = glob(pattern+ext)
+        bgimage = glob.glob(pattern+ext)
         if bgimage:
             bgimage = bgimage[0]
             break
