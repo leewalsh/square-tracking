@@ -504,15 +504,23 @@ def txt_to_npz(datapath, verbose=False, compress=True):
     if verbose: print 'and saved to', outpath
     return
 
-def compress_existing_npz(path, overwrite=False, test=False):
+def compress_existing_npz(path, overwrite=False, careful=False):
     orig = np.load(path)
+    amtime = os.path.getatime(path), os.path.getmtime(path)
     arrs = {n: orig[n] for n in orig.files}
-    out = path[:-4]+'compressed'*(not overwrite)
+    if careful or not overwrite:
+        out = path[:-4]+'_compressed.npz'
+    else:
+        out = path
     np.savez_compressed(out, **arrs)
-    if test:
-        comp = np.load(out+'.npz')
+    os.utime(out, amtime)
+    if careful:
+        comp = np.load(out)
         assert comp.files==orig.files
-        assert all([orig[n]==comp[n] for n in comp.files])
+        for n in comp.files:
+            assert np.all(np.nan_to_num(orig[n])==np.nan_to_num(comp[n])),\
+                    'FAIL {}[{}] --> {}'.format(path, n, out)
+        if overwrite: os.rename(out, path)
         print 'Success!'
 
 def merge_data(members, savename=None, dupes=False, do_orient=False):
