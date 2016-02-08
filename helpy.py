@@ -13,6 +13,7 @@ from time import strftime
 import numpy as np
 
 SYSTEM, HOST, USER = None, None, None
+COMMIT = None
 
 def replace_all(s, old, new=''):
     return reduce(lambda a, b: a.replace(b, new), old, s)
@@ -43,6 +44,37 @@ def getuser():
     if not USER:
         USER = getpass.getuser().replace(' ', '_')
     return USER
+
+def getcommit():
+    global COMMIT
+    if not COMMIT:
+        gitdir = os.path.dirname(__file__) or os.curdir
+        if not os.path.exists(os.path.join(gitdir, '.git')):
+            COMMIT = 'unknown'
+            return COMMIT
+        try:
+            import git
+            repo = git.Repo(gitdir)
+            dirty = repo.is_dirty()
+            commit = repo.commit().hexsha[:7]
+            branch = repo.active_branch.name
+        except ImportError as e:
+            from subprocess import check_output, STDOUT, CalledProcessError
+            git = lambda cmd: check_output(('git', '-C', gitdir) + cmd,
+                                           stderr=STDOUT).strip()
+            status = ('status', '--short')
+            commit = ('log', '-1', '--pretty=tformat:%h')
+            branch = ('branch', '--contains', '@')
+            try:
+                dirty = bool(git(status))
+                commit = git(commit)
+                branch = git(branch).partition('*')[2].split()[0]
+            except CalledProcessError as e:
+                COMMIT = 'unknown'
+                return COMMIT
+        COMMIT = '{}({}{})'.format(commit, branch, '+'*dirty)
+    return COMMIT
+
 
 def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
     """ Splits a dataset into subarrays with unique frame value
@@ -253,7 +285,7 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
         f.writelines(lines)
 
 def save_log_entry(prefix, entries, mode='a'):
-    pre = '{} {}@{}: '.format(timestamp(), getuser(), gethost())
+    pre = '{} {}@{}/{}: '.format(timestamp(), getuser(), gethost(), getcommit())
     suffix = '_LOG.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     if entries=='argv':
