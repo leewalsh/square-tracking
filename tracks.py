@@ -250,9 +250,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
             print "cutting at previously saved boundary"
             x0, y0, R = meta['track_cut_boundary']
         else:
-            not_found = ('Please give the path to a tiff image '
-                         'from this dataset to identify boundary\n')
-            bgimage = helpy.find_first_frame([locdir, prefix], err=not_found)
+            bgimage = helpy.find_tiffs(readprefix, 1, load=True)
             x0, y0, R = helpy.circle_click(bgimage)
             print "cutting at selected boundary (x0, y0, r):", x0, y0, R
         # assume 6mm particles if S not specified
@@ -847,10 +845,10 @@ if __name__=='__main__':
     if args.orient:
         from orientation import get_angles_loop
         cfsets = helpy.splitter(cdata, ret_dict=True)
-        cftrees = { f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
-                   for f, cfset in cfsets.iteritems() }
+        cftrees = {f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
+                   for f, cfset in cfsets.iteritems()}
         meta.update(orient_ncorners=args.ncorners, orient_rcorner=args.rcorner,
-                orient_drcorner=args.drcorner)
+                    orient_drcorner=args.drcorner)
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
@@ -872,22 +870,8 @@ if __name__=='__main__':
         data = helpy.load_data(readprefix, 'track')
 
     if args.check:
-        from glob import glob
-        try:
-            pattern = meta['path_to_tiffs']
-        except KeyError:
-            pattern = ''
-        imfiles = glob(pattern)
-        while not imfiles:
-            msg = 'No tifs found at the following pattern, please fix it\n{}\n'
-            pattern = raw_input(msg.format(pattern))
-            imfiles = glob(pattern)
-        meta['path_to_tiffs'] = pattern
-
-        frange = raw_input("Number or range (as slice: 'start:end') of frames to view? "
-                           "({} available) ".format(len(imfiles)))
-        fslice = slice(*[int(s) if s else None for s in frange.split(':')])
-        imstack = map(plt.imread, sorted(imfiles)[fslice])
+        frames = raw_input("Number (or range as slice start:end) of frames? ")
+        imstack = helpy.find_tiffs(readprefix, frames, load=True)
         datas = helpy.load_data(readprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
@@ -936,7 +920,7 @@ if __name__=='__main__':
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        bgimage = helpy.find_first_frame([locdir, prefix])
+        bgimage = helpy.find_tiffs(readprefix, 1, load=True)
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
         else:

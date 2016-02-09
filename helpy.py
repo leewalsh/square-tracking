@@ -716,7 +716,7 @@ def find_tiffs(path, frames='', load=False, verbose=False):
                 frames = frames[:100]
             if verbose: print '. . . loading'
             imfiles = map(t.extractfile, fnames) if istar else fnames
-            imstack = np.array(map(imread, imfiles))
+            imstack = np.squeeze(map(imread, imfiles))
             if istar: t.close()
             return imstack
         else:
@@ -725,28 +725,6 @@ def find_tiffs(path, frames='', load=False, verbose=False):
         msg = "No files found; please correct the path\n{}\n".format(path)
         return find_tiffs(raw_input(msg), frames=frames,
                           load=load, verbose=verbose)
-
-def find_first_frame(paths, ext='.tif', err=None, load=False):
-    join = lambda p: os.path.join(*p)
-    patterns = []
-    patterns.extend([join(paths)+"*", join(paths)+"/*"])
-    paths.insert(-1, os.pardir)
-    patterns.extend([join(paths)+"*", join(paths)+"/*"])
-    for pattern in patterns:
-        bgimage = glob.glob(pattern+ext)
-        if bgimage:
-            bgimage = bgimage[0]
-            break
-    else:
-        if isinstance(err, basestring):
-            bgimage = raw_input(err or 'Please give path to tif:\n')
-        else:
-            return err
-    if load:
-        from scipy.ndimage import imread
-        return imread(bgimage)
-    else:
-        return bgimage
 
 def circle_click(im):
     """ saves points as they are clicked
