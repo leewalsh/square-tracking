@@ -221,6 +221,8 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
                 'corner' for particle corner (with 'x' and 'y' sub-fields)
             (odata has the same shape as data)
     """
+    if drc <= 0:
+        drc = sqrt(rc)
     if do_average or nc == 1:
         dt = [('corner',float,(nc,2)),
               ('orient',float),

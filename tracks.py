@@ -3,42 +3,42 @@
 
 from __future__ import division
 
-if __name__=='__main__':
+if __name__ == '__main__':
     from argparse import ArgumentParser
     p = ArgumentParser()
     p.add_argument('prefix', metavar='PRE',
                    help="Filename prefix with full or relative path (filenames"
                    " prefix_POSITIONS.npz, prefix_CORNER_POSITIONS.npz, etc)")
-    p.add_argument('-t','--track', action='store_true',
+    p.add_argument('-t', '--track', action='store_true',
                    help='Connect the dots and save in the array')
     p.add_argument('-n', '--number', type=int, default=0,
                    help='Total number of tracks to keep. Default = 0 keeps all,'
                         ' -1 attempts to count particles')
-    p.add_argument('-o','--orient', action='store_true',
+    p.add_argument('-o', '--orient', action='store_true',
                    help='Find the orientations and save')
     p.add_argument('--ncorners', type=int, default=2,
                    help='Number of corner dots per particle. default = 2')
-    p.add_argument('-r', '--rcorner', type=float, default=-1,
+    p.add_argument('-r', '--rcorner', type=float,
                    help='Distance to corner dot from central dot, in pixels.')
-    p.add_argument('--drcorner', type=float, default=-1,
-                   help='Allowed error in r (rcorner), in pixels. Default is sqrt(r)')
-    p.add_argument('-l','--load', action='store_true',
+    p.add_argument('--drcorner', type=float, help='Allowed error in r/rcorner, '
+                   'in pixels. Default is sqrt(r)')
+    p.add_argument('-l', '--load', action='store_true',
                    help='Create and save structured array from '
                         'prefix[_CORNER]_POSITIONS.txt file')
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
     p.add_argument('-k', '--check', action='store_true',
-                   help='Play an animation of detected positions, orientations, '
-                        'and track numbers for checking their quality')
+                   help='Play an animation of detected positions, orientations,'
+                        ' and track numbers for checking their quality')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
     p.add_argument('--noshow', action='store_false', dest='show',
                    help="Don't show figures (just save them)")
     p.add_argument('--nosave', action='store_false', dest='save',
                    help="Don't save outputs or figures")
-    p.add_argument('--maxdist', type=int, default=0,
+    p.add_argument('--maxdist', type=int,
                    help="maximum single-frame travel distance in "
-                        "pixels for track. default = S if S>1 else 20")
+                        "pixels for track. default = S if S > 1 else 20")
     p.add_argument('--giveup', type=int, default=10,
                    help="maximum number of frames in track gap. default = 10")
     p.add_argument('-d', '--msd', action='store_true',
@@ -72,7 +72,7 @@ if __name__=='__main__':
     p.add_argument('--cut', action='store_true',
                    help='cut individual tracks at collision with boundary')
     p.add_argument('--boundary', type=float, nargs=3, default=False,
-                   metavar=('X0','Y0','R'), help='Optionally provide boundary')
+                   metavar=('X0', 'Y0', 'R'), help='Boundary for track cutting')
     p.add_argument('--nn', action='store_true',
                    help='Calculate and plot the <nn> correlation')
     p.add_argument('--rn', action='store_true',
@@ -88,7 +88,7 @@ if __name__=='__main__':
     p.add_argument('-v', '--verbose', action='count',
                    help='Print verbosity, may be repeated: -vv')
     p.add_argument('--suffix', type=str, default='',
-                    help='suffix to add to end of savenames')
+                   help='suffix to add to end of savenames')
 
     args = p.parse_args()
 
@@ -98,13 +98,12 @@ if __name__=='__main__':
     saveprefix = absprefix + args.suffix
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
-    if args.orient and args.rcorner <= 0:
-        raise ValueError, "argument -r/--rcorner is required"
-
+    if args.orient and args.rcorner is None:
+        raise ValueError("argument -r/--rcorner is required")
     S = args.side
     A = S**2
-    if args.maxdist == 0:
-        args.maxdist = S if S>1 else 20
+    if args.maxdist is None:
+        args.maxdist = S if S > 1 else 20
     fps = args.fps
     dtau = args.dtau
     dt0 = args.dt0
@@ -350,7 +349,8 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         trackids[rejects] = -1
         return None if inplace else trackids
 
-def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbose=False):
+def animate_detection(imstack, fsets, fcsets, fosets=None,
+                      side=None, rc=None, verbose=False):
 
     from matplotlib.patches import Circle
 
@@ -379,8 +379,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, rc=0, side=15, verbos
         ax.figure.canvas.draw()
         return patches
 
-    if side==1:
-        side = 15
+    if side <= 1:
+        side = 17
     txtoff = max(rc, side, 10)
 
     fig = plt.figure(figsize=(12, 12))
@@ -874,7 +874,9 @@ if __name__=='__main__':
         imstack = helpy.find_tiffs(readprefix, frames, load=True)
         datas = helpy.load_data(readprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
-        animate_detection(imstack, *fsets, rc=args.rcorner, side=args.side,
+        rc = args.rcorner or meta.get('orient_rcorner', None)
+        side = args.side if args.side > 1 else meta.get('track_sidelength', 1)
+        animate_detection(imstack, *fsets, rc=rc, side=side,
                           verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
