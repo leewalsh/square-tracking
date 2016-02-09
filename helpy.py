@@ -200,7 +200,7 @@ DRIVES = {
         'Users':  'Darwin', 'home':   'Linux',
         'C:': 'Windows', 'H:': 'hopper', }
 
-def drive_path(path, local=False):
+def drive_path(path, local=False, both=False):
     """
     split absolute paths from nt, osx, or linux into (drive, path) tuple
     """
@@ -221,13 +221,14 @@ def drive_path(path, local=False):
         drive = DRIVES.get(drive, drive)
         if local and drive==getsystem():
             drive = gethost()
-        return drive, path
+        ret = drive, path
     elif isinstance(path, tuple):
         letters = {'hopper': 'H:', 'Windows': 'C:'}
         mount = {'Darwin': '/Volumes/{}'.format,
                  'Linux': '/media/{}'.format,
                  'Windows': letters.get}[getsystem()]
-        return mount(path[0]) + path[1]
+        ret = mount(path[0]) + path[1]
+    return drive_path(ret, local=local, both=False) if both else ret
 
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
@@ -667,7 +668,8 @@ def circle_three_points(*xs):
         returns center, radius as (xo, yo), r
     """
     xs = np.squeeze(xs)
-    if xs.shape == (3, 2): xs = xs.T
+    if xs.shape == (3, 2):
+        xs = xs.T
     (x1, x2, x3), (y1, y2, y3) = xs
 
     ma = (y2-y1)/(x2-x1)
@@ -679,10 +681,56 @@ def circle_three_points(*xs):
 
     return xo, yo, r
 
+def find_tiffs(path, frames='', load=False, verbose=False):
+    assert isinstance(path, basestring), 'must give path as string'
+    if isinstance(frames, basestring):
+        slices = [int(s) if s else None for s in str(frames).split(':')]
+        frames = slice(*slices)
+    path = load_meta(path).get('path_to_tiffs', path)
+    path = drive_path(path, both=True)
+    istar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
+    if istar:
+        if verbose: print 'loading tarfile', os.path.basename(path)
+        import tarfile
+        t = tarfile.open(path)
+        fnames = [f for f in t if f.name.endswith('.tif')]
+    else:
+        if os.path.isdir(path):
+            path = os.path.join(path, '*.tif')
+        if glob.has_magic(path):
+            if verbose: print 'seeking matches to', path
+            fnames = glob.glob(path)
+        elif os.path.isfile(path):
+            fnames = [path]
+        else:
+            fnames = []
+    if fnames:
+        fnames.sort()
+        fnames = fnames[frames]
+        if verbose:
+            print 'found {} image files'.format(len(fnames))
+        if load:
+            from scipy.ndimage import imread
+            if len(fnames) > 100:
+                print "I won't load more than 100 frames"
+                frames = frames[:100]
+            if verbose: print '. . . loading'
+            imfiles = map(t.extractfile, fnames) if istar else fnames
+            imstack = np.array(map(imread, imfiles))
+            if istar: t.close()
+            return imstack
+        else:
+            return fnames
+    else:
+        msg = "No files found; please correct the path\n{}\n".format(path)
+        return find_tiffs(raw_input(msg), frames=frames,
+                          load=load, verbose=verbose)
+
 def find_first_frame(paths, ext='.tif', err=None, load=False):
     join = lambda p: os.path.join(*p)
-    patterns = [join(paths)+"*", join(paths)+"/*"]
-    paths.insert(-1, '..')
+    patterns = []
+    patterns.extend([join(paths)+"*", join(paths)+"/*"])
+    paths.insert(-1, os.pardir)
     patterns.extend([join(paths)+"*", join(paths)+"/*"])
     for pattern in patterns:
         bgimage = glob.glob(pattern+ext)
@@ -716,7 +764,7 @@ def circle_click(im):
         should appear. Then close the figure to allow the script to continue.
     """
     from matplotlib import pyplot as plt
-    if isinstance(im, str):
+    if isinstance(im, basestring):
         im = plt.imread(im)
     xs = []
     ys = []
