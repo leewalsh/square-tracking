@@ -357,18 +357,21 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
     def advance(event):
         key = event.key
         if verbose:
-            print 'pressed', key, 'next frame:',
+            print '\tpressed {}'.format(key),
         global f_display
-        if key=='left':
+        if key in ('left', 'up'):
             if f_display>=1:
                 f_display -= 1
-        elif key=='right':
+        elif key in ('right', 'down'):
             f_display += 1
         else:
             plt.close()
             f_display = -1
         if verbose:
-            print f_display
+            if f_display >= 0:
+                print 'next up {}'.format(f_display),
+            else:
+                print 'will exit'
             sys.stdout.flush()
 
     plt_text = np.vectorize(plt.text)
@@ -395,7 +398,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
     while 0 <= f_display < f_max:
         if repeat > 5:
             if verbose:
-                print 'stuck on frame', f_display
+                print 'stuck on frame {}'.format(f_display),
             break
         f_display %= f_max
         if f_display==f_old:
@@ -404,7 +407,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             repeat = 0
         f_old = f_display
         if verbose:
-            print 'starting loop with f_display =', f_display
+            print 'showing frame {}'.format(f_display),
         xyo = helpy.consecutive_fields_view(fsets[f_display], 'xyo', False)
         xyc = helpy.consecutive_fields_view(fcsets[f_display], 'xy', False)
         x, y, o = xyo.T
@@ -442,7 +445,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
         for rem in remove:
             rem.remove()
         if verbose:
-            print 'ending frame', f_display
+            print '\tdone with frame {}'.format(f_old)
             sys.stdout.flush()
     if verbose:
         print 'loop broken'

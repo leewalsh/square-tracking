@@ -86,8 +86,8 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
             unique returns the `frame` value
 
         returns a list of subarrays of `data` split by unique values of `frame`
-        if `method` is 'unique', returns tuples of (f, sect)
-        if `ret_dict` is True, returns a dict of the form { f : section } is desired
+        if `method` is 'unique', returns tuples of (f, section)
+        if `ret_dict` is True, returns a dict of the form {f: section}
         *if method is 'diff', assumes frame is sorted and not missing values
 
         examples:
@@ -688,12 +688,12 @@ def find_tiffs(path=None, prefix=None, meta=None,
     path = path or meta.get('path_to_tiffs')
     assert path, 'Provide at least one of path, prefix, meta'
     path = drive_path(path, both=True)
-    istar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
-    if istar:
+    tar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
+    if tar:
         if verbose: print 'loading tarfile', os.path.basename(path)
         import tarfile
-        t = tarfile.open(path)
-        fnames = [f for f in t if f.name.endswith('.tif')]
+        tar = tarfile.open(path)
+        fnames = [f for f in tar if f.name.endswith('.tif')]
     else:
         if os.path.isdir(path):
             path = os.path.join(path, '*.tif')
@@ -707,9 +707,9 @@ def find_tiffs(path=None, prefix=None, meta=None,
     if fnames:
         nfound = len(fnames)
         if verbose or frames == 'ask':
-            print 'found {} image files'.format(nfound)
+            print 'found {} images'.format(nfound)
         if frames == 'ask':
-            print "Number (or range as slice start:end) of frames?"
+            print "number (or range as slice start:end) of frames?"
             frames = raw_input('>>> ')
         if isinstance(frames, basestring):
             slices = [int(s) if s else None for s in frames.split(':')]
@@ -722,12 +722,10 @@ def find_tiffs(path=None, prefix=None, meta=None,
             from scipy.ndimage import imread
             fnames = fnames[:100]
             if verbose: print '. . . loading'
-            imfiles = map(t.extractfile, fnames) if istar else fnames
-            imstack = np.squeeze(map(imread, imfiles))
-            if istar: t.close()
-            return path, imstack
-        else:
-            return path, fnames
+            imfiles = map(tar.extractfile, fnames) if tar else fnames
+            fnames = np.squeeze(map(imread, imfiles))
+        if tar: tar.close()
+        return path, fnames
     else:
         print "No files found; please correct the path"
         print '    {}'.format(path)
