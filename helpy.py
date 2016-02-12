@@ -725,7 +725,7 @@ def find_tiffs(path=None, prefix=None, meta=None,
             imfiles = map(tar.extractfile, fnames) if tar else fnames
             fnames = np.squeeze(map(imread, imfiles))
         if tar: tar.close()
-        return path, fnames
+        return path, fnames, frames.indices(nfound)
     else:
         print "No files found; please correct the path"
         print '    {}'.format(path)

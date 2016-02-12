@@ -249,8 +249,10 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
             print "cutting at previously saved boundary"
             x0, y0, R = meta['track_cut_boundary']
         else:
-            _, bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)
-            x0, y0, R = helpy.circle_click(bgimage)
+            bgpath, bgimg, _ = helpy.find_tiffs(
+                prefix=readprefix, frames=1, load=True)
+            x0, y0, R = helpy.circle_click(bgimg)
+            meta['path_to_tiffs'] = bgpath
             print "cutting at selected boundary (x0, y0, r):", x0, y0, R
         # assume 6mm particles if S not specified
         mm = R/101.6 # R = 4 in = 101.6 mm
@@ -350,7 +352,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         return None if inplace else trackids
 
 def animate_detection(imstack, fsets, fcsets, fosets=None,
-                      side=None, rc=None, verbose=False):
+                      f_nums=None, side=None, rc=None, verbose=False):
 
     from matplotlib.patches import Circle
 
@@ -358,18 +360,19 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
         key = event.key
         if verbose:
             print '\tpressed {}'.format(key),
-        global f_display
+        global f_idx, f_num
         if key in ('left', 'up'):
-            if f_display>=1:
-                f_display -= 1
+            if f_idx >= 1:
+                f_idx -= 1
         elif key in ('right', 'down'):
-            f_display += 1
+            f_idx += 1
         else:
             plt.close()
-            f_display = -1
+            f_idx = -1
+        f_num = f_nums[f_idx] if 0 <= f_idx < f_max else -1
         if verbose:
-            if f_display >= 0:
-                print 'next up {}'.format(f_display),
+            if f_idx >= 0:
+                print 'next up {} ({})'.format(f_idx, f_num),
             else:
                 print 'will exit'
             sys.stdout.flush()
@@ -390,54 +393,66 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
     p = plt.imshow(imstack[0], cmap='gray')
     h, w = imstack[0].shape
     ax = p.axes
-    global f_display
-    f_display = repeat = f_old = 0
+
+    global f_idx, f_num
     lengths = map(len, [imstack, fsets, fcsets])
     f_max = min(lengths)
     assert f_max, 'Lengths imstack: {}, fsets: {}, fcsets: {}'.format(*lengths)
-    while 0 <= f_display < f_max:
+    if f_nums is None:
+        f_nums = range(f_max)
+    elif isinstance(f_nums, tuple):
+        f_nums = range(*f_nums)
+    elif len(f_nums) > f_max:
+        f_nums = f_nums[:f_max]
+    elif len(f_nums) < f_max:
+        f_nums = range(f_max)
+    else:
+        raise ValueError, 'expected `f_nums` to be None, tuple, or list'
+    f_idx = repeat = f_old = 0
+    f_num = f_nums[f_idx]
+
+    while 0 <= f_idx < f_max:
         if repeat > 5:
             if verbose:
-                print 'stuck on frame {}'.format(f_display),
+                print 'stuck on frame {} ({})'.format(f_idx, f_num),
             break
-        f_display %= f_max
-        if f_display==f_old:
+        if f_idx == f_old:
             repeat += 1
         else:
             repeat = 0
-        f_old = f_display
+            f_old = f_idx
         if verbose:
-            print 'showing frame {}'.format(f_display),
-        xyo = helpy.consecutive_fields_view(fsets[f_display], 'xyo', False)
-        xyc = helpy.consecutive_fields_view(fcsets[f_display], 'xy', False)
+            print 'showing frame {} ({})'.format(f_idx, f_num),
+        xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo', False)
+        xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy', False)
         x, y, o = xyo.T
         omask = np.isfinite(o)
         xo, yo, oo = xyo[omask].T
 
-        p.set_data(imstack[f_display])
+        p.set_data(imstack[f_idx])
         remove = []
         if rc > 0:
             patches = draw_circles(ax, xyo[:, 1::-1], rc,
-                                color='g', fill=False, zorder=.5)
+                                   color='g', fill=False, zorder=.5)
             remove.extend(patches)
-        q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy',
-                       units='xy', width=side/8, scale_units='xy', scale=1/side)
+        q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
+                       width=side/8, scale_units='xy', scale=1/side)
         ps = plt.scatter(y, x, c='r')#c=np.where(omask, 'r', 'b'))
         cs = plt.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
         if fosets is not None:
-            oc = helpy.quick_field_view(fosets[f_display], 'corner').reshape(-1, 2)
+            oc = helpy.quick_field_view(fosets[f_num], 'corner').reshape(-1, 2)
             ocs = plt.scatter(oc[:,1], oc[:,0], c='orange', s=8)
             remove.append(ocs)
         remove.extend([q, ps, cs])
 
-        tstr = fsets[f_display]['t'].astype('S')
+        tstr = fsets[f_num]['t'].astype('S')
         txt = plt_text(y+txtoff, x+txtoff, tstr, color='r')
         remove.extend(txt)
 
         plt.xlim(0, w)
         plt.ylim(0, h)
         plt.title("frame {}\n{} orientations / {} particles detected".format(
-                    f_display, np.count_nonzero(omask), len(o)))
+                    f_num, np.count_nonzero(omask), len(o)))
         fig.canvas.draw()
 
         plt.waitforbuttonpress()
@@ -445,7 +460,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
         for rem in remove:
             rem.remove()
         if verbose:
-            print '\tdone with frame {}'.format(f_old)
+            print '\tdone with frame {} ({})'.format(f_old, f_nums[f_old])
             sys.stdout.flush()
     if verbose:
         print 'loop broken'
@@ -873,8 +888,9 @@ if __name__=='__main__':
         data = helpy.load_data(readprefix, 'track')
 
     if args.check:
-        path_to_tiffs, imstack = helpy.find_tiffs(prefix=readprefix,
-                frames='ask', load=True, verbose=args.verbose)
+        path_to_tiffs, imstack, frames = helpy.find_tiffs(
+                prefix=readprefix, frames='ask',
+                load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         helpy.save_meta(saveprefix, meta)
         datas = helpy.load_data(readprefix, 't c o')
@@ -882,7 +898,7 @@ if __name__=='__main__':
         rc = args.rcorner or meta.get('orient_rcorner', None)
         side = args.side if args.side > 1 else meta.get('track_sidelength', 1)
         animate_detection(imstack, *fsets, rc=rc, side=side,
-                          verbose=args.verbose)
+                          f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
         tracksets = helpy.load_tracksets(data, min_length=args.stub,
@@ -927,7 +943,7 @@ if __name__=='__main__':
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        _, bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)
+        bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)[1]
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
         else:
