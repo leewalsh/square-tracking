@@ -27,7 +27,7 @@ if __name__ == '__main__':
                         'prefix[_CORNER]_POSITIONS.txt file')
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
-    p.add_argument('-k', '--check', action='store_true',
+    p.add_argument('-k', '--check', nargs='?', const=True,
                    help='Play an animation of detected positions, orientations,'
                         ' and track numbers for checking their quality')
     p.add_argument('-p', '--plottracks', action='store_true',
@@ -889,7 +889,7 @@ if __name__=='__main__':
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(
-                prefix=readprefix, frames='ask',
+                prefix=readprefix, frames=args.check,
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         helpy.save_meta(saveprefix, meta)

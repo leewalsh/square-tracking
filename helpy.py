@@ -706,9 +706,9 @@ def find_tiffs(path=None, prefix=None, meta=None,
             fnames = []
     if fnames:
         nfound = len(fnames)
-        if verbose or frames == 'ask':
+        if verbose or frames is True:
             print 'found {} images'.format(nfound)
-        if frames == 'ask':
+        if frames is True:
             print "number (or range as slice start:end) of frames?"
             frames = raw_input('>>> ')
         if isinstance(frames, basestring):
