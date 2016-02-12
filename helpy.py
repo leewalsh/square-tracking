@@ -280,7 +280,7 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
     meta = load_meta(prefix)
     meta.update(meta_dict or {}, **meta_kw)
     fmt = '{0[0]!r:18}: {0[1]!r}\n'.format
-    lines = map(fmt, meta.iteritems())
+    lines = sorted(map(fmt, meta.iteritems()))
     suffix = '_META.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
     with open(path, 'w') as f:
@@ -682,8 +682,11 @@ def circle_three_points(*xs):
 
     return xo, yo, r
 
-def find_tiffs(path, frames='', load=False, verbose=False):
-    path = load_meta(path).get('path_to_tiffs', path)
+def find_tiffs(path=None, prefix=None, meta=None,
+               frames='', load=False, verbose=False):
+    meta = meta or load_meta(prefix)
+    path = path or meta.get('path_to_tiffs')
+    assert path, 'Provide at least one of path, prefix, meta'
     path = drive_path(path, both=True)
     istar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
     if istar:
@@ -717,21 +720,19 @@ def find_tiffs(path, frames='', load=False, verbose=False):
         fnames = fnames[frames]
         if load:
             from scipy.ndimage import imread
-            if len(fnames) > 100:
-                print "I won't load more than 100 frames"
-                frames = frames[:100]
+            fnames = fnames[:100]
             if verbose: print '. . . loading'
             imfiles = map(t.extractfile, fnames) if istar else fnames
             imstack = np.squeeze(map(imread, imfiles))
             if istar: t.close()
-            return imstack
+            return path, imstack
         else:
-            return fnames
+            return path, fnames
     else:
         print "No files found; please correct the path"
         print '    {}'.format(path)
-        return find_tiffs(path=raw_input('>>> '), frames=frames,
-                          load=load, verbose=True)
+        return find_tiffs(path=raw_input('>>> '), prefix=prefix, meta=meta,
+                frames=frames, load=load, verbose=True)
 
 def circle_click(im):
     """ saves points as they are clicked

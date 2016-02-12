@@ -249,7 +249,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
             print "cutting at previously saved boundary"
             x0, y0, R = meta['track_cut_boundary']
         else:
-            bgimage = helpy.find_tiffs(readprefix, 1, load=True)
+            _, bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)
             x0, y0, R = helpy.circle_click(bgimage)
             print "cutting at selected boundary (x0, y0, r):", x0, y0, R
         # assume 6mm particles if S not specified
@@ -870,8 +870,10 @@ if __name__=='__main__':
         data = helpy.load_data(readprefix, 'track')
 
     if args.check:
-        imstack = helpy.find_tiffs(readprefix, frames='ask',
-                                   load=True, verbose=args.verbose)
+        path_to_tiffs, imstack = helpy.find_tiffs(prefix=readprefix,
+                frames='ask', load=True, verbose=args.verbose)
+        meta.update(path_to_tiffs=path_to_tiffs)
+        helpy.save_meta(saveprefix, meta)
         datas = helpy.load_data(readprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         rc = args.rcorner or meta.get('orient_rcorner', None)
@@ -922,7 +924,7 @@ if __name__=='__main__':
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        bgimage = helpy.find_tiffs(readprefix, 1, load=True)
+        _, bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
         else:
