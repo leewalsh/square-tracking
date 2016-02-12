@@ -870,8 +870,8 @@ if __name__=='__main__':
         data = helpy.load_data(readprefix, 'track')
 
     if args.check:
-        frames = raw_input("Number (or range as slice start:end) of frames? ")
-        imstack = helpy.find_tiffs(readprefix, frames, load=True)
+        imstack = helpy.find_tiffs(readprefix, frames='ask',
+                                   load=True, verbose=args.verbose)
         datas = helpy.load_data(readprefix, 't c o')
         fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
         rc = args.rcorner or meta.get('orient_rcorner', None)

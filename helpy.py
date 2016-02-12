@@ -6,6 +6,7 @@ from __future__ import division
 from itertools import izip, ifilter, imap
 from math import log
 import sys, os, ntpath
+import readline
 import glob
 import platform, getpass
 from time import strftime
@@ -682,10 +683,6 @@ def circle_three_points(*xs):
     return xo, yo, r
 
 def find_tiffs(path, frames='', load=False, verbose=False):
-    assert isinstance(path, basestring), 'must give path as string'
-    if isinstance(frames, basestring):
-        slices = [int(s) if s else None for s in str(frames).split(':')]
-        frames = slice(*slices)
     path = load_meta(path).get('path_to_tiffs', path)
     path = drive_path(path, both=True)
     istar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
@@ -705,10 +702,19 @@ def find_tiffs(path, frames='', load=False, verbose=False):
         else:
             fnames = []
     if fnames:
+        nfound = len(fnames)
+        if verbose or frames == 'ask':
+            print 'found {} image files'.format(nfound)
+        if frames == 'ask':
+            print "Number (or range as slice start:end) of frames?"
+            frames = raw_input('>>> ')
+        if isinstance(frames, basestring):
+            slices = [int(s) if s else None for s in frames.split(':')]
+            frames = slice(*slices)
+        elif isinstance(frames, int):
+            frames = slice(frames)
         fnames.sort()
         fnames = fnames[frames]
-        if verbose:
-            print 'found {} image files'.format(len(fnames))
         if load:
             from scipy.ndimage import imread
             if len(fnames) > 100:
@@ -722,9 +728,10 @@ def find_tiffs(path, frames='', load=False, verbose=False):
         else:
             return fnames
     else:
-        msg = "No files found; please correct the path\n{}\n".format(path)
-        return find_tiffs(raw_input(msg), frames=frames,
-                          load=load, verbose=verbose)
+        print "No files found; please correct the path"
+        print '    {}'.format(path)
+        return find_tiffs(path=raw_input('>>> '), frames=frames,
+                          load=load, verbose=True)
 
 def circle_click(im):
     """ saves points as they are clicked
