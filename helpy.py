@@ -37,7 +37,7 @@ def gethost():
                                     stderr=STDOUT).strip()
             except CalledProcessError:
                 pass
-        HOST = replace_all(HOST.partition('.')[0], """()'",""").replace(' ','-')
+        HOST = replace_all(HOST.partition('.')[0], """('",’)""").replace(' ','-')
     return HOST
 
 def getuser():
