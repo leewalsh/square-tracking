@@ -1,7 +1,10 @@
-
 *.tif
 *.pyc
 .ipynb_checkpoints/
 peakdetect.py
 
 michael-*.py
+
+# outputs from .md files:
+noise.pdf
+melting.pdf
