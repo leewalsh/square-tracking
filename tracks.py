@@ -28,7 +28,7 @@ if __name__ == '__main__':
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
     p.add_argument('-k', '--check', nargs='?', const=True,
-                   help='Play an animation of detected positions, orientations,'
+                   help='Plot an animation of detected positions, orientations,'
                         ' and track numbers for checking their quality')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
@@ -129,13 +129,16 @@ from collections import defaultdict
 
 import helpy
 
-if helpy.gethost()=='foppl':
-    import matplotlib
-    matplotlib.use("agg")
-
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+
+need_plt = [args.plottracks, args.plotmsd, args.check,
+            args.nn, args.rn, args.rr]
+if __name__ != '__main__' or any(need_plt):
+    if helpy.gethost() == 'foppl':
+        import matplotlib
+        matplotlib.use("agg")
+    import matplotlib.pyplot as plt
 
 import correlation as corr
 
@@ -751,7 +754,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     return (msd, msd_err) if errorbars else msd
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(8,6), plfunc=plt.semilogx, meancol='',
+        show_tracks=True, figsize=(8,6), xscale='log', meancol='',
         title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
         lw=1, singletracks=None, fps=1, S=1, ang=False, sys_size=0,
         kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
@@ -786,15 +789,16 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if errorbars: msd_err /= A
 
     if tnormalize:
-        plfunc(taus, msd/taus**tnormalize, meancol,
+        plt.plot(taus, msd/taus**tnormalize, meancol,
                label="Mean Sq {}Disp/Time{}".format(
                      "Angular " if ang else "",
                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plfunc(taus, msd[0]*taus**(1-tnormalize)/dtau,
+        plt.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
                'k-', label="ref slope = 1", lw=2)
-        plfunc(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
+        plt.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
                'k--', lw=2, label=r"$(2\pi)^2$" if ang else
                ("One particle area" if S>1 else "One Pixel"))
+        plt.xscale(xscale)
         plt.ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
         plt.loglog(taus, msd, meancol, lw=lw,

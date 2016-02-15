@@ -1,13 +1,11 @@
 # coding: utf-8
 
 from __future__ import division
+
 from itertools import izip
 from math import sqrt
 import numpy as np
 from PIL import Image as Im
-
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
 
 import helpy
 
@@ -52,9 +50,6 @@ def get_fft(ifile=None,location=None):
     b = np.fft.fft2(a)
     j = Im.fromarray(abs(b))
     ii = Im.fromarray(aa)
-    if do_plots:
-        ii.show()
-
     return b
 
 def get_orientation(b):
@@ -74,16 +69,6 @@ def get_orientation(b):
         sm = np.average(p[si,1])
         s.append([sl*slicewidth,sm])
     s = np.asarray(s)
-    if do_plots and HOST=='rock':
-        pl.figure()
-        #pl.plot(p[:,0],p[:,1],'.',label='p')
-        #pl.plot(s[:,0],s[:,1],'o',label='s')
-        pl.plot(p[:,0]%(pi/2),p[:,1],'.',label='p')
-        pl.plot(s[:,0]%(pi/2),s[:,1],'o',label='s')
-        pl.legend()
-        pl.show()
-    elif do_plots and HOST=='foppl':
-        print "can't plot on foppl"
     return s, p
 
 def find_corner(particle, corners, tree=None,
@@ -271,6 +256,8 @@ def plot_orient_hist(odata, figtitle=''):
     if HOST!='rock':
         print 'computer must be rock'
         return False
+    import matplotlib.pyplot as pl
+
     pl.figure()
     pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)
     pl.title('orientation histogram' if figtitle is '' else figtitle)
@@ -279,12 +266,13 @@ def plot_orient_hist(odata, figtitle=''):
 def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', figsize=None):
     """ plot_orient_quiver(data, odata, mask=None, imfile='')
     """
+    import matplotlib.pyplot as pl
     import matplotlib.colors as mcolors
     import matplotlib.colorbar as mcolorbar
     pl.figure(tight_layout=False, figsize=figsize)
     if imfile is not None:
         bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
-        pl.imshow(bgimage, cmap=cm.gray, origin='upper')
+        pl.imshow(bgimage, cmap=pl.cm.gray, origin='upper')
     #pl.quiver(X, Y, U, V, **kw)
     if mask is None:
         try:
@@ -299,11 +287,11 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     qq = pl.quiver(
             data['y'][mask][ndex], data['x'][mask][ndex],
             odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
-            color=cm.jet(nz(data['f'][mask]/fps)),
+            color=pl.cm.jet(nz(data['f'][mask]/fps)),
             scale=1, scale_units='xy')
     #pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]) if imfile else '')
     cax,_ = mcolorbar.make_axes(pl.gca())
-    cb = mcolorbar.ColorbarBase(cax, cmap=cm.jet, norm=nz)
+    cb = mcolorbar.ColorbarBase(cax, cmap=pl.cm.jet, norm=nz)
     cb.set_label('time '+('(s)'if fps > 1 else '(frame)'))
     if savename:
         print "saving to", savename
@@ -330,6 +318,7 @@ def track_orient(orients, omask=None, cutoff=pi, inplace=True):
     return orients
 
 def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
+    import matplotlib.pyplot as pl
     if omask is None:
         omask = np.isfinite(odata['orient'])
     goodtracks = np.unique(tracks[omask])
@@ -375,6 +364,7 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
     pl.show()
 
 def plot_orient_location(data,odata,tracks):
+    import matplotlib.pyplot as pl
     import correlation as corr
 
     omask = np.isfinite(odata['orient'])
@@ -396,8 +386,8 @@ def plot_orient_location(data,odata,tracks):
                     ))/ss,
                 #marker='*',
                 label = 'track {}'.format(goodtrack),
-                color = cm.jet(1.*goodtrack/max(tracks)))
-                #color = cm.jet(1.*data['f'][fullmask]/1260.))
+                color = pl.cm.jet(1.*goodtrack/max(tracks)))
+                #color = pl.cm.jet(1.*data['f'][fullmask]/1260.))
         print "track",goodtrack
     pl.legend()
     pl.show()
