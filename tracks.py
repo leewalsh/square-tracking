@@ -845,10 +845,11 @@ if __name__=='__main__':
 
     if args.track or args.orient:
         from scipy.spatial import cKDTree as KDTree
-        if args.track != args.orient and helpy.bool_input("Would you like to "
-                "simultaneously track and find orientations? (It's faster)\n"):
-            args.track = args.orient = True
         if args.orient:
+            if not args.track:
+                print "Would you like to simultaneously track and find",
+                print "orientations? (It's faster)",
+                args.track = helpy.bool_input()
             pdata, cdata = helpy.load_data(readprefix, 'position corner')
         else:
             pdata = helpy.load_data(readprefix, 'position')

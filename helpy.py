@@ -636,7 +636,7 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         print "saved merged tracks to", savename
     return merged
 
-def bool_input(question, default=None):
+def bool_input(question='', default=None):
     "Returns True or False from yes/no user-input question"
     if question and question[-1] not in ' \n\t':
         question += ' '
