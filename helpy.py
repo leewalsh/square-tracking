@@ -322,22 +322,27 @@ def load_data(fullprefix, choices='tracks', verbose=False):
     npzs = {}
     data = {}
     for c in choices:
-        datapath = fullprefix+'_'+name[c].upper()+'.npz'
+        suffix = name[c].upper()
+        datapath = fullprefix+'_'+suffix+'.npz'
         try:
             npzs[c] = np.load(datapath)
         except IOError as e:
-            print e
+            cmd = '`tracks -{}`'.format(
+                {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[c])
             print ("Found no {} npz file. Please run ".format(name[c]) +
-                ("`tracks -l` to convert a {0}.txt to {0}.npz".format(name[c].upper()) +
-                 "file, or rerun `positions` on your tiffs" if c in 'pc' else
-                 "`tracks -{}` to generate a {}.npz file".format(c, name[c].upper())))
+                   ("{0} to convert {1}.txt to {1}.npz, " +
+                    "or run `positions` on your tiffs" if c in 'pc' else
+                    "{0} to generate {1}.npz").format(cmd, suffix))
             raise
         else:
             if verbose:
                 print "Loaded {} data from {}".format(name[c], datapath)
             data[c] = npzs[c][c*(c=='o')+'data']
     if 't' in choices and 'trackids' in npzs['t'].files:
-        # separate trackids means this is an old-style TRACKS.npz, convert it:
+        # separate `trackids` array means this file is an old-style
+        # TRACKS.npz which holds positions and trackids but no orient
+        if verbose:
+            print "Converting to TRACKS array from positions, trackids, orient"
         orient = (data['o'] if 'o' in choices else load_data(fullprefix, 'o'))['orient']
         data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
     ret = [data[c] for c in choices]

@@ -234,12 +234,11 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
     odata = np.full(len(pdata), np.nan, dtype=dt)
     odata_corner = odata['corner']
     odata_orient = odata['orient']
-    odata_cdisp  = odata['cdisp']
+    odata_cdisp = odata['cdisp']
     full_ids = pdata['id']
     id_ok = full_ids[0]==0 and np.all(np.diff(full_ids)==1)
     print_freq = len(pfsets)//(100 if verbose>1 else 5) + 1
-    if verbose:
-        print 'seeking orientations'
+    print 'seeking orientations'
     for f in pfsets:
         if verbose and not f % print_freq:
             print f,
