@@ -72,34 +72,28 @@ def get_orientation(b):
     return s, p
 
 def find_corner(particle, corners, tree=None,
-                nc=1, rc=11, drc=0, slr=False, do_average=True):
-    """ find_corner(particle, corners, **kwargs)
+                nc=1, rc=11, drc=0, do_average=True):
+    """find the corner dot(s) closest to distance rc from center dot
 
-        looks in the given frame for the corner-marking dot closest to (and in
-        appropriate range of) the particle
+    Parameters
+    ----------
+    particle:   is particle position as [x,y] array of shape (2,)
+    corners:    is shape (N, 2) array of positions of corner dots as x, y pairs
+    tree:       a KDTree of the `corners`, if available
+    nc:         number of corner dots
+    rc:         is the expected distance to corner from particle position
+    drc:        delta rc is the tolerance on rc, defaults to sqrt(rc)
+    do_average: whether to average the nc corners to one value for return
 
-        arguments:
-            particle - is particle position as [x,y] array of shape (2,)
-            corners  - is shape (N,2) array of positions of corner dots
-                        as [x,y] pairs
-            tree     - a KDTree of the `corners`, if available
-            nc        - number of corner dots
-            rc       - is the expected distance to corner from particle position
-            drc      - delta r_c is the tolerance on rc
-            slr      - whether to use slr resolution
-            do_average - whether to average the nc corners to one value for return
-
-        returns:
-            pcorner - (mean) position(s) (x,y) of corner that belongs to particle
-            porient - (mean) particle orientation(s) (% 2pi)
-            cdisp   - (mean) vector(s) (x,y) from particle center to corner(s)
+    Returns
+    -------
+    pcorner:    (mean) position(s) (x,y) of corner that belongs to particle
+    porient:    (mean) particle orientation(s) (% 2pi)
+    cdisp:      (mean) vector(s) (x,y) from particle center to corner(s)
     """
 
     if drc <= 0:
         drc = sqrt(rc)
-    if slr:
-        rc = 43 # 56 ?
-        drc = 10
 
     # displacements from center to corners
     if tree:
@@ -152,7 +146,7 @@ def get_angle((datum, cdata)):
 
 def get_angles_map(data, cdata, nthreads=None):
     """ get_angles(data, cdata, nthreads=None)
-        
+
         arguments:
             data    - data array with 'x' and 'y' fields for particle centers
             cdata   - data array wity 'x' and 'y' fields for corners
@@ -160,7 +154,7 @@ def get_angles_map(data, cdata, nthreads=None):
                 but both must have 'f' field for the image frame)
             nthreads - number of processing threads (cpu cores) to use
                 None uses all cores of machine (8 for foppl, 2 for rock)
-            
+
         returns:
             odata   - array with fields:
                 'orient' for orientation of particles
@@ -184,38 +178,42 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True, verbose=False):
-    """ get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, do_average=True)
-        
-        arguments:
-            pdata   - data array with 'x' and 'y' fields for particle centers
-            cdata   - data array wity 'x' and 'y' fields for corners
-                (these arrays need not have the same length,
-                    but both must have 'f' field for the image frame)
-            pfsets  - slices into pdata, by frame
-            cfsets  -    and for cdata
-            cftrees - dict of KDTrees for corners, by frame
-            nc      - number of corner dots
-            rc      - distance between center and corner dot
-            drc     - tolerance for rc
-            do_average - whether to average the nc corners to one value for return
-            
-        returns:
-            odata   - array with fields:
-                'orient' for orientation of particles
-                'corner' for particle corner (with 'x' and 'y' sub-fields)
-            (odata has the same shape as data)
+def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
+                    drc=0, do_average=True, verbose=False):
+    """find the orientations of particles given center and corner positions
+
+    Parameters
+    ----------
+    pdata:      data array with 'x' and 'y' fields for particle centers
+    cdata:      data array wity 'x' and 'y' fields for corners
+        pdata and cdata arrays need not have the same length,
+        but both must have 'f' field for the image frame)
+    pfsets:     slices into pdata, by frame
+    cfsets:     slices into cdata, by frame
+    cftrees:    dict of KDTrees for corners, by frame
+        the following arguments are passed to find_corner:
+    nc:         number of corner dots
+    rc:         expected distance between center and corner dot
+    drc:        tolerance for rc, defaults to sqrt(rc)
+    do_average: whether to average the nc corners to one value for return
+
+    Returns
+    -------
+    odata:  structured array, same shape as pdata, with fields:
+            'corner' for particle corner (with 'x' and 'y' sub-fields)
+            'orient' for orientation of particles
+            'cdisp' for the corner - center displacement
     """
     if drc <= 0:
         drc = sqrt(rc)
     if do_average or nc == 1:
-        dt = [('corner',float,(nc,2)),
-              ('orient',float),
-              ('cdisp',float,(nc,))]
+        dt = [('corner', float, (nc, 2)),
+              ('orient', float),
+              ('cdisp', float, (nc,))]
     elif nc > 1:
-        dt = [('corner',float,(nc,2,)),
-              ('orient',float,(nc,)),
-              ('cdisp',float,(nc,))]
+        dt = [('corner', float, (nc, 2,)),
+              ('orient', float, (nc,)),
+              ('cdisp', float, (nc,))]
     odata = np.full(len(pdata), np.nan, dtype=dt)
     odata_corner = odata['corner']
     odata_orient = odata['orient']
@@ -229,18 +227,18 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc=3, rc=11, drc=0, d
             print f,
         fpdata = pfsets[f]
         fcdata = cfsets[f]
-        tree = cftrees[f]
+        cftree = cftrees[f]
         positions = helpy.consecutive_fields_view(fpdata, 'xy')
         cpositions = helpy.consecutive_fields_view(fcdata, 'xy')
-        frame_ids = helpy.quick_field_view(fpdata, 'id')
-        for frame_id, posi in izip(frame_ids, positions):
+        fp_ids = helpy.quick_field_view(fpdata, 'id')
+        for fp_id, posi in izip(fp_ids, positions):
             #TODO could probably be sped up by looping through the output of
             #     ptree.query_ball_tree(ctree)
             corner, orient, disp = \
-                find_corner(posi, cpositions, tree=tree,
+                find_corner(posi, cpositions, tree=cftree,
                             nc=nc, rc=rc, drc=drc, do_average=do_average)
             if orient is None: continue
-            full_id = frame_id if id_ok else np.searchsorted(full_ids, frame_id)
+            full_id = fp_id if id_ok else np.searchsorted(full_ids, fp_id)
             odata_corner[full_id] = corner
             odata_orient[full_id] = orient
             odata_cdisp[full_id] = disp
