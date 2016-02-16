@@ -430,8 +430,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             f_old = f_idx
         if verbose:
             print 'showing frame {} ({})'.format(f_idx, f_num),
-        xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo', False)
-        xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy', False)
+        xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
+        xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
         omask = np.isfinite(o)
         xo, yo, oo = xyo[omask].T
@@ -553,7 +553,7 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
         tset = np.insert(tset, gapi+1, missing)
         if interp:
             for field in interp:
-                view = helpy.consecutive_fields_view(tset, field, careful=False)
+                view = helpy.consecutive_fields_view(tset, field)
                 interp_nans(view, inplace=True)
         tracksets[t] = tset
     return tracksets
@@ -858,7 +858,7 @@ if __name__=='__main__':
         else:
             pdata = helpy.load_data(readprefix, 'position')
         pfsets = helpy.splitter(pdata, ret_dict=True)
-        pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy', False),
+        pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy'),
                              leafsize=50) for f, pfset in pfsets.iteritems()}
     if args.track:
         meta.update(track_sidelength=args.side, track_maxdist=args.maxdist,
@@ -872,7 +872,7 @@ if __name__=='__main__':
     if args.orient:
         from orientation import get_angles_loop
         cfsets = helpy.splitter(cdata, ret_dict=True)
-        cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy', False),
+        cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
                              leafsize=50) for f, cfset in cfsets.iteritems()}
         meta.update(orient_ncorners=args.ncorners, orient_rcorner=args.rcorner,
                     orient_drcorner=args.drcorner)

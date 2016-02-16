@@ -424,7 +424,7 @@ def fields_view(arr, fields):
     dtype2 = np.dtype({name:arr.dtype.fields[name] for name in fields})
     return np.ndarray(arr.shape, dtype2, arr, 0, arr.strides)
 
-def quick_field_view(arr, field, careful=True):
+def quick_field_view(arr, field, careful=False):
     dt, off = arr.dtype.fields[field]
     out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
     if careful:
@@ -437,7 +437,7 @@ def quick_field_view(arr, field, careful=True):
             assert np.all(eq) or np.all(eq[np.isfinite(a*o)])
     return out
 
-def consecutive_fields_view(arr, fields, careful=True):
+def consecutive_fields_view(arr, fields, careful=False):
     shape, j = arr.shape, len(fields)
     df = arr.dtype.fields
     dt, offset = df[fields[0]]
