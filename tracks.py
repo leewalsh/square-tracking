@@ -858,8 +858,8 @@ if __name__=='__main__':
         else:
             pdata = helpy.load_data(readprefix, 'position')
         pfsets = helpy.splitter(pdata, ret_dict=True)
-        pftrees = { f: KDTree(np.column_stack([pfset['x'], pfset['y']]), leafsize=50)
-                   for f, pfset in pfsets.iteritems() }
+        pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy', False),
+                             leafsize=50) for f, pfset in pfsets.iteritems()}
     if args.track:
         meta.update(track_sidelength=args.side, track_maxdist=args.maxdist,
                     track_maxtime=args.giveup, track_stub=args.stub,
@@ -872,8 +872,8 @@ if __name__=='__main__':
     if args.orient:
         from orientation import get_angles_loop
         cfsets = helpy.splitter(cdata, ret_dict=True)
-        cftrees = {f: KDTree(np.column_stack([cfset['x'], cfset['y']]), leafsize=50)
-                   for f, cfset in cfsets.iteritems()}
+        cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy', False),
+                             leafsize=50) for f, cfset in cfsets.iteritems()}
         meta.update(orient_ncorners=args.ncorners, orient_rcorner=args.rcorner,
                     orient_drcorner=args.drcorner)
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
