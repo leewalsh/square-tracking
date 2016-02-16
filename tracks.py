@@ -326,7 +326,11 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
                 seps += sepx*sepx + sepy*sepy
             rejects[t][f] = ftsets[f][seps > seps.min()]['id']
     if not rejects:
+        if verbose:
+            print "no duplicate tracks"
         return None if inplace else trackids if target=='trackids' else tracksets
+    elif verbose:
+        print "repairing {} duplicate tracks".format(len(rejects))
     if target=='tracksets':
         if not inplace:
             tracksets = tracksets.copy()
@@ -858,11 +862,11 @@ if __name__=='__main__':
                    for f, pfset in pfsets.iteritems() }
     if args.track:
         meta.update(track_sidelength=args.side, track_maxdist=args.maxdist,
-                track_maxtime=args.giveup, track_stub=args.stub,
-                track_cut=args.cut)
+                    track_maxtime=args.giveup, track_stub=args.stub,
+                    track_cut=args.cut)
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, cut=args.cut, stub=args.stub)
-        trackids = remove_duplicates(trackids, data=pdata)
+        trackids = remove_duplicates(trackids, data=pdata, verbose=args.verbose)
     else:
         trackids = None
     if args.orient:
