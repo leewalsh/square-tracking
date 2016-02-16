@@ -222,14 +222,14 @@ def drive_path(path, local=False, both=False):
         drive = DRIVES.get(drive, drive)
         if local and drive==getsystem():
             drive = gethost()
-        ret = drive, path
+        path = drive, path
     elif isinstance(path, tuple):
         letters = {'hopper': 'H:', 'Windows': 'C:'}
         mount = {'Darwin': '/Volumes/{}'.format,
                  'Linux': '/media/{}'.format,
                  'Windows': letters.get}[getsystem()]
-        ret = mount(path[0]) + path[1]
-    return drive_path(ret, local=local, both=False) if both else ret
+        path = mount(path[0]) + path[1]
+    return drive_path(path, local=local, both=False) if both else path
 
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
@@ -687,11 +687,10 @@ def circle_three_points(*xs):
 
     return xo, yo, r
 
-def find_tiffs(path=None, prefix=None, meta=None,
+def find_tiffs(path='', prefix='', meta='',
                frames='', load=False, verbose=False):
     meta = meta or load_meta(prefix)
-    path = path or meta.get('path_to_tiffs')
-    assert path, 'Provide at least one of path, prefix, meta'
+    path = path or meta.get('path_to_tiffs', prefix)
     path = drive_path(path, both=True)
     tar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
     if tar:
@@ -734,8 +733,9 @@ def find_tiffs(path=None, prefix=None, meta=None,
     else:
         print "No files found; please correct the path"
         print '    {}'.format(path)
-        return find_tiffs(path=raw_input('>>> '), prefix=prefix, meta=meta,
-                frames=frames, load=load, verbose=True)
+        new_path = raw_input('>>> ')
+        return find_tiffs(path=new_path, prefix=prefix, meta=meta,
+                          frames=frames, load=load, verbose=True)
 
 def circle_click(im):
     """ saves points as they are clicked
