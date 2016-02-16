@@ -151,14 +151,14 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """ recursive function to find nearest dot in previous frame.
         looks further back until it finds the nearest particle
         returns the trackid for that nearest dot, else returns new trackid"""
+    info = 'New track {:5d}, frame {:4d}, n {:2d}, dot {:5d}, from'.format
     frame = thisdot[0]
     if cut is not False and cut[thisdot[-1]]:
         return -1
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = trackids.max() + 1
         if verbose:
-            print "New track:", newtrackid
-            print '\tframe:', frame,'n:', n,'dot:', thisdot[-1]
+            print info(newtrackid, frame, n, thisdot[-1])
         return newtrackid
     oldtree = pftrees[frame-n]
     thisdotxy = thisdot[1:3]
@@ -173,36 +173,34 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             # create new trackid to be deleted (or overwritten?)
             newtrackid = trackids.max() + 1
             if verbose:
-                print "found a closer child dot to the this dot's parent"
-                print "New track:", newtrackid
-                print '\tframe:', frame,'n:', n,
-                print 'dot:', thisdot[-1],
-                print 'closer:', pfsets[frame].item(mini2)[-1]
+                print info(newtrackid, frame, n, thisdot[-1]),
+                print "closer dot to parent", pfsets[frame].item(mini2)[-1]
             return newtrackid
         if cut is not False and cut[closest[-1]]:
             newtrackid = trackids.max() + 1
             if verbose:
-                print "cutting track:", trackids[closest[-1]]
-                print "New track:", newtrackid
+                print info(newtrackid, frame, n, thisdot[-1]),
+                print "cutting track", trackids[closest[-1]]
             return newtrackid
         else:
             oldtrackid = trackids[closest[-1]]
             if oldtrackid == -1:
                 newtrackid = trackids.max() + 1
                 if verbose:
-                    print "new track since previous was cut", newtrackid
+                    print info(newtrackid, frame, n, thisdot[-1]),
+                    print "previous track cut"
                 return newtrackid
             else:
                 return oldtrackid
     elif n < giveup:
         return find_closest(thisdot, trackids, n=n+1,
                             maxdist=maxdist, giveup=giveup, cut=cut)
-    else: # give up after giveup frames
+    else:
+        # give up after giveup frames
         newtrackid = trackids.max() + 1
         if verbose:
-            print "Recursed {} times, giving up.".format(n)
-            print "New track:", newtrackid
-            print '\tframe:', frame, 'n:', n, 'dot:', thisdot[-1]
+            print info(newtrackid, frame, n, thisdot[-1]),
+            print "passed", giveup, "frames"
         return newtrackid
 
 def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
