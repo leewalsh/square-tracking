@@ -148,9 +148,11 @@ pi = np.pi
 twopi = 2*pi
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
-    """ recursive function to find nearest dot in previous frame.
-        looks further back until it finds the nearest particle
-        returns the trackid for that nearest dot, else returns new trackid"""
+    """recursive function to find nearest dot in previous frame.
+
+    looks further back until it finds the nearest particle
+    returns the trackid for that nearest dot, else returns new trackid
+    """
     info = 'New track {:5d}, frame {:4d}, n {:2d}, dot {:5d}, from'.format
     frame = thisdot[0]
     if cut is not False and cut[thisdot[-1]]:
@@ -428,6 +430,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
         else:
             repeat = 0
             f_old = f_idx
+        assert f_num == f_nums[f_idx], "f_num != f_nums[f_idx]"
         if verbose:
             print 'showing frame {} ({})'.format(f_idx, f_num),
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
@@ -902,11 +905,12 @@ if __name__=='__main__':
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         helpy.save_meta(saveprefix, meta)
-        datas = helpy.load_data(readprefix, 't c o')
-        fsets = map(lambda d: helpy.splitter(d, datas[0]['f']), datas)
+        tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
+        ftsets, fcsets = helpy.splitter(tdata), helpy.splitter(cdata)
+        fosets = helpy.splitter(odata, tdata['f'])
         rc = args.rcorner or meta.get('orient_rcorner', None)
         side = args.side if args.side > 1 else meta.get('track_sidelength', 1)
-        animate_detection(imstack, *fsets, rc=rc, side=side,
+        animate_detection(imstack, ftsets, fcsets, fosets, rc=rc, side=side,
                           f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
