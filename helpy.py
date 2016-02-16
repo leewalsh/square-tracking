@@ -732,8 +732,13 @@ def find_tiffs(path='', prefix='', meta='',
         return path, fnames, frames.indices(nfound)
     else:
         print "No files found; please correct the path"
+        print "the following substitutions will be made:"
+        substr = ("{{prefix}} --> {prefix}\n"
+                  "{{meta}}   --> {meta}")
+        subval = dict(prefix=prefix, meta=meta.get('path_to_tiffs', ''))
+        print substr.format(**subval)
         print '    {}'.format(path)
-        new_path = raw_input('>>> ')
+        new_path = raw_input('>>> ').format(**subval)
         return find_tiffs(path=new_path, prefix=prefix, meta=meta,
                           frames=frames, load=load, verbose=True)
 

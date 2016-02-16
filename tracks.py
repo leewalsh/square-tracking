@@ -93,7 +93,8 @@ if __name__ == '__main__':
     args = p.parse_args()
 
     import os.path
-    absprefix = os.path.abspath(args.prefix)
+    relprefix = args.prefix
+    absprefix = os.path.abspath(relprefix)
     readprefix = absprefix
     saveprefix = absprefix + args.suffix
     locdir, prefix = os.path.split(absprefix)
@@ -253,7 +254,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, cut=False, stub=0):
             x0, y0, R = meta['track_cut_boundary']
         else:
             bgpath, bgimg, _ = helpy.find_tiffs(
-                prefix=readprefix, frames=1, load=True)
+                prefix=relprefix, frames=1, load=True)
             x0, y0, R = helpy.circle_click(bgimg)
             meta['path_to_tiffs'] = bgpath
             print "cutting at selected boundary (x0, y0, r):", x0, y0, R
@@ -938,7 +939,7 @@ if __name__=='__main__':
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(
-                prefix=readprefix, frames=args.check,
+                prefix=relprefix, frames=args.check,
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         helpy.save_meta(saveprefix, meta)
@@ -993,7 +994,7 @@ if __name__=='__main__':
                  kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        bgimage = helpy.find_tiffs(prefix=readprefix, frames=1, load=True)[1]
+        bgimage = helpy.find_tiffs(prefix=relprefix, frames=1, load=True)[1]
         if args.singletracks:
             mask = np.in1d(trackids, args.singletracks)
         else:
