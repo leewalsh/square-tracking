@@ -124,7 +124,7 @@ else:
     verbose = False
 
 import sys
-from itertools import izip
+import itertools as it
 from collections import defaultdict
 
 import helpy
@@ -360,7 +360,8 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         trackids[rejects] = -1
         return None if inplace else trackids
 
-def animate_detection(imstack, fsets, fcsets, fosets=None,
+
+def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
                       f_nums=None, side=None, rc=None, verbose=False):
 
     from matplotlib.patches import Circle
@@ -374,7 +375,12 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             if f_idx >= 1:
                 f_idx -= 1
         elif key in ('right', 'down'):
-            f_idx += 1
+            if f_idx < f_max - 1:
+                f_idx += 1
+        elif key == 'b':
+            f_idx = 0
+        elif key == 'e':
+            f_idx = f_max - 1
         else:
             plt.close()
             f_idx = -1
@@ -388,8 +394,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
 
     plt_text = np.vectorize(plt.text)
 
-    def draw_circles(ax, centers, r, *args, **kwargs):
-        patches = [Circle(cent, r, *args, **kwargs) for cent in centers]
+    def draw_circles(ax, centers, rs, *args, **kwargs):
+        if np.isscalar(rs):
+            rs = it.repeat(rs)
+        patches = [Circle(c, r, *args, **kwargs)
+                   for c, r in it.izip(centers, rs)]
         map(ax.add_patch, patches)
         ax.figure.canvas.draw()
         return patches
@@ -398,10 +407,20 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
         side = 17
     txtoff = max(rc, side, 10)
 
+    title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     fig = plt.figure(figsize=(12, 12))
     p = plt.imshow(imstack[0], cmap='gray')
     h, w = imstack[0].shape
     ax = p.axes
+    need_legend = True
+
+    if meta and meta.get('track_cut', False):
+        bndx, bndy, bndr = meta['track_cut_boundary']
+        cutr = bndr - meta['track_cut_margin']
+        bndc = [[bndy, bndx]]*2
+        bndpatch, cutpatch = draw_circles(ax, bndc, [bndr, cutr],
+                                          color='r', fill=False, zorder=1)
+        cutpatch.set_label('cut margin')
 
     global f_idx, f_num
     lengths = map(len, [imstack, fsets, fcsets])
@@ -447,7 +466,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             remove.extend(patches)
         q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                        width=side/8, scale_units='xy', scale=1/side)
-        ps = plt.scatter(y, x, c='r')#c=np.where(omask, 'r', 'b'))
+        ps = plt.scatter(y, x, c='r')
         cs = plt.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner').reshape(-1, 2)
@@ -455,14 +474,31 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             remove.append(ocs)
         remove.extend([q, ps, cs])
 
-        tstr = fsets[f_num]['t'].astype('S')
-        txt = plt_text(y+txtoff, x+txtoff, tstr, color='r')
+        ts = helpy.quick_field_view(fsets[f_num], 't')
+        txt = plt_text(y+txtoff, x+txtoff, ts.astype('S'), color='r')
         remove.extend(txt)
+
+        nts = np.count_nonzero(ts >= 0)
+        nos = np.count_nonzero(omask)
+        ncs = len(o)
+        plt.title(title.format(f_num, nos, nts, ncs))
+
+        if need_legend:
+            need_legend = False
+            if rc > 0:
+                patches[0].set_label('r to corner')
+            q.set_label('orientation')
+            ps.set_label('centers')
+            if fosets is None:
+                cs.set_label('corners')
+            else:
+                cs.set_label('unused corner')
+                ocs.set_label('used corners')
+            txt[0].set_label('track id')
+            plt.legend(fontsize='small')
 
         plt.xlim(0, w)
         plt.ylim(0, h)
-        plt.title("frame {}\n{} orientations / {} particles detected".format(
-                    f_num, np.count_nonzero(omask), len(o)))
         fig.canvas.draw()
 
         plt.waitforbuttonpress()
@@ -474,6 +510,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
             sys.stdout.flush()
     if verbose:
         print 'loop broken'
+
 
 def gapsize_distro(tracksetses, fields='fo', title=''):
     plt.figure()
@@ -733,7 +770,7 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     taus = taus[:msdshape[1]]
 
     if msdids is not None:
-        allmsds = izip(xrange(len(msds)), msds, msdids)
+        allmsds = it.izip(xrange(len(msds)), msds, msdids)
     elif msdids is None:
         allmsds = enumerate(msds)
     for thismsd in allmsds:
@@ -911,7 +948,7 @@ if __name__=='__main__':
         rc = args.rcorner or meta.get('orient_rcorner', None)
         side = args.side if args.side > 1 else meta.get('track_sidelength', 1)
         animate_detection(imstack, ftsets, fcsets, fosets, rc=rc, side=side,
-                          f_nums=frames, verbose=args.verbose)
+                          meta=meta, f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
         tracksets = helpy.load_tracksets(data, min_length=args.stub,
