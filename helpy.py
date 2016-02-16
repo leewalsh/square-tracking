@@ -749,7 +749,7 @@ def circle_click(im):
     """
     import matplotlib
     if matplotlib.is_interactive():
-        raise RuntimeError, "Cannot do circle_click when in interactive/pylab mode"
+        raise RuntimeError("Cannot do circle_click in interactive/pylab mode")
     print """
     To use:
         when image is shown, click three non-co-linear points along the
@@ -762,13 +762,9 @@ def circle_click(im):
         im = plt.imread(im)
     xs = []
     ys = []
-    if False:   # Using Qt and skimage.ImageViewer
-        fig = ImageViewer(im)
-        ax = fig.canvas.figure.add_subplot(111)
-    else:       # Using matplotlib
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.imshow(im)
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(111)
+    ax.imshow(im)
 
     def circle_click_connector(click):
         #print 'you clicked', click.xdata, '\b,', click.ydata
