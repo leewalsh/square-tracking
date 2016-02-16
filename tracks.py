@@ -311,8 +311,10 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
                 nxt = fs[np.searchsorted(fs, nxt, 'right')] if nxt < fs[-1] else None
                 if nxt is not None and nxt in dup_fs:
                     nxt = None
-                    assert prv is not None, ("Duplicate track particles in too many "
-                            "frames in a row at frame {} for track {}".format(f, t))
+                    if prv is None:
+                        raise RuntimeError(
+                            "Duplicate track particles in too many frames in a"
+                            " row at frame {} for track {}".format(f, t))
             seps = np.zeros(count[f])
             for neigh in (prv, nxt):
                 if neigh is None: continue
@@ -339,11 +341,11 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         if not inplace:
             trackids = trackids.copy()
         rejects = np.concatenate([tfr for tr in rejects.itervalues()
-                                for tfr in tr.itervalues()])
+                                  for tfr in tr.itervalues()])
         if data is None:
             data_from_tracksets = np.concatenate(tracksets.values())
-            if len(data_from_tracksets)!=len(trackids):
-                raise ValueError, "You must provide data to return/modify trackids"
+            if len(data_from_tracksets) != len(trackids):
+                raise ValueError("Must provide data to return/modify trackids")
             ids = data_from_tracksets['id']
             ids.sort()
         else:
@@ -408,7 +410,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None,
     elif len(f_nums) < f_max:
         f_nums = range(f_max)
     else:
-        raise ValueError, 'expected `f_nums` to be None, tuple, or list'
+        raise ValueError('expected `f_nums` to be None, tuple, or list')
     f_idx = repeat = f_old = 0
     f_num = f_nums[f_idx]
 
