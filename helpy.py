@@ -3,10 +3,10 @@
 
 from __future__ import division
 
-from itertools import izip, ifilter, imap
+import itertools as it
 from math import log
 import sys, os, ntpath
-import readline
+import readline     # this is used by raw_input
 import glob
 import platform, getpass
 from time import strftime
@@ -123,9 +123,9 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
         else:
             sects = np.split(data, i[1:])
         if ret_dict:
-            return dict(izip(u, sects))
+            return dict(it.izip(u, sects))
         else:
-            return izip(u, sects)
+            return it.izip(u, sects)
 
 def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
@@ -163,13 +163,13 @@ def str_union(a, b):
     if a==b:
         return a
     elif len(a)==len(b):
-        l = [ac if ac==bc else '?' for ac, bc in izip(a, b)]
+        l = [ac if ac==bc else '?' for ac, bc in it.izip(a, b)]
         return ''.join(l)
     else:
         print 'WARNING!!! pattern may fit more than just the given strings'
-        l = [ac if ac==bc else '?' for ac, bc in izip(a, b)]
+        l = [ac if ac==bc else '?' for ac, bc in it.izip(a, b)]
         r = [ac if ac==bc else '?'
-                for ac, bc in reversed(izip(reversed(a), reversed(b)))]
+                for ac, bc in reversed(it.izip(reversed(a), reversed(b)))]
         l = l.partition('?')[0]
         r = r.rpartition('?')[-1]
         return '*'.join((l, r))
@@ -294,7 +294,7 @@ def save_log_entry(prefix, entries, mode='a'):
         entries = [' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])]
     elif isinstance(entries, basestring):
         entries = entries.split('\n')
-    entries = ifilter(None, imap(str.strip, entries))
+    entries = it.ifilter(None, it.imap(str.strip, entries))
     entries = pre + ('\n' + pre).join(entries) + '\n'
     with open(path, mode) as f:
         f.write(entries)
@@ -452,7 +452,7 @@ def consecutive_fields_view(arr, fields, careful=False):
         assert tuple(fields)==names[i:i+j], 'fields not consecutive'
         assert all([df[f][0]==dt for f in fields[1:]]), 'fields not same type'
         l, r = arr.item(-1)[i:i+j], out[-1]
-        assert all([a==o or np.isnan(a) and np.isnan(o) for a,o in izip(l,r)]),\
+        assert all([a==o or np.isnan(a) and np.isnan(o) for a,o in it.izip(l,r)]),\
             "last row mismatch\narr: {}\nout: {}".format(l, r)
     return out
 
@@ -692,6 +692,16 @@ def find_tiffs(path='', prefix='', meta='',
     meta = meta or load_meta(prefix)
     path = path or meta.get('path_to_tiffs', prefix)
     path = drive_path(path, both=True)
+    if frames in (1, '1') and prefix:
+        prefix_dir, prefix_base = os.path.split(prefix)
+        imnames = it.product([prefix_base + '_', '', '_'],
+                             ['image_', 'image', ''],
+                             ['000', '00'], '01', ['.tif'])
+        for first_frame in imnames:
+            first_frame = os.path.join(prefix_dir, ''.join(first_frame))
+            if os.path.isfile(first_frame):
+                path = first_frame
+                break
     tar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
     if tar:
         if verbose: print 'loading tarfile', os.path.basename(path)
@@ -725,9 +735,10 @@ def find_tiffs(path='', prefix='', meta='',
         if load:
             from scipy.ndimage import imread
             fnames = fnames[:100]
-            if verbose: print '. . . loading'
+            if verbose: print '. . .',
             imfiles = map(tar.extractfile, fnames) if tar else fnames
             fnames = np.squeeze(map(imread, imfiles))
+            if verbose: print 'loaded'
         if tar: tar.close()
         return path, fnames, frames.indices(nfound)
     else:
