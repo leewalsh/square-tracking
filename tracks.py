@@ -96,7 +96,9 @@ if __name__ == '__main__':
     relprefix = args.prefix
     absprefix = os.path.abspath(relprefix)
     readprefix = absprefix
-    saveprefix = absprefix + args.suffix
+    saveprefix = absprefix
+    if args.suffix:
+        saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
     if args.orient and args.rcorner is None:
@@ -876,7 +878,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
 
 if __name__=='__main__':
-    helpy.save_log_entry(saveprefix, 'argv')
+    helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
     if args.load:
         helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
