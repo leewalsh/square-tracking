@@ -754,21 +754,21 @@ def find_tiffs(path='', prefix='', meta='',
                           frames=frames, load=load, verbose=True)
 
 def circle_click(im):
-    """ saves points as they are clicked
-        once three points have been saved, calculate the center and
-        radius of the circle pass through them all. Draw it and save it.
+    """saves points as they are clicked, then find the circle that they define
+
+    To use:
+    when image is shown, click three non-co-linear points along the perimeter.
+    neither should be vertically nor horizontally aligned (gives divide by zero)
+    when three points have been clicked, a circle should appear.
+    Then close the figure to allow the script to continue.
     """
     import matplotlib
     if matplotlib.is_interactive():
         raise RuntimeError("Cannot do circle_click in interactive/pylab mode")
-    print """
-    To use:
-        when image is shown, click three non-co-linear points along the
-        perimeter.  neither should be vertically nor horizontally aligned
-        (gives divide by zero) when three points have been clicked, a circle
-        should appear. Then close the figure to allow the script to continue.
-    """
     from matplotlib import pyplot as plt
+
+    print ("Please click three points on circumference of the boundary, "
+           "then close the figure")
     if isinstance(im, basestring):
         im = plt.imread(im)
     xs = []
