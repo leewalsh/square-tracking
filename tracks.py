@@ -114,6 +114,8 @@ if __name__ == '__main__':
     if args.number == -1:
         args.number = True
 
+    need_plt = any([args.plottracks, args.plotmsd, args.check,
+                    args.nn, args.rn, args.rr])
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
@@ -133,9 +135,7 @@ import helpy
 import numpy as np
 from scipy.optimize import curve_fit
 
-need_plt = [args.plottracks, args.plotmsd, args.check,
-            args.nn, args.rn, args.rr]
-if __name__ != '__main__' or any(need_plt):
+if __name__ != '__main__' or need_plt:
     if helpy.gethost() == 'foppl':
         import matplotlib
         matplotlib.use("agg")
