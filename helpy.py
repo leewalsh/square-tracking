@@ -217,6 +217,22 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
             mask[i, :len(row)] = True
     return (result, mask) if return_mask else result
 
+
+def nan_info(arr, verbose=False):
+    isnan = np.isnan(arr)
+    nnan = np.count_nonzero(isnan)
+    if nnan:
+        wnan = np.where(isnan)[0]
+        if verbose:
+            print nnan, 'nans at', wnan[:10],
+            if nnan > 10:
+                print '...', wnan[:10][-10:],
+            print 'of', len(arr)
+    else:
+        wnan = []
+    return isnan, nnan, wnan
+
+
 def transpose_dict(outerdict={}, **innerdicts):
     isdict = lambda d: hasattr(d, 'keys')
     if not isdict(outerdict):
