@@ -107,9 +107,9 @@ for n in ns:
         print "averaging track MS"+Ang+"Ds"
         nframes = max([np.array(msd)[:,0].max() for msd in msds]) + 1
         taus = np.arange(dtau, nframes, dtau)
-        msd, msd_err = mean_msd(msds, taus, errorbars=True,
-                                kill_flats=kill_flats[n],
-                                kill_jumps=kill_jumps[n])
+        taus, msd, msd_err = mean_msd(msds, taus, errorbars=True,
+                                      kill_flats=kill_flats[n],
+                                      kill_jumps=kill_jumps[n])
         MSDS[str(n)] = np.row_stack([taus, msd, msd_err])
 
     # plot them

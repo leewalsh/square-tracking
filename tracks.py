@@ -147,6 +147,7 @@ sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
+eps = 1e-5
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """recursive function to find nearest dot in previous frame.
@@ -756,10 +757,13 @@ def find_msds(tracksets, dt0, dtau, min_length=0):
         if len(tmsd) > 1:
             msds.append(tmsd)
             msdids.append(t)
+        elif verbose:
+            print "\ntrack {}'s msd is too short!".format(t)
     if verbose: print
     return msds, msdids
 
 # Mean Squared Displacement:
+
 
 def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
              show_tracks=False, singletracks=None, tnormalize=False,
@@ -770,7 +774,12 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
     msdshape = (len(singletracks) if singletracks else len(msds),
                 max(map(len, msds)))
     msd = np.full(msdshape, np.nan, float)
+    if verbose:
+        print 'msdshape:', msdshape
+        print 'taushape:', taus.shape,
     taus = taus[:msdshape[1]]
+    if verbose:
+        print '-->', taus.shape
 
     if msdids is not None:
         allmsds = it.izip(xrange(len(msds)), msds, msdids)
@@ -791,14 +800,30 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         if tmsdd[:2].mean() > kill_jumps: continue
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
+    added = np.sum(np.isfinite(msd), 0)
+    enough = np.where(added > 2)[0]
+    if verbose:
+        print 'shapes of msd, taus:',
+        print msd.shape, taus.shape
+    msd = msd[:, enough]
+    taus = taus[enough]
+    msd_mean = np.nanmean(msd, 0)
+    if verbose:
+        print 'shapes of msd, taus, msd_mean with `enough` tracks:',
+        print msd.shape, taus.shape, msd_mean.shape
+        assert np.all(np.isfinite(msd_mean)), 'msd_mean not finite'
     if errorbars:
-        added = np.sum(np.isfinite(msd), 0)
-        msd_err = np.nanstd(msd, 0) + 1e-9
-        msd_err /= np.nan_to_num(np.sqrt(added-1))
+        msd_std = np.nanstd(msd, 0, ddof=1)
+        msd_err = msd_std / np.sqrt(added[enough])
+        if verbose:
+            print 'msd_std min max:', msd_std[:-1].min()/A, msd_std[:-1].max()/A
+            print 'msd_err min max:', msd_err[:-1].min()/A, msd_err[:-1].max()/A
+            print 'shape of msd_err:', msd_err.shape
+    else:
+        msd_err = None
     if show_tracks:
         plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
-    msd = np.nanmean(msd, 0)
-    return (msd, msd_err) if errorbars else msd
+    return taus, msd_mean, msd_err
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         show_tracks=True, figsize=(8,6), xscale='log', meancol='',
@@ -822,16 +847,20 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     ax = fig.gca()
 
     # Get the mean of msds
-    msd = mean_msd(msds, taus, msdids,
+    msd_taus, msd_mean, msd_err = mean_msd(msds, taus, msdids,
             kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
             singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars,
             fps=fps, A=A)
-    if errorbars: msd, msd_err = msd
 
-    taus = taus[:len(msd)]
-    taus /= fps
-    msd /= A
-    if errorbars: msd_err /= A
+    if verbose:
+        print '     taus:', taus.shape
+        print ' from msd:', msd_taus.shape
+        print '      msd:', msd_mean.shape
+        taus_crop = taus[:len(msd_mean)]
+        print 'shortened:', taus_crop.shape
+        print '   match?:', np.allclose(taus_crop, msd_taus)
+    taus = msd_taus / fps
+    msd = msd_mean / A
 
     if tnormalize:
         ax.plot(taus, msd/taus**tnormalize, meancol,
@@ -851,6 +880,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
+        msd_err /= A
         ax.errorbar(taus, msd/taus**tnormalize,
                     msd_err/taus**tnormalize,
                     fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
@@ -875,7 +905,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         fig.savefig(save)
     if show:
         plt.show()
-    return (fig, ax, taus, msd) + ((msd_err,) if errorbars else ())
+    return fig, ax, taus, msd, msd_err
 
 if __name__=='__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1003,6 +1033,7 @@ if __name__=='__main__':
                     save=saveprefix*args.save, show=args.show)
 
 if __name__=='__main__' and args.nn:
+    print "====== <nn> ======"
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
@@ -1034,9 +1065,9 @@ if __name__=='__main__' and args.nn:
     tcorr = np.arange(allcorr.shape[1])/fps
     meancorr = np.nanmean(allcorr, 0)
     added = np.sum(np.isfinite(allcorr), 0)
-    errcorr = np.nanstd(allcorr, 0)/np.sqrt(added - 1)
-    sigma = errcorr + 1e-5*np.nanstd(errcorr) # add something small to prevent 0
-    if args.verbose:
+    errcorr = np.nanstd(allcorr, 0, ddof=1)/np.sqrt(added)
+    sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
+    if verbose:
         print "Merged nn corrs"
 
     # Fit to exponential decay
@@ -1084,6 +1115,7 @@ if __name__=='__main__' and args.nn:
         fig.savefig(save)
 
 if __name__=='__main__' and args.rn:
+    print "====== <rn> ======"
     # Calculate the <rn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
@@ -1111,8 +1143,8 @@ if __name__=='__main__' and args.rn:
     tcorr = np.arange(fmin, fmax)/fps
     meancorr = np.nanmean(rncorrs, 0)
     added = np.sum(np.isfinite(rncorrs), 0)
-    errcorr = np.nanstd(rncorrs, 0)/np.sqrt(added - 1)
-    sigma = errcorr + errcorr.std() # add something small to prevent 0
+    errcorr = np.nanstd(rncorrs, 0, ddof=1)/np.sqrt(added)
+    sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
     if args.verbose:
         print "Merged rn corrs"
 
@@ -1125,7 +1157,6 @@ if __name__=='__main__' and args.rn:
     if not args.nn or args.fitdr:
         p0 += [D_R]
 
-    print "============="
     print "Fits to <rn>:"
     try:
         popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
@@ -1186,13 +1217,14 @@ if __name__=='__main__' and args.rn:
         fig.savefig(save)
 
 if __name__=='__main__' and args.rr:
+    print "====== <rr> ======"
     fig, ax, taus, msd, msderr = plot_msd(
             msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
             errorbars=5, prefix=saveprefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
             save=False, kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
 
-    sigma = msderr + 1e-5*S*S
+    sigma = msderr + eps*A
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
 
@@ -1214,11 +1246,11 @@ if __name__=='__main__' and args.rr:
                                p0=p0, sigma=sigma[:fmax])
     except RuntimeError as e:
         print "RuntimeError:", e.message
-        if not args.fitv0: p0 = [0, v0]
+        if not args.fitv0:
+            p0 = [0, v0]
         print "Using inital guess", p0
         popt = p0
 
-    print "============="
     print "Fits to <rr>:"
 
     D_T = popt[0]
@@ -1261,7 +1293,7 @@ if __name__=='__main__' and args.rr:
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-if __name__ == '__main__':
+if __name__ == '__main__' and need_plt:
     if args.show:
         plt.show()
     else:
