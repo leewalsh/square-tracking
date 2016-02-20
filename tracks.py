@@ -614,29 +614,31 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     save : where to save the figure
     show : whether to show the figure
     """
-    plt.figure(fignum)
+    fig = plt.figure(fignum)
+    ax = fig.gca()
     if bgimage:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
-        plt.imshow(bgimage, cmap=plt.cm.gray, origin='upper')
+        ax.imshow(bgimage, cmap=plt.cm.gray, origin='upper')
     if mask is None:
         mask = (trackids >= 0)
     else:
         mask = mask & (trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    plt.scatter(data['y'], data['x'],
+    ax.scatter(data['y'], data['x'],
             c=np.array(trackids)%12, marker='o', alpha=.5, lw=0)
-    plt.gca().set_aspect('equal')
-    plt.xlim(data['y'].min()-10, data['y'].max()+10)
-    plt.ylim(data['x'].min()-10, data['x'].max()+10)
-    plt.title(prefix)
+    ax.set_aspect('equal')
+    ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
+    ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
+    ax.set_title(prefix)
     if save:
         save = save + '_tracks.png'
         print "saving tracks image to",
         print save if verbose else os.path.basename(save)
-        plt.savefig(save)
-    if show: plt.show()
+        fig.savefig(save)
+    if show:
+        plt.show()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -817,6 +819,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes+1, dtau, dtype=float)
     fig = plt.figure(fignum, figsize)
+    ax = fig.gca()
 
     # Get the mean of msds
     msd = mean_msd(msds, taus, msdids,
@@ -825,57 +828,54 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
             fps=fps, A=A)
     if errorbars: msd, msd_err = msd
 
-    #print "Coefficient of diffusion ~", msd[np.searchsorted(taus, fps)]/A
-    #print "Diffusion timescale ~", taus[np.searchsorted(msd, A)]/fps
-
     taus = taus[:len(msd)]
     taus /= fps
     msd /= A
     if errorbars: msd_err /= A
 
     if tnormalize:
-        plt.plot(taus, msd/taus**tnormalize, meancol,
-               label="Mean Sq {}Disp/Time{}".format(
-                     "Angular " if ang else "",
-                     "^{}".format(tnormalize) if tnormalize != 1 else ''))
-        plt.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
-               'k-', label="ref slope = 1", lw=2)
-        plt.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
-               'k--', lw=2, label=r"$(2\pi)^2$" if ang else
-               ("One particle area" if S>1 else "One Pixel"))
-        plt.xscale(xscale)
-        plt.ylim([0, 1.3*np.max(msd/taus**tnormalize)])
+        ax.plot(taus, msd/taus**tnormalize, meancol,
+                label="Mean Sq {}Disp/Time{}".format(
+                      "Angular " if ang else "",
+                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
+        ax.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
+                'k-', label="ref slope = 1", lw=2)
+        ax.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
+                'k--', lw=2, label=r"$(2\pi)^2$" if ang else
+                ("One particle area" if S > 1 else "One Pixel"))
+        ax.set_xscale(xscale)
+        ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
-        plt.loglog(taus, msd, meancol, lw=lw,
+        ax.loglog(taus, msd, meancol, lw=lw,
                   label="Mean Squared {}Displacement".format('Angular '*ang))
-        #plt.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
+        #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
-        plt.errorbar(taus, msd/taus**tnormalize,
+        ax.errorbar(taus, msd/taus**tnormalize,
                     msd_err/taus**tnormalize,
                     fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
-        plt.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
-    plt.title("Mean Sq {}Disp".format("Angular " if ang else "") if title is None else title)
-    plt.xlabel('Time (' + ('s)' if fps > 1 else 'frames)'), fontsize='x-large')
-    if ang:
-        plt.ylabel('Squared Angular Displacement ($rad^2$)',
-              fontsize='x-large')
-    else:
-        plt.ylabel('Squared Displacement ('+('particle area)' if S>1 else 'square pixels)'),
-              fontsize='x-large')
+        ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
+    ax.set_title(title or "Mean Sq {}Disp".format("Angular " if ang else ""))
+    ax.set_xlabel('Time ({}s)'.format('frame'*(fps > 1)), fontsize='x-large')
+    ylabel = 'Squared {}Displacement ({})'.format(
+        'Angular '*ang,
+        '$rad^2$' if ang else 'particle area' if S > 1 else 'square pixels')
+    ax.set_ylabel(ylabel, fontsize='x-large')
     if xlim is not None:
-        plt.xlim(*xlim)
+        ax.set_xlim(*xlim)
     if ylim is not None:
-        plt.ylim(*ylim)
-    if show_legend: plt.legend(loc='best')
+        ax.set_ylim(*ylim)
+    if show_legend:
+        ax.legend(loc='best')
     if save is True:
         save = prefix + "_MS{}D.pdf".format('A' if ang else '')
     if save:
         print "saving to", save if verbose else os.path.basename(save)
-        plt.savefig(save)
-    if show: plt.show()
-    return [fig] + fig.get_axes() + [taus] + [msd, msd_err] if errorbars else [msd]
+        fig.savefig(save)
+    if show:
+        plt.show()
+    return (fig, ax, taus, msd) + ((msd_err,) if errorbars else ())
 
 if __name__=='__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1057,31 +1057,31 @@ if __name__=='__main__' and args.nn:
     print '   D_R: {:.4g}'.format(D_R)
     helpy.save_meta(saveprefix, nn_fit_DR=D_R)
 
-    plt.figure()
+    fig, ax = plt.subplots()
     plot_individual = True
     if plot_individual:
-        plt.plot(tcorr, allcorr.T, 'b', alpha=.2)
-    plt.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+        ax.plot(tcorr, allcorr.T, 'b', alpha=.2)
+    ax.errorbar(tcorr, meancorr, errcorr, None, 'ok',
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
-    plt.plot(tcorr, fitform(tcorr, *popt), 'r',
+    ax.plot(tcorr, fitform(tcorr, *popt), 'r',
             label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
-                                      D_R, 1/D_R))
-    plt.xlim(0, tmax)
-    plt.ylim(fitform(tmax, *popt), 1)
-    plt.yscale('log')
+                                     D_R, 1/D_R))
+    ax.set_xlim(0, tmax)
+    ax.set_ylim(fitform(tmax, *popt), 1)
+    ax.set_yscale('log')
 
-    plt.ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
-    plt.xlabel("$tf$")
-    plt.title("Orientation Autocorrelation\n"+prefix)
-    plt.legend(loc='upper right' if args.zoom<=1 else 'lower left', framealpha=1)
+    ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
+    ax.set_xlabel("$tf$")
+    ax.set_title("Orientation Autocorrelation\n"+prefix)
+    ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
+              framealpha=1)
 
     if args.save:
         save = saveprefix+'_nn-corr.pdf'
         print 'saving <nn> correlation plot to',
         print save if verbose else os.path.basename(save)
-        plt.savefig(save)
-    if not (args.rn or args.rr) and args.show: plt.show()
+        fig.savefig(save)
 
 if __name__=='__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
@@ -1151,40 +1151,39 @@ if __name__=='__main__' and args.rn:
         [('rn_fit_v0', v0), ('rn_fit_DR', D_R)][:len(popt)]
         ))
 
-    plt.figure()
+    fig, ax = plt.subplots()
     fit = fitform(tcorr, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
-        plt.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
-    plt.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
+        ax.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
+    ax.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
                 label="Mean Position-Orientation Correlation",
                 capthick=0, elinewidth=1, errorevery=3)
-    plt.plot(tcorr, sgn*fit, 'r', lw=2,
+    ax.plot(tcorr, sgn*fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr + '\n' + sf(', '.join(
                   ['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:len(popt)]
                   ), *(abs(v0), D_R)[:len(popt)]))
 
-    ylim = plt.ylim(1.5*fit.min(), 1.5*fit.max())
-    xlim = plt.xlim(tcorr.min(), tcorr.max())
+    ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
+    xlim = ax.set_xlim(tcorr.min(), tcorr.max())
     tau_R = 1/D_R
     if xlim[0] < tau_R < xlim[1]:
-        plt.axvline(tau_R, 0, 2/3, ls='--', c='k')
-        plt.text(tau_R, 1e-2, ' $1/D_R$')
+        ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
+        ax.text(tau_R, 1e-2, ' $1/D_R$')
 
-    plt.title("Position - Orientation Correlation")
-    plt.ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
-    plt.xlabel("$tf$")
-    plt.legend(loc='upper left', framealpha=1)
+    ax.set_title("Position - Orientation Correlation")
+    ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
+    ax.set_xlabel("$tf$")
+    ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
         save = saveprefix+'_rn-corr.pdf'
         print 'saving <rn> correlation plot to',
         print save if verbose else os.path.basename(save)
-        plt.savefig(save)
-    if not args.rr and args.show: plt.show()
+        fig.savefig(save)
 
 if __name__=='__main__' and args.rr:
     fig, ax, taus, msd, msderr = plot_msd(
@@ -1243,25 +1242,27 @@ if __name__=='__main__' and args.rr:
                 ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
                 ), *(popt*[1, sgn, 1][:len(popt)])))
 
-    ylim = plt.ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
-    xlim = plt.xlim(taus[0], tmax)
-    plt.legend(loc='upper left')
+    ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
+    xlim = ax.set_xlim(taus[0], tmax)
+    ax.legend(loc='upper left')
 
     tau_T = D_T/v0**2
     tau_R = 1/D_R
     if xlim[0] < tau_T < xlim[1]:
-        plt.axvline(tau_T, 0, 1/3, ls='--', c='k')
-        plt.text(tau_T, 2e-2, ' $D_T/v_0^2$')
+        ax.axvline(tau_T, 0, 1/3, ls='--', c='k')
+        ax.text(tau_T, 2e-2, ' $D_T/v_0^2$')
     if xlim[0] < tau_R < xlim[1]:
-        plt.axvline(tau_R, 0, 2/3, ls='--', c='k')
-        plt.text(tau_R, 2e-1, ' $1/D_R$')
+        ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
+        ax.text(tau_R, 2e-1, ' $1/D_R$')
 
     if args.save:
         save = saveprefix+'_rr-corr.pdf'
         print 'saving <rr> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
-    if args.show: plt.show()
 
-if __name__=='__main__' and not args.show:
-    plt.close('all')
+if __name__ == '__main__':
+    if args.show:
+        plt.show()
+    else:
+        plt.close('all')
