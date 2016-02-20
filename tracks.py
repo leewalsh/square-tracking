@@ -762,8 +762,6 @@ def find_msds(tracksets, dt0, dtau, min_length=0):
     if verbose: print
     return msds, msdids
 
-# Mean Squared Displacement:
-
 
 def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
              show_tracks=False, singletracks=None, tnormalize=False,
@@ -1086,7 +1084,8 @@ if __name__=='__main__' and args.nn:
     D_R = float(popt[0])
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
-    helpy.save_meta(saveprefix, nn_fit_DR=D_R)
+    if args.save:
+        helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
     fig, ax = plt.subplots()
     plot_individual = True
@@ -1178,9 +1177,9 @@ if __name__=='__main__' and args.rn:
     print '\n'.join(['     v0: {:.4f}',
                      'D_R(rn): {:.4f}'][:len(popt)]
                     ).format(*[v0, D_R][:len(popt)])
-    helpy.save_meta(saveprefix, dict(
-        [('rn_fit_v0', v0), ('rn_fit_DR', D_R)][:len(popt)]
-        ))
+    if args.save:
+        helpy.save_meta(saveprefix, dict([('fit_rn_v0', v0),
+                        ('fit_rn_DR', D_R)][:len(popt)]))
 
     fig, ax = plt.subplots()
     fit = fitform(tcorr, *popt)
@@ -1265,9 +1264,11 @@ if __name__=='__main__' and args.rr:
     if len(popt) > 1:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
-    helpy.save_meta(saveprefix, dict(
-        [('rr_fit_DT', D_T), ('rr_fit_v0', v0), ('rr_fit_DR', D_R)][:len(popt)]
-        ))
+    if args.save:
+        helpy.save_meta(saveprefix,
+                        dict([('fit_rr_DT', D_T),
+                              ('fit_rr_v0', v0),
+                              ('fit_rr_DR', D_R)][:len(popt)]))
     fit = fitform(taus, *popt)
     ax.plot(taus, fit, 'r', lw=2,
             label=fitstr + "\n" + sf(', '.join(
