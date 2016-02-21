@@ -120,7 +120,7 @@ if __name__ == '__main__':
     if verbose:
         print 'using prefix', prefix
     from warnings import filterwarnings
-    warnlevel = {None: 'ignore', 1: 'once', 2: 'error'}
+    warnlevel = {None: 'ignore', 1: 'once', 2: 'once', 3: 'error'}
     filterwarnings(warnlevel[verbose], category=RuntimeWarning,
                    module='numpy|scipy|matplot')
 else:
