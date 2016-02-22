@@ -1076,18 +1076,22 @@ if __name__=='__main__' and args.nn:
     allcorr = coscorrs + sincorrs
     allcorr, meancorr, errcorr = helpy.avg_uneven(allcorr, pad=True)
     tcorr = np.arange(len(meancorr))/fps
+    errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged nn corrs"
         sigma = errcorr
         print 'stderr for <nn>:', sigprint(sigma)
-        sigadd = eps*np.nanstd(errcorr, ddof=1)
+        sigadd = errstd
+        sigma = errcorr + sigadd
+        print '         adding:', 'std = {:.4g}'.format(sigadd)
+        print ' sigma for <nn>:', sigprint(sigma)
+        sigadd = eps*errstd
         sigma = errcorr + sigadd
         print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(
-            eps, np.nanstd(errcorr, ddof=1), sigadd)
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <nn>:', sigprint(sigma)
     else:
-        sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
+        sigma = errcorr + eps*errstd
 
     # Fit to exponential decay
     tmax = int(50*args.zoom)
@@ -1160,23 +1164,24 @@ if __name__=='__main__' and args.rn:
                for f, rn in rncorrs if f.min() <= fmin]
     tcorr = np.arange(fmin, fmax)/fps
     rncorrs, meancorr, errcorr = helpy.avg_uneven(rncorrs, pad=True)
+    errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
         sigma = errcorr
         print 'stderr for <rn>:', sigprint(sigma)
-        sigadd = np.nanstd(errcorr, ddof=1)
+        sigadd = errstd
         print '         adding:', 'std = {:.4g}'.format(sigadd)
         sigma = errcorr + sigadd
         print ' sigma for <rn>:', sigprint(sigma)
 
-        sigadd = eps*np.nanstd(errcorr, ddof=1) - errcorr.min()
+        sigadd = eps*errstd
         print '         adding:',
         print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(
-            eps, np.nanstd(errcorr, ddof=1), sigadd)
+            eps, errstd, sigadd)
         sigma = errcorr + sigadd
         print ' sigma for <rn>:', sigprint(sigma)
     else:
-        sigma = errcorr + eps*np.nanstd(errcorr, ddof=1)
+        sigma = errcorr + eps*errstd
 
     # Fit to capped exponential growth
     fitform = lambda s, v_D, D=D_R:\
@@ -1256,27 +1261,31 @@ if __name__=='__main__' and args.rr:
     if verbose > 1:
         erraxl, erraxr = errfig.axes
 
+    msdstd = np.nanstd(msderr, ddof=1)
     if verbose:
         sigma = msderr
         helpy.nan_info(sigma, True)
         if verbose > 1:
-            erraxl.plot(taus, sigma, '.k', label='sigma orig')
+            erraxl.plot(taus, msderr, '.k', label='sigma orig')
             erraxl.plot(taus, taus, '-k', label='tau')
             erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
-        print 'stderr for <rr>:', sigprint(sigma[np.isfinite(sigma)])
-        print '         adding:',
-        print 'A*eps = {:.4g}*{:.4g} = {:.4g}'.format(A, eps, sigadd)
+        print 'stderr for <rr>:', sigprint(sigma)
+
+        sigadd = eps*msdstd
         sigma = msderr + sigadd
-        print ' sigma for <rr>:', sigprint(sigma[np.isfinite(sigma)])
+        print '         adding:',
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, msdstd, sigadd)
+        print ' sigma for <rr>:', sigprint(sigma)
         if verbose > 1:
-            erraxl.plot(taus, sigma, '.g', label='sigma + A*eps')
+            erraxl.plot(taus, sigma, '.g', label='sigma + eps*std')
             erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
             erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
             erraxl.legend(loc='upper left', fontsize='x-small')
-        sigma *= np.log1p(taus)
-        print 'sigma*log(taus):', sigprint(sigma[np.isfinite(sigma)])
+        sigma *= taus
+        print 'sigma*taus:', sigprint(sigma)
     else:
-        sigma = msderr + eps*A
+        sigma = (msderr + eps*msdstd)
+        sigma *= taus
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
     if verbose:
