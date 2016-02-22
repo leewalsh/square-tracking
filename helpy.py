@@ -218,6 +218,26 @@ def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
     return (result, mask) if return_mask else result
 
 
+def avg_uneven(arrs, min_added=3, pad=None, ret_all=False):
+    if pad is None:
+        pad = np.any(np.diff(map(len, arrs)))
+    if pad:
+        arrs, isfin = pad_uneven(arrs, np.nan, return_mask=True)
+    else:
+        isfin = np.isfinite(arrs)
+    added = np.sum(isfin, 0)
+    enough = np.where(added >= min_added)[0]
+    arrs = arrs[:, enough]
+    added = added[enough]
+    mean = np.nanmean(arrs, 0)
+    stddev = np.nanstd(arrs, 0, ddof=1)
+    stderr = stddev / np.sqrt(added)
+    ret = (arrs, mean, stderr)
+    if ret_all:
+        ret += stddev, added, enough
+    return ret
+
+
 def nan_info(arr, verbose=False):
     isnan = np.isnan(arr)
     nnan = np.count_nonzero(isnan)

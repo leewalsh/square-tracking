@@ -798,16 +798,14 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         if tmsdd[:2].mean() > kill_jumps: continue
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
-    added = np.sum(np.isfinite(msd), 0)
-    enough = np.where(added > 2)[0]
+    if verbose:
+        print 'shapes of msd, taus:',
+        print msd.shape, taus.shape
+    msd, msd_mean, msd_err, msd_std, added, enough = helpy.avg_uneven(msd, ret_all=True)
     if verbose:
         not_enough = np.where(added <= 2)[0]
         bad_taus = taus[not_enough]
-        print 'shapes of msd, taus:',
-        print msd.shape, taus.shape
-    msd = msd[:, enough]
     taus = taus[enough]
-    msd_mean = np.nanmean(msd, 0)
     if verbose:
         print 'shapes of msd, taus, msd_mean with `enough` tracks:',
         print msd.shape, taus.shape, msd_mean.shape
@@ -923,6 +921,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if show:
         plt.show()
     return fig, ax, taus, msd, msd_err
+
 
 sigfmt = ('{:7.4g}, '*5)[:-2].format
 sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
@@ -1081,12 +1080,8 @@ if __name__=='__main__' and args.nn:
 
     # Gather all the track correlations and average them
     allcorr = coscorrs + sincorrs
-    allcorr = helpy.pad_uneven(allcorr, np.nan)
-    tcorr = np.arange(allcorr.shape[1])/fps
-    meancorr = np.nanmean(allcorr, 0)
-    added = np.sum(np.isfinite(allcorr), 0)
-    #TODO: add `enough` (added > 2) requirement
-    errcorr = np.nanstd(allcorr, 0, ddof=1)/np.sqrt(added)
+    allcorr, meancorr, errcorr = helpy.avg_uneven(allcorr, pad=True)
+    tcorr = np.arange(len(meancorr))/fps
     if verbose:
         print "Merged nn corrs"
         sigma = errcorr
@@ -1167,14 +1162,10 @@ if __name__=='__main__' and args.rn:
     rncorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
     # that is, if f.min() > fmin for a track, then it still aligns at zero
-    rncorrs = helpy.pad_uneven([
-                    rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
-                              for f, rn in rncorrs if f.min() <= fmin ],
-                    np.nan)
+    rncorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
+               for f, rn in rncorrs if f.min() <= fmin]
     tcorr = np.arange(fmin, fmax)/fps
-    meancorr = np.nanmean(rncorrs, 0)
-    added = np.sum(np.isfinite(rncorrs), 0)
-    errcorr = np.nanstd(rncorrs, 0, ddof=1)/np.sqrt(added)
+    rncorrs, meancorr, errcorr = helpy.avg_uneven(rncorrs, pad=True)
     if verbose:
         print "Merged rn corrs"
         sigma = errcorr
