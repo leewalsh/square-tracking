@@ -810,33 +810,27 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         print 'shapes of msd, taus, msd_mean with `enough` tracks:',
         print msd.shape, taus.shape, msd_mean.shape
         assert np.all(np.isfinite(msd_mean)), 'msd_mean not finite'
-    if errorbars:
-        msd_std = np.nanstd(msd, 0, ddof=1)
-        msd_err = msd_std / np.sqrt(added[enough])
-        if verbose:
-            print 'msd_std min max:', msd_std[:-1].min()/A, msd_std[:-1].max()/A
-            print 'msd_err min max:', msd_err[:-1].min()/A, msd_err[:-1].max()/A
-            print 'shape of msd_err:', msd_err.shape
-        if verbose > 1:
-            global errfig
-            oldax = plt.gca()
-            errfig = plt.figure()
-            erraxl = errfig.gca()
-            erraxl.set_xscale('log')
-            erraxl.set_yscale('log')
-            erraxl.plot(taus/fps, msd_std/A, '.c', label='stddev')
-            erraxl.plot(taus/fps, msd_err/A, '.g', label='stderr')
-            erraxr = erraxl.twinx()
-            erraxr.set_yscale('log')
-            erraxr.plot(taus/fps, added[enough], '.b', label='N added')
-            erraxr.plot(bad_taus/fps, np.maximum(added[not_enough], .8),
-                        'vr', mec='none', label='N <= 2')
-            erraxr.set_ylim(0.8, None)
-            erraxl.legend(loc='upper left', fontsize='x-small')
-            erraxr.legend(loc='upper right', fontsize='x-small')
-            plt.sca(oldax)
-    else:
-        msd_err = None
+        print 'msd_std min max:', msd_std[:-1].min()/A, msd_std[:-1].max()/A
+        print 'msd_err min max:', msd_err[:-1].min()/A, msd_err[:-1].max()/A
+        print 'shape of msd_err:', msd_err.shape
+    if verbose > 1:
+        global errfig
+        oldax = plt.gca()
+        errfig = plt.figure()
+        erraxl = errfig.gca()
+        erraxl.set_xscale('log')
+        erraxl.set_yscale('log')
+        erraxl.plot(taus/fps, msd_std/A, '.c', label='stddev')
+        erraxl.plot(taus/fps, msd_err/A, '.g', label='stderr')
+        erraxr = erraxl.twinx()
+        erraxr.set_yscale('log')
+        erraxr.plot(taus/fps, added[enough], '.b', label='N added')
+        erraxr.plot(bad_taus/fps, np.maximum(added[not_enough], .8),
+                    'vr', mec='none', label='N <= 2')
+        erraxr.set_ylim(0.8, None)
+        erraxl.legend(loc='upper left', fontsize='x-small')
+        erraxr.legend(loc='upper right', fontsize='x-small')
+        plt.sca(oldax)
     if show_tracks:
         plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
     return taus, msd_mean, msd_err
