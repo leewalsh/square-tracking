@@ -1069,24 +1069,23 @@ if __name__=='__main__' and args.nn:
             coscorrs.append(coscorr)
             sincorrs.append(sincorr)
     else:
-        coscorrs = [ corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
-                    for trackset in tracksets.values() ]
-        sincorrs = [ corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
-                    for trackset in tracksets.values() ]
+        coscorrs = [corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
+                    for trackset in tracksets.values()]
+        sincorrs = [corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
+                    for trackset in tracksets.values()]
 
     # Gather all the track correlations and average them
-    allcorr = coscorrs + sincorrs
-    allcorr, meancorr, errcorr = helpy.avg_uneven(allcorr, pad=True)
-    tcorr = np.arange(len(meancorr))/fps
+    allcorrs = coscorrs + sincorrs
+    allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
+    taus = np.arange(len(meancorr))/fps
+    tmax = int(50*args.zoom)
+    fmax = np.searchsorted(taus, tmax)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged nn corrs"
         sigma = errcorr
+        helpy.nan_info(sigma, True)
         print 'stderr for <nn>:', sigprint(sigma)
-        sigadd = errstd
-        sigma = errcorr + sigadd
-        print '         adding:', 'std = {:.4g}'.format(sigadd)
-        print ' sigma for <nn>:', sigprint(sigma)
         sigadd = eps*errstd
         sigma = errcorr + sigadd
         print '         adding:',
@@ -1095,14 +1094,12 @@ if __name__=='__main__' and args.nn:
     else:
         sigma = errcorr + eps*errstd
 
-    # Fit to exponential decay
-    tmax = int(50*args.zoom)
-    fmax = np.searchsorted(tcorr, tmax)
+    # Fit to functional form:
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
     fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     p0 = [1]
     try:
-        popt, pcov = curve_fit(fitform, tcorr[:fmax], meancorr[:fmax],
+        popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
                                p0=p0, sigma=sigma[:fmax])
     except RuntimeError as e:
         print "RuntimeError:", e.message
@@ -1115,22 +1112,23 @@ if __name__=='__main__' and args.nn:
         helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
     fig, ax = plt.subplots()
+    fit = fitform(taus, *popt)
     plot_individual = True
     if plot_individual:
-        ax.plot(tcorr, allcorr.T, 'b', alpha=.2)
-    ax.errorbar(tcorr, meancorr, errcorr, None, 'ok',
+        ax.plot(taus, allcorrs.T, 'b', alpha=.2)
+    ax.errorbar(taus, meancorr, errcorr, None, 'ok',
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(tcorr, fitform(tcorr, *popt), 'r',
+    ax.plot(taus, fit, 'r',
             label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
                                      D_R, 1/D_R))
     ax.set_xlim(0, tmax)
-    ax.set_ylim(fitform(tmax, *popt), 1)
+    ax.set_ylim(fit[fmax], 1)
     ax.set_yscale('log')
 
+    ax.set_title("Orientation Autocorrelation\n"+prefix)
     ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     ax.set_xlabel("$tf$")
-    ax.set_title("Orientation Autocorrelation\n"+prefix)
     ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
               framealpha=1)
 
@@ -1159,33 +1157,28 @@ if __name__=='__main__' and args.rn:
     # Align and merge them
     fmax = int(2*fps/D_R*args.zoom)
     fmin = -fmax
-    rncorrs = xcoscorrs + ysincorrs
+    allcorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
     # that is, if f.min() > fmin for a track, then it still aligns at zero
-    rncorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
-               for f, rn in rncorrs if f.min() <= fmin]
-    tcorr = np.arange(fmin, fmax)/fps
-    rncorrs, meancorr, errcorr = helpy.avg_uneven(rncorrs, pad=True)
+    allcorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
+                for f, rn in allcorrs if f.min() <= fmin]
+    allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
+    taus = np.arange(fmin, fmax)/fps
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
         sigma = errcorr
+        helpy.nan_info(sigma, True)
         print 'stderr for <rn>:', sigprint(sigma)
-        sigadd = errstd
-        print '         adding:', 'std = {:.4g}'.format(sigadd)
-        sigma = errcorr + sigadd
-        print ' sigma for <rn>:', sigprint(sigma)
-
         sigadd = eps*errstd
-        print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(
-            eps, errstd, sigadd)
         sigma = errcorr + sigadd
+        print '         adding:',
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <rn>:', sigprint(sigma)
     else:
         sigma = errcorr + eps*errstd
 
-    # Fit to capped exponential growth
+    # Fit to functional form:
     fitform = lambda s, v_D, D=D_R:\
                   0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
@@ -1194,18 +1187,19 @@ if __name__=='__main__' and args.rn:
     if not args.nn or args.fitdr:
         p0 += [D_R]
 
-    print "Fits to <rn>:"
     try:
-        popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
+        popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
     except RuntimeError as e:
         try:
             p0[0] = -1 # If dots are backwards, has trouble fitting with v0>0
-            popt, pcov = curve_fit(fitform, tcorr, meancorr, p0=p0, sigma=sigma)
+            popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
         except RuntimeError as e:
             p[0] = 1 # restore original positive value
             print "RuntimeError:", e.message
             print "Using inital guess", p0
             popt = p0
+
+    print "Fits to <rn>:"
     if len(popt) > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
@@ -1220,15 +1214,15 @@ if __name__=='__main__' and args.rn:
                         ('fit_rn_DR', D_R)][:len(popt)]))
 
     fig, ax = plt.subplots()
-    fit = fitform(tcorr, *popt)
+    fit = fitform(taus, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
-        ax.plot(tcorr, sgn*rncorrs.T, 'b', alpha=.2)
-    ax.errorbar(tcorr, sgn*meancorr, errcorr, None, 'ok',
+        ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2)
+    ax.errorbar(taus, sgn*meancorr, errcorr, None, 'ok',
                 label="Mean Position-Orientation Correlation",
                 capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(tcorr, sgn*fit, 'r', lw=2,
+    ax.plot(taus, sgn*fit, 'r', lw=2,
             #label=fitstr+'\n'+
             #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
             label=fitstr + '\n' + sf(', '.join(
@@ -1236,7 +1230,7 @@ if __name__=='__main__' and args.rn:
                   ), *(abs(v0), D_R)[:len(popt)]))
 
     ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
-    xlim = ax.set_xlim(tcorr.min(), tcorr.max())
+    xlim = ax.set_xlim(taus.min(), taus.max())
     tau_R = 1/D_R
     if xlim[0] < tau_R < xlim[1]:
         ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
@@ -1255,7 +1249,7 @@ if __name__=='__main__' and args.rn:
 
 if __name__=='__main__' and args.rr:
     print "====== <rr> ======"
-    fig, ax, taus, msd, msderr = plot_msd(
+    fig, ax, taus, msd, errcorr = plot_msd(
             msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
             errorbars=5, prefix=saveprefix, show_tracks=True, meancol='ok',
             singletracks=args.singletracks, fps=fps, S=S, show=False,
@@ -1263,32 +1257,35 @@ if __name__=='__main__' and args.rr:
     if verbose > 1:
         erraxl, erraxr = errfig.axes
 
-    msdstd = np.nanstd(msderr, ddof=1)
-    msdstdrel = np.nanstd(msderr/msd, ddof=1)
+    tmax = int(200*args.zoom)
+    fmax = np.searchsorted(taus, tmax)
+    errstd = np.nanstd(errcorr, ddof=1)
+    relstd = np.nanstd(errcorr/msd, ddof=1)
     if verbose:
-        sigma = msderr
+        print "Merged rr/msd corrs"
+        sigma = errcorr
         helpy.nan_info(sigma, True)
+        print 'stderr for <rr>:', sigprint(sigma)
         if verbose > 1:
-            erraxl.plot(taus, msderr, '.k', label='sigma orig')
-            erraxl.plot(taus, msderr/msd, ':k', label='sigma/msd')
+            erraxl.plot(taus, errcorr, '.k', label='sigma orig')
+            erraxl.plot(taus, errcorr/msd, ':k', label='sigma/msd')
             erraxl.plot(taus, taus, '-k', label='tau')
             erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
-        print 'stderr for <rr>:', sigprint(sigma)
 
-        sigadd = eps*msdstd
-        sigma = msderr + sigadd
+        sigadd = eps*errstd
+        sigma = errcorr + sigadd
         print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, msdstd, sigadd)
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <rr>:', sigprint(sigma)
         if verbose > 1:
             erraxl.plot(taus, sigma, '.g', label='sigma + eps*std')
             erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
             erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
 
-        sigadd = eps*msdstdrel
-        sigma = msderr + sigadd
+        sigadd = eps*relstd
+        sigma = errcorr + sigadd
         print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, msdstd, sigadd)
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <rr>:', sigprint(sigma)
         if verbose > 1:
             erraxl.plot(taus, sigma, '.r', label='sigma + eps*std_rel')
@@ -1298,10 +1295,8 @@ if __name__=='__main__' and args.rr:
         sigma *= taus
         print 'sigma*taus:', sigprint(sigma)
     else:
-        sigma = (msderr + eps*msdstd)
+        sigma = errcorr + eps*errstd
         sigma *= taus
-    tmax = int(200*args.zoom)
-    fmax = np.searchsorted(taus, tmax)
     if verbose:
         print np.count_nonzero(np.isnan(sigma[:fmax])), 'nans in fitting range'
 
@@ -1310,14 +1305,15 @@ if __name__=='__main__' and args.rr:
     if not args.rn:
         v0 = sgn = 1
 
+    # Fit to functional form:
+    fitform = lambda s, D, v=v0, DR=D_R:\
+              2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
     p0 = [0]
     if not (args.nn or args.rn):
         p0 += [v0, D_R]
     elif args.fitv0 or not args.rn:
         p0 += [v0]
-    fitform = lambda s, D, v=v0, DR=D_R:\
-              2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
-    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1329,13 +1325,11 @@ if __name__=='__main__' and args.rr:
         popt = p0
 
     print "Fits to <rr>:"
-
     D_T = popt[0]
     if len(popt) > 1:
         v0 = popt[1]
         if len(popt) > 2:
             D_R = popt[2]
-
     print '\n'.join(['   D_T: {:.3g}',
                      'v0(rr): {:.3g}',
                      '   D_R: {:.3g}'][:len(popt)]).format(*popt)
