@@ -571,18 +571,18 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
         if interp:
             print 'and interpolating nans in', ', '.join(interp)
     for t, tset in tracksets.items():
-        if verbose: print "\ttrack {:4d}:".format(t),
+        if verbose:
+            print '\t{} ({})'.format(t, len(tset)),
         fs = tset['f']
         gaps = np.diff(fs) - 1
         mx = gaps.max()
         if not mx:
-            if verbose: print "not any gaps"
             if 'o' in interp:
                 interp_nans(tset['o'], tset['f'], inplace=True)
             continue
         elif mx > max_gap:
             if verbose:
-                print "dropped, gap too big: {} > {}".format(mx, max_gap)
+                print "dropped gap {}".format(mx),
             tracksets.pop(t)
             continue
         gapi = gaps.nonzero()[0]
@@ -590,8 +590,8 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
         gapi = np.repeat(gapi, gaps)
         missing = np.full(len(gapi), np.nan, tset.dtype)
         if verbose:
-            print ("missing {:3} frames in {:2} gaps (biggest {})"
-                    ).format(len(gapi), len(gaps), mx)
+            print "filled {:2} gaps ({:3} frames, max {})".format(
+                len(gapi), len(gaps), mx)
         missing['f'] = np.concatenate(map(range, gaps)) + fs[gapi] + 1
         missing['t'] = t
         tset = np.insert(tset, gapi+1, missing)
