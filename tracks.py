@@ -1262,11 +1262,13 @@ if __name__=='__main__' and args.rr:
         erraxl, erraxr = errfig.axes
 
     msdstd = np.nanstd(msderr, ddof=1)
+    msdstdrel = np.nanstd(msderr/msd, ddof=1)
     if verbose:
         sigma = msderr
         helpy.nan_info(sigma, True)
         if verbose > 1:
             erraxl.plot(taus, msderr, '.k', label='sigma orig')
+            erraxl.plot(taus, msderr/msd, ':k', label='sigma/msd')
             erraxl.plot(taus, taus, '-k', label='tau')
             erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
         print 'stderr for <rr>:', sigprint(sigma)
@@ -1280,7 +1282,17 @@ if __name__=='__main__' and args.rr:
             erraxl.plot(taus, sigma, '.g', label='sigma + eps*std')
             erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
             erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
+
+        sigadd = eps*msdstdrel
+        sigma = msderr + sigadd
+        print '         adding:',
+        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, msdstd, sigadd)
+        print ' sigma for <rr>:', sigprint(sigma)
+        if verbose > 1:
+            erraxl.plot(taus, sigma, '.r', label='sigma + eps*std_rel')
+            erraxl.plot(taus, sigma*taus, '-r', label='(sigma_rel+)*tau')
             erraxl.legend(loc='upper left', fontsize='x-small')
+
         sigma *= taus
         print 'sigma*taus:', sigprint(sigma)
     else:
