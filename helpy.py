@@ -58,8 +58,11 @@ def getcommit():
             repo = git.Repo(gitdir)
             dirty = repo.is_dirty()
             commit = repo.commit().hexsha[:7]
-            branch = repo.active_branch.name
-        except ImportError as e:
+            if repo.head.is_detached:
+                branch = 'detached'
+            else:
+                branch = repo.active_branch.name
+        except ImportError:
             from subprocess import check_output, STDOUT, CalledProcessError
             git = lambda cmd: check_output(('git', '-C', gitdir) + cmd,
                                            stderr=STDOUT).strip()
@@ -70,7 +73,7 @@ def getcommit():
                 dirty = bool(git(status))
                 commit = git(commit)
                 branch = git(branch).partition('*')[2].split()[0]
-            except CalledProcessError as e:
+            except CalledProcessError:
                 COMMIT = 'unknown'
                 return COMMIT
         COMMIT = '{}({}{})'.format(commit, branch, '+'*dirty)
