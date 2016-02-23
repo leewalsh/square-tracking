@@ -89,6 +89,8 @@ if __name__ == '__main__':
                    help='Print verbosity, may be repeated: -vv')
     p.add_argument('--suffix', type=str, default='',
                    help='suffix to add to end of savenames')
+    p.add_argument('--eps', type=float, default=1,
+                   help="uncertainty sigma = stderr + eps*stderr.std()")
 
     args = p.parse_args()
 
@@ -110,6 +112,7 @@ if __name__ == '__main__':
     fps = args.fps
     dtau = args.dtau
     dt0 = args.dt0
+    eps = args.eps
 
     if args.number == -1:
         args.number = True
@@ -147,7 +150,6 @@ sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
-eps = 1e-5
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """recursive function to find nearest dot in previous frame.
