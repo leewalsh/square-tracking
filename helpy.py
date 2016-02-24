@@ -505,13 +505,13 @@ def load_tracksets(data, trackids=None, min_length=10, verbose=False,
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
-    if run_fill_gaps:
-        from tracks import fill_gaps
-        fill_gaps(tracksets=tracksets, inplace=True, verbose=verbose)
     if run_track_orient:
         from orientation import track_orient
         for track in tracksets:
             tracksets[track]['o'] = track_orient(tracksets[track]['o'])
+    if run_fill_gaps:
+        from tracks import fill_gaps
+        fill_gaps(tracksets=tracksets, inplace=True, verbose=verbose)
     return tracksets
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):

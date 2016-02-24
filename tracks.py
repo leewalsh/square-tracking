@@ -1013,8 +1013,9 @@ if __name__=='__main__':
                           meta=meta, f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
-        tracksets = helpy.load_tracksets(data, min_length=args.stub,
-                            run_fill_gaps=True, verbose=args.verbose)
+        tracksets = helpy.load_tracksets(
+            data, min_length=args.stub, run_track_orient=True,
+            run_fill_gaps=True, verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
@@ -1023,11 +1024,8 @@ if __name__=='__main__':
             save = saveprefix+"_MSD.npz"
             print "saving msd data to",
             print save if verbose else os.path.basename(save)
-            np.savez(save,
-                     msds = np.asarray(msds),
-                     msdids = np.asarray(msdids),
-                     dt0  = np.asarray(dt0),
-                     dtau = np.asarray(dtau))
+            np.savez(save, msds=np.asarray(msds), msdids=np.asarray(msdids),
+                     dt0=np.asarray(dt0), dtau=np.asarray(dtau))
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
         msdnpz = np.load(readprefix+"_MSD.npz")
