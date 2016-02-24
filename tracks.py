@@ -551,15 +551,16 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
         return f
     inan = nans.nonzero()[0]
     gaps = np.diff(ifin) - 1
-    mx = gaps.max()
+    imax = gaps.argmax()
+    mx = gaps[imax]
     if mx > max_gap:
-        spl = gaps.argmax()
+        spl = ifin[imax] + 1
         args = (max_gap, True)
         interp_nans(f[:spl], x if x is None else x[:spl], *args)
-        interp_nans(f[spl+mx+1:], x if x is None else x[spl+mx+1:], *args)
+        interp_nans(f[spl+mx:], x if x is None else x[spl+mx:], *args)
         return f
     xnan, xfin = (inan, ifin) if x is None else (x[inan], x[ifin])
-    for c in f.T if f.ndim>1 else [f]:
+    for c in f.T if f.ndim > 1 else [f]:
         c[inan] = np.interp(xnan, xfin, c[ifin])
     return f
 
