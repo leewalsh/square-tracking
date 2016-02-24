@@ -539,22 +539,36 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
     n = len(f)
     if n < 3:
         return f
-    nans = np.isnan(f)
-    if f.ndim > 1:
-        nans = nans.all(1)
+    if f.ndim == 1:
+        nans = np.isnan(f)
+    elif f.ndim == 2:
+        nans = np.isnan(f[:, 0])
+    else:
+        raise ValueError("Only 1d or 2d")
     if np.count_nonzero(nans) in (0, n):
         return f
     if not inplace:
         f = f.copy()
     ifin = (~nans).nonzero()[0]
-    if len(ifin) < 2:
+    nf = len(ifin)
+    if nf < 2:
         return f
+    bef, aft = int(nans[0]), int(nans[-1])
+    if bef or aft:
+        bfin = np.empty(nf+bef+aft, int)
+        if bef:
+            bfin[0] = -1
+        if aft:
+            bfin[-1] = len(f)
+        bfin[bef:-aft or None] = ifin
+    else:
+        bfin = ifin
     inan = nans.nonzero()[0]
-    gaps = np.diff(ifin) - 1
+    gaps = np.diff(bfin) - 1
     imax = gaps.argmax()
     mx = gaps[imax]
     if mx > max_gap:
-        spl = ifin[imax] + 1
+        spl = bfin[imax] + 1
         args = (max_gap, True)
         interp_nans(f[:spl], x if x is None else x[:spl], *args)
         interp_nans(f[spl+mx:], x if x is None else x[spl+mx:], *args)
@@ -563,6 +577,7 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
     for c in f.T if f.ndim > 1 else [f]:
         c[inan] = np.interp(xnan, xfin, c[ifin])
     return f
+
 
 def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=False):
     if not inplace:
