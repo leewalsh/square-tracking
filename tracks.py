@@ -517,22 +517,34 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
 
 
 def gapsize_distro(tracksetses, fields='fo', title=''):
-    plt.figure()
+    fig, ax = plt.subplots()
     for field in fields:
-        ind = lambda tset: tset['f'] if field=='f' else np.where(~np.isnan(tset[field]))[0]
-        gaps = np.concatenate([np.diff(ind(tset))-1
-                for tsets in tracksetses for tset in tsets.itervalues()])
+        isf = field == 'f'
+        ind = lambda t: t['f'] if isf else np.where(~np.isnan(t[field]))[0]
+        gaps = np.concatenate([np.diff(ind(tset)) - 1
+                               for tsets in tracksetses
+                               for tset in tsets.itervalues()])
         gmax = gaps.max()
         if not gmax or gmax > 1e3:
             continue
         bins = np.arange(gmax)+1
-        dist = np.bincount(gaps)[1:]/len(gaps)
+        dist = np.bincount(gaps)[1:]
         wght = dist*bins
-        plt.bar(bins-.4, dist, .4, color=('r' if field=='f' else 'y'), alpha=.5, label=field+' gaps')
-        plt.bar(bins, wght, .4, color=('b' if field=='f' else 'g'), alpha=.5, label=field+' frames')
-    plt.legend()
-    if title:
-        plt.title(title)
+        ax.bar(bins-.4, dist, .4,
+               color='yr'[isf], alpha=.5, label=repr(field)+' gaps')
+        ax.bar(bins, wght, .4,
+               color='gb'[isf], alpha=.5, label=repr(field)+' frames')
+        ax.set_ylabel('number of gaps or frames')
+        ax.set_xlabel('gap size (frames)')
+    nframes = np.sum([len(tset)
+                      for tsets in tracksetses for tset in tsets.itervalues()])
+    axr = ax.twinx()
+    axr.set_ylim(None, ax.get_ylim()[-1]/nframes)
+    axr.set_yticks(ax.get_yticks()/nframes)
+    axr.set_ylabel('fraction of frames')
+    ax.legend()
+    ax.set_title(title)
+
 
 def interp_nans(f, x=None, max_gap=5, inplace=False):
     """ Replace nans in function f(x) with their linear interpolation"""
