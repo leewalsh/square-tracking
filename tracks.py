@@ -916,7 +916,8 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     ax.set_title(title or "Mean Sq {}Disp".format("Angular " if ang else ""))
-    ax.set_xlabel('Time ({}s)'.format('frame'*(fps > 1)), fontsize='x-large')
+    xlabel = '$tf$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
+    ax.set_xlabel(xlabel, fontsize='x-large')
     ylabel = 'Squared {}Displacement ({})'.format(
         'Angular '*ang,
         '$rad^2$' if ang else 'particle area' if S > 1 else 'square pixels')
