@@ -65,6 +65,10 @@ if __name__ == '__main__':
     p.add_argument('--stub', type=int, default=10,
                    help='Minimum length (in frames) of a track '
                         'for it to be included. default = 10')
+    p.add_argument('-g', '--gaps', choices=['interp', 'nans', 'leave'],
+                   default='interp', nargs='?', const='nans',
+                   help="Gap handling: choose from %(choices)s. default is "
+                        "%(default)s, `-g` or `--gaps` alone gives %(const)s")
     p.add_argument('--singletracks', type=int, nargs='*',
                    help='identify single track ids to plot')
     p.add_argument('--showtracks', action='store_true',
@@ -1024,9 +1028,10 @@ if __name__=='__main__':
                           meta=meta, f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
+        meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
         tracksets = helpy.load_tracksets(
             data, min_length=args.stub, run_track_orient=True,
-            run_fill_gaps=True, verbose=args.verbose)
+            run_fill_gaps=args.gaps, verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)

@@ -509,9 +509,10 @@ def load_tracksets(data, trackids=None, min_length=10, verbose=False,
         from orientation import track_orient
         for track in tracksets:
             tracksets[track]['o'] = track_orient(tracksets[track]['o'])
-    if run_fill_gaps:
+    if run_fill_gaps and run_fill_gaps != 'leave':
         from tracks import fill_gaps
-        fill_gaps(tracksets=tracksets, inplace=True, verbose=verbose)
+        fs = () if run_fill_gaps == 'nans' else ('xy', 'o')
+        fill_gaps(tracksets, interp=fs, inplace=True, verbose=verbose)
     return tracksets
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
