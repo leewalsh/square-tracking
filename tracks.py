@@ -45,9 +45,9 @@ if __name__ == '__main__':
                    help='Calculate the MSD')
     p.add_argument('--plotmsd', action='store_true',
                    help='Plot the MSD (requires --msd first)')
-    p.add_argument('-s', '--side', type=float, default=1,
+    p.add_argument('-s', '--side', type=float,
                    help='Particle size in pixels, for unit normalization')
-    p.add_argument('-f', '--fps', type=float, default=1,
+    p.add_argument('-f', '--fps', type=float,
                    help="Number of frames per second (or per shake) "
                         "for unit normalization")
     p.add_argument('--dt0', type=int, default=1,
@@ -107,14 +107,10 @@ if __name__ == '__main__':
         saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
-    if args.orient and args.rcorner is None:
-        raise ValueError("argument -r/--rcorner is required")
     if args.maxdist is None:
         args.maxdist = args.side if args.side > 1 else 20
     eps = args.eps
 
-    if args.number == -1:
-        args.number = True
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
@@ -242,7 +238,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
     setrecursionlimit(max(getrecursionlimit(), 2*giveup))
 
     trackids = -np.ones(pdata.shape, dtype=int)
-    if n is True:
+    if n == -1:
         # use the mode of number of particles per frame
         # np.argmax(np.bincount(x)) == mode(x)
         n = np.argmax(np.bincount(np.bincount(pdata['f'])))
@@ -944,9 +940,13 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
 sigfmt = ('{:7.4g}, '*5)[:-2].format
 sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
                                 sigma.std(ddof=1), sigma.max()/sigma.min())
-if __name__=='__main__':
+
+
+if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
+    helpy.sync_args_meta(args, meta, 'side fps rcorner',
+                         'track_sidelength fps orient_rcorner', [1, 1, None])
     if args.load:
         helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
                          verbose=True, compress=True)
@@ -969,9 +969,8 @@ if __name__=='__main__':
         pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy'),
                              leafsize=50) for f, pfset in pfsets.iteritems()}
     if args.track:
-        meta.update(track_sidelength=args.side, track_maxdist=args.maxdist,
-                    track_maxtime=args.giveup, track_stub=args.stub,
-                    track_cut=args.cut)
+        meta.update(track_maxdist=args.maxdist, track_maxtime=args.giveup,
+                    track_stub=args.stub, track_cut=args.cut)
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
                                n=args.number, stub=args.stub, cut=args.cut,
                                boundary=args.boundary, margin=args.side)
@@ -979,12 +978,14 @@ if __name__=='__main__':
     else:
         trackids = None
     if args.orient:
+        if args.rcorner is None:
+            raise ValueError("argument -r/--rcorner is required")
+        helpy.sync_args_meta(args, meta, 'ncorners drcorner',
+                             'orient_ncorners orient_drcorner', [2, None])
         from orientation import get_angles_loop
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
                              leafsize=50) for f, cfset in cfsets.iteritems()}
-        meta.update(orient_ncorners=args.ncorners, orient_rcorner=args.rcorner,
-                    orient_drcorner=args.drcorner)
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
                            nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
         if args.save:
@@ -1014,10 +1015,9 @@ if __name__=='__main__':
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
         ftsets, fcsets = helpy.splitter(tdata), helpy.splitter(cdata)
         fosets = helpy.splitter(odata, tdata['f'])
-        rc = args.rcorner or meta.get('orient_rcorner', None)
-        side = args.side if args.side > 1 else meta.get('track_sidelength', 1)
-        animate_detection(imstack, ftsets, fcsets, fosets, rc=rc, side=side,
-                          meta=meta, f_nums=frames, verbose=args.verbose)
+        animate_detection(imstack, ftsets, fcsets, fosets,
+                          rc=args.rcorner, side=args.side, meta=meta,
+                          f_nums=frames, verbose=args.verbose)
 
     if args.msd or args.nn or args.rn:
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
@@ -1049,8 +1049,6 @@ if __name__=='__main__':
             args.dtau = 10  #  should be true for all from before dt* was saved
 
     if args.save:
-        if args.fps != 1:
-            meta.update(fps=args.fps)
         helpy.save_meta(saveprefix, meta)
 
 if __name__=='__main__':

@@ -388,6 +388,23 @@ def merge_meta(*metas):
             merged[key] = val
     return merged
 
+
+def sync_args_meta(args, meta, argnames, metanames, defaults=None):
+    argdict = args.__dict__
+    if isinstance(argnames, basestring):
+        argnames = argnames.split()
+    if isinstance(metanames, basestring):
+        metanames = metanames.split()
+    if defaults is None:
+        defaults = it.repeat(None)
+    for argname, metaname, default in it.izip(argnames, metanames, defaults):
+        if argdict[argname] is None:
+            argdict[argname] = meta.get(metaname, default)
+        else:
+            meta[metaname] = argdict[argname]
+    return args, meta
+
+
 def save_meta(prefix, meta_dict=None, **meta_kw):
     meta = load_meta(prefix)
     meta.update(meta_dict or {}, **meta_kw)
