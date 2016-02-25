@@ -245,7 +245,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
-        boundary = boundary or meta.get('track_cut_boundary')
+        boundary = boundary or meta.get('track_boundary')
         if boundary is None:
             bgpath, bgimg, _ = helpy.find_tiffs(
                 prefix=relprefix, frames=1, load=True)
@@ -254,7 +254,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         x0, y0, R = boundary
         mm = R/101.6             # dish radius R = 4 in = 101.6 mm
         margin = margin or 6*mm  # use 6 mm if margin not specified
-        meta.update(track_cut_boundary=boundary, track_cut_margin=margin)
+        meta.update(track_boundary=boundary, track_cut_margin=margin)
         rs = np.hypot(pdata['x'] - x0, pdata['y'] - y0)
         cut = rs > R - margin
         print "cutting at boundary", boundary,
@@ -410,7 +410,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
     need_legend = True
 
     if meta and meta.get('track_cut', False):
-        bndx, bndy, bndr = meta['track_cut_boundary']
+        bndx, bndy, bndr = meta['track_boundary']
         cutr = bndr - meta['track_cut_margin']
         bndc = [[bndy, bndx]]*2
         bndpatch, cutpatch = draw_circles(ax, bndc, [bndr, cutr],
@@ -946,7 +946,7 @@ if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
     helpy.sync_args_meta(args, meta, 'side fps rcorner',
-                         'track_sidelength fps orient_rcorner', [1, 1, None])
+                         'sidelength fps orient_rcorner', [1, 1, None])
     if args.load:
         helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
                          verbose=True, compress=True)
