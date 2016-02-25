@@ -109,13 +109,8 @@ if __name__ == '__main__':
     locdir += os.path.sep
     if args.orient and args.rcorner is None:
         raise ValueError("argument -r/--rcorner is required")
-    S = args.side
-    A = S**2
     if args.maxdist is None:
-        args.maxdist = S if S > 1 else 20
-    fps = args.fps
-    dtau = args.dtau
-    dt0 = args.dt0
+        args.maxdist = args.side if args.side > 1 else 20
     eps = args.eps
 
     if args.number == -1:
@@ -1031,26 +1026,27 @@ if __name__=='__main__':
             run_fill_gaps=args.gaps, verbose=args.verbose)
 
     if args.msd:
-        msds, msdids = find_msds(tracksets, dt0, dtau, min_length=args.stub)
-        meta.update(msd_dt0=dt0, msd_dtau=dtau, msd_stub=args.stub)
+        msds, msdids = find_msds(tracksets, args.dt0, args.dtau, min_length=args.stub)
+        meta.update(msd_dt0=args.dt0, msd_dtau=args.dtau, msd_stub=args.stub)
         if args.save:
             save = saveprefix+"_MSD.npz"
             print "saving msd data to",
             print save if verbose else os.path.basename(save)
             np.savez(save, msds=np.asarray(msds), msdids=np.asarray(msdids),
-                     dt0=np.asarray(dt0), dtau=np.asarray(dtau))
+                     dt0=np.asarray(args.dt0), dtau=np.asarray(args.dtau))
     elif args.plotmsd or args.rr:
         if verbose: print "loading msd data from npz files"
         msdnpz = np.load(readprefix+"_MSD.npz")
         msds = msdnpz['msds']
         try: msdids = msdnpz['msdids']
         except KeyError: msdids = None
+        #TODO get dt0 and dtau from meta if not in args.dt0 or args.dtau
         try:
-            dt0  = np.asscalar(msdnpz['dt0'])
-            dtau = np.asscalar(msdnpz['dtau'])
+            args.dt0  = np.asscalar(msdnpz['dt0'])
+            args.dtau = np.asscalar(msdnpz['dtau'])
         except KeyError:
-            dt0  = 10 # here's assuming...
-            dtau = 10 #  should be true for all from before dt* was saved
+            args.dt0  = 10  # here's assuming...
+            args.dtau = 10  #  should be true for all from before dt* was saved
 
     if args.save:
         if args.fps != 1:
@@ -1060,10 +1056,11 @@ if __name__=='__main__':
 if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting msd now!'
-        plot_msd(msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
+        plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1, tnormalize=False,
                  prefix=saveprefix, show_tracks=args.showtracks, show=args.show,
-                 singletracks=args.singletracks, fps=fps, S=S, save=args.save,
-                 kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
+                 singletracks=args.singletracks, fps=args.fps, S=args.side,
+                 save=args.save, kill_flats=args.killflat,
+                 kill_jumps=args.killjump*args.side**2)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
         bgimage = helpy.find_tiffs(prefix=relprefix, frames=1, load=True)[1]
@@ -1104,7 +1101,7 @@ if __name__=='__main__' and args.nn:
     # Gather all the track correlations and average them
     allcorrs = coscorrs + sincorrs
     allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
-    taus = np.arange(len(meancorr))/fps
+    taus = np.arange(len(meancorr))/args.fps
     tmax = int(50*args.zoom)
     fmax = np.searchsorted(taus, tmax)
     errstd = np.nanstd(errcorr, ddof=1)
@@ -1176,13 +1173,13 @@ if __name__=='__main__' and args.rn:
     corr_args = {'side': 'both', 'ret_dx': True,
                  'cumulant': (True, False), 'norm': 0 }
 
-    xcoscorrs = [ corr.crosscorr(trackset['x']/S, np.cos(trackset['o']),
+    xcoscorrs = [ corr.crosscorr(trackset['x']/args.side, np.cos(trackset['o']),
                  **corr_args) for trackset in tracksets.values() ]
-    ysincorrs = [ corr.crosscorr(trackset['y']/S, np.sin(trackset['o']),
+    ysincorrs = [ corr.crosscorr(trackset['y']/args.side, np.sin(trackset['o']),
                  **corr_args) for trackset in tracksets.values() ]
 
     # Align and merge them
-    fmax = int(2*fps/D_R*args.zoom)
+    fmax = int(2*args.fps/D_R*args.zoom)
     fmin = -fmax
     allcorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
@@ -1190,7 +1187,7 @@ if __name__=='__main__' and args.rn:
     allcorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
                 for f, rn in allcorrs if f.min() <= fmin]
     allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
-    taus = np.arange(fmin, fmax)/fps
+    taus = np.arange(fmin, fmax)/args.fps
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
@@ -1277,10 +1274,10 @@ if __name__=='__main__' and args.rn:
 if __name__=='__main__' and args.rr:
     print "====== <rr> ======"
     fig, ax, taus, msd, errcorr = plot_msd(
-            msds, msdids, dtau, dt0, data['f'].max()+1, tnormalize=False,
-            errorbars=5, prefix=saveprefix, show_tracks=True, meancol='ok',
-            singletracks=args.singletracks, fps=fps, S=S, show=False,
-            save=False, kill_flats=args.killflat, kill_jumps=args.killjump*S*S)
+        msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False, show=False,
+        tnormalize=False, errorbars=5, prefix=saveprefix, show_tracks=True,
+        meancol='ok', singletracks=args.singletracks, fps=args.fps, S=args.side,
+        kill_flats=args.killflat, kill_jumps=args.killjump*args.side**2)
     if verbose > 1:
         erraxl, erraxr = errfig.axes
 
