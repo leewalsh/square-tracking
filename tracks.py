@@ -938,6 +938,79 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     return fig, ax, taus, msd, msd_err
 
 
+def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, doall=False,
+                  offset=None, relative=None, xnorm=None, plot=False, ax=None,
+                  c=None):
+    if x is None:
+        x = np.arange(len(arr))
+    if plot and ax is None:
+        ax = plt.gca()
+    if doall:
+        global plotted
+        plotted = []
+        offsets = [0, 0.1, 1] if offset is None else [offset]
+        relatives = [True, False] if relative is None else [relative]
+        xnorms = [0, 1, 'log'] if xnorm is None else [xnorm]
+        cs = 'rgbcmyk'
+        ci = 0
+        for offset, relative, xnorm in it.product(offsets, relatives, xnorms):
+            sigma_for_fit(arr, std_err, std_dev, added, x, False, offset=offset,
+                          relative=relative, xnorm=xnorm, plot=plot, ax=ax,
+                          c=cs[ci % len(cs)])
+            ci += 1
+        return
+
+    signame = 'std_err'
+    sigma = std_err.copy()
+    if plot and signame not in plotted:
+        ax.plot(x, std_err, '.'+c, label=signame)
+        plotted.append(signame)
+    if relative:
+        sigma /= arr
+        signame += '/arr'
+        if plot and signame not in plotted:
+            ax.plot(x, sigma, ':'+c, label=signame)
+            plotted.append(signame)
+    if offset:
+        err_std_dev = np.nanstd(std_err, ddof=1)
+        total = offset * err_std_dev
+        sigma += total
+        signame += ' + {:.2g}*err_std_dev'.format(offset)
+        if verbose:
+            print 'adding offset',
+            print '{:.4g}*{:.4g} = {:.4g}'.format(offset, err_std_dev, total)
+        if plot and signame not in plotted:
+            ax.plot(x, sigma, '-'+c, label=signame)
+    if xnorm:
+        if xnorm == 'log':
+            label = 'log(1 + x)'
+            xnorm = np.log1p(x)
+        elif xnorm == 1:
+            label = 'x'
+            xnorm = x
+        else:
+            label = 'x^{}'.format(xnorm)
+            xnorm = x**xnorm
+        signame = '('+signame+')*' + label
+        sigma *= xnorm
+        if plot and label not in plotted:
+            ax.plot(x, xnorm, '--'+c, label=label)
+            plotted.append(label)
+        if plot and signame not in plotted:
+            ax.plot(x, sigma, '-.'+c, label=signame)
+            plotted.append(signame)
+    if verbose:
+        print 'sigma =', signame
+        print 'nan_info',
+        helpy.nan_info(sigma, True)
+        print 'sigprint', sigprint(sigma)
+    if plot:
+        ax.legend(loc='upper left', fontsize='x-small')
+        return sigma, ax
+    else:
+        return sigma
+
+
 sigfmt = ('{:7.4g}, '*5)[:-2].format
 sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
                                 sigma.std(ddof=1), sigma.max()/sigma.min())
