@@ -1168,19 +1168,31 @@ if __name__=='__main__' and args.nn:
     taus = np.arange(len(meancorr))/args.fps
     tmax = int(50*args.zoom)
     fmax = np.searchsorted(taus, tmax)
+    if verbose > 1:
+        nnerrfig, nnerrax = plt.subplots()
+        nnerrax.set_yscale('log')
+    else:
+        nnerrax = False
+    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
+                               relative=False, const=False, xnorm=False)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged nn corrs"
         sigma = errcorr
         helpy.nan_info(sigma, True)
         print 'stderr for <nn>:', sigprint(sigma)
+        nnerrax.plot(taus, sigma, 'xr', label='old sigma')
         sigadd = eps*errstd
         sigma = errcorr + sigadd
         print '         adding:',
         print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <nn>:', sigprint(sigma)
+        nnerrax.plot(taus, sigma, '+r', label='old sigma+eps*std USED')
     else:
         sigma = errcorr + eps*errstd
+    if nnerrax:
+        nnerrax.legend()
+        nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
     # Fit to functional form:
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
@@ -1252,19 +1264,29 @@ if __name__=='__main__' and args.rn:
                 for f, rn in allcorrs if f.min() <= fmin]
     allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
     taus = np.arange(fmin, fmax)/args.fps
+    if verbose > 1:
+        rnerrfig, rnerrax = plt.subplots()
+    else:
+        rnerrax = False
+    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
         sigma = errcorr
         helpy.nan_info(sigma, True)
         print 'stderr for <rn>:', sigprint(sigma)
+        rnerrax.plot(taus, sigma, 'xr', label='old sigma')
         sigadd = eps*errstd
         sigma = errcorr + sigadd
         print '         adding:',
         print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
         print ' sigma for <rn>:', sigprint(sigma)
+        rnerrax.plot(taus, sigma, '+r', label='old sigma+eps*std USED')
     else:
         sigma = errcorr + eps*errstd
+    if rnerrax:
+        rnerrax.legend()
+        rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
     # Fit to functional form:
     fitform = lambda s, v_D, D=D_R:\
@@ -1347,6 +1369,13 @@ if __name__=='__main__' and args.rr:
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
+    if verbose > 1:
+        rrerrfig, rrerrax = plt.subplots()
+        rrerrax.set_yscale('log')
+        rrerrax.set_xscale('log')
+    else:
+        rrerrax = False
+    sigma_func = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax)
     errstd = np.nanstd(errcorr, ddof=1)
     relstd = np.nanstd(errcorr/msd, ddof=1)
     if verbose:
@@ -1359,6 +1388,7 @@ if __name__=='__main__' and args.rr:
             erraxl.plot(taus, errcorr/msd, ':k', label='sigma/msd')
             erraxl.plot(taus, taus, '-k', label='tau')
             erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
+        rrerrax.plot(taus, sigma, 'xr', label='old sigma')
 
         sigadd = eps*errstd
         sigma = errcorr + sigadd
@@ -1369,6 +1399,7 @@ if __name__=='__main__' and args.rr:
             erraxl.plot(taus, sigma, '.g', label='sigma + eps*std')
             erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
             erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
+        rrerrax.plot(taus, sigma, '+r', label='old sigma+eps*elstd')
 
         sigadd = eps*relstd
         sigma = errcorr + sigadd
@@ -1379,9 +1410,12 @@ if __name__=='__main__' and args.rr:
             erraxl.plot(taus, sigma, '.r', label='sigma + eps*std_rel')
             erraxl.plot(taus, sigma*taus, '-r', label='(sigma_rel+)*tau')
             erraxl.legend(loc='upper left', fontsize='x-small')
+        rrerrax.plot(taus, sigma, '*r', label='old sigma+eps*elstd')
 
         sigma *= taus
         print 'sigma*taus:', sigprint(sigma)
+        rrerrax.plot(taus, sigma, 'or', label='old (sigma+eps*relstd)*tau USED')
+        rrerrax.legend()
     else:
         sigma = errcorr + eps*errstd
         sigma *= taus
@@ -1458,6 +1492,7 @@ if __name__=='__main__' and args.rr:
         fig.savefig(save)
         if verbose > 1:
             errfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
+            rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
 if __name__ == '__main__' and need_plt:
     if args.show:
