@@ -1044,7 +1044,7 @@ def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
 
 
 def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
-                  relative=None, const=None, xnorm=None, const_offset=None):
+                  relative=None, const=None, xnorm=None):
     if x is None:
         x = np.arange(len(arr))
     if plot:
@@ -1073,9 +1073,6 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
         if const is not None:
             isconst = np.isscalar(const)
             offsetname = '({:.3g})'.format(const) if isconst else 'const'
-            if const_offset:
-                sigma_const = np.hypot(sigma, const_offset)
-                signame_const = 'sqrt({}^2 + {}^2)'.format(signame, 'const')
             sigma = np.hypot(sigma, const)
             signame = 'sqrt({}^2 + {}^2)'.format(signame, offsetname)
             if verbose:
@@ -1087,9 +1084,6 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
                     ax.axhline(const, ls='--', c=c, label='const')
                 else:
                     ax.plot(x, const, '^'+c, label='const')
-                if const_offset:
-                    ax.plot(x, sigma_const, '.-'+c, label=signame_const)
-                    ax.axhline(const_offset, ls='-', c=c, label='const')
         if xnorm:
             if xnorm == 'log':
                 label = 'log(1 + x)'
@@ -1100,9 +1094,6 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
             else:
                 label = 'x^{}'.format(xnorm)
                 xnorm = x**xnorm
-            if const_offset:
-                signame_const += '*' + label
-                sigma_const *= xnorm
             signame += '*' + label
             sigma *= xnorm
             if plot and label not in plotted:
@@ -1110,8 +1101,6 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
                 plotted.append(label)
             if plot and signame not in plotted:
                 ax.plot(x, sigma, '-.'+c, label=signame)
-                if const_offset:
-                    ax.plot(x, sigma_const, '.-'+c, label=signame_const)
                 plotted.append(signame)
         if verbose:
             print 'sigma =', signame
@@ -1396,10 +1385,9 @@ if __name__=='__main__' and args.rn:
         rnerrfig, rnerrax = plt.subplots()
     else:
         rnerrax = False
-    rnuncert = np.hypot(args.dtheta*meancorr, args.dx)/rt2
-    rnuncert_const = np.hypot(args.dtheta, args.dx)/rt2
+    rnuncert = np.hypot(args.dtheta, args.dx)/rt2
     sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                               const=rnuncert, const_offset=rnuncert_const)
+                               const=rnuncert)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
@@ -1506,10 +1494,9 @@ if __name__=='__main__' and args.rr:
         rrerrax.set_xscale('log')
     else:
         rrerrax = False
-    rruncert = rt2*args.dx*msd
-    rruncert_const = rt2*args.dx
+    rruncert = rt2*args.dx
     sigma_func = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
-                               const=rruncert, xnorm=1, const_offset=rruncert_const)
+                               const=rruncert, xnorm=1)
     errstd = np.nanstd(errcorr, ddof=1)
     relstd = np.nanstd(errcorr/msd, ddof=1)
     if verbose:
