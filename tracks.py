@@ -87,6 +87,11 @@ if __name__ == '__main__':
                    help='Let D_R be a free parameter in fit to MSD (<rn>)')
     p.add_argument('--fitv0', action='store_true',
                    help='Let v_0 be a free parameter in fit to MSD (<rr>)')
+    p.add_argument('--dx', type=float, default=0.25,
+                   help='Positional measurement uncertainty (units are pixels '
+                        'unless SIDE is given and DX < 0.1)')
+    p.add_argument('--dtheta', type=float, default=0.02,
+                   help='Angular measurement uncertainty (radians)')
     p.add_argument('-z', '--zoom', metavar="ZOOM", type=float, default=1,
                    help="Factor by which to zoom out (in if ZOOM < 1)")
     p.add_argument('-v', '--verbose', action='count',
@@ -1065,14 +1070,20 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
             if plot and signame not in plotted:
                 ax.plot(x, sigma, ':'+c, label=signame)
                 plotted.append(signame)
-        if const:
+        if const is not None:
+            isscalar = np.isscalar(const)
+            offsetname = '({:.3g})'.format(const) if isscalar else 'const'
             sigma = np.hypot(sigma, const)
-            signame = 'sqrt({}^2 + ({:.3g})^2)'.format(signame, const)
+            signame = 'sqrt({}^2 + {}^2)'.format(signame, offsetname)
             if verbose:
                 print 'adding const',
-                print 'sqrt(sigma^2 + ({:g})^2)'.format(const)
+                print 'sqrt(sigma^2 + {}^2)'.format(offsetname)
             if plot and signame not in plotted:
                 ax.plot(x, sigma, '-'+c, label=signame)
+                if isscalar:
+                    ax.axhline(const, ls='--', c=c, label='const')
+                else:
+                    ax.plot(x, const, '^'+c, label='const')
         if xnorm:
             if xnorm == 'log':
                 label = 'log(1 + x)'
@@ -1185,6 +1196,10 @@ if __name__ == '__main__':
                           rc=args.rcorner, side=args.side, meta=meta,
                           f_nums=frames, verbose=args.verbose)
 
+    if args.side > 1 and args.dx > 0.1:
+        # args.dx is in units of pixels
+        args.dx /= args.side
+
     if args.msd or args.nn or args.rn:
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
         tracksets = helpy.load_tracksets(
@@ -1273,8 +1288,9 @@ if __name__=='__main__' and args.nn:
         nnerrax.set_yscale('log')
     else:
         nnerrax = False
+    nnuncert = args.dtheta/rt2
     sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
-                               relative=False, const=False, xnorm=False)
+                               relative=False, const=nnuncert, xnorm=False)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged nn corrs"
@@ -1282,6 +1298,7 @@ if __name__=='__main__' and args.nn:
         helpy.nan_info(sigma, True)
         print 'stderr for <nn>:', sigprint(sigma)
         nnerrax.plot(taus, sigma, 'xr', label='old sigma')
+
         sigadd = eps*errstd
         sigma = errcorr + sigadd
         print '         adding:',
@@ -1291,7 +1308,7 @@ if __name__=='__main__' and args.nn:
     else:
         sigma = errcorr + eps*errstd
     if nnerrax:
-        nnerrax.legend()
+        nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
     # Fit to functional form:
@@ -1368,7 +1385,9 @@ if __name__=='__main__' and args.rn:
         rnerrfig, rnerrax = plt.subplots()
     else:
         rnerrax = False
-    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax)
+    rnuncert = np.hypot(args.dtheta*meancorr, args.dx)/rt2
+    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
+                               const=rnuncert)
     errstd = np.nanstd(errcorr, ddof=1)
     if verbose:
         print "Merged rn corrs"
@@ -1385,7 +1404,7 @@ if __name__=='__main__' and args.rn:
     else:
         sigma = errcorr + eps*errstd
     if rnerrax:
-        rnerrax.legend()
+        rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
     # Fit to functional form:
@@ -1475,7 +1494,9 @@ if __name__=='__main__' and args.rr:
         rrerrax.set_xscale('log')
     else:
         rrerrax = False
-    sigma_func = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax)
+    rruncert = rt2*args.dx*msd
+    sigma_func = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
+                               const=rruncert, xnorm=1)
     errstd = np.nanstd(errcorr, ddof=1)
     relstd = np.nanstd(errcorr/msd, ddof=1)
     if verbose:
@@ -1515,7 +1536,7 @@ if __name__=='__main__' and args.rr:
         sigma *= taus
         print 'sigma*taus:', sigprint(sigma)
         rrerrax.plot(taus, sigma, 'or', label='old (sigma+eps*relstd)*tau USED')
-        rrerrax.legend()
+        rrerrax.legend(loc='upper left', fontsize='x-small')
     else:
         sigma = errcorr + eps*errstd
         sigma *= taus
