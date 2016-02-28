@@ -145,6 +145,7 @@ sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
+rt2 = np.sqrt(2)
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """recursive function to find nearest dot in previous frame.
@@ -936,6 +937,105 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
     if show:
         plt.show()
     return fig, ax, taus, msd, msd_err
+
+
+def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
+    if size >= 10:
+        size = np.log10(size)
+    size = int(round(size))
+    print '1e{}'.format(size),
+    size = 10**size
+    if np.isscalar(uncert):
+        uncert = [uncert]*2
+    domain = np.atleast_1d(domain)
+    domains = []
+    for dom in domain:
+        if np.isscalar(dom):
+            domains.append((0, dom))
+        elif len(dom) == 1:
+            domains.append((0, dom[0]))
+        else:
+            domains.append(dom)
+    #x_true = np.row_stack([np.linspace(*dom, num=size) for dom in domains])
+    x_true = np.row_stack([np.random.rand(size)*(dom[1]-dom[0]) + dom[0]
+                           for dom in domains])
+    x_err = np.row_stack([np.random.normal(scale=u, size=size) if u > 0 else
+                          np.zeros(size) for u in uncert])
+    x_meas = x_true + x_err
+    if verbose:
+        print
+        print 'x_true:', x_true.shape, 'min', x_true.min(1), 'max', x_true.max(1)
+        print 'x_meas:', x_meas.shape, 'min', x_meas.min(1), 'max', x_meas.max(1)
+        print 'x_err: ', x_err.shape, 'min', x_err.min(1), 'max', x_err.max(1)
+    xfmt = 'x: [{d[1][0]:5.2g}, {d[1][1]:5.2g}) +/- {dx:<5.4g} '
+    thetafmt = 'theta: [{d[0][0]:.2g}, {d[0][1]:.3g}) +/- {dtheta:<5.4g} '
+    if func == 'nn':
+        dtheta, _ = uncert
+        print thetafmt.format(dtheta=dtheta, d=domains)+'->',
+        f = lambda x: np.cos(x[0])*np.cos(x[1])
+        f_uncert = dtheta/rt2
+    elif func == 'rn':
+        dtheta, dx = uncert
+        print (thetafmt+xfmt+'->').format(dtheta=dtheta, dx=dx, d=domains),
+        f = lambda x: np.cos(x[0])*x[1]
+        f_uncert = np.sqrt(dx**2 + (x_true[1]*dtheta)**2).mean()/rt2
+    elif func == 'rr':
+        dx, _ = uncert
+        print xfmt.format(dx=dx, d=domains)+'->',
+        f = lambda x: x[0]*x[1]  # (x[0]-x[0].mean())*(x[1]-x[1].mean())
+        f_uncert = rt2*dx*np.sqrt((x_true[0]**2).mean())
+    else:
+        f_uncert = None
+    f_true = f(x_true)
+    f_meas = f(x_meas)
+    f_err = f_meas - f_true
+    if False and 'r' in func:
+        #print 'none',
+        #f_err /= np.maximum(np.abs(f_meas), np.abs(f_true))
+        #print 'maxm',
+        #f_err /= np.sqrt(np.abs(f_meas*f_true))
+        #print 'geom',
+        f_err /= np.sqrt(f_meas**2 + f_true**2)/2
+        print 'quad',
+        #f_err /= f_meas
+        #print 'meas',
+        #f_err /= f_true
+        #print 'true',
+    if plot:
+        fig = plt.gcf()
+        fig.clear()
+        ax = plt.gca()
+        if size <= 10000:
+            ax.scatter(f_true, f_err, marker='.', c='k', label='f_err v f_true')
+        else:
+            ax.hexbin(f_true, f_err)
+    nbins = 25 if plot else 7
+    f_bins = np.linspace(f_true.min(), f_true.max()*(1+1e-8), num=1+nbins)
+    f_bini = np.digitize(f_true, f_bins)
+    ubini = np.unique(f_bini)
+    f_stds = [f_err[f_bini == i].std() for i in ubini]
+    if plot:
+        ax.plot((f_bins[1:]+f_bins[:-1])/2, f_stds, 'or')
+    if verbose:
+        print
+        print '[', ', '.join(map('{:.3g}'.format, f_bins)), ']'
+        print np.row_stack([ubini, np.bincount(f_bini)[ubini]])
+        print '[', ', '.join(map('{:.3g}'.format, f_stds)), ']'
+    f_err_std = f_err.std()
+    ratio = f_uncert/f_err_std
+    missed = ratio - 1
+    print '{:< 9.4f}/{:< 9.4f} = {:<.3f} ({: >+7.2%})'.format(
+            f_uncert, f_err_std, ratio, missed),
+    print '='*int(-np.log10(np.abs(missed)))
+    if verbose:
+        print
+    #[tracks.propagate('rr', dx, 5, 2*[i]) for dt, dx, i in it.product(
+    #     [.01, .1], [.1, 1, 10], [(1,100), (10,100),(90,100)])]
+    #[tracks.propagate('rn', (dt, dx), 5, [(0, 2*np.pi), (10**(i-2), 10**i)])
+    # for dt, dx, i in it.product([0, .01, .1], [.1, 1, 10], [2,3,4])]
+    #[tracks.propagate('nn', dt, 5, [(0, 2*np.pi),(10**(i-1), 10**i)])
+    # for dt, dx, i in it.product([.01, .1], [0, .1, 1, 10], [2,3,4])]
+    return f_err_std
 
 
 def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
