@@ -1296,7 +1296,8 @@ if __name__=='__main__' and args.nn:
     # Fit to functional form:
     fitform = lambda s, DR: 0.5*np.exp(-DR*s)
     fitstr = r"$\frac{1}{2}e^{-D_R t}$"
-    p0 = [1]
+    D_R = meta.get('fit_nn_DR', 0.1)
+    p0 = [D_R]
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1343,7 +1344,7 @@ if __name__=='__main__' and args.rn:
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
     if not args.nn:
-        D_R = 1/12
+        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
     corr_args = {'side': 'both', 'ret_dx': True,
                  'cumulant': (True, False), 'norm': 0 }
@@ -1377,8 +1378,10 @@ if __name__=='__main__' and args.rn:
     fitform = lambda s, v_D, D=D_R:\
                   0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
+
     # p0 = [v_0/D_R, D_R]
-    p0 = [1]
+    v0 = meta.get('fit_rn_v0', 0.1)
+    p0 = [v0]
     if not args.nn or args.fitdr:
         p0 += [D_R]
 
@@ -1386,10 +1389,10 @@ if __name__=='__main__' and args.rn:
         popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
     except RuntimeError as e:
         try:
-            p0[0] = -1 # If dots are backwards, has trouble fitting with v0>0
+            p0[0] *= -1  # maybe dots are backwards, try starting from  v0 < 0
             popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
         except RuntimeError as e:
-            p0[0] = 1 # restore original positive value
+            p0[0] *= -1  # restore original positive value
             print "RuntimeError:", e.message
             print "Using inital guess", p0
             popt = p0
@@ -1466,20 +1469,22 @@ if __name__=='__main__' and args.rr:
         if save:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
-    if not args.nn:
-        D_R = 1
-    if not args.rn:
-        v0 = sgn = 1
 
     # Fit to functional form:
+    D_T = meta.get('fit_rr_DT', 0.01)
+    p0 = [D_T]
+    if args.fitv0 or not args.rn:
+        v0 = meta.get('fit_rn_v0', 0.1)
+        sgn = np.sign(v0)
+        p0 += [v0]
+    if not (args.nn or args.rn):
+        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
+        p0 += [D_R]
+
     fitform = lambda s, D, v=v0, DR=D_R:\
               2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
-    p0 = [0]
-    if not (args.nn or args.rn):
-        p0 += [v0, D_R]
-    elif args.fitv0 or not args.rn:
-        p0 += [v0]
+
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
                                p0=p0, sigma=sigma[:fmax])
