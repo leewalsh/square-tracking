@@ -1044,9 +1044,12 @@ def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
 
 
 def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
-                  relative=None, const=None, xnorm=None):
+                  relative=None, const=None, xnorm=None, ignore=None):
     if x is None:
         x = np.arange(len(arr))
+    if ignore is not None:
+        x0 = np.searchsorted(x, 0)
+        ignore = np.array([x0-1, x0, x0+1][x0 < 1:])
     if plot:
         ax = plot if isinstance(plot, plt.Axes) else plt.gca()
         plot = True
@@ -1059,6 +1062,7 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
     for const, relative, xnorm in mods:
         signame = 'std_err'
         sigma = std_err.copy()
+        sigma[ignore] = np.inf
         if plot:
             c = colors.next()
             if signame not in plotted:
@@ -1288,16 +1292,16 @@ if __name__=='__main__' and args.nn:
         nnerrax = False
     nnuncert = args.dtheta/rt2
     sigma = sigma_for_fit(meancorr, errcorr, x=taus,
-                          plot=nnerrax, const=nnuncert)
+                          plot=nnerrax, const=nnuncert, ignore=True)
     if nnerrax:
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
     # Fit to functional form:
-    fitform = lambda s, DR: 0.5*np.exp(-DR*s)
-    fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     D_R = meta.get('fit_nn_DR', 0.1)
     p0 = [D_R]
+    fitform = lambda s, DR: 0.5*np.exp(-DR*s)
+    fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1369,7 +1373,8 @@ if __name__=='__main__' and args.rn:
     else:
         rnerrax = False
     rnuncert = np.hypot(args.dtheta, args.dx)/rt2
-    sigma = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax, const=rnuncert)
+    sigma = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
+                          const=rnuncert, ignore=True)
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1463,7 +1468,7 @@ if __name__=='__main__' and args.rr:
         rrerrax = False
     rruncert = rt2*args.dx
     sigma = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
-                          const=rruncert, xnorm=1)
+                          const=rruncert, xnorm=1, ignore=True)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
         if save:
