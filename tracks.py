@@ -840,10 +840,10 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         print 'msd_err min max:', msd_err[:-1].min()/A, msd_err[:-1].max()/A
         print 'shape of msd_err:', msd_err.shape
     if verbose > 1:
-        global errfig
+        global rrerrfig
         oldax = plt.gca()
-        errfig = plt.figure()
-        erraxl = errfig.gca()
+        rrerrfig = plt.figure()
+        erraxl = rrerrfig.gca()
         erraxl.set_xscale('log')
         erraxl.set_yscale('log')
         erraxl.plot(taus/fps, msd_std/A, '.c', label='stddev')
@@ -1109,9 +1109,7 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
             print 'sigprint', sigprint(sigma)
     if plot:
         ax.legend(loc='upper left', fontsize='x-small')
-        return sigma, ax
-    else:
-        return sigma
+    return sigma
 
 
 sigfmt = ('{:7.4g}, '*5)[:-2].format
@@ -1289,24 +1287,8 @@ if __name__=='__main__' and args.nn:
     else:
         nnerrax = False
     nnuncert = args.dtheta/rt2
-    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
-                               relative=False, const=nnuncert, xnorm=False)
-    errstd = np.nanstd(errcorr, ddof=1)
-    if verbose:
-        print "Merged nn corrs"
-        sigma = errcorr
-        helpy.nan_info(sigma, True)
-        print 'stderr for <nn>:', sigprint(sigma)
-        nnerrax.plot(taus, sigma, 'xr', label='old sigma')
-
-        sigadd = eps*errstd
-        sigma = errcorr + sigadd
-        print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
-        print ' sigma for <nn>:', sigprint(sigma)
-        nnerrax.plot(taus, sigma, '+r', label='old sigma+eps*std USED')
-    else:
-        sigma = errcorr + eps*errstd
+    sigma = sigma_for_fit(meancorr, errcorr, x=taus,
+                          plot=nnerrax, const=nnuncert)
     if nnerrax:
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
@@ -1386,23 +1368,7 @@ if __name__=='__main__' and args.rn:
     else:
         rnerrax = False
     rnuncert = np.hypot(args.dtheta, args.dx)/rt2
-    sigma_func = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                               const=rnuncert)
-    errstd = np.nanstd(errcorr, ddof=1)
-    if verbose:
-        print "Merged rn corrs"
-        sigma = errcorr
-        helpy.nan_info(sigma, True)
-        print 'stderr for <rn>:', sigprint(sigma)
-        rnerrax.plot(taus, sigma, 'xr', label='old sigma')
-        sigadd = eps*errstd
-        sigma = errcorr + sigadd
-        print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
-        print ' sigma for <rn>:', sigprint(sigma)
-        rnerrax.plot(taus, sigma, '+r', label='old sigma+eps*std USED')
-    else:
-        sigma = errcorr + eps*errstd
+    sigma = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax, const=rnuncert)
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1483,65 +1449,22 @@ if __name__=='__main__' and args.rr:
         tnormalize=False, errorbars=5, prefix=saveprefix, show_tracks=True,
         meancol='ok', singletracks=args.singletracks, fps=args.fps, S=args.side,
         kill_flats=args.killflat, kill_jumps=args.killjump*args.side**2)
-    if verbose > 1:
-        erraxl, erraxr = errfig.axes
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
     if verbose > 1:
-        rrerrfig, rrerrax = plt.subplots()
+        rrerrax = rrerrfig.axes[0]
         rrerrax.set_yscale('log')
         rrerrax.set_xscale('log')
     else:
         rrerrax = False
     rruncert = rt2*args.dx
-    sigma_func = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
-                               const=rruncert, xnorm=1)
-    errstd = np.nanstd(errcorr, ddof=1)
-    relstd = np.nanstd(errcorr/msd, ddof=1)
-    if verbose:
-        print "Merged rr/msd corrs"
-        sigma = errcorr
-        helpy.nan_info(sigma, True)
-        print 'stderr for <rr>:', sigprint(sigma)
-        if verbose > 1:
-            erraxl.plot(taus, errcorr, '.k', label='sigma orig')
-            erraxl.plot(taus, errcorr/msd, ':k', label='sigma/msd')
-            erraxl.plot(taus, taus, '-k', label='tau')
-            erraxl.plot(taus, np.log1p(taus), '--k', label='log(1+tau)')
-        rrerrax.plot(taus, sigma, 'xr', label='old sigma')
-
-        sigadd = eps*errstd
-        sigma = errcorr + sigadd
-        print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
-        print ' sigma for <rr>:', sigprint(sigma)
-        if verbose > 1:
-            erraxl.plot(taus, sigma, '.g', label='sigma + eps*std')
-            erraxl.plot(taus, sigma*taus, '-g', label='(sigma+)*tau')
-            erraxl.plot(taus, sigma*np.log1p(taus), '--g', label='(sigma+)*log(tau+1)')
-        rrerrax.plot(taus, sigma, '+r', label='old sigma+eps*elstd')
-
-        sigadd = eps*relstd
-        sigma = errcorr + sigadd
-        print '         adding:',
-        print 'eps*std = {:.4g}*{:.4g} = {:.4g}'.format(eps, errstd, sigadd)
-        print ' sigma for <rr>:', sigprint(sigma)
-        if verbose > 1:
-            erraxl.plot(taus, sigma, '.r', label='sigma + eps*std_rel')
-            erraxl.plot(taus, sigma*taus, '-r', label='(sigma_rel+)*tau')
-            erraxl.legend(loc='upper left', fontsize='x-small')
-        rrerrax.plot(taus, sigma, '*r', label='old sigma+eps*elstd')
-
-        sigma *= taus
-        print 'sigma*taus:', sigprint(sigma)
-        rrerrax.plot(taus, sigma, 'or', label='old (sigma+eps*relstd)*tau USED')
+    sigma = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
+                          const=rruncert, xnorm=1)
+    if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
-    else:
-        sigma = errcorr + eps*errstd
-        sigma *= taus
-    if verbose:
-        print np.count_nonzero(np.isnan(sigma[:fmax])), 'nans in fitting range'
+        if save:
+            rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
     if not args.nn:
         D_R = 1
@@ -1593,8 +1516,8 @@ if __name__=='__main__' and args.rr:
     ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = ax.set_xlim(taus[0], tmax)
     if verbose > 1:
-        erraxl.set_xlim(taus[0], taus[-1])
-        map(erraxl.axvline, xlim)
+        rrerrax.set_xlim(taus[0], taus[-1])
+        map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
 
     tau_T = D_T/v0**2
@@ -1611,9 +1534,6 @@ if __name__=='__main__' and args.rr:
         print 'saving <rr> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
-        if verbose > 1:
-            errfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
-            rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
 if __name__ == '__main__' and need_plt:
     if args.show:
