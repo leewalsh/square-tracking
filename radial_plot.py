@@ -8,6 +8,13 @@ if len(sys.argv) < 3:
           "[avg]? [log]?")
     sys.exit(0)
 
+'''
+Plots "radial" (valency) statistics and outputs the results to a PNG file.
+
+Example usage:
+radial_plot.py 12x12_random msd avg
+'''
+
 extra_params = sys.argv[3:]
 avg = 'avg' in extra_params
 avg_test = 'avg_test' in extra_params

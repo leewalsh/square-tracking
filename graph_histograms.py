@@ -5,6 +5,21 @@ import numpy as np
 import pygame
 from pygame.locals import QUIT
 
+'''
+Graphs a plot of histograms over time for a given statistic
+(either psi or density). For example, if the statistic is
+psi, at any horizontal position t (corresponding to time t in frames)
+there will be a vertical strip with colors corresponding to the
+frequency at which particles at time t have psi value within the
+corresponding range. There is also a black curve corresponding to
+either the mean psi value or the median density value. Append
+"save" or "s" at the end of sys.argv to save the resultant plot
+as PNG.
+
+Example usage:
+graph_histograms.py densities s
+'''
+
 def plot(data, width, height, bins=100, contrast=1,
          colormap='rainbow', avg='median'):
     '''

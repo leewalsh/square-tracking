@@ -7,7 +7,17 @@ if len(sys.argv) < 3:
     print("Format: avg_histograms.py [file base] [psi/densities] [log]?")
     sys.exit(0)
 
+'''
+Amalgamates the black curves from graph_histograms.py (median densities
+or mean psi), over all orientations.
+
+Example usage:
+avg_histograms.py 7x7 psi
+'''
+
 ORIENTATIONS = [("aligned", 3), ("inward", 3), ("outward", 3), ("random", 4)]
+# FIXME: ^ these are the number of trials for each orientation, but only
+# for the 7x7
 
 fname, stat = sys.argv[1], sys.argv[2]
 

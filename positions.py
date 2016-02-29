@@ -48,7 +48,7 @@ import skimage
 skversion = version(skimage.__version__)
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, binary_erosion, convolve, center_of_mass, imread
+from scipy.ndimage import gaussian_filter, binary_erosion, convolve, imread
 if skversion < version('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
@@ -116,7 +116,6 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
             rmv     if given, the positions at which to remove large dots
             kern   kernel size
     """
-    # Michael removed disks post-convolution
     if rmv is not None:
         im = remove_disks(im, *rmv)
     if kern == 0:
@@ -133,7 +132,6 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         thresh = convolved.mean() + thresh*convolved.std()
 
     labels = sklabel(convolved > thresh)
-    #print "found {} segments above thresh".format(labels.max())
     return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
@@ -315,10 +313,10 @@ if __name__ == '__main__':
         args.max = 2*kern_area
         if args.verbose: print "using max =", args.max
 
-    thresh = {'center': {'max_ecc' : args.ecc,
+    thresh = {'center': {'max_ecc': args.ecc,
                          'min_area': args.min,
                          'max_area': args.max,
-                         'kern'   : args.kern}}
+                         'kern': args.kern}}
 
     if args.ckern:
         args.both = True
@@ -326,11 +324,10 @@ if __name__ == '__main__':
         ckern_area = np.pi*args.ckern**2
         if args.cmin == -1: args.cmin = ckern_area/2
         if args.cmax == -1: args.cmax = 2*ckern_area
-        thresh.update({'corner':
-                        {'max_ecc' : args.cecc,
-                         'min_area': args.cmin,
-                         'max_area': args.cmax,
-                         'kern'   : args.ckern}})
+        thresh.update({'corner': {'max_ecc': args.cecc,
+                                  'min_area': args.cmin,
+                                  'max_area': args.cmax,
+                                  'kern': args.ckern}})
     dots = sorted(thresh)
 
     if args.select:
@@ -367,7 +364,7 @@ if __name__ == '__main__':
         image = prep_image(filename)
         ret = []
         for dot in dots:
-            rmv = None if dot=='center' else (pts, abs(args.kern))
+            rmv = None if dot == 'center' else (pts, abs(args.kern))
             out = find_particles(image, method='convolve', circ=circ,
                     rmv=rmv, return_image=args.plot>2, **thresh[dot])
             pts = out[0]

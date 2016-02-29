@@ -3,6 +3,11 @@ from orientation import find_corner
 import sys
 import numpy as np
 
+'''
+Given an input prefix, looks at the associated NumPy files
+for positions and corners and correlates the two.
+'''
+
 if len(sys.argv) < 2:
     print("Please specify a filename")
     sys.exit(0)

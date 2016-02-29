@@ -7,13 +7,30 @@ import sys
 import numpy as np
 from random import random
 
+'''
+This program displays a basic animation of particle movement
+based on an input text file (of positions) or NumPy .npz file.
+Press space to pause or play and the arrow keys to navigate
+frame-by-frame while paused. Appending a float to the
+end of sys.argv will change the speed of animation
+by that factor (e.g. 0.1 will make the animation 10
+times slower). Click on the screen to begin.
+
+Example usage:
+animation.py 12x12_random_POSITIONS.txt
+animation.py 12x12_random_POSITIONS.txt 0.1
+'''
+
+def find_COM(frame):
+    return (sum([p[0] for p in frame]) / len(frame),
+            sum([p[1] for p in frame]) / len(frame))
+
 if len(sys.argv) < 2:
     print("Please specify a filename")
     sys.exit(0)
 
-DX = 0#300
-DY = 0#300
-MSD_TEST = False
+DX = 0
+DY = 0
 L = 10
 k = 1
 
@@ -37,10 +54,6 @@ for row in positions:
         frame = []
     frame.append((row[1], row[2], row[3]))
 frames.append(frame)
-
-def find_COM(frame):
-    return (sum([p[0] for p in frame]) / len(frame),
-            sum([p[1] for p in frame]) / len(frame))
 
 COM = find_COM(frames[0])
 dists = [((row[1]-COM[0])**2 + (row[2]-COM[1])**2, row[3])
@@ -73,11 +86,6 @@ font = pygame.font.Font(None, 36)
 font2 = pygame.font.Font(None, 15)
 COLORS = {}
 COLORS2 = {}
-'''for ID in valencies:
-    s = valencies[ID]
-    COLORS[ID] = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 255, 255),
-                  (255, 255, 0), (255, 0, 255), (0, 0, 0)][s-1]
-    COLORS2[ID] = np.asarray(COLORS[ID]) / 2.'''
 
 for i in range(10000):
     COLORS[i]=(0,0,0)
@@ -113,20 +121,6 @@ while running and t < len(frames):
     for x, y, ID in frames[t]:
         pygame.draw.rect(screen, COLORS[ID], (k*x-L-DX, k*y-L-DY,k*L,k*L), 0)
 
-    if MSD_TEST and t+tau<len(frames):
-        for x, y, ID in frames[t+tau]:
-            for x0, y0, ID0 in frames[t]:
-                if ID==ID0:
-                    break
-            else:
-                print("ID {0} has a disconnect from frames {1} to {2}!".
-                      format(ID, t, t+tau))
-                continue
-            pygame.draw.rect(screen, COLORS2[ID], (k*x-L-DX,k*y-L-DY,2*L,2*L), 0)
-            pygame.draw.line(screen, (0,0,0), (k*x-DX,k*y-DY),(k*x0-DX,k*y0-DY))
-            dist = (x0-x)**2 + (y0-y)**2
-            lbl = font2.render("%.1f"%(dist**.5), 1, (0, 0, 0))
-            screen.blit(lbl, (k*x-DX,k*y-DY+10))
     pygame.display.flip()
     if not paused:
         t += 1

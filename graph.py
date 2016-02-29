@@ -4,6 +4,15 @@ from matplotlib import pyplot as plt
 import numpy as np
 import sys
 
+'''
+Displays a plot of the areas or eccentricities of particles detected
+by positions.py. Use "c" for a corners file.
+
+Example usage:
+graph.py area
+graph.py c ecc
+'''
+
 if len(sys.argv) < 2:
     print("Please specify an argument")
     sys.exit(0)

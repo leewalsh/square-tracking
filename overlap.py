@@ -5,6 +5,12 @@ from PIL import Image, ImageTk
 import math
 from square_length import get_length
 
+'''
+Program to detect possible overlap between particles.
+Adjust resize_factor in make_square to change the tolerance
+for detecting overlap.
+'''
+
 def intersects(square1, square2):
     '''xvals = [square1[0][0], square1[1][0], square1[2][0], square1[3][0]]
     right1 = max(xvals)

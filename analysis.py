@@ -3,8 +3,23 @@ import sys
 import numpy as np
 from scipy.spatial import KDTree, Voronoi
 from math import sqrt
-
 import math
+
+'''
+This program inputs a positions file (probably produced by
+tracks_to_pos.py) and creates a .npz file containing analysis
+of the particle positions with the following quantities:
+* Psi
+* Densities
+* "Radial" psi (organized by valency shell)
+* Radial densities
+* Radial r (r being the distance from the crystal's center of mass)
+* Radial speed (per frame)
+* Radial MSD (with a fixed tau=5 frames).
+
+Example usage:
+analysis.py 12x12_random
+'''
 
 def get_angle(p, q):
     # angle of (q - p) from the horizontal
