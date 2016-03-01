@@ -262,12 +262,7 @@ if __name__ == '__main__':
     import shutil
 
     first = args.files[0]
-    if '*' in first or '?' in first:
-        from glob import glob
-        filenames = sorted(glob(first))
-        filepattern = first
-        argv = 'argv'
-    elif len(args.files) > 1:
+    if len(args.files) > 1:
         filenames = sorted(args.files)
         filepattern = reduce(helpy.str_union, args.files)
         i = sys.argv.index(first)
@@ -275,8 +270,11 @@ if __name__ == '__main__':
         argv.insert(i, filepattern)
         argv[0] = path.basename(argv[0])
         argv = ' '.join(argv)
-    elif len(args.files)==1:
-        filenames = sorted(args.files)
+    else:
+        from glob import glob
+        filenames = sorted(glob(first))
+        filepattern = first
+        argv = 'argv'
 
     if args.plot and len(filenames) > 10:
         args.plot = helpy.bool_input(
