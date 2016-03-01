@@ -1471,7 +1471,7 @@ if __name__=='__main__' and args.rr:
                           const=rruncert, xnorm=1, ignore=True)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
-        if save:
+        if args.save:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
 
