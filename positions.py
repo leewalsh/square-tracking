@@ -16,7 +16,7 @@ if __name__ == '__main__':
                    help='Output file')
     p.add_argument('-z', '--nozip', action='store_false', dest='gz',
                    help="Don't compress output files?")
-    p.add_argument('-N', '--threads', default=-1, type=int,
+    p.add_argument('-N', '--threads', type=int,
                    help='Number of worker threads for parallel processing. '
                         'Uses all available cores if 0')
     p.add_argument('-s', '--select', action='store_true',
@@ -384,10 +384,10 @@ if __name__ == '__main__':
     threads = args.threads
     if threads < 1:
         cpus = cpu_count()
-        if threads==-1:
-            threads = int(raw_input(
-                "How many cpu threads to use? [{}] ".format(cpus)) or 0)
-    threads = threads or cpus
+        if threads is None:
+            print "How many cpu threads to use? [{}] ".format(cpus),
+            threads = int(raw_input() or cpus)
+    threads = bool(args.plot) or threads or cpus
     if threads > 1:
         print "Multiprocessing with {} threads".format(threads)
         p = Pool(threads)
