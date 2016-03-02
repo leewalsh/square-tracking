@@ -331,31 +331,37 @@ if __name__ == '__main__':
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
 
-    def plot_positions(savebase, level, pts, labels, convolved=None,):
+    if args.plot > 1:
+        def plot_scatter(pts, ax, s=10, c='r', cm=None):
+            xl, yl = ax.get_xlim(), ax.get_ylim()
+            ptsarr = np.asarray(pts)
+            if c == 'id':
+                c = ptsarr[:, 2]
+            pl.scatter(ptsarr[:,1], ptsarr[:,0], s=abs(s), c=c, cmap=cm)
+            pl.xlim(xl)
+            pl.ylim(yl)
+
+    def plot_positions(savebase, level, pts, labels, convolved=None, **pltargs):
         cm = pl.cm.prism_r
         pl.clf()
         labels_mask = labels.astype(float)
         labels_mask[labels_mask==0] = np.nan
         pl.imshow(labels_mask, cmap=cm, interpolation='nearest')
         ax = pl.gca()
-        xl, yl = ax.get_xlim(), ax.get_ylim()
         if level > 1:
-            ptsarr = np.asarray(pts)
-            pl.scatter(ptsarr[:,1], ptsarr[:,0], s=10, c='r')#ptsarr[:,2], cmap=cm)
-            pl.xlim(xl); pl.ylim(yl)
-        savename = savebase + '_POSITIONS.png'
+            plot_scatter(pts, ax, **pltargs)
+        savename = savebase + '_SEGMENTS.png'
         if args.verbose: print 'saving positions image to', savename
         pl.savefig(savename, dpi=300)
         if level > 2:
             pl.clf()
             pl.imshow(convolved, cmap='gray')
-            if args.plot > 3:
-                ptsarr = np.asarray(pts)
-                pl.scatter(ptsarr[:,1], ptsarr[:,0], s=10, c='r')#ptsarr[:,2], cmap=cm)
-                pl.xlim(xl); pl.ylim(yl)
+            if level > 3:
+                plot_scatter(pts, ax, **pltargs)
             savename = savebase + '_CONVOLVED.png'
-            if args.verbose: print 'saving positions with background to', savename
-            pl.savefig(savename, dpi=300)
+            if args.verbose:
+                print 'saving positions with background to', savename
+            pl.savefig(savename, dpi=dpi)
 
     def get_positions((n,filename)):
         circ = (co, ro) if args.select else None
@@ -368,12 +374,14 @@ if __name__ == '__main__':
             pts = out[0]
             nfound = len(pts)
             if nfound:
-                centers = np.hstack([np.full((nfound,1), n, 'f8'), pts])
+                centers = np.hstack([np.full((nfound, 1), n, 'f8'), pts])
             else:
                 centers = np.empty((0, 6)) # 6 = id + len(Segment)
             if args.plot:
-                savebase = path.join(outdir, path.splitext(path.basename(filename))[0])
-                plot_positions(savebase+'_'+dot.upper(), args.plot, *out)
+                savebase = '_'.join([prefix,
+                                     path.splitext(path.basename(filename))[0],
+                                     dot.upper()])
+                plot_positions(savebase, args.plot, *out, s=thresh[dot]['kern'])
             ret += [centers]
         if not n % print_freq:
             print path.basename(filename).rjust(20), 'Found',\
@@ -400,7 +408,18 @@ if __name__ == '__main__':
     firstframe = prefix+'_'+path.basename(filenames[0])
     shutil.copy(filenames[0], firstframe)
 
-    for dot, point, out in zip(dots, points, outs):
+    fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+    for dot, point, out, axis in zip(dots, points, outs, np.atleast_2d(axes)):
+        eax, aax = axis
+        eax.hist(point[:, 4], bins=20, range=(0,1), alpha=0.5, color='r', label=dot+' eccen')
+        eax.set_xlim(0, 1)
+        eax.axvline(thresh[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
+        eax.legend(loc='best')
+        aax.hist(point[:, 5], bins=20, alpha=0.5, color='g', label=dot+' area')
+        aax.axvline(thresh[dot]['min_area'], c='g', lw=2)
+        aax.set_xlim(0, thresh[dot]['max_area'])
+        aax.legend(loc='best')
+        fig.savefig(prefix+'_SEGMENTS.pdf')
         txt = '.txt'+'.gz'*gz
         print "Saving {} positions to {}{{{},.npz}}".format(dot, out, txt)
         header = ('Kern {kern:.2f}, Min area {min_area:d}, '
