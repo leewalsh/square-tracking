@@ -48,7 +48,7 @@ import skimage
 skversion = version(skimage.__version__)
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, binary_erosion, convolve, imread
+from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
 if skversion < version('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
@@ -230,26 +230,41 @@ def remove_segments(orig, particles, labels):
     """
     return
 
-def remove_disks(orig, particles, dsk):
-    """ remove_disks(method=['disk' or 'segment'])
-        removes a disk of given size centered at dot location
-        inputs:
-            orig   -    input image as ndarray or PIL Image
-            particles - list of particles (namedtuple Segment)
-            dsk   -    radius of disk, default is skimage.morphology.disk(r)
-                            (size of square array is 2*r+1)
-        output:
-            the original image with big dots removed
+def remove_disks(orig, particles, dsk, replace='sign', out=None):
+    """removes a disk of given size centered at dot location
+       inputs:
+           orig:      input image as ndarray or PIL Image
+           particles: list of particles (namedtuple Segment)
+           dsk:       radius of disk, default is skimage.morphology.disk(r)
+                          (size of square array is 2*r+1)
+           replace:   value to replace disks with. Generally should be 0, 1,
+                          0.5, the image mean, or 'mean' to calculate the mean,
+                          or 'sign' to use 0 or 1 depending on the sign of `dsk`
+           out:       array to save new value in (can be `orig` to do inplace)
+       output:
+           the original image with big dots replaced with `replace`
     """
-    if np.isscalar(dsk): dsk = disk(dsk)
-    disks = np.ones(orig.shape, 'uint8')
+    if np.isscalar(dsk):
+        sign = np.sign(dsk)
+        dsk = disk(abs(dsk))
+    else:
+        sign = 1
+    if replace == 'mean':
+        replace = orig.mean()
+    elif replace == 'sign':
+        replace = (1 - sign)/2
+
     if isinstance(particles[0], Segment):
-        xys = zip(*(map(int, (p.x, p.y)) for p in particles))
+        xys = zip(*(map(int, np.round((p.x, p.y))) for p in particles))
     elif 'X' in particles.dtype.names:
         xys = np.round(particles['X']).astype(int), np.round(particles['Y']).astype(int)
-    disks[xys] = 0
-    disks = binary_erosion(disks, dsk)
-    return orig*disks
+    disks = np.zeros(orig.shape, bool)
+    disks[xys] = True
+    disks = binary_dilation(disks, dsk)
+    if out is None:
+        out = orig.copy()
+    out[disks] = replace
+    return out
 
 if __name__ == '__main__':
     if helpy.gethost()=='foppl':
@@ -376,9 +391,9 @@ if __name__ == '__main__':
         image = prep_image(filename)
         ret = []
         for dot in dots:
-            rmv = None if dot == 'center' else (pts, abs(args.kern))
-            out = find_particles(image, method='convolve', circ=circ,
-                    rmv=rmv, return_image=args.plot>2, **thresh[dot])
+            rmv = None if dot == 'center' else (pts, args.kern)
+            out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
+                                 return_image=args.plot > 2, **thresh[dot])
             pts = out[0]
             nfound = len(pts)
             if nfound:
