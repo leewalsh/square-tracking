@@ -343,19 +343,27 @@ if __name__ == '__main__':
 
     def plot_positions(savebase, level, pts, labels, convolved=None, **pltargs):
         cm = pl.cm.prism_r
-        pl.clf()
+        # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
+        # pixels per inch. This may be unreliable, but assume that many image
+        # pixels per inch, and use integer multiples of that for dpi
+        # PPI = 112.14 if figsize (8, 6)
+        PPI = 84.638  # if figsize (8, 8)
+        dpi = 4*PPI
+
         labels_mask = labels.astype(float)
         labels_mask[labels_mask==0] = np.nan
+        pl.clf()
         pl.imshow(labels_mask, cmap=cm, interpolation='nearest')
         ax = pl.gca()
         if level > 1:
             plot_scatter(pts, ax, **pltargs)
         savename = savebase + '_SEGMENTS.png'
         if args.verbose: print 'saving positions image to', savename
-        pl.savefig(savename, dpi=300)
+        pl.savefig(savename, dpi=dpi)
         if level > 2:
             pl.clf()
             pl.imshow(convolved, cmap='gray')
+            ax = pl.gca()
             if level > 3:
                 plot_scatter(pts, ax, **pltargs)
             savename = savebase + '_CONVOLVED.png'
