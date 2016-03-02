@@ -326,10 +326,10 @@ if __name__ == '__main__':
         args.max = 2*kern_area
         if args.verbose: print "using max =", args.max
 
-    thresh = {'center': {'max_ecc': args.ecc,
-                         'min_area': args.min,
-                         'max_area': args.max,
-                         'kern': args.kern}}
+    sizes = {'center': {'max_ecc': args.ecc,
+                        'min_area': args.min,
+                        'max_area': args.max,
+                        'kern': args.kern}}
 
     if args.ckern:
         args.both = True
@@ -337,11 +337,11 @@ if __name__ == '__main__':
         ckern_area = np.pi*args.ckern**2
         if args.cmin == -1: args.cmin = ckern_area/2
         if args.cmax == -1: args.cmax = 2*ckern_area
-        thresh.update({'corner': {'max_ecc': args.cecc,
-                                  'min_area': args.cmin,
-                                  'max_area': args.cmax,
-                                  'kern': args.ckern}})
-    dots = sorted(thresh)
+        sizes.update({'corner': {'max_ecc': args.cecc,
+                                 'min_area': args.cmin,
+                                 'max_area': args.cmax,
+                                 'kern': args.ckern}})
+    dots = sorted(sizes)
 
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
@@ -393,7 +393,7 @@ if __name__ == '__main__':
         for dot in dots:
             rmv = None if dot == 'center' else (pts, args.kern)
             out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
-                                 return_image=args.plot > 2, **thresh[dot])
+                                 return_image=args.plot > 2, **sizes[dot])
             pts = out[0]
             nfound = len(pts)
             if nfound:
@@ -404,7 +404,7 @@ if __name__ == '__main__':
                 savebase = '_'.join([prefix,
                                      path.splitext(path.basename(filename))[0],
                                      dot.upper()])
-                plot_positions(savebase, args.plot, *out, s=thresh[dot]['kern'])
+                plot_positions(savebase, args.plot, *out, s=sizes[dot]['kern'])
             ret += [centers]
         if not n % print_freq:
             print path.basename(filename).rjust(20), 'Found',\
@@ -436,21 +436,21 @@ if __name__ == '__main__':
         eax, aax = axis
         eax.hist(point[:, 4], bins=20, range=(0,1), alpha=0.5, color='r', label=dot+' eccen')
         eax.set_xlim(0, 1)
-        eax.axvline(thresh[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
+        eax.axvline(sizes[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
         eax.legend(loc='best')
         aax.hist(point[:, 5], bins=20, alpha=0.5, color='g', label=dot+' area')
-        aax.axvline(thresh[dot]['min_area'], c='g', lw=2)
-        aax.set_xlim(0, thresh[dot]['max_area'])
+        aax.axvline(sizes[dot]['min_area'], c='g', lw=2)
+        aax.set_xlim(0, sizes[dot]['max_area'])
         aax.legend(loc='best')
         fig.savefig(prefix+'_SEGMENTS.pdf')
         txt = '.txt'+'.gz'*gz
         print "Saving {} positions to {}{{{},.npz}}".format(dot, out, txt)
-        header = ('Kern {kern:.2f}, Min area {min_area:d}, '
+        hfmt = ('Kern {kern:.2f}, Min area {min_area:d}, '
           'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
           'Frame    X           Y             Label  Eccen        Area').format
-        np.savetxt(out+txt, point, delimiter='     ', header=header(**thresh[dot]),
+        np.savetxt(out+txt, point, delimiter='     ', header=hfmt(**sizes[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
         helpy.txt_to_npz(out+txt, verbose=args.verbose, compress=gz)
         key_prefix = 'corner_' if dot=='corner' else ''
         helpy.save_meta(prefix, {key_prefix+k: v
-                                 for k, v in thresh[dot].iteritems()})
+                                 for k, v in sizes[dot].iteritems()})
