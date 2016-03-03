@@ -123,7 +123,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         im = remove_disks(im, *rmv)
     if kern == 0:
         raise ValueError('kernel size `kern` not set')
-    kernel = np.sign(kern)*gdisk(abs(kern))
+    kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
     convolved = convolve(im, kernel)
     if args.plot > 1:
         snapshot('kern', kernel)
