@@ -368,41 +368,53 @@ if __name__ == '__main__':
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
 
-    def plot_scatter(pts, ax, s=10, c='r', cm=None):
-        xl, yl = ax.get_xlim(), ax.get_ylim()
-        ptsarr = np.asarray(pts)
-        if c == 'id':
-            c = ptsarr[:, 2]
-        pl.scatter(ptsarr[:,1], ptsarr[:,0], s=abs(s), c=c, cmap=cm)
-        pl.xlim(xl)
-        pl.ylim(yl)
-
-    def plot_positions(save, pts, labels, convolved=None, **pltargs):
-        cm = 'prism_r'
+    def plot_points(pts, img, save, s=10, c='r', cm=None,
+                    vmin=None, vmax=None, interp=None, cbar=False):
+        fig, ax = pl.subplots(figsize=(8+2*cbar, 8))
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
         # pixels per inch, and use integer multiples of that for dpi
         # PPI = 112.14 if figsize (8, 6)
         PPI = 84.638  # if figsize (8, 8)
         dpi = 4*PPI
+        axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax, interpolation=interp)
+        if cbar:
+            fig.colorbar(axim)
+        xl, yl = ax.get_xlim(), ax.get_ylim()
+        s = abs(s)
+        helpy.draw_circles(helpy.consecutive_fields_view(pts, 'xy')[:, ::-1], s,
+                           ax, lw=max(s/10, .5), color=c, fill=False, zorder=2)
+        if s > 3:
+            ax.scatter(pts['y'], pts['x'], s, c, '+')
+        ax.set_xlim(xl)
+        ax.set_ylim(yl)
+        fig.savefig(save, dpi=dpi)
+        pl.close(fig)
 
-        labels_mask = labels.astype(float)
-        labels_mask[labels_mask==0] = np.nan
-        pl.clf()
-        pl.imshow(labels_mask, cmap=cm, interpolation='nearest')
-        ax = pl.gca()
-        plot_scatter(pts, ax, **pltargs)
-        savename = save + '_SEGMENTS.png'
-        if args.verbose: print 'saving positions image to', savename
-        pl.savefig(savename, dpi=dpi)
-        pl.clf()
-        pl.imshow(convolved, cmap='gray')
-        ax = pl.gca()
-        plot_scatter(pts, ax, **pltargs)
-        savename = save + '_CONVOLVED.png'
-        if args.verbose:
-            print 'saving positions with background to', savename
-        pl.savefig(savename, dpi=dpi)
+    def plot_positions(save, segments, labels, convolved=None, **pltargs):
+        Segment_dtype = np.dtype({'names': Segment._fields,
+                                  'formats': [float, float, int, float, float]})
+        pts = np.asarray(segments, dtype=Segment_dtype)
+        pts_by_label = np.zeros(labels.max()+1, dtype=Segment_dtype)
+        pts_by_label[0] = (np.nan, np.nan, 0, np.nan, np.nan)
+        pts_by_label[pts['label']] = pts
+
+        plot_points(pts, convolved, c='r', cm='gray',
+                    save=save+'_1CONVOLVED.png', **pltargs)
+
+        labels_mask = np.where(labels, labels, np.nan)
+        plot_points(pts, labels_mask, c='k', cm='prism_r', interp='nearest',
+                    save=save+'_2SEGMENTS.png', **pltargs)
+
+        ecc_map = labels_mask*0
+        ecc_map.flat = pts_by_label[labels.flat]['ecc']
+        plot_points(pts, ecc_map, c='k', vmin=0, vmax=1, interp='nearest',
+                    cbar=True, save=save+'_3ECCEN.png', **pltargs)
+
+        area_map = labels_mask*0
+        area_map.flat = pts_by_label[labels.flat]['area']
+        plot_points(pts, area_map, c='k', cbar=True, interp='nearest',
+                    save=save+'_4AREA.png', **pltargs)
 
     def get_positions((n, filename)):
         global snapshot_num
