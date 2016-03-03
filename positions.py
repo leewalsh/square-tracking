@@ -135,7 +135,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
     if rmv is not None:
         thresh -= 1  # smaller threshold for corners
     threshed = convolved > convolved.mean() + thresh*convolved.std()
-    labels = sklabel(threshed)
+    labels = sklabel(threshed, connectivity=1)
     if args.plot > 1:
         snapshot('threshed', threshed)
         snapshot('labeled', np.where(labels, labels, np.nan), cmap='prism_r')
