@@ -365,15 +365,22 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
 def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
                       f_nums=None, side=None, rc=None, verbose=False):
 
+    global f_idx, f_num, xlim, ylim
+
     def advance(event):
+        global f_idx, f_num, xlim, ylim
         key = event.key
         if verbose:
             print '\tpressed {}'.format(key),
-        global f_idx, f_num
         if key in ('left', 'up'):
+            # going back resets to original limits, so fix them here
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
             if f_idx >= 1:
                 f_idx -= 1
         elif key in ('right', 'down'):
+            # save new limits in case we go back and need to fix them
+            xlim, ylim = ax.get_xlim(), ax.get_ylim()
             if f_idx < f_max - 1:
                 f_idx += 1
         elif key == 'b':
@@ -395,13 +402,16 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
 
     if side <= 1:
         side = 17
-    txtoff = max(rc, side, 10)
+    txtoff = max(rc, side/2)
+    drc = drc or meta.get('orient_drcorner') or np.sqrt(rc)
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
-    fig = plt.figure(figsize=(12, 12))
-    p = plt.imshow(imstack[0], cmap='gray')
+    fig, ax = plt.subplots(figsize=(12, 12))
+    p = ax.imshow(imstack[0], cmap='gray')
     h, w = imstack[0].shape
-    ax = p.axes
+    xlim, ylim = (0, w), (0, h)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     need_legend = True
 
     if meta and meta.get('track_cut', False):
@@ -412,7 +422,6 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
                                                 color='r', fill=False, zorder=1)
         cutpatch.set_label('cut margin')
 
-    global f_idx, f_num
     lengths = map(len, [imstack, fsets, fcsets])
     f_max = min(lengths)
     assert f_max, 'Lengths imstack: {}, fsets: {}, fcsets: {}'.format(*lengths)
@@ -454,13 +463,13 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
             patches = helpy.draw_circles(xyo[:, 1::-1], rc, ax=ax,
                                          color='g', fill=False, zorder=.5)
             remove.extend(patches)
-        q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
-                       width=side/8, scale_units='xy', scale=1/side)
-        ps = plt.scatter(y, x, c='r')
-        cs = plt.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
+        q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
+                      width=side/8, scale_units='xy', scale=1/side)
+        ps = ax.scatter(y, x, c='r')
+        cs = ax.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner').reshape(-1, 2)
-            ocs = plt.scatter(oc[:,1], oc[:,0], c='orange', s=8)
+            ocs = ax.scatter(oc[:,1], oc[:,0], c='orange', s=8)
             remove.append(ocs)
         remove.extend([q, ps, cs])
 
@@ -471,7 +480,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
         nts = np.count_nonzero(ts >= 0)
         nos = np.count_nonzero(omask)
         ncs = len(o)
-        plt.title(title.format(f_num, nos, nts, ncs))
+        ax.set_title(title.format(f_num, nos, nts, ncs))
 
         if need_legend:
             need_legend = False
@@ -485,14 +494,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
                 cs.set_label('unused corner')
                 ocs.set_label('used corners')
             txt[0].set_label('track id')
-            plt.legend(fontsize='small')
+            ax.legend(fontsize='small')
 
-        plt.xlim(0, w)
-        plt.ylim(0, h)
         fig.canvas.draw()
-
-        plt.waitforbuttonpress()
         fig.canvas.mpl_connect('key_press_event', advance)
+        plt.waitforbuttonpress()
         for rem in remove:
             rem.remove()
         if verbose:
