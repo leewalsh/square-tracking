@@ -925,6 +925,35 @@ def circle_click(im):
     plt.show()
     return xo, yo, r
 
+
+def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
+    """draw circles on an axis
+
+    parameters:
+        centers:    one or a list of (x, y) pairs
+        rs:         one or a list of radii (in data units)
+        ax or fig:  axis or figure on which to draw
+        kwargs:     arguments passed to the patch (e.g.: color, fill, zorder)
+
+    returns:
+        patches:    a list of the patch objects
+    """
+    from matplotlib.patches import Circle
+    if np.isscalar(rs):
+        rs = it.repeat(rs)
+    centers = np.atleast_2d(centers)
+    patches = [Circle(c, abs(r), **kwargs) for c, r in it.izip(centers, rs)]
+    if ax is None:
+        if fig is None:
+            from matplotlib.pyplot import gca
+            ax = gca()
+        else:
+            ax = fig.gca()
+    map(ax.add_patch, patches)
+    ax.figure.canvas.draw()
+    return patches
+
+
 def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
     """ Take a finite derivative of f(x) using convolution with the derivative
         of a gaussian kernel.  For any convolution:

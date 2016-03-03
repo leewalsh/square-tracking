@@ -365,8 +365,6 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
 def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
                       f_nums=None, side=None, rc=None, verbose=False):
 
-    from matplotlib.patches import Circle
-
     def advance(event):
         key = event.key
         if verbose:
@@ -395,15 +393,6 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
 
     plt_text = np.vectorize(plt.text)
 
-    def draw_circles(ax, centers, rs, *args, **kwargs):
-        if np.isscalar(rs):
-            rs = it.repeat(rs)
-        patches = [Circle(c, r, *args, **kwargs)
-                   for c, r in it.izip(centers, rs)]
-        map(ax.add_patch, patches)
-        ax.figure.canvas.draw()
-        return patches
-
     if side <= 1:
         side = 17
     txtoff = max(rc, side, 10)
@@ -419,8 +408,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
         bndx, bndy, bndr = meta['track_boundary']
         cutr = bndr - meta['track_cut_margin']
         bndc = [[bndy, bndx]]*2
-        bndpatch, cutpatch = draw_circles(ax, bndc, [bndr, cutr],
-                                          color='r', fill=False, zorder=1)
+        bndpatch, cutpatch = helpy.draw_circles(bndc, [bndr, cutr], ax=ax,
+                                                color='r', fill=False, zorder=1)
         cutpatch.set_label('cut margin')
 
     global f_idx, f_num
@@ -462,8 +451,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
         p.set_data(imstack[f_idx])
         remove = []
         if rc > 0:
-            patches = draw_circles(ax, xyo[:, 1::-1], rc,
-                                   color='g', fill=False, zorder=.5)
+            patches = helpy.draw_circles(xyo[:, 1::-1], rc, ax=ax,
+                                         color='g', fill=False, zorder=.5)
             remove.extend(patches)
         q = plt.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                        width=side/8, scale_units='xy', scale=1/side)
