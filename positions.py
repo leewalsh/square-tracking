@@ -23,8 +23,10 @@ if __name__ == '__main__':
                    help='Open the first image and specify the circle of interest')
     p.add_argument('-b', '--both', action='store_true',
                    help='find both center and corner dots')
-    p.add_argument('--slr', action='store_true',
-                   help='Full resolution SLR was used')
+    p.add_argument('--remove', action='store_true',
+                   help='Remove large-dot masks before small-dot convolution')
+    p.add_argument('--thresh', type=float, default=3, help='Binary threshold '
+                   'for defining segments, in units of standard deviation')
     p.add_argument('-k', '--kern', default=0, type=float, required=True,
                    help='Kernel size for convolution')
     p.add_argument('--min', default=-1, type=int,
@@ -126,21 +128,20 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
     convolved -= convolved.min()
     convolved /= convolved.max()
 
-    if isinstance(thresh, int):
-        if rmv is not None:
-            thresh -= 1 # smaller threshold for corners
-        thresh = convolved.mean() + thresh*convolved.std()
-
-    labels = sklabel(convolved > thresh)
+    if rmv is not None:
+        thresh -= 1  # smaller threshold for corners
+    threshed = convolved > convolved.mean() + thresh*convolved.std()
+    labels = sklabel(threshed)
     return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
 def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
                     circ=None, intensity=None, **extra_args):
-    """ filter_segments(labels, max_ecc=0.5, min_area=15, max_area=200) -> [Segment]
-        Returns a list of Particles and masks out labels for
-        particles not meeting acceptance criteria.
+    """filter_segments(labels, max_ecc, min_area, max_area) -> [Segment]
+
+    Returns a list of Particles and masks out labels for
+    particles not meeting acceptance criteria.
     """
     pts = []
     strengths = []
@@ -185,11 +186,12 @@ def prep_image(imfile):
     return im
 
 def find_particles(im, method, return_image=False, **kwargs):
-    """ find_particles(im, method, **kwargs) -> [Segment],labels
-        Find the particles in image im. The arguments in kwargs is
-        passed to label_particles and filter_segments.
+    """find_particles(im, method, **kwargs) -> [Segment], labels
 
-        Returns the list of found particles and the label image.
+    Find the particles in image im. The arguments in kwargs is
+    passed to label_particles and filter_segments.
+
+    Returns the list of found particles and the label image.
     """
     intensity = None
     if method == 'walker':
@@ -391,21 +393,25 @@ if __name__ == '__main__':
         image = prep_image(filename)
         ret = []
         for dot in dots:
-            rmv = None if dot == 'center' else (pts, args.kern)
-            out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
-                                 return_image=args.plot > 2, **sizes[dot])
-            pts = out[0]
-            nfound = len(pts)
-            if nfound:
-                centers = np.hstack([np.full((nfound, 1), n, 'f8'), pts])
+            if args.remove and dot == 'corner':
+                rmv = segments, args.kern
             else:
-                centers = np.empty((0, 6)) # 6 = id + len(Segment)
+                rmv = None
+            out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
+                                 thresh=args.thresh, return_image=args.plot > 2,
+                                 **sizes[dot])
+            segments = out[0]
+            nfound = len(segments)
+            if nfound:
+                centers = np.hstack([np.full((nfound, 1), n, 'f8'), segments])
+            else:  # empty line of length 6 = id + len(Segment)
+                centers = np.empty((0, 6))
             if args.plot:
-                savebase = '_'.join([prefix,
-                                     path.splitext(path.basename(filename))[0],
-                                     dot.upper()])
-                plot_positions(savebase, args.plot, *out, s=sizes[dot]['kern'])
-            ret += [centers]
+                save = '_'.join([prefix,
+                                 path.splitext(path.basename(filename))[0],
+                                 dot.upper()])
+                plot_positions(save, args.plot, *out, s=sizes[dot]['kern'])
+            ret.append(centers)
         if not n % print_freq:
             print path.basename(filename).rjust(20), 'Found',\
               ', '.join(['{:3d} {}s'.format(len(r),d) for r,d in zip(ret,dots)])
