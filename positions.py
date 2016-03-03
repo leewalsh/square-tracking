@@ -9,7 +9,7 @@ if __name__ == '__main__':
     p.add_argument('files', metavar='FILE', nargs='+',
                    help='Images to process')
     p.add_argument('-p', '--plot', action='count',
-                   help="Produce a plot for each image. Use more p's for more images")
+                   help="Produce plots for each image. Two p's gives lots more")
     p.add_argument('-v', '--verbose', action='count',
                    help="Control verbosity")
     p.add_argument('-o', '--output', default='POSITIONS.txt',
@@ -104,6 +104,7 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     labels[im>max_thresh*im.max()] = 2
     return random_walker(im, labels)
 
+
 def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
     """ label_particles_convolve(im, thresh=2)
         Returns the labels for an image
@@ -124,6 +125,9 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         raise ValueError('kernel size `kern` not set')
     kernel = np.sign(kern)*gdisk(abs(kern))
     convolved = convolve(im, kernel)
+    if args.plot > 1:
+        snapshot('kern', kernel)
+        snapshot('convolved', convolved)
 
     convolved -= convolved.min()
     convolved /= convolved.max()
@@ -132,6 +136,9 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         thresh -= 1  # smaller threshold for corners
     threshed = convolved > convolved.mean() + thresh*convolved.std()
     labels = sklabel(threshed)
+    if args.plot > 1:
+        snapshot('threshed', threshed)
+        snapshot('labeled', np.where(labels, labels, np.nan), cmap='prism_r')
     return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
@@ -172,6 +179,8 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
 def prep_image(imfile):
     if args.verbose: print "opening", imfile
     im = imread(imfile).astype(float)
+    if args.plot > 1:
+        snapshot('orig', im)
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
         im = im[..., 1]
@@ -183,9 +192,11 @@ def prep_image(imfile):
     im -= m - s
     im /= 2*s
     np.clip(im, 0, 1, out=im)
+    if args.plot > 1:
+        snapshot('clip', im)
     return im
 
-def find_particles(im, method, return_image=False, **kwargs):
+def find_particles(im, method, **kwargs):
     """find_particles(im, method, **kwargs) -> [Segment], labels
 
     Find the particles in image im. The arguments in kwargs is
@@ -205,7 +216,7 @@ def find_particles(im, method, return_image=False, **kwargs):
         raise RuntimeError('Undefined method "%s"' % method)
 
     pts = filter_segments(labels, intensity=intensity, **kwargs)
-    return (pts, labels) + ((convolved,) if return_image else ())
+    return pts, labels, convolved
 
 def disk(n):
     return _disk(n).astype(int)
@@ -266,6 +277,9 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     if out is None:
         out = orig.copy()
     out[disks] = replace
+    if args.plot > 1:
+        snapshot('disks', disks)
+        snapshot('removed', out)
     return out
 
 if __name__ == '__main__':
@@ -277,6 +291,12 @@ if __name__ == '__main__':
     from os import path, makedirs
     import sys
     import shutil
+
+    def snapshot(desc, im, **kwargs):
+        global snapshot_num
+        fname = '{}_snapshot{:03d}_{}.png'.format(prefix, snapshot_num, desc)
+        pl.imsave(fname, im, **kwargs)
+        snapshot_num += 1
 
     first = args.files[0]
     if len(args.files) > 1:
@@ -348,18 +368,17 @@ if __name__ == '__main__':
     if args.select:
         co, ro = helpy.circle_click(filenames[0])
 
-    if args.plot > 1:
-        def plot_scatter(pts, ax, s=10, c='r', cm=None):
-            xl, yl = ax.get_xlim(), ax.get_ylim()
-            ptsarr = np.asarray(pts)
-            if c == 'id':
-                c = ptsarr[:, 2]
-            pl.scatter(ptsarr[:,1], ptsarr[:,0], s=abs(s), c=c, cmap=cm)
-            pl.xlim(xl)
-            pl.ylim(yl)
+    def plot_scatter(pts, ax, s=10, c='r', cm=None):
+        xl, yl = ax.get_xlim(), ax.get_ylim()
+        ptsarr = np.asarray(pts)
+        if c == 'id':
+            c = ptsarr[:, 2]
+        pl.scatter(ptsarr[:,1], ptsarr[:,0], s=abs(s), c=c, cmap=cm)
+        pl.xlim(xl)
+        pl.ylim(yl)
 
-    def plot_positions(savebase, level, pts, labels, convolved=None, **pltargs):
-        cm = pl.cm.prism_r
+    def plot_positions(save, pts, labels, convolved=None, **pltargs):
+        cm = 'prism_r'
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
         # pixels per inch, and use integer multiples of that for dpi
@@ -372,23 +391,22 @@ if __name__ == '__main__':
         pl.clf()
         pl.imshow(labels_mask, cmap=cm, interpolation='nearest')
         ax = pl.gca()
-        if level > 1:
-            plot_scatter(pts, ax, **pltargs)
-        savename = savebase + '_SEGMENTS.png'
+        plot_scatter(pts, ax, **pltargs)
+        savename = save + '_SEGMENTS.png'
         if args.verbose: print 'saving positions image to', savename
         pl.savefig(savename, dpi=dpi)
-        if level > 2:
-            pl.clf()
-            pl.imshow(convolved, cmap='gray')
-            ax = pl.gca()
-            if level > 3:
-                plot_scatter(pts, ax, **pltargs)
-            savename = savebase + '_CONVOLVED.png'
-            if args.verbose:
-                print 'saving positions with background to', savename
-            pl.savefig(savename, dpi=dpi)
+        pl.clf()
+        pl.imshow(convolved, cmap='gray')
+        ax = pl.gca()
+        plot_scatter(pts, ax, **pltargs)
+        savename = save + '_CONVOLVED.png'
+        if args.verbose:
+            print 'saving positions with background to', savename
+        pl.savefig(savename, dpi=dpi)
 
-    def get_positions((n,filename)):
+    def get_positions((n, filename)):
+        global snapshot_num
+        snapshot_num = 100*n
         circ = (co, ro) if args.select else None
         image = prep_image(filename)
         ret = []
@@ -398,8 +416,7 @@ if __name__ == '__main__':
             else:
                 rmv = None
             out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
-                                 thresh=args.thresh, return_image=args.plot > 2,
-                                 **sizes[dot])
+                                 thresh=args.thresh, **sizes[dot])
             segments = out[0]
             nfound = len(segments)
             if nfound:
@@ -410,7 +427,7 @@ if __name__ == '__main__':
                 save = '_'.join([prefix,
                                  path.splitext(path.basename(filename))[0],
                                  dot.upper()])
-                plot_positions(save, args.plot, *out, s=sizes[dot]['kern'])
+                plot_positions(save, *out, s=sizes[dot]['kern'])
             ret.append(centers)
         if not n % print_freq:
             print path.basename(filename).rjust(20), 'Found',\
