@@ -221,20 +221,37 @@ def find_particles(im, method, **kwargs):
 def disk(n):
     return _disk(n).astype(int)
 
-def gdisk(n, w=None):
-    """ gdisk(n):
-        return a gaussian kernel with zero integral and unity std dev.
+def gdisk(width, inner=0, outer=None):
+    """return a gaussian kernel with zero integral and unity std dev.
+
+    parameters:
+        width:  width (standard dev) of gaussian (approx half-width at half-max)
+        inner:  inner radius of constant disk, before gaussian falloff
+                default is 0
+        outer:  outer radius of nonzero part (outside of this, gdisk = 0)
+                default is inner + 2*width
+
+    returns:
+        gdisk:  a square array with values given by
+                        / max for r <= inner
+                g(r) = {  min + (max-min)*exp(.5*(r-inner)**2 / width**2)
+                        \ 0 for r > outer
+                where min and max are set so that the sum and std of the array
+                are 0 and 1 respectively
     """
-    if w is None:
-        w = 2*n
-    circ = ((np.indices([2*w+1, 2*w+1]) - w)**2).sum(0) <= (w+1)**2
-    g = np.arange(-w, w+1, dtype=float)
-    g = np.exp(-.5 * g**2 / n**2)
-    g = np.outer(g, g)  # or g*g[...,None]
-    g -= g[circ].mean()
-    g /= g[circ].std()
-    g[~circ] = 0
-    assert np.allclose(g.sum(),0), 'sum is nonzero: {}'.format(g.sum())
+    outer = outer or inner + 2*width
+    circ = disk(outer)
+    incirc = circ.nonzero()
+
+    x = np.arange(-outer, outer+1, dtype=float)
+    x, y = np.meshgrid(x, x)
+    r = x**2 + y**2 - inner**2
+    np.clip(r, 0, None, r)
+
+    g = np.exp(-0.5*r/width**2)
+    g -= g[incirc].mean()
+    g /= g[incirc].std()
+    g *= circ
     return g
 
 def remove_segments(orig, particles, labels):
