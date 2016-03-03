@@ -486,13 +486,21 @@ if __name__ == '__main__':
     fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
     for dot, point, out, axis in zip(dots, points, outs, np.atleast_2d(axes)):
         eax, aax = axis
-        eax.hist(point[:, 4], bins=20, range=(0,1), alpha=0.5, color='r', label=dot+' eccen')
+        counts, bins, patches = eax.hist(point[:, 4], bins=40, range=(0, 1),
+                                         alpha=0.5, color='r', label=dot+' eccen')
         eax.set_xlim(0, 1)
         eax.axvline(sizes[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
+        eax.set_xticks(bins)
         eax.legend(loc='best')
-        aax.hist(point[:, 5], bins=20, alpha=0.5, color='g', label=dot+' area')
+
+        areas = point[:, 5]
+        amin, amax = sizes[dot]['min_area'], sizes[dot]['max_area']
+        s = 1 + (amax-amin) // 40
+        bins = np.arange(amin, amax+s, s)
+        aax.hist(areas, 20, alpha=0.5, color='g', label=dot+' area')
         aax.axvline(sizes[dot]['min_area'], c='g', lw=2)
-        aax.set_xlim(0, sizes[dot]['max_area'])
+        aax.set_xlim(0, bins[-1])
+        aax.set_xticks(bins)
         aax.legend(loc='best')
         fig.savefig(prefix+'_SEGMENTS.pdf')
         txt = '.txt'+'.gz'*gz
