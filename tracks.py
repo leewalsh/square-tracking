@@ -639,7 +639,7 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
     return tracksets
 
 # Plotting tracks:
-def plot_tracks(data, trackids, bgimage=None, mask=None,
+def plot_tracks(data, trackids=None, bgimage=None, mask=None,
                 fignum=None, save=True, show=True):
     """ Plots the tracks of particles in 2D
 
@@ -655,18 +655,19 @@ def plot_tracks(data, trackids, bgimage=None, mask=None,
     """
     fig = plt.figure(fignum)
     ax = fig.gca()
-    if bgimage:
+    if bgimage is not None:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
         ax.imshow(bgimage, cmap=plt.cm.gray, origin='upper')
+    if trackids is None:
+        trackids = data['t']
     if mask is None:
         mask = (trackids >= 0)
     else:
         mask = mask & (trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    ax.scatter(data['y'], data['x'],
-            c=np.array(trackids)%12, marker='o', alpha=.5, lw=0)
+    ax.scatter(data['y'], data['x'], c=trackids%12, marker='o', alpha=.5, lw=0)
     ax.set_aspect('equal')
     ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
     ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
@@ -1262,6 +1263,8 @@ if __name__=='__main__':
         if verbose: print 'plotting tracks now!'
         bgimage = helpy.find_tiffs(prefix=relprefix, frames=1, load=True)[1]
         if args.singletracks:
+            if trackids is None:
+                trackids = data['t']
             mask = np.in1d(trackids, args.singletracks)
         else:
             mask = None
