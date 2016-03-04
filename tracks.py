@@ -403,7 +403,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
     drc = meta.get('orient_drcorner') or np.sqrt(rc)
-    txtoff = max(rc, side/2)
+    txtoff = min(rc, side/2)
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -465,26 +465,27 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
                                          color='g', fill=False, zorder=.5)
             remove.extend(patches)
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=1/side)
-        ps = ax.scatter(y, x, c='r')
-        cs = ax.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
+                      width=side/8, scale_units='xy', scale=1/side, zorder=.4)
+        ps = ax.scatter(y, x, c='r', zorder=.8)
+        cs = ax.scatter(xyc[:,1], xyc[:,0], c='g', s=8, zorder=.6)
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
             oca = oc.reshape(-1, 2)
-            ocs = ax.scatter(oca[:,1], oca[:,0], c='orange', s=8)
+            ocs = ax.scatter(oca[:,1], oca[:,0], c='orange', s=8, zorder=1)
             remove.append(ocs)
 
             # corner displacements has shape (n_particles, n_corners, n_dim)
             cdisp = oc[omask] - xyoo[:, None, :2]
             cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
             deg_str = np.degrees(cang).astype(int).astype('S')
-            ctxt = plt_text(yo+txtoff/2, xo-txtoff/2, deg_str, color='b')
+            ctxt = plt_text(yo+txtoff/2, xo-txtoff/2, deg_str,
+                            color='b', zorder=.9)
             remove.extend(ctxt)
 
         remove.extend([q, ps, cs])
 
         ts = helpy.quick_field_view(fsets[f_num], 't')
-        txt = plt_text(y+txtoff, x+txtoff, ts.astype('S'), color='r')
+        txt = plt_text(y+txtoff, x+txtoff, ts.astype('S'), color='r', zorder=.9)
         remove.extend(txt)
 
         nts = np.count_nonzero(ts >= 0)
