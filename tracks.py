@@ -31,9 +31,11 @@ if __name__ == '__main__':
                         'prefix[_CORNER]_POSITIONS.txt file')
     p.add_argument('-c', '--corner', action='store_true',
                    help='Load corners instead of centers')
-    p.add_argument('-k', '--check', nargs='?', const=True,
+    p.add_argument('-k', '--check', action='store_true',
                    help='Plot an animation of detected positions, orientations,'
                         ' and track numbers for checking their quality')
+    p.add_argument('-i', '--slice', nargs='?', const=True,
+                   help='Provide a slice to limit frames')
     p.add_argument('-p', '--plottracks', action='store_true',
                    help='Plot the tracks')
     p.add_argument('--noshow', action='store_false', dest='show',
@@ -1206,7 +1208,7 @@ if __name__ == '__main__':
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(
-                prefix=relprefix, frames=args.check,
+                prefix=relprefix, frames=args.slice,
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
@@ -1261,14 +1263,21 @@ if __name__=='__main__':
                  kill_jumps=args.killjump*args.side**2)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        bgimage = helpy.find_tiffs(prefix=relprefix, frames=1,
+        if args.slice:
+            allframes = data['f']
+            nframes = allframes.max()+1
+            frames = helpy.parse_slice(args.slice, index_array=True)
+            mask = np.in1d(allframes, frames)
+            bgind = frames[0]
+        else:
+            bgind = 1
+            mask = None
+        bgimage = helpy.find_tiffs(prefix=relprefix, frames=bgind,
                                    single=True, load=True)[1]
         if args.singletracks:
             if trackids is None:
                 trackids = data['t']
-            mask = np.in1d(trackids, args.singletracks)
-        else:
-            mask = None
+            mask &= np.in1d(trackids, args.singletracks)
         plot_tracks(data, trackids, bgimage, mask=mask,
                     save=saveprefix*args.save, show=args.show)
 
