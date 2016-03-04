@@ -22,6 +22,10 @@ if __name__ == '__main__':
                    help='Distance to corner dot from central dot, in pixels.')
     p.add_argument('--drcorner', type=float, help='Allowed error in r/rcorner, '
                    'in pixels. Default is sqrt(r)')
+    p.add_argument('--angsep', type=float, help='Angular separation between '
+                   'corner dots, assumed degrees if angsep > pi')
+    p.add_argument('--dangsep', type=float, help='Allowed error in r/rcorner, '
+                   'in pixels. Default is sqrt(r)')
     p.add_argument('-l', '--load', action='store_true',
                    help='Create and save structured array from '
                         'prefix[_CORNER]_POSITIONS.txt file')
@@ -1172,7 +1176,9 @@ if __name__ == '__main__':
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
                              leafsize=50) for f, cfset in cfsets.iteritems()}
         odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
-                           nc=args.ncorners, rc=args.rcorner, drc=args.drcorner)
+                                       nc=args.ncorners, rc=args.rcorner,
+                                       drc=args.drcorner, ang=args.angsep,
+                                       dang=args.dangsep)
         if args.save:
             save = saveprefix+'_ORIENTATION.npz'
             print "saving orientation data to",

@@ -2,12 +2,13 @@
 
 from __future__ import division
 
-from itertools import izip
+import itertools as it
 from math import sqrt
 import numpy as np
 from PIL import Image as Im
 
 import helpy
+import correlation as corr
 
 if __name__=='__main__':
     HOST = helpy.gethost()
@@ -71,8 +72,8 @@ def get_orientation(b):
     s = np.asarray(s)
     return s, p
 
-def find_corner(particle, corners, tree=None,
-                nc=1, rc=11, drc=0, do_average=True):
+def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
+                rank_by='rc', tree=None, do_average=True):
     """find the corner dot(s) closest to distance rc from center dot
 
     Parameters
@@ -83,6 +84,9 @@ def find_corner(particle, corners, tree=None,
     nc:         number of corner dots
     rc:         is the expected distance to corner from particle position
     drc:        delta rc is the tolerance on rc, defaults to sqrt(rc)
+    ang:        angular separation between corners (if nc > 1)
+    dang:       tolerance for ang (if None, ang is ignored if nfound == nc, but
+                is uses to choose best nc of nfound if nfound > nc)
     do_average: whether to average the nc corners to one value for return
 
     Returns
@@ -104,23 +108,55 @@ def find_corner(particle, corners, tree=None,
     cdisps = corners - particle
     cdists = np.hypot(*cdisps.T)
     cdiffs = np.abs(cdists - rc)
-    legal = cdiffs < drc
-    nfound = np.count_nonzero(legal)
-    if nfound == nc:
-        # good.
-        pass
-    elif nfound < nc:
+    legal = np.where(cdiffs < drc)[0]
+    nfound = len(legal)
+    if nfound < nc:
         # too few, skip.
         return (None,)*3
-    elif nfound > nc:
-        # too many, keep only the nc closest to rc away
-        #legal[np.argsort(cdiffs)[nc:]] = False
-        # the following is marginally faster than the above:
-        legal[legal.nonzero()[0][np.argsort(cdiffs[legal])[nc:]]] = False
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
     cdist = cdists[legal]
+    cdiffs = cdiffs[legal]
+
+    if ang and nc > 1:
+        corients = np.arctan2(cdisp[:, 1], cdisp[:, 0])
+        pairs = np.array(list(it.combinations(xrange(nfound), 2)))
+        cangles = corr.dtheta(corients[pairs])
+        dcangles = np.abs(cangles - ang)
+        legal = pairs[np.where(dcangles < dang)]
+        nfound = len(legal)*2
+    else:
+        legal = slice(None)
+    if nfound < nc:
+        # too few, skip.
+        return (None,)*3
+    elif nfound > nc and rank_by == 'ang':
+        if nc == 2:
+            # too many found, keep the two with the best angular separation
+            ibest = dcangles.argmin()
+            best = dcangles[ibest]
+            if dang and best > dang:
+                return (None,)*3
+            legal = pairs[ibest]
+        elif nc == 3:
+            best = dcangles.argsort()[:2]
+            if dang and np.any(dcangles[best] > dang):
+                return (None,)*3
+            legal = np.unique(pairs[best])
+            if len(legal) > nc:
+                # not trivial to pick best 3 if the two best separation angles
+                # don't share a corner
+                raise NotImplementedError("Ask me later")
+    elif nfound > nc and rank_by == 'rc':
+        # too many, keep only the nc closest to rc away
+        legal = legal[np.argmin(cdiffs[legal].sum(-1))]
+    else:
+        legal = legal[0]
+
+    pcorner = pcorner[legal]
+    cdisp = cdisp[legal]
+    cdist = cdist[legal]
 
     if do_average and nc > 1:
         # average the angle by finding angle of mean vector displacement
@@ -132,7 +168,7 @@ def find_corner(particle, corners, tree=None,
 
     return pcorner, porient, cdist
 
-#TODO: use p.map() to find corners in parallel
+# TODO: use p.map() to find corners in parallel
 # try splitting by frame first, use views for each frame
 # or just pass a tuple of (datum, cdata[f==f]) to get_angle()
 
@@ -178,8 +214,8 @@ def get_angles_map(data, cdata, nthreads=None):
     odata = np.vstack(odatalist)
     return odata
 
-def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
-                    drc=0, do_average=True, verbose=False):
+def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
+                    ang=None, dang=None, do_average=True, verbose=False):
     """find the orientations of particles given center and corner positions
 
     Parameters
@@ -195,6 +231,9 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
     nc:         number of corner dots
     rc:         expected distance between center and corner dot
     drc:        tolerance for rc, defaults to sqrt(rc)
+    ang:        angular separation between corners (if nc > 1)
+    dang:       tolerance for ang (if None, ang is ignored if nfound == nc, but
+                is uses to choose best nc of nfound if nfound > nc)
     do_average: whether to average the nc corners to one value for return
 
     Returns
@@ -204,8 +243,6 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
             'orient' for orientation of particles
             'cdisp' for the corner - center displacement
     """
-    if drc <= 0:
-        drc = sqrt(rc)
     if do_average or nc == 1:
         dt = [('corner', float, (nc, 2)),
               ('orient', float),
@@ -214,6 +251,10 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
         dt = [('corner', float, (nc, 2,)),
               ('orient', float, (nc,)),
               ('cdisp', float, (nc,))]
+    if ang > pi:
+        ang = np.radians(ang)
+        if dang:
+            dang = np.radians(dang)
     odata = np.full(len(pdata), np.nan, dtype=dt)
     odata_corner = odata['corner']
     odata_orient = odata['orient']
@@ -231,12 +272,12 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc,
         positions = helpy.consecutive_fields_view(fpdata, 'xy')
         cpositions = helpy.consecutive_fields_view(fcdata, 'xy')
         fp_ids = helpy.quick_field_view(fpdata, 'id')
-        for fp_id, posi in izip(fp_ids, positions):
+        for fp_id, posi in it.izip(fp_ids, positions):
             #TODO could probably be sped up by looping through the output of
             #     ptree.query_ball_tree(ctree)
             corner, orient, disp = \
-                find_corner(posi, cpositions, tree=cftree,
-                            nc=nc, rc=rc, drc=drc, do_average=do_average)
+                find_corner(posi, cpositions, nc=nc, rc=rc, drc=drc, ang=ang,
+                            dang=dang, tree=cftree, do_average=do_average)
             if orient is None: continue
             full_id = fp_id if id_ok else np.searchsorted(full_ids, fp_id)
             odata_corner[full_id] = corner
