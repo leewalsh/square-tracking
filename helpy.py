@@ -817,12 +817,38 @@ def circle_three_points(*xs):
 
     return xo, yo, r
 
-def find_tiffs(path='', prefix='', meta='',
-               frames='', load=False, verbose=False):
+def parse_slice(desc, shape=0, index_array=False):
+    if desc is True:
+        print "enter number or range as slice start:end",
+        if shape:
+            print "for shape {}".format(shape),
+        desc = raw_input('\n>>> ')
+    if isinstance(desc, slice):
+        slice_obj = desc
+    else:
+        if isinstance(desc, basestring):
+            args = [int(s) if s else None for s in desc.split(':')]
+        else:
+            args = np.atleast_1d(desc)
+        if len(args) <= 3:
+            slice_obj = slice(*args)
+        elif index_array:
+            return args
+        else:
+            raise ValueError("too many args for slice")
+    if index_array:
+        return np.r_[slice_obj]
+    else:
+        return slice_obj
+
+def find_tiffs(path='', prefix='', meta='', frames='', single=False,
+               load=False, verbose=False):
     meta = meta or load_meta(prefix)
     path = path or meta.get('path_to_tiffs', prefix)
     path = drive_path(path, both=True)
-    if frames in (1, '1') and prefix:
+    if frames in (0, '0', 1, '1'):
+        single = True
+        frames = 0
         prefix_dir, prefix_base = os.path.split(prefix)
         imnames = it.product([prefix_base + '_', '', '_'],
                              ['image_', 'image', ''],
@@ -852,14 +878,10 @@ def find_tiffs(path='', prefix='', meta='',
         nfound = len(fnames)
         if verbose or frames is True:
             print 'found {} images'.format(nfound)
-        if frames is True:
-            print "number (or range as slice start:end) of frames?"
-            frames = raw_input('>>> ')
-        if isinstance(frames, basestring):
-            slices = [int(s) if s else None for s in frames.split(':')]
-            frames = slice(*slices)
-        elif isinstance(frames, int):
-            frames = slice(frames)
+        if single:
+            frames = slice(int(frames), int(frames)+1)
+        else:
+            frames = parse_slice(frames, nfound)
         fnames.sort()
         fnames = fnames[frames]
         if load:
@@ -881,7 +903,7 @@ def find_tiffs(path='', prefix='', meta='',
         print '    {}'.format(path)
         new_path = raw_input('>>> ').format(**subval)
         return find_tiffs(path=new_path, prefix=prefix, meta=meta,
-                          frames=frames, load=load, verbose=True)
+                          frames=frames, single=single, load=load, verbose=True)
 
 def circle_click(im):
     """saves points as they are clicked, then find the circle that they define

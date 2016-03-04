@@ -260,7 +260,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         boundary = boundary or meta.get('track_boundary')
         if boundary is None:
             bgpath, bgimg, _ = helpy.find_tiffs(
-                prefix=relprefix, frames=1, load=True)
+                prefix=relprefix, frames=1, single=True, load=True)
             boundary = helpy.circle_click(bgimg)
             meta['path_to_tiffs'] = bgpath
         x0, y0, R = boundary
@@ -1261,7 +1261,8 @@ if __name__=='__main__':
                  kill_jumps=args.killjump*args.side**2)
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
-        bgimage = helpy.find_tiffs(prefix=relprefix, frames=1, load=True)[1]
+        bgimage = helpy.find_tiffs(prefix=relprefix, frames=1,
+                                   single=True, load=True)[1]
         if args.singletracks:
             if trackids is None:
                 trackids = data['t']
