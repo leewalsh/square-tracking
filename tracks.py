@@ -169,7 +169,8 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     if frame < n:  # at (or recursed back to) the first frame
         newtrackid = trackids.max() + 1
         if verbose:
-            print info(newtrackid, frame, n, thisdot[-1])
+            print info(newtrackid, frame, n, thisdot[-1]),
+            print "first frame!"
         return newtrackid
     oldtree = pftrees[frame-n]
     thisdotxy = thisdot[1:3]
@@ -185,7 +186,10 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             newtrackid = trackids.max() + 1
             if verbose:
                 print info(newtrackid, frame, n, thisdot[-1]),
-                print "closer dot to parent", pfsets[frame].item(mini2)[-1]
+                print "dot {} closer to parent {} (track {})".format(
+                    pfsets[frame].item(mini2)[-1], closest[-1],
+                    trackids[closest[-1]])
+
             return newtrackid
         if cut is not False and cut[closest[-1]]:
             newtrackid = trackids.max() + 1
