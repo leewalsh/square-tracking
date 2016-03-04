@@ -362,8 +362,8 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         return None if inplace else trackids
 
 
-def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
-                      f_nums=None, side=None, rc=None, verbose=False):
+def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
+                      f_nums=None, verbose=False):
 
     global f_idx, f_num, xlim, ylim
 
@@ -400,10 +400,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
 
     plt_text = np.vectorize(plt.text)
 
-    if side <= 1:
-        side = 17
+    side = meta.get('sidelength', 17)
+    rc = meta.get('orient_rcorner')
+    drc = meta.get('orient_drcorner') or np.sqrt(rc)
     txtoff = max(rc, side/2)
-    drc = drc or meta.get('orient_drcorner') or np.sqrt(rc)
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -414,7 +414,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
     ax.set_ylim(ylim)
     need_legend = True
 
-    if meta and meta.get('track_cut', False):
+    if meta.get('track_cut', False):
         bndx, bndy, bndr = meta['track_boundary']
         cutr = bndr - meta['track_cut_margin']
         bndc = [[bndy, bndx]]*2
@@ -459,10 +459,9 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta=None,
 
         p.set_data(imstack[f_idx])
         remove = []
-        if rc > 0:
-            patches = helpy.draw_circles(xyo[:, 1::-1], rc, ax=ax,
-                                         color='g', fill=False, zorder=.5)
-            remove.extend(patches)
+        patches = helpy.draw_circles(xyo[:, 1::-1], rc, ax=ax,
+                                     color='g', fill=False, zorder=.5)
+        remove.extend(patches)
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                       width=side/8, scale_units='xy', scale=1/side)
         ps = ax.scatter(y, x, c='r')
@@ -1119,8 +1118,10 @@ sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
-    helpy.sync_args_meta(args, meta, 'side fps rcorner',
-                         'sidelength fps orient_rcorner', [1, 1, None])
+    helpy.sync_args_meta(args, meta,
+            'side fps rcorner ncorners drcorner',
+            'sidelength fps orient_rcorner orient_ncorners orient_drcorner',
+            [1, 1, None, 2, None])
     if args.load:
         helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
                          verbose=True, compress=True)
@@ -1154,8 +1155,6 @@ if __name__ == '__main__':
     if args.orient:
         if args.rcorner is None:
             raise ValueError("argument -r/--rcorner is required")
-        helpy.sync_args_meta(args, meta, 'ncorners drcorner',
-                             'orient_ncorners orient_drcorner', [2, None])
         from orientation import get_angles_loop
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
@@ -1185,12 +1184,10 @@ if __name__ == '__main__':
                 prefix=relprefix, frames=args.check,
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
-        helpy.save_meta(saveprefix, meta)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
         ftsets, fcsets = helpy.splitter(tdata), helpy.splitter(cdata)
         fosets = helpy.splitter(odata, tdata['f'])
-        animate_detection(imstack, ftsets, fcsets, fosets,
-                          rc=args.rcorner, side=args.side, meta=meta,
+        animate_detection(imstack, ftsets, fcsets, fosets, meta=meta,
                           f_nums=frames, verbose=args.verbose)
 
     if args.side > 1 and args.dx > 0.1:
