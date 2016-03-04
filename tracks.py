@@ -1139,10 +1139,10 @@ sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
-    helpy.sync_args_meta(args, meta,
-            'side fps rcorner ncorners drcorner',
-            'sidelength fps orient_rcorner orient_ncorners orient_drcorner',
-            [1, 1, None, 2, None])
+    names = 'rcorner ncorners drcorner angsep dangsep'.split()
+    helpy.sync_args_meta(args, meta, ['side', 'fps'] + names,
+                         ['sidelength', 'fps'] + map('orient_{}'.format, names),
+                         [1, 1, None, 2, None, None, None])
     if args.load:
         helpy.txt_to_npz(readprefix+'_CORNER'*args.corner+'_POSITIONS.txt',
                          verbose=True, compress=True)
