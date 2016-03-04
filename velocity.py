@@ -194,6 +194,7 @@ def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
     return vvs
 
 if __name__=='__main__':
+    helpy.save_log_entry(readprefix, 'argv')
     compile_args = dict(args.__dict__)
     full_prefix = compile_args.pop('prefix')
     dirname, prefix = os.path.split(full_prefix)
