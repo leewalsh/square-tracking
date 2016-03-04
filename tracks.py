@@ -42,7 +42,7 @@ if __name__ == '__main__':
                    help="Don't save outputs or figures")
     p.add_argument('--maxdist', type=int,
                    help="maximum single-frame travel distance in "
-                        "pixels for track. default = S if S > 1 else 20")
+                        "pixels for track. default = side/fps if defined")
     p.add_argument('--giveup', type=int, default=10,
                    help="maximum number of frames in track gap. default = 10")
     p.add_argument('-d', '--msd', action='store_true',
@@ -116,8 +116,6 @@ if __name__ == '__main__':
         saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
-    if args.maxdist is None:
-        args.maxdist = args.side if args.side > 1 else 20
     eps = args.eps
 
 
@@ -1164,6 +1162,10 @@ if __name__ == '__main__':
         pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy'),
                              leafsize=50) for f, pfset in pfsets.iteritems()}
     if args.track:
+        if args.maxdist is None:
+            mdx = args.side if args.side > 1 else 20
+            mdt = args.fps if args.fps <= 60 else 1
+            args.maxdist = mdx/mdt
         meta.update(track_maxdist=args.maxdist, track_maxtime=args.giveup,
                     track_stub=args.stub, track_cut=args.cut)
         trackids = find_tracks(pdata, maxdist=args.maxdist, giveup=args.giveup,
