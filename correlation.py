@@ -172,7 +172,7 @@ def rotate2d(vectors, angles):
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
-        
+
         Takes:
             data: structured array of data
             frame: int or list of ints of frame number
@@ -194,7 +194,7 @@ def avg_hists(gs, rgs):
         returns:
             g_avg: the average of gs over frames
             dg_avg: their std dev / sqrt(length)
-            rg: r for the avgs (just uses rgs[0] for now) 
+            rg: r for the avgs (just uses rgs[0] for now)
     """
     assert np.all([np.allclose(rgs[i], rgs[j])
         for i in xrange(len(rgs)) for j in xrange(len(rgs))])
@@ -275,7 +275,7 @@ def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=F
     else:
         return phi if ret_complex else np.abs(phi)
 
-def dtheta(i, j=None, m=4, sign=False):
+def dtheta(i, j=None, m=1, sign=False):
     """ given two angles or one array (N,2) of pairs
         returns the _smallest angle between them, modulo m
         if sign is True, retuns a negative angle for i<j, else abs

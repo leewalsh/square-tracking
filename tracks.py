@@ -455,7 +455,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
         omask = np.isfinite(o)
-        xo, yo, oo = xyo[omask].T
+        xyoo = xyo[omask]
+        xo, yo, oo = xyoo.T
 
         p.set_data(imstack[f_idx])
         remove = []
@@ -468,9 +469,18 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
         ps = ax.scatter(y, x, c='r')
         cs = ax.scatter(xyc[:,1], xyc[:,0], c='g', s=8)
         if fosets is not None:
-            oc = helpy.quick_field_view(fosets[f_num], 'corner').reshape(-1, 2)
-            ocs = ax.scatter(oc[:,1], oc[:,0], c='orange', s=8)
+            oc = helpy.quick_field_view(fosets[f_num], 'corner')
+            oca = oc.reshape(-1, 2)
+            ocs = ax.scatter(oca[:,1], oca[:,0], c='orange', s=8)
             remove.append(ocs)
+
+            # corner displacements has shape (n_particles, n_corners, n_dim)
+            cdisp = oc[omask] - xyoo[:, None, :2]
+            cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
+            deg_str = np.degrees(cang).astype(int).astype('S')
+            ctxt = plt_text(yo+txtoff/2, xo-txtoff/2, deg_str, color='b')
+            remove.extend(ctxt)
+
         remove.extend([q, ps, cs])
 
         ts = helpy.quick_field_view(fsets[f_num], 't')
