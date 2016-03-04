@@ -459,9 +459,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
 
         p.set_data(imstack[f_idx])
         remove = []
-        patches = helpy.draw_circles(xyo[:, 1::-1], rc, ax=ax,
-                                     color='g', fill=False, zorder=.5)
-        remove.extend(patches)
+        for dr in [-drc, 0, drc]:
+            patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
+                                         color='g', fill=False, zorder=.5)
+            remove.extend(patches)
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                       width=side/8, scale_units='xy', scale=1/side)
         ps = ax.scatter(y, x, c='r')
