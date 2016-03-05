@@ -80,18 +80,18 @@ def getcommit():
     return COMMIT
 
 
-def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False):
-    """ Splits a dataset into subarrays with unique frame value
+def splitter(data, indices=None, method=None, ret_dict=False, noncontiguous=False):
+    """ Splits a dataset into subarrays with unique index value
         `data` : the dataset (will be split along first axis)
-        `frame`: the values to group by. Uses `data['f']` if `None`
+        `indices`: the values to group by. Uses `data['f']` if `None`
         `method`: 'diff' or 'unique'
             diff is faster*, but
-            unique returns the `frame` value
+            unique returns the `index` value
 
-        returns a list of subarrays of `data` split by unique values of `frame`
+        returns a list of subarrays of `data` split by unique values of `indices`
         if `method` is 'unique', returns tuples of (f, section)
         if `ret_dict` is True, returns a dict of the form {f: section}
-        *if method is 'diff', assumes frame is sorted and not missing values
+        *if method is 'diff', assumes `indices` is sorted and not missing values
 
         examples:
 
@@ -108,21 +108,23 @@ def splitter(data, frame=None, method=None, ret_dict=False, noncontiguous=False)
             tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
             trackset = tracksets[trackid]
     """
-    if frame is None:
-        frame = data['f']
+    if indices is None:
+        indices = 'f'
+    if isinstance(indices, basestring):
+        indices = data[indices]
     if method is None:
         method = 'unique' if ret_dict or noncontiguous else 'diff'
     if method.lower().startswith('d'):
-        sects = np.split(data, np.diff(frame).nonzero()[0] + 1)
+        sects = np.split(data, np.diff(indices).nonzero()[0] + 1)
         if ret_dict:
             return dict(enumerate(sects))
         else:
             return sects
     elif method.lower().startswith('u'):
-        u, i = np.unique(frame, return_index=True)
+        u, i = np.unique(indices, return_index=True)
         if noncontiguous:
             # no nicer way to do this:
-            sects = [ data[np.where(frame==fi)] for fi in u ]
+            sects = [data[np.where(indices == ui)] for ui in u]
         else:
             sects = np.split(data, i[1:])
         if ret_dict:
@@ -437,45 +439,49 @@ def clear_execution_counts(nbpath, inplace=False):
     out = nbpath if inplace else nbpath.replace('.ipynb', '.nulled.ipynb')
     nbformat.write(nb, out)
 
-def load_data(fullprefix, choices='tracks', verbose=False):
+def load_data(fullprefix, sets='tracks', verbose=False):
     """ Load data from an npz file
 
         Given `fullprefix`, returns data arrays from a choice of:
             tracks, orientation, position, corner
     """
-    choices = [c[0].lower() for c in choices.replace(',',' ').split()]
+    sets = [s[0].lower() for s in sets.replace(',',' ').split()]
 
     name = {'t': 'tracks', 'o': 'orientation',
             'p': 'positions', 'c': 'corner_positions'}
 
     npzs = {}
     data = {}
-    for c in choices:
-        suffix = name[c].upper()
+    for s in sets:
+        suffix = name[s].upper()
         datapath = fullprefix+'_'+suffix+'.npz'
         try:
-            npzs[c] = np.load(datapath)
+            npzs[s] = np.load(datapath)
         except IOError as e:
+            print e
             cmd = '`tracks -{}`'.format(
-                {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[c])
-            print ("Found no {} npz file. Please run ".format(name[c]) +
+                {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[s])
+            print ("Found no {} npz file. Please run ".format(name[s]) +
                    ("{0} to convert {1}.txt to {1}.npz, " +
-                    "or run `positions` on your tiffs" if c in 'pc' else
+                    "or run `positions` on your tiffs" if s in 'pc' else
                     "{0} to generate {1}.npz").format(cmd, suffix))
             raise
         else:
             if verbose:
-                print "Loaded {} data from {}".format(name[c], datapath)
-            data[c] = npzs[c][c*(c=='o')+'data']
-    if 't' in choices and 'trackids' in npzs['t'].files:
+                print "Loaded {} data from {}".format(name[s], datapath)
+            data[s] = npzs[s][s*(s == 'o')+'data']
+    if 't' in sets and 'trackids' in npzs['t'].files:
         # separate `trackids` array means this file is an old-style
         # TRACKS.npz which holds positions and trackids but no orient
         if verbose:
             print "Converting to TRACKS array from positions, trackids, orient"
-        orient = (data['o'] if 'o' in choices else load_data(fullprefix, 'o'))['orient']
+        if 'o' in sets:
+            orient = data['o']['orient']
+        else:
+            orient = load_data(fullprefix, 'o')['orient']
         data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
-    ret = [data[c] for c in choices]
-    return ret if len(ret)>1 else ret[0]
+    ret = [data[s] for s in sets]
+    return ret if len(ret) > 1 else ret[0]
 
 def load_MSD(fullprefix, pos=True, ang=True):
     """ Loads ms(a)ds from an MS(A)D.npz file
@@ -494,9 +500,8 @@ def load_MSD(fullprefix, pos=True, ang=True):
         msadnpz = np.load(fullprefix+'_MSAD.npz')
         ret += msadnpz['msds'], msadnpz['msdids']
         if pos:
-            assert dtau == msadnpz['dtau'][()]\
-                and dt0 == msadnpz['dt0'][()],\
-                    'dt mismatch'
+            assert dtau == msadnpz['dtau'][()] and dt0 == msadnpz['dt0'][()], \
+                'dt mismatch'
         else:
             dtau = msadnpz['dtau'][()]
             dt0 = msadnpz['dt0'][()]
