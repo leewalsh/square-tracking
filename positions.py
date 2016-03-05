@@ -493,26 +493,29 @@ if __name__ == '__main__':
         ext = '.txt'+'.gz'*args.gz
 
     for dot, point, out, axis in zip(dots, points, outs, np.atleast_2d(axes)):
+        size = sizes[dot]
         eax, aax = axis
-        _, bins, _ = eax.hist(point[:, 4], bins=40, range=(0, 1),
-                              alpha=0.5, color='r', label=dot+' eccen')
+        label = "{} eccen (max {})".format(dot, size['max_ecc'])
+        eax.hist(point[:, 4], bins=40, range=(0, 1),
+                 alpha=0.5, color='r', label=label)
+        eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
         eax.set_xlim(0, 1)
-        eax.axvline(sizes[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
-        eax.set_xticks(bins)
-        eax.legend(loc='best')
+        eax.set_xticks(np.arange(0, 1.1, .1))
+        eax.legend(loc='best', fontsize='small')
 
         areas = point[:, 5]
-        amin, amax = sizes[dot]['min_area'], sizes[dot]['max_area']
+        amin, amax = size['min_area'], size['max_area']
         s = 1 + (amax-amin) // 40
         bins = np.arange(amin, amax+s, s)
-        aax.hist(areas, 20, alpha=0.5, color='g', label=dot+' area')
-        aax.axvline(sizes[dot]['min_area'], c='g', lw=2)
+        label = "{} area ({} - {})".format(dot, amin, amax)
+        aax.hist(areas, bins, alpha=0.5, color='g', label=label)
+        aax.axvline(size['min_area'], c='g', lw=2)
         aax.set_xlim(0, bins[-1])
-        aax.set_xticks(bins)
-        aax.legend(loc='best')
+        aax.set_xticks(bins[::1+len(bins)//10])
+        aax.legend(loc='best', fontsize='small')
         if args.save:
             print savenotice(dot, out, ext)
-            np.savetxt(out+ext, point, header=hfmt(**sizes[dot]),
+            np.savetxt(out+ext, point, header=hfmt(**size),
                        delimiter='     ', fmt=txtfmt)
             helpy.txt_to_npz(out+ext, verbose=args.verbose, compress=args.gz)
     if args.save:
