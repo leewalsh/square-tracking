@@ -6,14 +6,11 @@ from __future__ import division
 if __name__ == '__main__':
     from argparse import ArgumentParser
     p = ArgumentParser()
-    p.add_argument('files', metavar='FILE', nargs='+',
-                   help='Images to process')
+    p.add_argument('files', metavar='FILE', nargs='+', help='Images to process')
     p.add_argument('-p', '--plot', action='count',
                    help="Produce plots for each image. Two p's gives lots more")
-    p.add_argument('-v', '--verbose', action='count',
-                   help="Control verbosity")
-    p.add_argument('-o', '--output', default='POSITIONS.txt',
-                   help='Output file')
+    p.add_argument('-v', '--verbose', action='count', help="Control verbosity")
+    p.add_argument('-o', '--output', help='Output filename prefix. ')
     p.add_argument('-z', '--nozip', action='store_false', dest='gz',
                    help="Don't compress output files?")
     p.add_argument('-N', '--threads', type=int,
@@ -29,20 +26,13 @@ if __name__ == '__main__':
                    'for defining segments, in units of standard deviation')
     p.add_argument('-k', '--kern', default=0, type=float, required=True,
                    help='Kernel size for convolution')
-    p.add_argument('--min', default=-1, type=int,
-                   help='Minimum area')
-    p.add_argument('--max', default=-1, type=int,
-                   help='Maximum area')
-    p.add_argument('--ecc', default=.8, type=float,
-                   help='Maximum eccentricity')
-    p.add_argument('-c', '--ckern', default=0, type=float,
-                   help='Kernel size for convolution for corner dots')
-    p.add_argument('--cmin', default=-1, type=int,
-                   help='Minimum area for corner dots')
-    p.add_argument('--cmax', default=-1, type=int,
-                   help='Maximum area for corner dots')
-    p.add_argument('--cecc', default=.8, type=float,
-                        help='Maximum eccentricity for corner dots')
+    p.add_argument('--min', type=int, help='Minimum area')
+    p.add_argument('--max', type=int, help='Maximum area')
+    p.add_argument('--ecc', default=.8, type=float, help='Maximum eccentricity')
+    p.add_argument('-c', '--ckern', default=0, type=float, help='Kernel size for corner dots')
+    p.add_argument('--cmin', type=int, help='Min area for corners')
+    p.add_argument('--cmax', type=int, help='Max area for corners')
+    p.add_argument('--cecc', default=.8, type=float, help='Max ecc for corners')
     args = p.parse_args()
 
 from distutils.version import StrictVersion as version
@@ -361,27 +351,17 @@ if __name__ == '__main__':
         makedirs(imdir)
 
     kern_area = np.pi*args.kern**2
-    if args.min == -1:
-        args.min = kern_area/2
-        if args.verbose: print "using min =", args.min
-    if args.max == -1:
-        args.max = 2*kern_area
-        if args.verbose: print "using max =", args.max
-
     sizes = {'center': {'max_ecc': args.ecc,
-                        'min_area': args.min,
-                        'max_area': args.max,
+                        'min_area': args.min or kern_area/2,
+                        'max_area': args.max or kern_area*2,
                         'kern': args.kern}}
-
     if args.ckern:
         args.both = True
     if args.both:
         ckern_area = np.pi*args.ckern**2
-        if args.cmin == -1: args.cmin = ckern_area/2
-        if args.cmax == -1: args.cmax = 2*ckern_area
         sizes.update({'corner': {'max_ecc': args.cecc,
-                                 'min_area': args.cmin,
-                                 'max_area': args.cmax,
+                                 'min_area': args.cmin or ckern_area/2,
+                                 'max_area': args.cmax or ckern_area*2,
                                  'kern': args.ckern}})
     dots = sorted(sizes)
 
@@ -398,7 +378,8 @@ if __name__ == '__main__':
         # PPI = 112.14 if figsize (8, 6)
         PPI = 84.638  # if figsize (8, 8)
         dpi = 4*PPI
-        axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax, interpolation=interp)
+        axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax,
+                         interpolation=interp)
         if cbar:
             fig.colorbar(axim)
         xl, yl = ax.get_xlim(), ax.get_ylim()
