@@ -310,8 +310,8 @@ if __name__ == '__main__':
     import shutil
 
     def snapshot(desc, im, **kwargs):
-        global snapshot_num
-        fname = '{}_snapshot{:03d}_{}.png'.format(prefix, snapshot_num, desc)
+        global snapshot_num, imprefix
+        fname = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, desc)
         pl.imsave(fname, im, **kwargs)
         snapshot_num += 1
 
@@ -356,6 +356,9 @@ if __name__ == '__main__':
 
     helpy.save_log_entry(prefix, argv)
     helpy.save_meta(prefix, path_to_tiffs=path.abspath(filepattern))
+    imdir = prefix + '_detection'
+    if not path.isdir(imdir):
+        makedirs(imdir)
 
     kern_area = np.pi*args.kern**2
     if args.min == -1:
@@ -387,6 +390,7 @@ if __name__ == '__main__':
 
     def plot_points(pts, img, save, s=10, c='r', cm=None,
                     vmin=None, vmax=None, interp=None, cbar=False):
+        global snapshot_num, imprefix
         fig, ax = pl.subplots(figsize=(8+2*cbar, 8))
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
@@ -405,7 +409,10 @@ if __name__ == '__main__':
             ax.scatter(pts['y'], pts['x'], s, c, '+')
         ax.set_xlim(xl)
         ax.set_ylim(yl)
-        fig.savefig(save, dpi=dpi)
+
+        savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, save)
+        fig.savefig(savename, dpi=dpi)
+        snapshot_num += 1
         pl.close(fig)
 
     def plot_positions(save, segments, labels, convolved=None, **pltargs):
@@ -417,29 +424,34 @@ if __name__ == '__main__':
         pts_by_label[pts['label']] = pts
 
         plot_points(pts, convolved, c='r', cm='gray',
-                    save=save+'_1CONVOLVED.png', **pltargs)
+                    save='CONVOLVED', **pltargs)
 
         labels_mask = np.where(labels, labels, np.nan)
         plot_points(pts, labels_mask, c='k', cm='prism_r', interp='nearest',
-                    save=save+'_2SEGMENTS.png', **pltargs)
+                    save='SEGMENTS', **pltargs)
 
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
         plot_points(pts, ecc_map, c='k', vmin=0, vmax=1, interp='nearest',
-                    cbar=True, save=save+'_3ECCEN.png', **pltargs)
+                    cbar=True, save='ECCEN', **pltargs)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
         plot_points(pts, area_map, c='k', cbar=True, interp='nearest',
-                    save=save+'_4AREA.png', **pltargs)
+                    save='AREA', **pltargs)
 
     def get_positions((n, filename)):
-        global snapshot_num
-        snapshot_num = 100*n
         circ = (co, ro) if args.select else None
+        global snapshot_num, imprefix
+        snapshot_num = 0
+        filebase = path.splitext(path.basename(filename))[0]
+        imbase = path.join(imdir, filebase)
+        imprefix = imbase
         image = prep_image(filename)
         ret = []
         for dot in dots:
+            imprefix = '_'.join([imbase, dot.upper()])
+            snapshot_num = 0
             if args.remove and dot == 'corner':
                 rmv = segments, args.kern
             else:
@@ -453,10 +465,7 @@ if __name__ == '__main__':
             else:  # empty line of length 6 = id + len(Segment)
                 centers = np.empty((0, 6))
             if args.plot:
-                save = '_'.join([prefix,
-                                 path.splitext(path.basename(filename))[0],
-                                 dot.upper()])
-                plot_positions(save, *out, s=sizes[dot]['kern'])
+                plot_positions(imprefix, *out, s=sizes[dot]['kern'])
             ret.append(centers)
         if not n % print_freq:
             print path.basename(filename).rjust(20), 'Found',\
@@ -511,6 +520,7 @@ if __name__ == '__main__':
         np.savetxt(out+txt, point, delimiter='     ', header=hfmt(**sizes[dot]),
                 fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
         helpy.txt_to_npz(out+txt, verbose=args.verbose, compress=gz)
-        key_prefix = 'corner_' if dot=='corner' else ''
-        helpy.save_meta(prefix, {key_prefix+k: v
-                                 for k, v in sizes[dot].iteritems()})
+        key_prefix = dot + '_'
+        helpy.save_meta(prefix,
+                        {key_prefix+k: v for k, v in sizes[dot].iteritems()},
+                        detect_thresh=args.thresh, detect_removed=args.remove)
