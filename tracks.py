@@ -259,7 +259,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
-        boundary = boundary or meta.get('track_boundary')
+        boundary = boundary or meta.get('boundary')
         if boundary is None:
             bgpath, bgimg, _ = helpy.find_tiffs(
                 prefix=relprefix, frames=1, single=True, load=True)
@@ -268,7 +268,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         x0, y0, R = boundary
         mm = R/101.6             # dish radius R = 4 in = 101.6 mm
         margin = margin or 6*mm  # use 6 mm if margin not specified
-        meta.update(track_boundary=boundary, track_cut_margin=margin)
+        meta.update(boundary=boundary, track_cut_margin=margin)
         rs = np.hypot(pdata['x'] - x0, pdata['y'] - y0)
         cut = rs > R - margin
         print "cutting at boundary", boundary,
@@ -423,7 +423,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
     need_legend = True
 
     if meta.get('track_cut', False):
-        bndx, bndy, bndr = meta['track_boundary']
+        bndx, bndy, bndr = meta['boundary']
         cutr = bndr - meta['track_cut_margin']
         bndc = [[bndy, bndx]]*2
         bndpatch, cutpatch = helpy.draw_circles(bndc, [bndr, cutr], ax=ax,

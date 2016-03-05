@@ -16,8 +16,8 @@ if __name__ == '__main__':
     p.add_argument('-N', '--threads', type=int,
                    help='Number of worker threads for parallel processing. '
                         'Uses all available cores if 0')
-    p.add_argument('-s', '--select', action='store_true',
-                   help='Open the first image and specify the circle of interest')
+    p.add_argument('--boundary', type=float, nargs='*', metavar='X0 Y0 R',
+                   help='Specify system boundary, or open image to select it')
     p.add_argument('-b', '--both', action='store_true',
                    help='find both center and corner dots')
     p.add_argument('--remove', action='store_true',
@@ -156,8 +156,8 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
             continue
         x, y = rprop[centroid]
         if circ:
-            co, ro = circ
-            if (x - co[0])**2 + (y - co[1])**2 > ro**2:
+            xo, yo, ro = circ
+            if (x - xo)**2 + (y - yo)**2 > ro**2:
                 continue
         pts.append(Segment(x, y, rprop.label, ecc, area))
         if max_detect is not None:
@@ -365,8 +365,9 @@ if __name__ == '__main__':
                                  'kern': args.ckern}})
     dots = sorted(sizes)
 
-    if args.select:
-        co, ro = helpy.circle_click(filenames[0])
+    if args.boundary is not None:
+        args.boundary = args.boundary or helpy.circle_click(filenames[0])
+        helpy.save_meta(prefix, boundary=args.boundary)
 
     def plot_points(pts, img, save, s=10, c='r', cm=None,
                     vmin=None, vmax=None, interp=None, cbar=False):
@@ -422,7 +423,6 @@ if __name__ == '__main__':
                     save='AREA', **pltargs)
 
     def get_positions((n, filename)):
-        circ = (co, ro) if args.select else None
         global snapshot_num, imprefix
         snapshot_num = 0
         filebase = path.splitext(path.basename(filename))[0]
@@ -437,8 +437,8 @@ if __name__ == '__main__':
                 rmv = segments, args.kern
             else:
                 rmv = None
-            out = find_particles(image, method='convolve', circ=circ, rmv=rmv,
-                                 thresh=args.thresh, **sizes[dot])
+            out = find_particles(image, method='convolve', circ=args.boundary,
+                                 rmv=rmv, thresh=args.thresh, **sizes[dot])
             segments = out[0]
             nfound = len(segments)
             if nfound:
