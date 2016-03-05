@@ -81,17 +81,28 @@ def getcommit():
 
 
 def splitter(data, indices=None, method=None, ret_dict=False, noncontiguous=False):
-    """ Splits a dataset into subarrays with unique index value
-        `data` : the dataset (will be split along first axis)
-        `indices`: the values to group by. Uses `data['f']` if `None`
-        `method`: 'diff' or 'unique'
-            diff is faster*, but
-            unique returns the `index` value
+    """Splits a dataset into subarrays with unique index value
 
-        returns a list of subarrays of `data` split by unique values of `indices`
-        if `method` is 'unique', returns tuples of (f, section)
-        if `ret_dict` is True, returns a dict of the form {f: section}
-        *if method is 'diff', assumes `indices` is sorted and not missing values
+    parameters:
+        data:       dataset to be split along first axis
+        indices:    values to group by, can be array of indices or field
+                    name.  default is field name 'f'
+        method:     either 'diff' or 'unique':
+                    diff is faster*, but
+                    unique returns the `index` value
+        ret_dict:   whether to return a dict with indices as keys
+        noncontiguous:  whether to assume indices array has matching values
+                        separated by other values
+
+    returns:
+        a list or dict of subarrays of `data` split and grouped by unique values
+        of `indices`:
+        if `method` is 'unique',
+            returns list of tuples of (index, section)
+        if `ret_dict` is True,
+            returns a dict of the form {index: section}
+        *if method is 'diff',
+            `indices` is assumed sorted and not missing any values
 
         examples:
 
@@ -392,6 +403,24 @@ def merge_meta(*metas):
 
 
 def sync_args_meta(args, meta, argnames, metanames, defaults=None):
+    """synchronize values between the args namespace and saved metadata dict
+
+    Any non-`None` value in `args` overwrites the value (if any) in `meta`.
+    Values of `None` in `args` are overwritten by either the value in `meta` if
+    it exists, otherwise with the `default` if provided.
+
+    Both `args` and `meta` are modified in-place
+
+    parameters:
+        args:       the argparse args namespace
+        meta:       the metadata dict
+        argnames:   keys to the entries in args to sync
+        metanames:  corresponding keys to the entries in meta
+        defaults:   value used if args value is None and missing from meta
+
+    returns and modifies:
+        args, meta: the modified mappings
+    """
     argdict = args.__dict__
     if isinstance(argnames, basestring):
         argnames = argnames.split()
@@ -408,6 +437,16 @@ def sync_args_meta(args, meta, argnames, metanames, defaults=None):
 
 
 def save_meta(prefix, meta_dict=None, **meta_kw):
+    """write keys and values to meta file '{prefix}_META.txt'
+
+    For keys that exist in more than one place, precedence is:
+        keyword args, dict arg, file on disk
+
+    parameters:
+        prefix:         filename is '{prefix}_META.txt'
+        meta_dict:      a dict with which to update file
+        keyword args:   key-value pairs to update file and meta_dict
+    """
     meta = load_meta(prefix)
     meta.update(meta_dict or {}, **meta_kw)
     fmt = '{0[0]!r:18}: {0[1]!r}\n'.format
@@ -418,6 +457,13 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
         f.writelines(lines)
 
 def save_log_entry(prefix, entries, mode='a'):
+    """save an entry to log file '{prefix}_LOG.txt'
+
+    parameters:
+        entries:    string or list of strings to write to file (may contain'\\n'
+                    newlines), or the string 'argv' to write the `sys.argv`
+        mode:       mode with which to write. only use 'a'
+    """
     pre = '{} {}@{}/{}: '.format(timestamp(), getuser(), gethost(), getcommit())
     suffix = '_LOG.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
@@ -509,9 +555,21 @@ def load_MSD(fullprefix, pos=True, ang=True):
     print 'loading MSDs for', fullprefix
     return ret
 
-def load_tracksets(data, trackids=None, min_length=10, verbose=False,
-        run_remove_dupes=False, run_fill_gaps=False, run_track_orient=False):
-    """ Returns a dict of slices into data based on trackid
+
+def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
+                   run_fill_gaps=False, run_track_orient=False, verbose=False):
+    """Build a dict of slices into data based on trackid
+
+    paramters:
+        data:               array to group by trackid
+        trackids:           values by which to split. if None, uses data['t']
+        min_length:         only include tracks with at least this many members
+        run_remove_dupes:   whether to run tracks.remove_dupes on the data
+        run_fill_gaps:      whether to fill gaps (see tracks -h (--gaps))
+        run_track_orient:   whether to track orients so angles are not mod 2pi
+
+    returns:
+        tracksets:          a dict of {trackid: subset of `data`}
     """
     if trackids is None:
         # copy actually speeds it up by a factor of two
@@ -523,7 +581,7 @@ def load_tracksets(data, trackids=None, min_length=10, verbose=False,
     if min_length > 1:
         lengths = lengths >= min_length
     longtracks = np.where(lengths)[0]
-    tracksets = {track: data[trackids==track] for track in longtracks}
+    tracksets = {track: data[trackids == track] for track in longtracks}
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
@@ -553,41 +611,67 @@ def loadall(fullprefix, ret_msd=True, ret_fsets=False):
         ret += (fsets, fosets)
     return ret
 
+
 def fields_view(arr, fields):
     """ by [HYRY](https://stackoverflow.com/users/772649/hyry)
-        at http://stackoverflow.com/a/21819324/"""
-    dtype2 = np.dtype({name:arr.dtype.fields[name] for name in fields})
+        at http://stackoverflow.com/a/21819324/
+    """
+    dtype2 = np.dtype({name: arr.dtype.fields[name] for name in fields})
     return np.ndarray(arr.shape, dtype2, arr, 0, arr.strides)
 
+
 def quick_field_view(arr, field, careful=False):
+    """quickly return a view onto a field in a structured array
+
+    Not sure why but this turns out to be much faster than get-item lookup, good
+    for accessing fields inside loops
+
+    parameters:
+        arr:    a structured array
+        field:  a single field name
+    """
     dt, off = arr.dtype.fields[field]
     out = np.ndarray(arr.shape, dt, arr, off, arr.strides)
     if careful:
         i = arr.dtype.names.index(field)
         a, o = arr.item(-1)[i], out[-1]
         if dt.shape is ():
-            assert a==o or np.isnan(a) and np.isnan(o)
+            assert a == o or np.isnan(a) and np.isnan(o)
         else:
-            eq = a==o
+            eq = a == o
             assert np.all(eq) or np.all(eq[np.isfinite(a*o)])
     return out
 
+
 def consecutive_fields_view(arr, fields, careful=False):
+    """quickly return a view of consecutive fields in a structured array.
+
+    The fields must be consecutive and must all have the same itemsize.
+
+    parameters:
+        arr:      a structured array
+        fields:   list of field names (1 string ok for one-char field names)
+        careful:  be careful (check shapes/values). default is False.
+
+    returns:
+        view:     a view onto the fields
+    """
     shape, j = arr.shape, len(fields)
     df = arr.dtype.fields
     dt, offset = df[fields[0]]
     strides = arr.strides
-    if j>1:
+    if j > 1:
         shape += (j,)
         strides += (dt.itemsize,)
     out = np.ndarray(shape, dt, arr, offset, strides)
     if careful:
         names = arr.dtype.names
         i = names.index(fields[0])
-        assert tuple(fields)==names[i:i+j], 'fields not consecutive'
-        assert all([df[f][0]==dt for f in fields[1:]]), 'fields not same type'
+        assert tuple(fields) == names[i:i+j], 'fields not consecutive'
+        assert all([df[f][0] == dt for f in fields[1:]]), 'fields not same type'
         l, r = arr.item(-1)[i:i+j], out[-1]
-        assert all([a==o or np.isnan(a) and np.isnan(o) for a,o in it.izip(l,r)]),\
+        assert all([a == o or np.isnan(a) and np.isnan(o)
+                    for a, o in it.izip(l, r)]), \
             "last row mismatch\narr: {}\nout: {}".format(l, r)
     return out
 
