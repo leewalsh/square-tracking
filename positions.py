@@ -13,6 +13,8 @@ if __name__ == '__main__':
     p.add_argument('-o', '--output', help='Output filename prefix. ')
     p.add_argument('-z', '--nozip', action='store_false', dest='gz',
                    help="Don't compress output files?")
+    p.add_argument('--nosave', action='store_false', dest='save',
+                   help="Don't save outputs or figures")
     p.add_argument('-N', '--threads', type=int,
                    help='Number of worker threads for parallel processing. '
                         'Uses all available cores if 0')
@@ -24,12 +26,12 @@ if __name__ == '__main__':
                    help='Remove large-dot masks before small-dot convolution')
     p.add_argument('--thresh', type=float, default=3, help='Binary threshold '
                    'for defining segments, in units of standard deviation')
-    p.add_argument('-k', '--kern', default=0, type=float, required=True,
+    p.add_argument('-k', '--kern', type=float, required=True,
                    help='Kernel size for convolution')
     p.add_argument('--min', type=int, help='Minimum area')
     p.add_argument('--max', type=int, help='Maximum area')
     p.add_argument('--ecc', default=.8, type=float, help='Maximum eccentricity')
-    p.add_argument('-c', '--ckern', default=0, type=float, help='Kernel size for corner dots')
+    p.add_argument('-c', '--ckern', type=float, help='Kernel for corner dots')
     p.add_argument('--cmin', type=int, help='Min area for corners')
     p.add_argument('--cmax', type=int, help='Max area for corners')
     p.add_argument('--cecc', default=.8, type=float, help='Max ecc for corners')
@@ -297,13 +299,6 @@ if __name__ == '__main__':
     from multiprocessing import Pool, cpu_count
     from os import path, makedirs
     import sys
-    import shutil
-
-    def snapshot(desc, im, **kwargs):
-        global snapshot_num, imprefix
-        fname = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, desc)
-        pl.imsave(fname, im, **kwargs)
-        snapshot_num += 1
 
     first = args.files[0]
     if len(args.files) > 1:
@@ -318,22 +313,25 @@ if __name__ == '__main__':
         from glob import glob
         filenames = sorted(glob(first))
         filepattern = first
+        first = filenames[0]
         argv = 'argv'
-
-    if args.plot and len(filenames) > 10:
-        args.plot = helpy.bool_input(
-                    "Are you sure you want to make plots for all {} frames?"
-                    " ".format(len(filenames)))
+    if args.plot:
+        if len(filenames) > 10:
+            print "Are you sure you want to make plots for all",
+            print len(filenames), "frames?"
+            args.plot *= helpy.bool_input()
+        if args.plot > 1 and (not args.save or len(filenames) > 2):
+            print "Do you want to display all the snapshots without saving?"
+            args.plot -= 1 - helpy.bool_input()
 
     suffix = '_POSITIONS'
-    gz = args.gz
     output = args.output
     outdir = path.abspath(path.dirname(output))
     if not path.exists(outdir):
         print "Creating new directory", outdir
         makedirs(outdir)
     if output.endswith('.gz'):
-        gz = 1
+        args.gz = 1
         output = output[:-3]
     if output.endswith('.txt'):
         output = output[:-4]
@@ -345,7 +343,8 @@ if __name__ == '__main__':
     outs = output, prefix + '_CORNER' + suffix
 
     helpy.save_log_entry(prefix, argv)
-    helpy.save_meta(prefix, path_to_tiffs=path.abspath(filepattern))
+    meta = helpy.load_meta(prefix)
+
     imdir = prefix + '_detection'
     if not path.isdir(imdir):
         makedirs(imdir)
@@ -364,12 +363,24 @@ if __name__ == '__main__':
                                  'max_area': args.cmax or ckern_area*2,
                                  'kern': args.ckern}})
     dots = sorted(sizes)
+    meta.update({dot + '_' + k: v
+                 for dot in dots for k, v in sizes[dot].iteritems()})
 
     if args.boundary is not None:
-        args.boundary = args.boundary or helpy.circle_click(filenames[0])
-        helpy.save_meta(prefix, boundary=args.boundary)
+        args.boundary = args.boundary or helpy.circle_click(first)
+        meta.update(boundary=args.boundary)
 
-    def plot_points(pts, img, save, s=10, c='r', cm=None,
+    def snapshot(desc, im, **kwargs):
+        global snapshot_num, imprefix
+        if args.save:
+            fname = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, desc)
+            pl.imsave(fname, im, **kwargs)
+        else:
+            fig, ax = pl.subplots()
+            ax.imshow(im, title=path.basename(imprefix)+'_'+desc, **kwargs)
+        snapshot_num += 1
+
+    def plot_points(pts, img, name='', s=10, c='r', cm=None,
                     vmin=None, vmax=None, interp=None, cbar=False):
         global snapshot_num, imprefix
         fig, ax = pl.subplots(figsize=(8+2*cbar, 8))
@@ -392,12 +403,13 @@ if __name__ == '__main__':
         ax.set_xlim(xl)
         ax.set_ylim(yl)
 
-        savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, save)
-        fig.savefig(savename, dpi=dpi)
-        snapshot_num += 1
-        pl.close(fig)
+        if args.save:
+            savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, name)
+            fig.savefig(savename, dpi=dpi)
+            snapshot_num += 1
+            pl.close(fig)
 
-    def plot_positions(save, segments, labels, convolved=None, **pltargs):
+    def plot_positions(segments, labels, convolved=None, **pltargs):
         Segment_dtype = np.dtype({'names': Segment._fields,
                                   'formats': [float, float, int, float, float]})
         pts = np.asarray(segments, dtype=Segment_dtype)
@@ -406,21 +418,21 @@ if __name__ == '__main__':
         pts_by_label[pts['label']] = pts
 
         plot_points(pts, convolved, c='r', cm='gray',
-                    save='CONVOLVED', **pltargs)
+                    name='CONVOLVED', **pltargs)
 
         labels_mask = np.where(labels, labels, np.nan)
         plot_points(pts, labels_mask, c='k', cm='prism_r', interp='nearest',
-                    save='SEGMENTS', **pltargs)
+                    name='SEGMENTS', **pltargs)
 
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
         plot_points(pts, ecc_map, c='k', vmin=0, vmax=1, interp='nearest',
-                    cbar=True, save='ECCEN', **pltargs)
+                    cbar=True, name='ECCEN', **pltargs)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
         plot_points(pts, area_map, c='k', cbar=True, interp='nearest',
-                    save='AREA', **pltargs)
+                    name='AREA', **pltargs)
 
     def get_positions((n, filename)):
         global snapshot_num, imprefix
@@ -446,11 +458,12 @@ if __name__ == '__main__':
             else:  # empty line of length 6 = id + len(Segment)
                 centers = np.empty((0, 6))
             if args.plot:
-                plot_positions(imprefix, *out, s=sizes[dot]['kern'])
+                plot_positions(*out, s=sizes[dot]['kern'])
             ret.append(centers)
         if not n % print_freq:
-            print path.basename(filename).rjust(20), 'Found',\
-              ', '.join(['{:3d} {}s'.format(len(r),d) for r,d in zip(ret,dots)])
+            fmt = '{:3d} {}s'.format
+            print path.basename(filename).rjust(20), 'Found',
+            print ', '.join([fmt(len(r), d) for r, d in zip(ret, dots)])
         return ret if args.both else ret[0]
 
     print_freq = 1 if args.verbose else len(filenames)//100 + 1
@@ -470,14 +483,19 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
-    firstframe = prefix+'_'+path.basename(filenames[0])
-    shutil.copy(filenames[0], firstframe)
-
     fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+    if args.save:
+        savenotice = "Saving {} positions to {}{{{},.npz}}".format
+        hfmt = ('Kern {kern:.2f}, Min area {min_area:d}, '
+          'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
+          'Frame    X           Y             Label  Eccen        Area').format
+        txtfmt = ['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d']
+        ext = '.txt'+'.gz'*args.gz
+
     for dot, point, out, axis in zip(dots, points, outs, np.atleast_2d(axes)):
         eax, aax = axis
-        counts, bins, patches = eax.hist(point[:, 4], bins=40, range=(0, 1),
-                                         alpha=0.5, color='r', label=dot+' eccen')
+        _, bins, _ = eax.hist(point[:, 4], bins=40, range=(0, 1),
+                              alpha=0.5, color='r', label=dot+' eccen')
         eax.set_xlim(0, 1)
         eax.axvline(sizes[dot]['max_ecc'], 0, 0.5, c='r', lw=2)
         eax.set_xticks(bins)
@@ -492,16 +510,16 @@ if __name__ == '__main__':
         aax.set_xlim(0, bins[-1])
         aax.set_xticks(bins)
         aax.legend(loc='best')
-        fig.savefig(prefix+'_SEGMENTS.pdf')
-        txt = '.txt'+'.gz'*gz
-        print "Saving {} positions to {}{{{},.npz}}".format(dot, out, txt)
-        hfmt = ('Kern {kern:.2f}, Min area {min_area:d}, '
-          'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
-          'Frame    X           Y             Label  Eccen        Area').format
-        np.savetxt(out+txt, point, delimiter='     ', header=hfmt(**sizes[dot]),
-                fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
-        helpy.txt_to_npz(out+txt, verbose=args.verbose, compress=gz)
-        key_prefix = dot + '_'
-        helpy.save_meta(prefix,
-                        {key_prefix+k: v for k, v in sizes[dot].iteritems()},
+        if args.save:
+            print savenotice(dot, out, ext)
+            np.savetxt(out+ext, point, header=hfmt(**sizes[dot]),
+                       delimiter='     ', fmt=txtfmt)
+            helpy.txt_to_npz(out+ext, verbose=args.verbose, compress=args.gz)
+    if args.save:
+        from shutil import copy
+        copy(first, prefix+'_'+path.basename(first))
+        fig.savefig(prefix+'_SEGMENTSTATS.pdf')
+        helpy.save_meta(prefix, meta, path_to_tiffs=path.abspath(filepattern),
                         detect_thresh=args.thresh, detect_removed=args.remove)
+    else:
+        pl.show()
