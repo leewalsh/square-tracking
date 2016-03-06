@@ -2,6 +2,8 @@
 import sys
 import numpy as np
 
+import helpy
+
 '''
 This script inputs a tracking file output by tracks.py and turns it
 into a text file of particle positions at each frame. given "filename",
@@ -16,34 +18,22 @@ if len(sys.argv) < 2:
     sys.exit(0)
 
 fname = sys.argv[1]
-data = np.load(fname + "_TRACKS.npz")["data"]
+data = helpy.load_data(fname, 't')
 
 # cut out still frames at beginning
 CUT_STILL = False
-frame = 1
 
 if CUT_STILL:
-    nframes = data[-1][0] + 1
-    original = {}   # dict of initial position of each particle (x, y)
-    for row in data[data['f']==0]:
-        # row[3] is the 'lab' field, showing track ID as per new tracks.py
-        # row[1] and row[2] are 'x' and 'y'
-        original[row[3]] = (row[1], row[2])
+    nf = 100
+    tsets = helpy.load_tracksets(data, min_length=nf, run_fill_gaps='interp',
+                                 run_remove_dupes=True, run_track_orient=True)
+    disp_thresh = 0.04*len(tsets)
 
-    for frame in range(nframes):
-        disp = 0
-        for row in data[data['f']==frame]:
-            ID = row[3] # the label field, showing track ID not particle ID?
-            disp += (row[1]-original[ID][0])**2 + (row[2]-original[ID][1])**2
-        if disp > 0.04 * len(original): # avg 0.04 squared displacement
-            break # here frame=first movement
+    disp = np.zeros(nf)
+    for t, tset in tsets.iteritems():
+        for i in 'xy':
+            disp += (tset[i][:nf] - tset[i][0])**2
+    first = np.argmax(disp >= disp_thresh)
+    data['f'] -= first - 1
 
-# row[0] means row['f']
-first = frame - 1
-data = [(row[0]-first,) + tuple(row)[1:-1]
-        for row in data if row[0] >= first]
-
-with open(fname + "_POSITIONS.txt", "w") as f:
-    f.write('# Frame    X           Y             Label  Eccen        Area\n')
-    np.savetxt(f, data, delimiter='     ',
-               fmt=['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d'])
+np.savez_compressed(fname + '_TRACKS.npz', data=data[data['f'] >= 0])
