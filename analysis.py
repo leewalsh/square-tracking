@@ -2,7 +2,7 @@
 import sys
 import numpy as np
 from scipy.spatial import KDTree, Voronoi
-import math
+import math, cmath
 
 import helpy
 
@@ -27,9 +27,6 @@ def get_angle(p, q):
     r = (q[0] - p[0], q[1] - p[1])
     return math.atan2(r[1], r[0])
 
-def exp(C):
-    # C complex
-    return math.exp(C.real) * (math.cos(C.imag) + 1j * math.sin(C.imag))
 
 def poly_area(corners):
     # calculate area of polygon
@@ -76,13 +73,13 @@ def take_avg(stat, ignore_first):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Please specify a filename.")
-        sys.exit(0)
-
-    M = 4 # number of neighbors
-
+        print "Please specify a filename."
+        sys.exit(2)
     fname = sys.argv[1]
     helpy.save_log_entry(fname, 'argv')
+
+    M = 4  # number of neighbors
+
     data = helpy.load_data(fname)
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
@@ -122,14 +119,16 @@ if __name__ == '__main__':
         r_psi = []
         r_r = []
 
-        for v in range(max_valency + 1): # each list contains all s=k
+        for v in range(max_valency + 1):
+            # each list contains all s=k
             r_densities.append([])
             r_psi.append([])
             r_r.append([])
 
         for i, p in enumerate(vor.points):
             region = vor.regions[vor.point_region[i]]
-            if -1 in region: # infinite Voronoi cell
+            if -1 in region:
+                # infinite Voronoi cell
                 continue
             areas.append(poly_area([vor.vertices[q] for q in region]))
             if areas[-1] > 0.:
@@ -154,11 +153,12 @@ if __name__ == '__main__':
             neighbors = [n for n in neighbors
                          if (n[0]-p[0])**2 + (n[1]-p[1])**2 < thresh]
             N = len(neighbors)
-            psi = sum(exp(M * get_angle(p, n) * 1j) for n in neighbors) / N
+            psi = sum(cmath.exp(M*get_angle(p, n) * 1j) for n in neighbors) / N
+            psi = abs(psi)
             valency = valencies[frame_IDs[j][i]]
             if N > 1: # if N=1, |psi| will trivially be 1
-                psi_frame.append(abs(psi))
-                r_psi[valency].append(abs(psi))
+                psi_frame.append(psi)
+                r_psi[valency].append(psi)
             r = math.sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
             r_r[valency].append(r)
             p_0 = initial_pos[frame_IDs[j][i]]
