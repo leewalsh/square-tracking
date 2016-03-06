@@ -2,8 +2,9 @@
 import sys
 import numpy as np
 from scipy.spatial import KDTree, Voronoi
-from math import sqrt
 import math
+
+import helpy
 
 '''
 This program inputs a positions file (probably produced by
@@ -40,9 +41,6 @@ def poly_area(corners):
         area -= corners[j][0] * corners[i][1]
     return abs(area) / 2.0
 
-def find_COM(frame):
-    return (sum([p[0] for p in frame]) / len(frame),
-            sum([p[1] for p in frame]) / len(frame))
 
 def calc_MSD(tau, squared):
     ret = []
@@ -84,12 +82,10 @@ if __name__ == '__main__':
     M = 4 # number of neighbors
 
     fname = sys.argv[1]
-    data = np.genfromtxt(fname + "_POSITIONS.txt", dtype="i,f,f,i,f,i",
-                         names="f,x,y,lab,ecc,area")
-    frames = [[(row[1], row[2]) for row in data[data['f']==i]]
-              for i in range(data[-1][0] + 1)]
-    frame_IDs = [[row[3] for row in data[data['f']==i]]
-                 for i in range(data[-1][0] + 1)]
+    helpy.save_log_entry(fname, 'argv')
+    data = helpy.load_data(fname)
+    frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
+    frame_IDs = helpy.splitter(data['t'], data['f'])
     psi_data = []
     frame_densities = []
     MSDs = []
@@ -97,20 +93,17 @@ if __name__ == '__main__':
     radial_densities = []
     radial_r = []
     valencies = {}
-    initial_pos = {}
 
     # Calculate valency for each ID based on first frame
-    COM = find_COM(frames[0])
-    dists = [((row[1]-COM[0])**2 + (row[2]-COM[1])**2, row[3])
-             for row in data[data['f']==0]]
-    sorted_dists = sorted(dists)
+    dists = np.hypot(*(frames[0] - frames[0].mean(0)).T)
+    sorted_IDs = frame_IDs[0][dists.argsort()]
     n = 0
     i = 0
     while True:
         n += 1
         box_size = 8 * (n - 1) if n > 1 else 1
         for j in range(box_size):
-            valencies[sorted_dists[i][1]] = n
+            valencies[sorted_IDs[i]] = n
             i += 1
             if i >= len(frames[0]):
                 break
@@ -120,9 +113,7 @@ if __name__ == '__main__':
 
     max_valency = max(valencies.values())
     # Find initial positions for each ID
-    frame0 = data[data['f']==0]
-    for x in frame0:
-        initial_pos[x[3]] = (x[1], x[2])
+    initial_pos = dict(zip(frame_IDs[0], frames[0]))
 
     for j, frame in enumerate(frames):
         vor = Voronoi(frame)
@@ -150,7 +141,7 @@ if __name__ == '__main__':
         radial_densities.append(r_densities)
 
         tree = KDTree(frame)
-        COM = find_COM(frame)
+        COM = frame.mean(0)
         psi_frame = []
         for i, p in enumerate(frame):
             query_ret = tree.query([p], k=M+1)
@@ -168,7 +159,7 @@ if __name__ == '__main__':
             if N > 1: # if N=1, |psi| will trivially be 1
                 psi_frame.append(abs(psi))
                 r_psi[valency].append(abs(psi))
-            r = sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
+            r = math.sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
             r_r[valency].append(r)
             p_0 = initial_pos[frame_IDs[j][i]]
             squared_disp = (p[0]-p_0[0])**2 + (p[1]-p_0[1])**2
