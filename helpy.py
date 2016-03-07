@@ -560,10 +560,11 @@ def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
                    run_fill_gaps=False, run_track_orient=False, verbose=False):
     """Build a dict of slices into data based on trackid
 
-    paramters:
+    parameters:
         data:               array to group by trackid
         trackids:           values by which to split. if None, uses data['t']
         min_length:         only include tracks with at least this many members
+                        or, include the longest N tracks with min_length = -N
         run_remove_dupes:   whether to run tracks.remove_dupes on the data
         run_fill_gaps:      whether to fill gaps (see tracks -h (--gaps))
         run_track_orient:   whether to track orients so angles are not mod 2pi
@@ -578,10 +579,11 @@ def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
         # copy in case called as ...(data, data['t'])
         trackids = trackids.copy()
     lengths = np.bincount(trackids+1)[1:]
-    if min_length > 1:
-        lengths = lengths >= min_length
-    longtracks = np.where(lengths)[0]
-    tracksets = {track: data[trackids == track] for track in longtracks}
+    if min_length < 0:
+        ts = lengths.argsort()[min_length:]
+    else:
+        ts = np.where(lengths >= min_length)[0]
+    tracksets = {t: data[trackids == t] for t in ts}
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
@@ -594,6 +596,7 @@ def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
         fs = () if run_fill_gaps == 'nans' else ('xy', 'o')
         fill_gaps(tracksets, interp=fs, inplace=True, verbose=verbose)
     return tracksets
+
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,

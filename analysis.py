@@ -124,6 +124,9 @@ if __name__ == '__main__':
     M = 4  # number of neighbors
 
     data = helpy.load_data(fname)
+    tracks = helpy.load_tracksets(data, min_length=-N, run_fill_gaps='interp',
+                                  run_track_orient=True)
+    data = data[np.in1d(data['t'], tracks)]
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
 
@@ -177,7 +180,7 @@ if __name__ == '__main__':
             neighbors = [tree.data[x] for x in query_ret[1][0]][1:]
             # if p is an edge or corner, remove extra neighbors
             min_dist = min((n[0]-p[0])**2 + (n[1]-p[1])**2 for n in neighbors)
-            thresh = min_dist * 2 * .9 # slightly less than a diagonal
+            thresh = min_dist * 2 * .9  # slightly less than a diagonal
             neighbors = [n for n in neighbors
                          if (n[0]-p[0])**2 + (n[1]-p[1])**2 < thresh]
             N = len(neighbors)
