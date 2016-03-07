@@ -662,9 +662,7 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
     if trackids is None:
         trackids = data['t']
     if mask is None:
-        mask = (trackids >= 0)
-    else:
-        mask = mask & (trackids >= 0)
+        mask = np.where(trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
     ax.scatter(data['y'], data['x'], c=trackids%12, marker='o', alpha=.5, lw=0)
@@ -676,7 +674,7 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
         save = save + '_tracks.png'
         print "saving tracks image to",
         print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+        fig.savefig(save, frameon=False, dpi=300)
     if show:
         plt.show()
 
@@ -1248,10 +1246,6 @@ if __name__ == '__main__':
             args.dt0  = 10  # here's assuming...
             args.dtau = 10  #  should be true for all from before dt* was saved
 
-    if args.save:
-        helpy.save_meta(saveprefix, meta)
-
-if __name__=='__main__':
     if args.plotmsd:
         if verbose: print 'plotting msd now!'
         plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1, tnormalize=False,
@@ -1259,6 +1253,7 @@ if __name__=='__main__':
                  singletracks=args.singletracks, fps=args.fps, S=args.side,
                  save=args.save, kill_flats=args.killflat,
                  kill_jumps=args.killjump*args.side**2)
+
     if args.plottracks:
         if verbose: print 'plotting tracks now!'
         if args.slice:
@@ -1272,12 +1267,19 @@ if __name__=='__main__':
             mask = None
         bgimage = helpy.find_tiffs(prefix=relprefix, frames=bgind,
                                    single=True, load=True)[1]
-        if args.singletracks:
-            if trackids is None:
-                trackids = data['t']
-            mask &= np.in1d(trackids, args.singletracks)
+        if not args.singletracks:
+            tracksets = helpy.load_tracksets(data, min_length=args.stub,
+                                             run_fill_gaps=args.gaps,
+                                             verbose=args.verbose)
+            args.singletracks = tracksets.keys()
+        if trackids is None:
+            trackids = data['t']
+        mask &= np.in1d(trackids, args.singletracks)
         plot_tracks(data, trackids, bgimage, mask=mask,
                     save=saveprefix*args.save, show=args.show)
+
+    if args.save:
+        helpy.save_meta(saveprefix, meta)
 
 if __name__=='__main__' and args.nn:
     print "====== <nn> ======"
