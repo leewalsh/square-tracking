@@ -15,7 +15,7 @@ tracks_to_pos.py) and creates a .npz file containing analysis
 of the particle positions with the following quantities:
 * Psi
 * Densities
-* "Radial" psi (organized by valency shell)
+* "Radial" psi (organized by shell)
 * Radial densities
 * Radial r (r being the distance from the crystal's center of mass)
 * Radial speed (per frame)
@@ -47,7 +47,7 @@ def calc_MSD(tau, squared):
     ret = []
     for t, frame in enumerate(frames[:-tau]):
         disps = []
-        for v in range(max_valency + 1): # contains all s=k
+        for v in range(nshells + 1): # contains all s=k
             disps.append([])
         other_frame = frames[t + tau]
         # range over all particles in frames t, t+tau
@@ -60,9 +60,9 @@ def calc_MSD(tau, squared):
                     frame_IDs[t][i],t+tau))
                 continue
             # found corresponding particle q in other frame
-            valency = valencies[frame_IDs[t][i]]
+            shell = shells[frame_IDs[t][i]]
             x = (p[0]-q[0])**2 + (p[1]-q[1])**2
-            disps[valency].append(x if squared else math.sqrt(x))
+            disps[shell].append(x if squared else math.sqrt(x))
         ret.append(disps)
     return ret
 
@@ -127,8 +127,8 @@ if __name__ == '__main__':
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
 
-    valencies = assign_shell(frames[0])
-    max_valency = valencies.max()
+    shells = assign_shell(frames[0])
+    nshells = shells.max()
 
     psi_data = []
     frame_densities = []
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         r_psi = []
         r_r = []
 
-        for v in range(max_valency + 1):
+        for v in range(nshells + 1):
             # each list contains all s=k
             r_densities.append([])
             r_psi.append([])
@@ -160,7 +160,7 @@ if __name__ == '__main__':
                 continue
             areas.append(poly_area([vor.vertices[q] for q in region]))
             if areas[-1] > 0.:
-                r_densities[valencies[frame_IDs[j][i]]].append(1. / areas[-1])
+                r_densities[shells[frame_IDs[j][i]]].append(1. / areas[-1])
 
         areas = np.asarray(areas)
         densities = 1. / areas[areas > 0.]
@@ -183,12 +183,12 @@ if __name__ == '__main__':
             N = len(neighbors)
             psi = sum(cmath.exp(M*get_angle(p, n) * 1j) for n in neighbors) / N
             psi = abs(psi)
-            valency = valencies[frame_IDs[j][i]]
+            shell = shells[frame_IDs[j][i]]
             if N > 1: # if N=1, |psi| will trivially be 1
                 psi_frame.append(psi)
-                r_psi[valency].append(psi)
+                r_psi[shell].append(psi)
             r = math.sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
-            r_r[valency].append(r)
+            r_r[shell].append(r)
             p_0 = initial_pos[frame_IDs[j][i]]
             squared_disp = (p[0]-p_0[0])**2 + (p[1]-p_0[1])**2
 
