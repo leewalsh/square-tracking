@@ -3,10 +3,9 @@
 
 from __future__ import division
 
-from operator import itemgetter
-
 from math import sqrt
-from cmath import phase, polar
+from cmath import phase
+
 import numpy as np
 from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
@@ -633,12 +632,19 @@ def get_id(data, position, frames=None, tolerance=10e-5):
 def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub=2*ss):
     """ do something with the angles a given particle makes with its neighbors
 
-        `ang_type` can be 'relative', 'delta', or 'absolute'
-        `neighborhood` may be:
-            an integer (probably 4, 6, or 8), giving that many nearest neighbors,
-            or None (which gives voronoi)
-        `margin` is the width of excluded boundary margin
-        `dub` is the distance upper bound (won't use pairs farther apart)
+        Parameters
+        positions:  (N, 2) array of positions
+        ang_type:   string, choice of 'absolute' (default), 'relative', 'delta'
+        neighborhood:   how to choose which pairs are neighbors. can be:
+            integer (probably 4, 6, or 8), giving that many nearest neighbors
+            'vor' or None, gives voronoi/delaunay neighbors
+        margin:     is the width of excluded boundary margin
+        dub:        is the distance upper bound (won't use pairs farther apart)
+
+        Returns
+        angles:     array of angles between neighboring pairs
+        nmask:      neighbor mask
+        dmask:      margin mask, only returned if margin > 0
     """
     if neighborhood is None or str(neighborhood).lower() in ['voronoi', 'delauney']:
         #method = 'voronoi'
@@ -682,12 +688,33 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         nmask = nmask[dmask]
     return (angles % tau, nmask) + ((dmask,) if margin else ())
 
-def pair_angle_op(angles, nmask=None, m=4):
+def pair_angle_op(angles, nmask=None, m=4, ret_complex=False):
+    """ calculate the pair-angle (bond angle) order parameter
+
+    the parameter for particle i is defined as:
+        psi_m_i = < exp(i m theta_ij) >
+    averaged over neighbors j of particle i
+    the global parameter is the mean over all particles i:
+        Psi_m = < psi_m_i >
+
+    Parameters
+    angles: angles between neighboring pairs (from pair_angles)
+    nmask:  neighbor mask (None)
+    m:      angles will be considered modulo tau/m
+
+    Returns
+    mag:    the absolute value |psi|
+    ang:    the phase of psi mod tau/m
+    psims:  the local values of psi for each particle
+    """
+
     if nmask is not None:
         angles[~nmask] = np.nan
     psims = np.nanmean(np.exp(m*angles*1j), 1)
     psim = np.nanmean(psims)
-    return abs(psim), phase(psim)/m, psims
+    mag = abs(psim)
+    ang = phase(psim)/m
+    return mag, ang, psims
 
 def pair_angle_corr(positions, psims, rbins=10):
     assert len(positions) == len(psims), "positions does not match psi_m(r)"
