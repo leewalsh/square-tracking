@@ -253,9 +253,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
 
     trackids = -np.ones(pdata.shape, dtype=int)
     if n == -1:
-        # use the mode of number of particles per frame
-        # np.argmax(np.bincount(x)) == mode(x)
-        n = np.argmax(np.bincount(np.bincount(pdata['f'])))
+        n = helpy.mode(pdata['f'], count=True)
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:

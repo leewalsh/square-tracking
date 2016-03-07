@@ -46,9 +46,7 @@ def poly_area(corners):
 def calc_MSD(tau, squared):
     ret = []
     for t, frame in enumerate(frames[:-tau]):
-        disps = []
-        for v in range(nshells + 1): # contains all s=k
-            disps.append([])
+        disps = [[] for i in xrange(nshells)]
         other_frame = frames[t + tau]
         # range over all particles in frames t, t+tau
         for i, p in enumerate(frames[t]):
@@ -65,6 +63,7 @@ def calc_MSD(tau, squared):
             disps[shell].append(x if squared else math.sqrt(x))
         ret.append(disps)
     return ret
+
 
 def take_avg(stat, ignore_first):
     if ignore_first:
@@ -104,13 +103,14 @@ def assign_shell(positions, N=None, ref_basis=None):
     largest value is (W - 1)/2
     """
     N, W = square_size(N or len(positions))
+    assert W % 2, "Michael's code requires integer shells"
     if ref_basis is None:
         _, ref_basis = find_ref_basis(positions)
     positions = corr.rotate2d(positions, basis=ref_basis)
     positions -= positions.mean(0)
     spacing = (positions.max(0) - positions.min(0)) / (W - 1)
     positions /= spacing
-    shells = np.abs(2*positions).max(1).round()/2
+    shells = np.abs(positions).max(1).round().astype(int)
     return shells
 
 
@@ -119,19 +119,27 @@ if __name__ == '__main__':
         print "Please specify a filename."
         sys.exit(2)
     fname = sys.argv[1]
+    if len(sys.argv) > 2:
+        W = sys.argv[2]
+        N = W*W
+    else:
+        W = N = None
     helpy.save_log_entry(fname, 'argv')
 
     M = 4  # number of neighbors
 
     data = helpy.load_data(fname)
+    if N is None:
+        N, W = square_size(helpy.mode(data['f'][data['t'] >= 0], count=True))
+
     tracks = helpy.load_tracksets(data, min_length=-N, run_fill_gaps='interp',
                                   run_track_orient=True)
-    data = data[np.in1d(data['t'], tracks)]
+    data = data[np.in1d(data['t'], tracks.keys())]
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
 
     shells = assign_shell(frames[0])
-    nshells = shells.max()
+    nshells = (W+1)//2
 
     psi_data = []
     frame_densities = []
@@ -146,15 +154,9 @@ if __name__ == '__main__':
     for j, frame in enumerate(frames):
         vor = Voronoi(frame)
         areas = []
-        r_densities = []
-        r_psi = []
-        r_r = []
-
-        for v in range(nshells + 1):
-            # each list contains all s=k
-            r_densities.append([])
-            r_psi.append([])
-            r_r.append([])
+        r_densities = [[] for i in xrange(nshells)]
+        r_psi = [[] for i in xrange(nshells)]
+        r_r = [[] for i in xrange(nshells)]
 
         for i, p in enumerate(vor.points):
             region = vor.regions[vor.point_region[i]]

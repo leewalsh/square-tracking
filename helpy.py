@@ -876,6 +876,24 @@ def farange(start, stop, factor):
     dt = np.result_type(start, stop, factor)
     return factor**np.arange(start_power, stop_power, dtype=dt)
 
+
+def mode(x, count=False):
+    """Find the mode of an integer array.
+
+    parameters
+    x:      array of integers
+    count:  if True, will return the mode of frequencies of x instead of values
+
+    returns
+    mode:   a scalar
+    """
+    if count:
+        x = np.bincount(x)
+        m = 0
+    else:
+        m = x.min()
+    return np.argmax(np.bincount(x-m)) + m
+
 def loglog_slope(x, y, smooth=0):
     dx = 0.5*(x[1:] + x[:-1])
     dy = np.diff(np.log(y)) / np.diff(np.log(x))
