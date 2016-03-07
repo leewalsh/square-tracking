@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+from __future__ import division
+
 import sys
 import numpy as np
 from scipy.spatial import KDTree, Voronoi
 import math, cmath
 
 import helpy
+import correlation as corr
 
 '''
 This program inputs a positions file (probably produced by
@@ -21,6 +24,7 @@ of the particle positions with the following quantities:
 Example usage:
 analysis.py 12x12_random
 '''
+
 
 def get_angle(p, q):
     # angle of (q - p) from the horizontal
@@ -71,6 +75,45 @@ def take_avg(stat, ignore_first):
             for l in frame[1:]] for frame in stat]
     return [x[1:] for x in ret] if ignore_first else ret
 
+
+def find_ref_basis(positions=None, psi=None):
+    side = 17.61
+    pair_angles = corr.pair_angles(positions, 4, 'absolute', dub=side*math.sqrt(2))
+    psi, ang, psims = corr.pair_angle_op(*pair_angles, m=4)
+    cos, sin = np.cos(ang), np.sin(ang)
+    basis = np.array([[cos, sin], [-sin, cos]])
+    return ang, basis
+
+
+def square_size(num):
+    """given number of particles, return the perfect square and its width
+    """
+    width = int(round(math.sqrt(num)))
+    num = width*width
+    return num, width
+
+
+def assign_shell(positions, N=None, ref_basis=None):
+    """given (N, 2) positions array, assign shell number to each particle
+
+    shell number is assigned as maximum coordinate, written in a basis aligned
+    with the global phase from the global bond-angle order parameter, with its
+    origin at the center of mass, with unit length the average nearest-neighbor
+
+    if W = sqrt(N) is even, smallest value is 0.5; if even, smallest value is 0.
+    largest value is (W - 1)/2
+    """
+    N, W = square_size(N or len(positions))
+    if ref_basis is None:
+        _, ref_basis = find_ref_basis(positions)
+    positions = corr.rotate2d(positions, basis=ref_basis)
+    positions -= positions.mean(0)
+    spacing = (positions.max(0) - positions.min(0)) / (W - 1)
+    positions /= spacing
+    shells = np.abs(2*positions).max(1).round()/2
+    return shells
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print "Please specify a filename."
@@ -83,32 +126,17 @@ if __name__ == '__main__':
     data = helpy.load_data(fname)
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
+
+    valencies = assign_shell(frames[0])
+    max_valency = valencies.max()
+
     psi_data = []
     frame_densities = []
     MSDs = []
     radial_psi = []
     radial_densities = []
     radial_r = []
-    valencies = {}
 
-    # Calculate valency for each ID based on first frame
-    dists = np.hypot(*(frames[0] - frames[0].mean(0)).T)
-    sorted_IDs = frame_IDs[0][dists.argsort()]
-    n = 0
-    i = 0
-    while True:
-        n += 1
-        box_size = 8 * (n - 1) if n > 1 else 1
-        for j in range(box_size):
-            valencies[sorted_IDs[i]] = n
-            i += 1
-            if i >= len(frames[0]):
-                break
-        else:
-            continue
-        break
-
-    max_valency = max(valencies.values())
     # Find initial positions for each ID
     initial_pos = dict(zip(frame_IDs[0], frames[0]))
 

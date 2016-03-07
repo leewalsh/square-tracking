@@ -156,18 +156,24 @@ def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
         rotate2d(displacements, rectify(positions, margin=margin))
     return np.histogramdd(displacements[rmask], bins=bins, weights=w[rmask])[0]
 
-def rotate2d(vectors, angles):
+def rotate2d(vectors, angles=None, basis=None):
     """ rotate vectors by angles
-        *** beware *** modifies vectors in place ***
 
-        vectors must have shape (..., 2)
-        angles broadcast to shape (...)
+        Parameters
+        vectors:    vectors to rotate, must have shape (..., 2)
+        angles:     angles by which to rotate, must broadcast to shape (...)
+        basis:      or, change to this basis, shape (2, ...) or (2, 2, ...)
+        inplace:    whether to modify `vectors` in place
+
+        Returns
+        None if inplace else vectors, rotated or in new basis
     """
-    assert vectors.shape[-1] == 2, "must be two dimensional vectors"
-    c, s = np.cos(angles), np.sin(angles)
-    x, y = vectors[..., 0], vectors[..., 1]
-    x[:], y[:] = x*c - y*s, y*c + x*s
-    return
+    if basis is None or basis.shape[:2] != (2, 2):
+        c, s = basis if angles is None else (np.cos(angles), -np.sin(angles))
+        basis = np.array([[c, s], [-s, c]])
+    # note we multiply basis.T * vectors, since basis is not a rotation matrix
+    return np.einsum('ji...,...i->...j', basis, vectors, casting='same_kind')
+
 
 def get_positions(data, frame, pid=None):
     """ get_positions(data,frame)
