@@ -3,13 +3,30 @@ import sys
 import Tkinter as TK
 from PIL import Image, ImageTk
 import math
-from square_length import get_length
 
 '''
 Program to detect possible overlap between particles.
 Adjust resize_factor in make_square to change the tolerance
 for detecting overlap.
 '''
+
+
+def get_length(positions):
+    """ usage in previous file:
+    positions = sorted(zip(particles['X'], particles['Y']))
+    print(get_length(positions))
+    """
+    N = int(round(math.sqrt(len(positions))))
+    if N*N != len(positions):
+        raise ValueError("Cannot calculate square length with a non-square # of particles")
+
+    lengths_sum = 0
+    for i in range(N):
+        col = positions[i * N: (i + 1) * N]
+        lengths_sum += (col[-1][1] - col[0][1]) / (N - 1)
+
+    return lengths_sum / N
+
 
 def intersects(square1, square2):
     '''xvals = [square1[0][0], square1[1][0], square1[2][0], square1[3][0]]
@@ -24,7 +41,7 @@ def intersects(square1, square2):
     yvals = [square2[0][1], square2[1][1], square2[2][1], square2[3][1]]
     top2 = min(yvals)
     bottom2 = max(yvals)
-    return right1 >= left2 and left1 <= right2 and top1 <= bottom2 and bottom1 >= top2    
+    return right1 >= left2 and left1 <= right2 and top1 <= bottom2 and bottom1 >= top2
     '''
     from shapely.geometry import Polygon
     return Polygon(square1).intersects(Polygon(square2))
