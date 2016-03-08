@@ -67,13 +67,8 @@ def calc_MSD(tau, squared):
     return ret
 
 
-def take_avg(stat, ignore_first):
-    if ignore_first:
-        for frame in stat:
-            frame[2].extend(frame[1])
-            frame[1] = []
-    return [[sum(l)/len(l) if len(l) > 0 else -1
-             for l in frame[ignore_first + 1:]] for frame in stat]
+def take_avg(stat):
+    return [[np.mean(s) if len(s) else -1 for s in f] for f in stat]
 
 
 def find_ref_basis(positions=None, psi=None):
@@ -181,29 +176,32 @@ if __name__ == '__main__':
         radial_densities.append(r_densities)
 
 
-        tree = KDTree(frame)
-        psi_frame = []
-        for i, p in enumerate(frame):
-            query_ret = tree.query([p], k=M+1)
+        psi_loop = True
+        if psi_loop:
+            tree = KDTree(frame)
+            distances, neighbors = tree.query(frame, k=M+1)
+            distances = distances[:, 1:]  # nearest particle is self
+            neighbors = neighbors[:, 1:]
+            psi_frame = []
+            for i, p in enumerate(frame):
+                ns = neighbors[i]
+                # if p is an edge or corner, remove diagonal neighbors
+                thresh = 0.9*math.sqrt(2)*distances[i].min()
+                ns = ns[distances[i] < thresh]
+                if len(ns) > 1:
+                    # if 1 neighbor, |psi| will trivially be 1
+                    psi = np.mean([cmath.exp(M*get_angle(p, frame[n])*1j)
+                                   for n in ns])
+                    psi = abs(psi)
+                    psi_frame.append(psi)
+                    r_psi[fshells[i]].append(psi)
 
-            # remove p from the neighbors list by slicing
-            neighbors = [tree.data[x] for x in query_ret[1][0]][1:]
-            # if p is an edge or corner, remove extra neighbors
-            min_dist = min((n[0]-p[0])**2 + (n[1]-p[1])**2 for n in neighbors)
-            thresh = min_dist * 2 * .9  # slightly less than a diagonal
-            neighbors = [n for n in neighbors
-                         if (n[0]-p[0])**2 + (n[1]-p[1])**2 < thresh]
-            N = len(neighbors)
-            psi = sum(cmath.exp(M*get_angle(p, n) * 1j) for n in neighbors) / N
-            psi = abs(psi)
-            shell = shells[frame_IDs[j][i]]
-            if N > 1: # if N=1, |psi| will trivially be 1
-                psi_frame.append(psi)
-                r_psi[shell].append(psi)
-            p_0 = initial_pos[frame_IDs[j][i]]
-            squared_disp = (p[0]-p_0[0])**2 + (p[1]-p_0[1])**2
-
-        psi_data.append(psi_frame)
+            psi_data.append(psi_frame)
+        else:
+            angles, nmask = corr.pair_angles(frame, M)
+            psi, _, psis = corr.pair_angle_op(angles, nmask, M)
+            psi_data.append(psis)
+            r_psi = [psis[si] for si in shell_ind]
         radial_psi.append(r_psi)
 
 
@@ -222,13 +220,13 @@ if __name__ == '__main__':
                        for densities in frame_densities]
 
     # take averages
-    ignore_first = True
-    radial_psi = take_avg(radial_psi, ignore_first)
-    radial_densities = [[y*6.5**2 for y in x]
-                        for x in take_avg(radial_densities, ignore_first)]
-    radial_r = take_avg(radial_r, ignore_first)
-    radial_speed = take_avg(radial_speed, ignore_first)
-    radial_MSD = take_avg(radial_MSD, ignore_first)
+    radial_psi = take_avg(radial_psi)
+    square_area = 6.5**2
+    radial_densities = [[y*square_area for y in x]
+                        for x in take_avg(radial_densities)]
+    radial_r = take_avg(radial_r)
+    radial_speed = take_avg(radial_speed)
+    radial_MSD = take_avg(radial_MSD)
 
     m = max([max(x) for x in radial_densities])
     radial_densities /= m
