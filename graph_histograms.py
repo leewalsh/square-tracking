@@ -1,7 +1,10 @@
 #!/usr/bin/env python
+from __future__ import division
+
 import sys
-from matplotlib import pyplot as plt
+
 import numpy as np
+from matplotlib import pyplot as plt
 import pygame
 from pygame.locals import QUIT
 
@@ -20,7 +23,8 @@ Example usage:
 graph_histograms.py densities s
 '''
 
-def plot(data, width, height, bins=100, contrast=1,
+
+def plot(data, size, bins=100, contrast=1,
          colormap='rainbow', avg='median'):
     '''
     data: 2-dimensional list of points at each frame
@@ -30,30 +34,27 @@ def plot(data, width, height, bins=100, contrast=1,
     See http://matplotlib.org/examples/color/colormaps_reference.html
     for colormap examples.
     '''
-    nframes = len(data)
-    dx = width / nframes
-    dy = 1. / bins
+    width, height = size
+    nframes = min(len(data), width)
+    data = data[:nframes]
+    dx = width // nframes
+    dy = 1 / bins
     cmap = plt.get_cmap(colormap)
     screen = pygame.display.set_mode((dx * nframes, height))
     screen.fill([x*255 for x in cmap(0)])
 
     for t in range(nframes):
         for b in range(bins):
-            y = height * (1. - float(b + 1) / bins)
-            data_min = float(b) / bins
-            data_max = data_min + dy
-            in_range = [x for x in data[t] if x > data_min and x < data_max]
-            freq = float(len(in_range)) / len(data[t])
+            y = height * (1 - (b + 1) / bins)
+            bmin = b / bins
+            bmax = bmin + dy
+            in_range = [x for x in data[t] if bmin < x < bmax]
+            freq = len(in_range) / len(data[t])
             color = [x * 255 for x in cmap(freq * contrast)]
             pygame.draw.rect(screen, color, (t * dx, y, dx, dy * height), 0)
 
     if avg is not None:
-        if avg == 'mean':
-            avg_func = lambda x: sum(x) / len(x)
-        elif avg == 'median':
-            avg_func = lambda x: sorted(x)[len(x) / 2]
-        else: # ??
-            raise Exception("avg must be either mean or median")
+        avg_func = {'mean': np.mean, 'median': np.median}[avg]
         points = [(t * dx, (1 - avg_func(x)) * height)
                   for t, x in enumerate(data)]
         pygame.draw.lines(screen, (0, 0, 0), False, points, 4)
@@ -62,30 +63,29 @@ def plot(data, width, height, bins=100, contrast=1,
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         print("Format: graph_histograms.py [file base] "
-              "[psi/densities]"
-              "[save(s)]?")
+              "[psi/densities] [save(s)]?")
         sys.exit(0)
 
     pygame.init()
     font = pygame.font.Font(None, 50)
-    fname, stat = sys.argv[1], sys.argv[2]
-    pygame.display.set_caption("Plot of histogram of {0} over time".format(stat))
+    fname, stat = sys.argv[1:3]
+    pygame.display.set_caption("Plot of histogram of {} over time".format(stat))
     data = np.load(fname + "_DATA.npz")
-    width, height = (800, 800)
+    size = (800, 800)
     if stat == 'rpsi':
-        screen = plot(data['radial_psi'], width, height, contrast=3)
+        screen = plot(data['radial_psi'], size, contrast=3)
     elif stat == 'rdensities':
-        screen = plot(data['radial_densities'], width, height, contrast=3)
+        screen = plot(data['radial_densities'], size, contrast=3)
     elif stat == 'psi':
-        screen = plot(data['psi'], width, height, contrast=5, avg='mean')
+        screen = plot(data['psi'], size, contrast=5, avg='mean')
     elif stat == 'densities':
-        screen = plot(data['densities'], width, height, contrast=3, avg='median')
-    title = font.render(fname.replace('_', ' '), 1, (255,255,255))
+        screen = plot(data['densities'], size, contrast=3, avg='median')
+    title = font.render(fname.replace('_', ' '), 1, (255,)*3)
     screen.blit(title, (330, 20))
     pygame.display.flip()
 
     if len(sys.argv) > 3 and sys.argv[3] in ('s', 'save'):
-        pygame.image.save(screen, fname + "_{0}.png".format(stat))
+        pygame.image.save(screen,"{}_{}.png".format(fname, stat))
     else:
         running = True
         while running:

@@ -23,14 +23,14 @@ fname, stat = sys.argv[1], sys.argv[2]
 
 MEDIAN = True
 if MEDIAN:
-    avg_func = lambda x: sorted(x)[len(x) / 2]
+    avg_func = np.median
 else:
-    avg_func = lambda x: sum(x) / len(x)
+    avg_func = np.mean
 
 for orient, extra_trials in ORIENTATIONS:
     y_list = []
     for i in range(extra_trials):
-        if i==0:
+        if i == 0:
             a = fname + "_{0}_DATA.npz".format(orient)
         else:
             a = fname + "_{0}_trial{1}_DATA.npz".format(orient, i+1)
@@ -52,10 +52,7 @@ for orient, extra_trials in ORIENTATIONS:
 plt.title("{0} crystal".format(fname))
 plt.xlabel("Time (frames)")
 name = stat.replace("_", " ")
-if name=='psi':
-    name='Psi'
-elif name=='densities':
-    name='Densities (particle lengths^-2)'
+name = {'psi': 'Psi', 'densities': 'Densities (particle lengths^-2)'}[name]
 if 'log' in sys.argv:
     plt.ylabel('Log [{0}]'.format(name))
 else:

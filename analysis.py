@@ -3,8 +3,9 @@ from __future__ import division
 
 import sys
 import numpy as np
-from scipy.spatial import KDTree, Voronoi
-import math, cmath
+from scipy.spatial import Voronoi, cKDTree as KDTree
+import math
+import cmath
 
 import helpy
 import correlation as corr
@@ -54,8 +55,9 @@ def calc_MSD(tau, squared):
                 if frame_IDs[t + tau][j] == frame_IDs[t][i]:
                     break
             else:
-                print("ID {0} not found in frame {1}!".format(
-                    frame_IDs[t][i],t+tau))
+                if verbose:
+                    print("ID {0} not found in frame {1}!".format(
+                          frame_IDs[t][i], t+tau))
                 continue
             # found corresponding particle q in other frame
             shell = shells[frame_IDs[t][i]]
@@ -70,14 +72,14 @@ def take_avg(stat, ignore_first):
         for frame in stat:
             frame[2].extend(frame[1])
             frame[1] = []
-    ret = [[sum(l)/len(l) if len(l)>0 else -1.
-            for l in frame[1:]] for frame in stat]
-    return [x[1:] for x in ret] if ignore_first else ret
+    return [[sum(l)/len(l) if len(l) > 0 else -1
+             for l in frame[ignore_first + 1:]] for frame in stat]
 
 
 def find_ref_basis(positions=None, psi=None):
     side = 17.61
-    pair_angles = corr.pair_angles(positions, 4, 'absolute', dub=side*math.sqrt(2))
+    maxdist = side*math.sqrt(2)
+    pair_angles = corr.pair_angles(positions, 4, 'absolute', dub=maxdist)
     psi, ang, psims = corr.pair_angle_op(*pair_angles, m=4)
     cos, sin = np.cos(ang), np.sin(ang)
     basis = np.array([[cos, sin], [-sin, cos]])
@@ -92,7 +94,7 @@ def square_size(num):
     return num, width
 
 
-def assign_shell(positions, N=None, ref_basis=None):
+def assign_shell(positions, ids=None, N=None, ref_basis=None):
     """given (N, 2) positions array, assign shell number to each particle
 
     shell number is assigned as maximum coordinate, written in a basis aligned
@@ -111,6 +113,12 @@ def assign_shell(positions, N=None, ref_basis=None):
     spacing = (positions.max(0) - positions.min(0)) / (W - 1)
     positions /= spacing
     shells = np.abs(positions).max(1).round().astype(int)
+    if ids is not None:
+        ni, mi = len(ids), ids.max() + 1
+        if ni < mi or np.any(ids != np.arange(ni)):
+            shells_by_id = np.full(mi, -1, 'u4')
+            shells_by_id[ids] = shells
+            return shells_by_id
     return shells
 
 
@@ -124,6 +132,7 @@ if __name__ == '__main__':
         N = W*W
     else:
         W = N = None
+    verbose = '-v' in sys.argv
     helpy.save_log_entry(fname, 'argv')
 
     M = 4  # number of neighbors
@@ -131,6 +140,7 @@ if __name__ == '__main__':
     data = helpy.load_data(fname)
     if N is None:
         N, W = square_size(helpy.mode(data['f'][data['t'] >= 0], count=True))
+    nshells = (W+1)//2
 
     tracks = helpy.load_tracksets(data, min_length=-N, run_fill_gaps='interp',
                                   run_track_orient=True)
@@ -138,42 +148,40 @@ if __name__ == '__main__':
     frames = helpy.splitter(data[['x', 'y']].view(('f4', (2,))), data['f'])
     frame_IDs = helpy.splitter(data['t'], data['f'])
 
-    shells = assign_shell(frames[0])
-    nshells = (W+1)//2
-
-    psi_data = []
-    frame_densities = []
-    MSDs = []
-    radial_psi = []
-    radial_densities = []
-    radial_r = []
-
-    # Find initial positions for each ID
+    shells = assign_shell(frames[0], frame_IDs[0])
     initial_pos = dict(zip(frame_IDs[0], frames[0]))
 
+    psi_data = []           # (frame, particle)
+    frame_densities = []    # (frame, particle)
+    radial_psi = []         # (frame, shell, particle)
+    radial_densities = []   # (frame, shell, particle)
+    radial_r = []           # (frame, shell, particle)
+
     for j, frame in enumerate(frames):
+        fshells = shells[frame_IDs[j]]
+        shell_ind = [np.where(fshells == s) for s in xrange(nshells)]
+
         vor = Voronoi(frame)
-        areas = []
-        r_densities = [[] for i in xrange(nshells)]
-        r_psi = [[] for i in xrange(nshells)]
-        r_r = [[] for i in xrange(nshells)]
+        areas = []                                      # (particle,)
+        r_densities = [[] for i in xrange(nshells)]     # (shell, particle)
+        r_psi = [[] for i in xrange(nshells)]           # (shell, particle)
+        r_r = helpy.dist(frame, frame.mean(0))          # (particle,)
+        radial_r.append([r_r[si] for si in shell_ind])  # (shell, particle)
 
-        for i, p in enumerate(vor.points):
+        for i in xrange(len(vor.points)):
             region = vor.regions[vor.point_region[i]]
-            if -1 in region:
-                # infinite Voronoi cell
-                continue
-            areas.append(poly_area([vor.vertices[q] for q in region]))
-            if areas[-1] > 0.:
-                r_densities[shells[frame_IDs[j][i]]].append(1. / areas[-1])
+            if region and -1 not in region:
+                # finite Voronoi cell
+                area = poly_area(vor.vertices[region])
+                if area > 0:
+                    areas.append(area)
+                    r_densities[fshells[i]].append(1/area)
 
-        areas = np.asarray(areas)
-        densities = 1. / areas[areas > 0.]
-        frame_densities.append(densities)
+        frame_densities.append(1/np.array(areas))
         radial_densities.append(r_densities)
 
+
         tree = KDTree(frame)
-        COM = frame.mean(0)
         psi_frame = []
         for i, p in enumerate(frame):
             query_ret = tree.query([p], k=M+1)
@@ -192,31 +200,35 @@ if __name__ == '__main__':
             if N > 1: # if N=1, |psi| will trivially be 1
                 psi_frame.append(psi)
                 r_psi[shell].append(psi)
-            r = math.sqrt((COM[0]-p[0])**2 + (COM[1]-p[1])**2)
-            r_r[shell].append(r)
             p_0 = initial_pos[frame_IDs[j][i]]
             squared_disp = (p[0]-p_0[0])**2 + (p[1]-p_0[1])**2
 
         psi_data.append(psi_frame)
         radial_psi.append(r_psi)
-        radial_r.append(r_r)
 
 
     # Calculate radial speed (not MSD!)
-    radial_speed = calc_MSD(1, False)
-    radial_MSD = calc_MSD(5, True)
+    radial_speed = calc_MSD(tau=1, squared=False)   # (frame, shell, particle)
+    radial_MSD = calc_MSD(tau=5, squared=True)      # (frame, shell, particle)
+
+    # psi_data          (frame, particle)
+    # frame_densities   (frame, particle)
+    # radial_psi        (frame, shell, particle)
+    # radial_densities  (frame, shell, particle)
+    # radial_r          (frame, shell, particle)
 
     max_density = max([max(densities) for densities in frame_densities])
     frame_densities = [densities / (max_density*6.5**2)
                        for densities in frame_densities]
 
-    #take averages
-    radial_psi = take_avg(radial_psi, True)
+    # take averages
+    ignore_first = True
+    radial_psi = take_avg(radial_psi, ignore_first)
     radial_densities = [[y*6.5**2 for y in x]
-                        for x in take_avg(radial_densities, True)]
-    radial_r = take_avg(radial_r, True)
-    radial_speed = take_avg(radial_speed, True)
-    radial_MSD = take_avg(radial_MSD, True)
+                        for x in take_avg(radial_densities, ignore_first)]
+    radial_r = take_avg(radial_r, ignore_first)
+    radial_speed = take_avg(radial_speed, ignore_first)
+    radial_MSD = take_avg(radial_MSD, ignore_first)
 
     m = max([max(x) for x in radial_densities])
     radial_densities /= m

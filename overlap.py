@@ -1,4 +1,3 @@
-import numpy as np
 import sys
 import Tkinter as TK
 from PIL import Image, ImageTk
@@ -55,8 +54,7 @@ def make_square(x, y, theta, side, resize_factor=0.9):
 def angle(v):
     return math.atan2(v[1], v[0])
 
-particles = np.genfromtxt("POSITIONS", dtype='i,f,f,i,f,i', names=True, skip_header=3)
-corners = np.genfromtxt("CORNER_POSITIONS", dtype='i,f,f,i,f,i', names=True, skip_header=3)
+particles, corners = helpy.load_data(prefix, 'p c')
 
 if len(sys.argv) > 1:
     if sys.argv[1].upper() == 'T':
