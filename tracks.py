@@ -5,109 +5,78 @@ from __future__ import division
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    p = ArgumentParser()
-    p.add_argument('prefix', metavar='PRE',
-                   help="Filename prefix with full or relative path (filenames"
-                   " prefix_POSITIONS.npz, prefix_CORNER_POSITIONS.npz, etc)")
-    p.add_argument('-t', '--track', action='store_true',
-                   help='Connect the dots and save in the array')
-    p.add_argument('-n', '--number', type=int, default=0,
-                   help='Total number of tracks to keep. Default = 0 keeps all,'
-                        ' -1 attempts to count particles')
-    p.add_argument('-o', '--orient', action='store_true',
-                   help='Find the orientations and save')
-    p.add_argument('--ncorners', type=int, default=2,
-                   help='Number of corner dots per particle. default = 2')
-    p.add_argument('-r', '--rcorner', type=float,
-                   help='Distance to corner dot from central dot, in pixels.')
-    p.add_argument('--drcorner', type=float, help='Allowed error in r/rcorner, '
-                   'in pixels. Default is sqrt(r)')
-    p.add_argument('--angsep', type=float, help='Angular separation between '
-                   'corner dots, assumed degrees if angsep > pi')
-    p.add_argument('--dangsep', type=float, help='Allowed error in r/rcorner, '
-                   'in pixels. Default is sqrt(r)')
-    p.add_argument('-l', '--load', action='store_true',
-                   help='Create and save structured array from '
-                        'prefix[_CORNER]_POSITIONS.txt file')
-    p.add_argument('-c', '--corner', action='store_true',
-                   help='Load corners instead of centers')
-    p.add_argument('-k', '--check', action='store_true',
-                   help='Plot an animation of detected positions, orientations,'
-                        ' and track numbers for checking their quality')
-    p.add_argument('-i', '--slice', nargs='?', const=True,
-                   help='Provide a slice to limit frames')
-    p.add_argument('-p', '--plottracks', action='store_true',
-                   help='Plot the tracks')
-    p.add_argument('--noshow', action='store_false', dest='show',
-                   help="Don't show figures (just save them)")
-    p.add_argument('--nosave', action='store_false', dest='save',
-                   help="Don't save outputs or figures")
-    p.add_argument('--maxdist', type=int,
-                   help="maximum single-frame travel distance in "
-                        "pixels for track. default = side/fps if defined")
-    p.add_argument('--giveup', type=int, default=10,
-                   help="maximum number of frames in track gap. default = 10")
-    p.add_argument('-d', '--msd', action='store_true',
-                   help='Calculate the MSD')
-    p.add_argument('--plotmsd', action='store_true',
-                   help='Plot the MSD (requires --msd first)')
-    p.add_argument('-s', '--side', type=float,
-                   help='Particle size in pixels, for unit normalization')
-    p.add_argument('-f', '--fps', type=float,
-                   help="Number of frames per second (or per shake) "
-                        "for unit normalization")
-    p.add_argument('--dt0', type=int, default=1,
-                   help='Stepsize for time-averaging of a single track '
-                        'at different time starting points. default = 1')
-    p.add_argument('--dtau', type=int, default=1,
-                   help='Stepsize for values of tau at which '
-                        'to calculate MSD(tau). default = 1')
-    p.add_argument('--killflat', type=int, default=0,
-                   help='Minimum growth factor for a single MSD track '
-                        'for it to be included')
-    p.add_argument('--killjump', type=int, default=100000,
-                   help='Maximum initial jump for a single MSD track '
-                        'at smallest time step')
-    p.add_argument('--stub', type=int, default=10,
-                   help='Minimum length (in frames) of a track '
-                        'for it to be included. default = 10')
-    p.add_argument('-g', '--gaps', choices=['interp', 'nans', 'leave'],
-                   default='interp', nargs='?', const='nans',
-                   help="Gap handling: choose from %(choices)s. default is "
-                        "%(default)s, `-g` or `--gaps` alone gives %(const)s")
-    p.add_argument('--singletracks', type=int, nargs='*',
-                   help='identify single track ids to plot')
-    p.add_argument('--showtracks', action='store_true',
-                   help='Show individual tracks')
-    p.add_argument('--cut', action='store_true',
-                   help='cut individual tracks at collision with boundary')
-    p.add_argument('--boundary', type=float, nargs=3, default=False,
-                   metavar=('X0', 'Y0', 'R'), help='Boundary for track cutting')
-    p.add_argument('--nn', action='store_true',
-                   help='Calculate and plot the <nn> correlation')
-    p.add_argument('--rn', action='store_true',
-                   help='Calculate and plot the <rn> correlation')
-    p.add_argument('--rr', action='store_true',
-                   help='Calculate and plot the <rr> correlation')
-    p.add_argument('--fitdr', action='store_true',
-                   help='Let D_R be a free parameter in fit to MSD (<rn>)')
-    p.add_argument('--fitv0', action='store_true',
-                   help='Let v_0 be a free parameter in fit to MSD (<rr>)')
-    p.add_argument('--dx', type=float, default=0.25,
-                   help='Positional measurement uncertainty (units are pixels '
-                        'unless SIDE is given and DX < 0.1)')
-    p.add_argument('--dtheta', type=float, default=0.02,
-                   help='Angular measurement uncertainty (radians)')
-    p.add_argument('-z', '--zoom', metavar="ZOOM", type=float, default=1,
-                   help="Factor by which to zoom out (in if ZOOM < 1)")
-    p.add_argument('-v', '--verbose', action='count',
-                   help='Print verbosity, may be repeated: -vv')
-    p.add_argument('--suffix', type=str, default='',
-                   help='suffix to add to end of savenames')
-    p.add_argument('--eps', type=float, default=1,
-                   help="uncertainty sigma = stderr + eps*stderr.std()")
+    parser = ArgumentParser()
+    arg = parser.add_argument
+    arg('prefix', metavar='PRE', help="Filename prefix with full or relative "
+        "path (<prefix>_POSITIONS.npz, <prefix>_CORNER_POSITIONS.npz, etc)")
+    arg('-t', '--track', action='store_true', help='Connect the dots!')
+    arg('-n', '--number', type=int, default=0, help='Total number of tracks to '
+        'keep. Default = 0 keeps all, -1 attempts to count particles')
+    arg('-o', '--orient', action='store_true', help='Find the orientations')
+    arg('--ncorners', type=int, default=2,
+        help='Number of corner dots per particle. default = 2')
+    arg('-r', '--rcorner', type=float,
+        help='Distance between corner and center dot, in pixels.')
+    arg('--drcorner', type=float,
+        help='Allowed error in r/rcorner, in pixels. Default is sqrt(r)')
+    arg('--angsep', type=float, help='Angular separation between corner dots, '
+        'assumed degrees if angsep > pi')
+    arg('--dangsep', type=float,
+        help='Allowed error in r/rcorner, in pixels. Default is sqrt(r)')
+    arg('-l', '--load', action='store_true', help='Create and save structured '
+        'array from prefix[_CORNER]_POSITIONS.txt file')
+    arg('-c', '--corner', action='store_true', help='Load corners not centers')
+    arg('-k', '--check', action='store_true', help='Plot an animation of '
+        'detected positions, orientations, and tracks to check their quality')
+    arg('-i', '--slice', nargs='?', const=True, help='Slice to limit frames')
+    arg('-p', '--plottracks', action='store_true', help='Plot the tracks')
+    arg('--noshow', action='store_false', dest='show',
+        help="Don't show figures (just save them)")
+    arg('--nosave', action='store_false', dest='save',
+        help="Don't save outputs or figures")
+    arg('--maxdist', type=int, help="maximum single-frame travel distance in "
+        "pixels for track. default = side/fps if defined")
+    arg('--giveup', type=int, default=10,
+        help="maximum number of frames in track gap. default = 10")
+    arg('-d', '--msd', action='store_true', help='Calculate the MSD')
+    arg('--plotmsd', action='store_true', help='Plot MSD (requires msd first)')
+    arg('-s', '--side', type=float,
+        help='Particle size in pixels, for unit normalization')
+    arg('-f', '--fps', type=float,
+        help="Number of frames per shake (or second) for unit normalization")
+    arg('--dt0', type=int, default=1, help='Stepsize for time-averaging of a '
+        'single track at different time starting points. default = 1')
+    arg('--dtau', type=int, default=1, help='Stepsize for values of tau at '
+        'which to calculate MSD(tau). default = 1')
+    arg('--killflat', type=int, default=0,
+        help='Minimum growth factor for a single MSD track for inclusion')
+    arg('--killjump', type=int, default=100000,
+        help='Maximum initial jump for a single MSD track at first time step')
+    arg('--stub', type=int, default=10, help='Minimum length (in frames) of a '
+        'track for it to be included. default = 10')
+    arg('-g', '--gaps', choices=['interp', 'nans', 'leave'], default='interp',
+        nargs='?', const='nans', help="Gap handling: choose from %(choices)s. "
+        "default is %(default)s, `-g` or `--gaps` alone gives %(const)s")
+    arg('--singletracks', type=int, nargs='*', help='Only plot these tracks')
+    arg('--showtracks', action='store_true', help='Show individual tracks')
+    arg('--cut', action='store_true', help='Cut individual tracks at boundary')
+    arg('--boundary', type=float, nargs=3, default=False,
+        metavar=('X0', 'Y0', 'R'), help='Boundary for track cutting')
+    arg('--nn', action='store_true', help='Calculate and plot <nn> correlation')
+    arg('--rn', action='store_true', help='Calculate and plot <rn> correlation')
+    arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
+    arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
+    arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
+    arg('--dx', type=float, default=0.25, help='Positional measurement '
+        'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
+    arg('--dtheta', type=float, default=0.02,
+        help='Angular measurement uncertainty (radians)')
+    arg('-z', '--zoom', metavar="ZOOM", type=float, default=1,
+        help="Factor by which to zoom out (in if ZOOM < 1)")
+    arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
+    arg('--suffix', type=str, default='', help='Suffix to append to savenames')
 
-    args = p.parse_args()
+    args = parser.parse_args()
 
     import os.path
     relprefix = args.prefix
@@ -118,8 +87,6 @@ if __name__ == '__main__':
         saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
-    eps = args.eps
-
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])

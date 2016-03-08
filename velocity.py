@@ -12,34 +12,37 @@ Copyright (c) 2015 Sarah Schlossberg, Lee Walsh; all rights reserved.
 
 if __name__=='__main__':
     from argparse import ArgumentParser
-    p = ArgumentParser(description=description)
-    arg = p.add_argument
+    parser = ArgumentParser(description=description)
+    arg = parser.add_argument
     arg('prefix', help='Prefix without trial number')
     arg('-o', '--orientation', action='store_false',
         dest='do_translation', help='Only orientational noise?')
     arg('-t', '--translation', action='store_false',
         dest='do_orientation', help='Only translational noise?')
     arg('--sets', type=int, default=1, metavar='N', nargs='?', const=0,
-            help='Number of sets')
+        help='Number of sets')
     arg('--width', type=float, default=0.75, metavar='W', nargs='?', const=-.5,
-            help='Smoothing width for derivative')
-    arg('--particle', type=str, default='', metavar='NAME', help='Particle type name')
-    arg('--save', type=str, nargs='?', const='velocity', default='', help='Save figure?')
-    arg('--lin', action='store_false', dest='log', help='Plot on a linear scale?')
+        help='Smoothing width for derivative')
+    arg('--particle', type=str, default='', help='Particle name')
+    arg('--save', type=str, nargs='?', const='velocity', default='',
+        help='Save figure (optionally provide suffix)?')
+    arg('--lin', action='store_false', dest='log', help='Plot on linear scale?')
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
-    arg('--autocorr', action='store_true', help='Plot the <vv> autocorrelation?')
-    arg('--untrackorient', action='store_false', dest='torient', help='Untracked raw orientation?')
-    arg('--interp', action='store_true', dest='interp', help='interpolate gaps?')
-    arg('--minlen', type=int, default=10, help='Minimum track length. Default: %(default)s')
-    arg('--nosubtract', action='store_false', dest='subtract', help="Don't subtract v0?")
-    arg('-s', '--side', type=float, default=17, help='Particle size in pixels, '
-        'for unit normalization. Default: %(default)s')
-    arg('-f', '--fps', type=float, default=2.4, help="Number of frames per second "
-        "(or per shake) for unit normalization. Default: %(default)s")
+    arg('--autocorr', action='store_true', help='Plot <vv> autocorrelation?')
+    arg('--untrackorient', action='store_false', dest='torient',
+        help='Untracked raw orientation (mod 2pi)?')
+    arg('--interp', action='store_true', dest='interp', help='Interpolate gaps')
+    arg('--stub', type=int, default=10, help='Min track length. Default: 10')
+    arg('--nosubtract', action='store_false', dest='subtract',
+        help="Don't subtract v0?")
+    arg('-s', '--side', type=float, default=1,
+        help='Particle size in pixels, for unit normalization')
+    arg('-f', '--fps', type=float, default=1, help="Number frames per shake "
+        "(or second) for unit normalization.")
     arg('-v', '--verbose', action='count', help="Be verbose")
-    args = p.parse_args()
+    args = parser.parse_args()
 
 import os
 from collections import defaultdict
@@ -47,6 +50,8 @@ from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 import helpy, tracks, correlation as corr
+
+pi = np.pi
 
 def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
                       do_orientation=True, do_translation=True, subtract=True):
@@ -77,7 +82,7 @@ def noise_derivatives(tdata, width=1, side=1, fps=1, xy=False,
 
 def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
                   do_orientation=True, do_translation=True, subtract=True,
-                  minlen=10, torient=True, interp=True, dupes=False, **ignored):
+                  stub=10, torient=True, interp=True, dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     for prefix in prefixes:
@@ -86,7 +91,7 @@ def compile_noise(prefixes, vs, width=3, side=1, fps=1, cat=True,
         data = helpy.load_data(prefix, 'tracks')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
-        tracksets = helpy.load_tracksets(data, min_length=minlen,
+        tracksets = helpy.load_tracksets(data, min_length=stub,
                 run_track_orient=torient, run_fill_gaps=interp)
         for track in tracksets:
             tdata = tracksets[track]
@@ -164,7 +169,7 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
         l, r = ax.set_xlim(bins[0], bins[-1])
         xticks = np.linspace(l, r, 5)
         ax.set_xticks(xticks)
-        ax.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
+        ax.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/pi], fontsize='small')
     ax.set_xlabel('Velocity ({}/vibation)'.format('rad' if orient else 'particle'))
     ax.set_title("{} ({})".format(title, subtitle), fontsize='medium')
     ax2 = axi[1] if isinstance(axi, tuple) else plt.subplot(nax, 2, axi*2)
@@ -173,7 +178,7 @@ def plot_hist(a, nax=1, axi=1, bins=100, log=True, orient=False, label='v', titl
         l, r = ax2.set_xlim(bins[0], bins[-1])
         xticks = np.linspace(l, r, 9)
         ax2.set_xticks(xticks)
-        ax2.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/np.pi], fontsize='small')
+        ax2.set_xticklabels(['${:.2f}\pi$'.format(x) for x in xticks/pi], fontsize='small')
     return ax, ax2
 
 def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
@@ -194,9 +199,9 @@ def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
     return vvs
 
 if __name__=='__main__':
-    helpy.save_log_entry(readprefix, 'argv')
     compile_args = dict(args.__dict__)
     full_prefix = compile_args.pop('prefix')
+    helpy.save_log_entry(full_prefix, 'argv')
     dirname, prefix = os.path.split(full_prefix)
     if '*' in full_prefix or '?' in full_prefix:
         from glob import iglob
@@ -211,7 +216,8 @@ if __name__=='__main__':
         dirm = (dirname or '*') + (prefix + '*/')*depth
         basm = prefix.strip('/._')
         endm = '*_TRACKS.npz'
-        prefixes = [p[:1-len(endm)] for p in iglob(dirm*depth + basm + endm)] or full_prefix
+        prefixes = [p[:1-len(endm)]
+                    for p in iglob(dirm*depth + basm + endm)] or full_prefix
     if args.verbose:
         print 'using'
         print '\n'.join([prefixes] if np.isscalar(prefixes) else prefixes)
@@ -238,27 +244,30 @@ if __name__=='__main__':
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
 
-        nax = sum([args.do_orientation, args.do_translation, args.do_translation and args.subtract])
+        nax = args.do_orientation + args.do_translation*(args.subtract + 1)
         axi = 1
-        subtitle = args.particle or prefix.strip('/._')
+        subtitle = args.particle
+        bins = np.linspace(-1, 1, 51)
         if args.do_orientation:
-            plot_hist(vs['o'], nax, axi, bins=np.linspace(-np.pi/2,np.pi/2,51), log=args.log,
-                    orient=True, label=r'\xi', title='Orientation', subtitle=subtitle)
+            plot_hist(vs['o'], nax, axi, bins=bins*pi/2, log=args.log,
+                      label=r'\xi', orient=True, title='Orientation',
+                      subtitle=subtitle)
             axi += 1
         if args.do_translation:
             ax, ax2 = plot_hist(vs['par'], nax, axi, log=args.log,
-                    bins=np.linspace(-1,1), label='v_\parallel')
-            plot_hist(vs['perp'], nax, (ax, ax2), log=args.log, bins=np.linspace(-1,1),
-                    label='v_\perp', title='Parallel & Transverse', subtitle=subtitle)
+                                label='v_\parallel', bins=bins)
+            plot_hist(vs['perp'], nax, (ax, ax2), log=args.log, label='v_\perp',
+                      bins=bins, title='Parallel & Transverse', subtitle=subtitle)
             axi += 1
             if args.subtract:
-                plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi, log=args.log,
-                    label=r'\eta_\alpha', bins=np.linspace(-1,1,51),
-                    title='$v_0$ subtracted', subtitle=subtitle)
+                plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
+                          log=args.log, label=r'\eta_\alpha', bins=bins,
+                          title='$v_0$ subtracted', subtitle=subtitle)
                 axi += 1
 
     if args.save:
-        savename = '.'.join([os.path.abspath(full_prefix.rstrip('/._?*')), args.save, 'pdf'])
+        savename = os.path.abspath(full_prefix.rstrip('/._?*'))
+        savename += '_'+ args.save + '.pdf'
         print 'Saving plot to {}'.format(savename)
         plt.savefig(savename)
     else:

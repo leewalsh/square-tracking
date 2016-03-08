@@ -5,37 +5,34 @@ from __future__ import division
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    p = ArgumentParser()
-    p.add_argument('files', metavar='FILE', nargs='+', help='Images to process')
-    p.add_argument('-p', '--plot', action='count',
-                   help="Produce plots for each image. Two p's gives lots more")
-    p.add_argument('-v', '--verbose', action='count', help="Control verbosity")
-    p.add_argument('-o', '--output', help='Output filename prefix. ')
-    p.add_argument('-z', '--nozip', action='store_false', dest='gz',
-                   help="Don't compress output files?")
-    p.add_argument('--nosave', action='store_false', dest='save',
-                   help="Don't save outputs or figures")
-    p.add_argument('-N', '--threads', type=int,
-                   help='Number of worker threads for parallel processing. '
-                        'Uses all available cores if 0')
-    p.add_argument('--boundary', type=float, nargs='*', metavar='X0 Y0 R',
-                   help='Specify system boundary, or open image to select it')
-    p.add_argument('-b', '--both', action='store_true',
-                   help='find both center and corner dots')
-    p.add_argument('--remove', action='store_true',
-                   help='Remove large-dot masks before small-dot convolution')
-    p.add_argument('--thresh', type=float, default=3, help='Binary threshold '
-                   'for defining segments, in units of standard deviation')
-    p.add_argument('-k', '--kern', type=float, required=True,
-                   help='Kernel size for convolution')
-    p.add_argument('--min', type=int, help='Minimum area')
-    p.add_argument('--max', type=int, help='Maximum area')
-    p.add_argument('--ecc', default=.8, type=float, help='Maximum eccentricity')
-    p.add_argument('-c', '--ckern', type=float, help='Kernel for corner dots')
-    p.add_argument('--cmin', type=int, help='Min area for corners')
-    p.add_argument('--cmax', type=int, help='Max area for corners')
-    p.add_argument('--cecc', default=.8, type=float, help='Max ecc for corners')
-    args = p.parse_args()
+    parser = ArgumentParser()
+    arg = parser.add_argument
+    arg('files', metavar='FILE', nargs='+', help='Images to process')
+    arg('-p', '--plot', action='count',
+        help="Produce plots for each image. Two p's gives lots more")
+    arg('-v', '--verbose', action='count', help="Control verbosity")
+    arg('-o', '--output', help='Output filename prefix.')
+    arg('-z', '--nozip', action='store_false', dest='gz', help="Don't compress")
+    arg('--nosave', action='store_false', dest='save', help="Don't save output")
+    arg('-N', '--threads', type=int, help='Number of worker threads for '
+        'parallel processing. N=0 uses all available cores')
+    arg('--boundary', type=float, nargs='*', metavar='X0 Y0 R',
+        help='Specify system boundary, or open image to select it')
+    arg('-b', '--both', action='store_true', help='find center and corner dots')
+    arg('--remove', action='store_true',
+        help='Remove large-dot masks before small-dot convolution')
+    arg('--thresh', type=float, default=3, help='Binary threshold '
+        'for defining segments, in units of standard deviation')
+    arg('-k', '--kern', type=float, required=True,
+        help='Kernel size for convolution')
+    arg('--min', type=int, help='Minimum area')
+    arg('--max', type=int, help='Maximum area')
+    arg('--ecc', default=.8, type=float, help='Maximum eccentricity')
+    arg('-c', '--ckern', type=float, help='Kernel for corner dots')
+    arg('--cmin', type=int, help='Min area for corners')
+    arg('--cmax', type=int, help='Max area for corners')
+    arg('--cecc', default=.8, type=float, help='Max ecc for corners')
+    args = parser.parse_args()
 
 from distutils.version import StrictVersion as version
 import skimage
