@@ -371,13 +371,18 @@ def load_meta(prefix):
         lines = f.readlines()
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
-def merge_meta(*metas):
+def merge_meta(*metas, **conflicts):
     """
     Merges several meta dicts into single dict without loss of data.
 
     parameters
     ----------
     metas : any number of member meta dicts as separate arguments
+    conflicts: dict with same keys as `metas`, with values:
+            'join': values from all metas in a list in order given (default)
+            'mean': mean of the list given above
+            'drop': do not include this key in output
+            'fail': raise RuntimeError
 
     returns
     -------
@@ -393,12 +398,23 @@ def merge_meta(*metas):
     merged = {}
     keys = {key for meta in metas for key in meta.keys()}
     for key in keys:
-        val = [meta[key] for meta in metas if key in meta]
-        u = set(val)
+        vals = [meta[key] for meta in metas if key in meta]
+        u = set(vals)
         if len(u) == 1:
             merged[key] = u.pop()
         else:
-            merged[key] = val
+            conflict = conflicts.get(key, 'join')
+            if conflict == 'fail':
+                msg = "Values " + "{!r} "*len(vals) + "conflict for key {!r}"
+                raise RuntimeError(msg.format(vals, key))
+            elif conflict == 'join':
+                merged[key] = vals
+            elif conflict == 'mean':
+                merged[key] = np.mean(vals)
+            elif conflict == 'drop':
+                continue
+            else:
+                raise ValueError("Unknown conflict choice {}".format(conflict))
     return merged
 
 
@@ -784,6 +800,7 @@ def compress_existing_npz(path, overwrite=False, careful=False):
         if overwrite: os.rename(out, path)
         print 'Success!'
 
+
 def merge_data(members, savename=None, dupes=False, do_orient=False):
     """ returns (and optionally saves) new `data` array merged from list or
         tuple of individual `data` arrays or path prefixes.
@@ -806,13 +823,13 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         only data is returned if array objects are given.
     """
     if do_orient:
-        raise ValueError, 'do_orient is not possible yet'
+        raise ValueError('do_orient is not possible')
     if isinstance(members, basestring):
         pattern = members
         suf = '_TRACKS.npz'
         l = len(suf)
         pattern = pattern[:-l] if pattern.endswith(suf) else pattern
-        members = [ s[:-l] for s in glob.iglob(pattern+suf) ]
+        members = [s[:-l] for s in glob.iglob(pattern+suf)]
 
     n = len(members)
     assert n > 1, "need more than {} file(s)".format(n)
@@ -836,6 +853,10 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
     merged = np.concatenate(datasets)
 
     if savename:
+        meta_conflicts = {'fit_{}_{}'.format(*c): 'drop' for c in
+                          it.product(['nn', 'rn', 'rr'], ['DR', 'v0', 'DT'])}
+        meta_conflicts.update(track_cut='fail', fps='fail', sidelength='fail')
+        merged_meta = merge_meta(*map(load_meta, members), **meta_conflicts)
         savedir = os.path.dirname(savename) or os.path.curdir
         if not os.path.exists(savedir):
             print "Creating new directory", savedir
@@ -851,7 +872,6 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         if not (savename.endswith(suffix) or savename.endswith('_MERGED')):
             savename += suffix
         save_log_entry(savename, entry)
-        merged_meta = merge_meta(*map(load_meta, members))
         save_meta(savename, merged_meta, merged=members)
         savename += '_TRACKS.npz'
         np.savez_compressed(savename, data=merged)
