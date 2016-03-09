@@ -214,20 +214,21 @@ def groupby(arr, key, method, min_size=1):
         return
 
 
-def pad_uneven(lst, fill=0, return_mask=False, dtype=None):
+def pad_uneven(lol, fill=0, return_mask=False, dtype=None):
     """ take uneven list of lists
         return new 2d array with shorter lists padded with fill value
     """
     if dtype is None:
-        dtype = np.result_type(fill, lst[0][0])
-    shape = len(lst), max(map(len, lst))
-    result = np.zeros(shape, dtype) if fill==0 else np.full(shape, fill, dtype)
+        dtype = np.result_type(fill, lol[0][0])
+    shape = len(lol), max(map(len, lol))
+    result = np.empty(shape, dtype)
+    result[:] = fill  # this allows broadcasting unlike np.full
     if return_mask:
         mask = np.zeros(shape, bool)
-    for i, row in enumerate(lst):
-        result[i, :len(row)] = row
+    for i, lst in enumerate(lol):
+        result[i, :len(lst)] = lst
         if return_mask:
-            mask[i, :len(row)] = True
+            mask[i, :len(lst)] = True
     return (result, mask) if return_mask else result
 
 
@@ -235,7 +236,8 @@ def avg_uneven(arrs, min_added=3, pad=None, ret_all=False):
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
-        arrs, isfin = pad_uneven(arrs, np.nan, return_mask=True)
+        arrs, isnan = pad_uneven(arrs, np.nan, return_mask=True)
+        isfin = ~isnan
     else:
         isfin = np.isfinite(arrs)
     added = np.sum(isfin, 0)

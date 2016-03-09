@@ -566,12 +566,15 @@ def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     diffs = np.cos(m*dtheta(pairs, m=m))
     return bin_average(r, diffs, bins)
 
+
 def get_neighbors(tess, p, pm=None, ret_pairs=False):
     """ give neighbors in voronoi tessellation v of point id p
         if already calculated, pm is point mask
     """
     if isinstance(tess, Delaunay):
         indices, indptr = tess.vertex_neighbor_vertices
+        if p == 'all':
+            p = xrange(len(indices) - 1)
         if np.iterable(p):
             return [indptr[indices[q]:indices[q+1]] for q in p]
         return indptr[indices[p]:indices[p+1]]
@@ -584,11 +587,11 @@ def get_neighbors(tess, p, pm=None, ret_pairs=False):
         return pairs if ret_pairs else pairs[pairs != p]
 
 def binder(positions, orientations, bl, m=4, method='ball', margin=0):
-    """ Calculate the binder cumulant for a frame, given positions and orientations.
+    """Calculate the binder cumulant, given positions and orientations.
 
-        bl: the binder length scale, such that
-            B(bl) = 1 - .333 * S4 / S2^2
-        where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
+    bl: the binder length scale, such that
+        B(bl) = 1 - .333 * S4 / S2^2
+    where SN are <phibl^N> averaged over each block/cluster of size bl in frame.
     """
     if margin:
         if margin < ss:
@@ -602,38 +605,23 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         balls = tree.query_ball_tree(tree, bl)
         balls, ball_mask = helpy.pad_uneven(balls, 0, True, int)
         ball_orient = orientations[balls]
-        ball_orient[~ball_mask] = np.nan
+        ball_orient[ball_mask] = np.nan
         phis = np.nanmean(np.exp(m*ball_orient*1j), 1)
         phi2 = np.dot(phis, phis) / len(phis)
         phiphi = phis*phis
         phi4 = np.dot(phiphi, phiphi) / len(phiphi)
         return 1 - phi4 / (3*phi2*phi2)
-    else:
-        raise ValueError, "method {} not implemented".format(method)
-    #elif method=='block':
-        left, right, bottom, top = (positions[:,0].min(), positions[:,0].max(),
-                                    positions[:,1].min(), positions[:,1].max())
-        xbins, ybins = np.arange(left, right + bl, bl), np.arange(bottom, top + bl, bl)
-        blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
-        block_ind = np.column_stack([
-                     np.digitize(positions[:,0], xbins),
-                     np.digitize(positions[:,1], ybins)])
+    else:  # elif method=='block':
+        raise ValueError("method {} not implemented".format(method))
+        # left, bottom = positions.min(0)
+        # right, top = positions.max(0)
+        # xbins = np.arange(left, right + bl, bl)
+        # ybins = np.arange(bottom, top + bl, bl)
+        # blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
+        # block_ind = np.column_stack([
+        #              np.digitize(positions[:,0], xbins),
+        #              np.digitize(positions[:,1], ybins)])
 
-def get_id(data, position, frames=None, tolerance=10e-5):
-    """ take a particle's `position' (x,y)
-        optionally limit search to one or more `frames'
-
-        return that particle's id
-        THIS FUNCTION IS IMPORTED BY otracks.py AND orientation.py
-         --> but does it need to be?
-        """
-    if frames is not None:
-        if np.iterable(frames):
-            data = data[np.in1d(data['f'], frames)]
-        else:
-            data = data[data['f']==frames]
-    xmatch = data[abs(data['x']-position[0])<tolerance]
-    return xmatch['id'][abs(xmatch['y']-position[1])<tolerance]
 
 def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub=2*ss):
     """ do something with the angles a given particle makes with its neighbors
@@ -671,7 +659,6 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         neighbors[~nmask] = np.where(~nmask)[0]
     dx, dy = (positions[neighbors] - positions[:, None, :]).T
     angles = np.arctan2(dy, dx).T % tau
-    assert angles.shape == neighbors.shape
     if ang_type == 'relative':
         # subtract off angle to nearest neighbor
         angles -= angles[:, 0, None] # None to keep dims
@@ -682,14 +669,13 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         angles -= np.roll(angles, 1, -1)
         nmask = np.all(nmask, 1)
     elif ang_type != 'absolute':
-        raise ValueError, "unknown ang_type {}".format(ang_type)
+        raise ValueError("unknown ang_type {}".format(ang_type))
     angles[~nmask] = np.nan
     if margin:
         if margin < ss: margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
         d = helpy.dist(positions, center) # distances to center
         dmask = d < d.max() - margin
-        assert np.allclose(len(dmask), map(len, [angles, nmask]))
         angles = angles[dmask]
         nmask = nmask[dmask]
     return (angles % tau, nmask) + ((dmask,) if margin else ())
