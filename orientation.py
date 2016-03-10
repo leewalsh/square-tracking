@@ -23,7 +23,7 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
 
     Parameters
     ----------
-    particle:   is particle position as [x,y] array of shape (2,)
+    particle:   is particle position as [x, y] array of shape (2,)
     corners:    is shape (N, 2) array of positions of corner dots as x, y pairs
     tree:       a KDTree of the `corners`, if available
     nc:         number of corner dots
@@ -36,9 +36,9 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
 
     Returns
     -------
-    pcorner:    (mean) position(s) (x,y) of corner that belongs to particle
+    pcorner:    (mean) position(s) (x, y) of corner that belongs to particle
     porient:    (mean) particle orientation(s) (% 2pi)
-    cdisp:      (mean) vector(s) (x,y) from particle center to corner(s)
+    cdisp:      (mean) vector(s) (x, y) from particle center to corner(s)
     """
 
     if drc <= 0:
@@ -199,7 +199,8 @@ def get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
     return odata, mask
 
 
-def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', figsize=None):
+def plot_orient_quiver(data, odata, mask=None, imfile='',
+                       fps=1, savename='', figsize=None):
     """ plot_orient_quiver(data, odata, mask=None, imfile='')
     """
     import matplotlib.pyplot as pl
@@ -209,7 +210,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     if imfile:
         bgimage = pl.imread(imfile)
         pl.imshow(bgimage, cmap=pl.cm.gray, origin='upper')
-    #pl.quiver(X, Y, U, V, **kw)
+    # pl.quiver(X, Y, U, V, **kw)
     if mask is None:
         try:
             mask = np.all(np.isfinite(odata['orient']), axis=1)
@@ -220,13 +221,14 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     ndex = np.repeat(np.arange(mask.sum()), n)
     nz = mcolors.Normalize()
     nz.autoscale(data['f'][mask]/fps)
-    qq = pl.quiver(
-            data['y'][mask][ndex], data['x'][mask][ndex],
-            odata['cdisp'][mask][...,1].flatten(), -odata['cdisp'][mask][...,0].flatten(),
-            color=pl.cm.jet(nz(data['f'][mask]/fps)),
-            scale=1, scale_units='xy')
-    #pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]) if imfile else '')
-    cax,_ = mcolorbar.make_axes(pl.gca())
+    qq = pl.quiver(data['y'][mask][ndex], data['x'][mask][ndex],
+                   odata['cdisp'][mask][..., 1].flatten(),
+                   -odata['cdisp'][mask][..., 0].flatten(),
+                   color=pl.cm.jet(nz(data['f'][mask]/fps)),
+                   scale=1, scale_units='xy')
+    # if imfile:
+    #     pl.title(', '.join(imfile.split('/')[-1].split('_')[:-1]))
+    cax, _ = mcolorbar.make_axes(pl.gca())
     cb = mcolorbar.ColorbarBase(cax, cmap=pl.cm.jet, norm=nz)
     cb.set_label('time '+('(s)'if fps > 1 else '(frame)'))
     if savename:
@@ -234,6 +236,7 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
         pl.savefig(savename)
     pl.show()
     return qq, cb
+
 
 def track_orient(orients, omask=None, cutoff=pi, inplace=True):
     """ tracks branch cut crossings for orientation data
@@ -253,21 +256,24 @@ def track_orient(orients, omask=None, cutoff=pi, inplace=True):
     orients[omask] = tracked
     return orients
 
-def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='', singletracks=False):
+
+def plot_orient_time(data, odata, tracks, omask=None, delta=False,
+                     fps=1, save='', singletracks=False):
     import matplotlib.pyplot as pl
     if omask is None:
         omask = np.isfinite(odata['orient'])
     goodtracks = np.unique(tracks[omask])
-    if goodtracks[0] == -1: goodtracks = goodtracks[1:]
+    if goodtracks[0] == -1:
+        goodtracks = goodtracks[1:]
     if singletracks:
         if singletracks is True:
             goodtracks = list(goodtracks)[:4]
         elif isinstance(singletracks, list):
             goodtracks = singletracks
     print 'tracks used are', goodtracks
-    #tmask = np.in1d(tracks, goodtracks)
-    pl.figure(figsize=(6,5))
-    colors = ['red','green','blue','cyan','black','magenta','yellow']
+    # tmask = np.in1d(tracks, goodtracks)
+    pl.figure(figsize=(6, 5))
+    colors = ['red', 'green', 'blue', 'cyan', 'black', 'magenta', 'yellow']
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
         fullmask = omask & tmask
@@ -275,57 +281,59 @@ def plot_orient_time(data, odata, tracks, omask=None, delta=False, fps=1, save='
             continue
         plotrange = slice(None, 600 if singletracks is True else None)
         if delta:
-            c = colors[goodtrack%7]
+            c = colors[goodtrack % 7]
             pl.plot(data['f'][fullmask][plotrange]/fps,
                     odata['orient'][fullmask][plotrange],
-                    c=c,label="Track {}".format(goodtrack))
-            pl.plot(data['f'][fullmask][plotrange][0 if singletracks else 1:]/fps,
+                    c=c, label="Track {}".format(goodtrack))
+            pl.plot(data['f'][fullmask][plotrange][bool(singletracks):]/fps,
                     np.diff(odata['orient'][fullmask])[plotrange],
-                    'o', c=c,label='delta {}'.format(goodtrack))
+                    'o', c=c, label='delta {}'.format(goodtrack))
         else:
             pl.plot(data['f'][fullmask][plotrange]/fps,
                     track_orient(odata['orient'][fullmask])[plotrange],
                     '--', label='tracked {}'.format(goodtrack))
     if delta:
-        for n in np.arange(-2 if delta else 0,2.5,0.5):
-            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*pi,'k--')
+        for n in np.arange(-2 if delta else 0, 2.5, 0.5):
+            pl.plot(np.ones_like(odata['orient'][fullmask])[plotrange]*n*pi,
+                    'k--')
     if len(goodtracks) < 10:
         pl.legend()
-    #pl.title('Orientation over time')#\ninitial orientation = 0')
-    pl.xlabel('Time ({})'.format('s' if fps > 1 else 'frame'), fontsize='x-large')
+    # pl.title('Orientation over time')#\ninitial orientation = 0')
+    pl.xlabel('Time ({})'.format('s' if fps > 1 else 'frame'),
+              fontsize='x-large')
     pl.ylabel('orientation', fontsize='x-large')
     pl.xlim(0, data['f'].max()/fps)
     if save:
         pl.savefig(save)
     pl.show()
 
-def plot_orient_location(data,odata,tracks):
+
+def plot_orient_location(data, odata, tracks):
     import matplotlib.pyplot as pl
     import correlation as corr
 
     omask = np.isfinite(odata['orient'])
-    goodtracks = np.array([78,95,191,203,322])
+    goodtracks = np.array([78, 95, 191, 203, 322])
 
     ss = 22.
 
     pl.figure()
     for goodtrack in goodtracks:
         tmask = tracks == goodtrack
-        fullmask = np.all(np.asarray(zip(omask,tmask)),axis=1)
-        loc_start = (data['x'][fullmask][0],data['y'][fullmask][0])
+        fullmask = np.all(np.asarray(zip(omask, tmask)), axis=1)
+        loc_start = (data['x'][fullmask][0], data['y'][fullmask][0])
         orient_start = odata['orient'][fullmask][0]
-        sc = pl.scatter(
+        pl.scatter(
                 (odata['orient'][fullmask] - orient_start + pi) % twopi,
                 np.asarray(map(corr.get_norm,
                     zip([loc_start]*fullmask.sum(),
-                        zip(data['x'][fullmask],data['y'][fullmask]))
+                        zip(data['x'][fullmask], data['y'][fullmask]))
                     ))/ss,
-                #marker='*',
-                label = 'track {}'.format(goodtrack),
-                color = pl.cm.jet(1.*goodtrack/max(tracks)))
-                #color = pl.cm.jet(1.*data['f'][fullmask]/1260.))
-        print "track",goodtrack
+                # marker='*',
+                label='track {}'.format(goodtrack),
+                color=pl.cm.jet(1.*goodtrack/max(tracks)))
+                # color=pl.cm.jet(1.*data['f'][fullmask]/1260.))
+        print "track", goodtrack
     pl.legend()
     pl.show()
     return True
-

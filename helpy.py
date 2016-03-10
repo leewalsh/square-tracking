@@ -20,8 +20,10 @@ import numpy as np
 SYSTEM, HOST, USER = None, None, None
 COMMIT = None
 
+
 def replace_all(s, old, new=''):
     return reduce(lambda a, b: a.replace(b, new), old, s)
+
 
 def getsystem():
     global SYSTEM
@@ -29,26 +31,30 @@ def getsystem():
         SYSTEM = platform.system()
     return SYSTEM
 
+
 def gethost():
     getsystem()
     global HOST
     if not HOST:
         HOST = platform.node()
-        if SYSTEM=='Darwin':
+        if SYSTEM == 'Darwin':
             from subprocess import check_output, STDOUT, CalledProcessError
             try:
                 HOST = check_output(('scutil', '--get', 'ComputerName'),
                                     stderr=STDOUT).strip()
             except CalledProcessError:
                 pass
-        HOST = replace_all(HOST.partition('.')[0], """('",’)""").replace(' ','-')
+        bad_chars = """('",’)"""
+        HOST = replace_all(HOST.partition('.')[0], bad_chars).replace(' ', '-')
     return HOST
+
 
 def getuser():
     global USER
     if not USER:
         USER = getpass.getuser().replace(' ', '_')
     return USER
+
 
 def getcommit():
     global COMMIT
@@ -84,7 +90,8 @@ def getcommit():
     return COMMIT
 
 
-def splitter(data, indices=None, method=None, ret_dict=False, noncontiguous=False):
+def splitter(data, indices=None, method=None,
+             ret_dict=False, noncontiguous=False):
     """Splits a dataset into subarrays with unique index value
 
     parameters:
@@ -108,20 +115,20 @@ def splitter(data, indices=None, method=None, ret_dict=False, noncontiguous=Fals
         *if method is 'diff',
             `indices` is assumed sorted and not missing any values
 
-        examples:
+    examples:
 
-            for f, fdata in splitter(data, method='unique'):
-                do stuff
+        for f, fdata in splitter(data, method='unique'):
+            do stuff
 
-            for fdata in splitter(data):
-                do stuff
+        for fdata in splitter(data):
+            do stuff
 
-            fsets = splitter(data, method='unique', ret_dict=True)
-            fset = fsets[f]
+        fsets = splitter(data, method='unique', ret_dict=True)
+        fset = fsets[f]
 
-            for trackid, trackset in splitter(data, data['t'], noncontiguous=True)
-            tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
-            trackset = tracksets[trackid]
+        for trackid, trackset in splitter(data, data['t'], noncontiguous=True)
+        tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
+        trackset = tracksets[trackid]
     """
     if indices is None:
         indices = 'f'
@@ -190,15 +197,17 @@ def groupby(arr, key, method, min_size=1):
         us, cs = np.unique(key, return_counts=True)
         sort = key.argsort(kind='mergesort')
         inds = np.split(sort, np.cumsum(cs[:-1]))
-        return {u: arr[i] for u, i, c in it.izip(us, inds, cs) if c >= min_size}
+        return {u: arr[i]
+                for u, i, c in it.izip(us, inds, cs) if c >= min_size}
     elif method == 'uniq,comp,sort':
         us, cs = np.unique(key, return_counts=True)
         sort = key.argsort(kind='mergesort')
         inds = np.split(sort, np.cumsum(cs[:-1]))
-        return {u: arr[i] for u, i in it.compress(it.izip(us, inds), cs >= min_size)}
+        return {u: arr[i]
+                for u, i in it.compress(it.izip(us, inds), cs >= min_size)}
     elif method == 'test':
         methods = ['bin,bool,bool', 'uniq,bool,bool', 'uniq,filt,bool',
-                   #'bin,bool,sort', 'uniq,bool,sort', 'uniq,where,sort',
+                   # 'bin,bool,sort', 'uniq,bool,sort', 'uniq,where,sort',
                    'uniq,filt,sort', 'uniq,comp,sort']
         print 'grouping'
         groups = [groupby(arr, key, method=m, min_size=min_size)
@@ -285,42 +294,49 @@ def transpose_dict(outerdict={}, **innerdicts):
     innerdicts = outerdict.viewvalues()
     assert all(map(isdict, innerdicts))
     innerkeys = {innerkey for innerdict in innerdicts for innerkey in innerdict}
-    return {ki: {ko: di.get(ki) for ko, di in outerdict.iteritems()} for ki in innerkeys}
+    return {ki: {ko: di.get(ki)
+                 for ko, di in outerdict.iteritems()}
+            for ki in innerkeys}
+
 
 def dmap(f, d):
-    return { k: f(v) for k, v in d.iteritems() }
+    return {k: f(v) for k, v in d.iteritems()}
+
 
 def dfilter(f, d):
-    return {k: d[k] for k in filter(f, d)}
+    return {k: d[k] for k in it.ifilter(f, d)}
+
 
 def str_union(a, b):
-    if a==b:
+    if a == b:
         return a
-    elif len(a)==len(b):
-        l = [ac if ac==bc else '?' for ac, bc in it.izip(a, b)]
+    elif len(a) == len(b):
+        l = [ac if ac == bc else '?' for ac, bc in it.izip(a, b)]
         return ''.join(l)
     else:
         print 'WARNING!!! pattern may fit more than just the given strings'
-        l = [ac if ac==bc else '?' for ac, bc in it.izip(a, b)]
-        r = [ac if ac==bc else '?'
-                for ac, bc in reversed(it.izip(reversed(a), reversed(b)))]
+        l = [ac if ac == bc else '?' for ac, bc in it.izip(a, b)]
+        r = [ac if ac == bc else '?'
+             for ac, bc in reversed(it.izip(reversed(a), reversed(b)))]
         l = l.partition('?')[0]
         r = r.rpartition('?')[-1]
         return '*'.join((l, r))
 
+
 def eval_string(s, hashable=False):
     s = s.strip()
-    if s=='True': return True
-    if s=='False': return False
-    if s=='None': return None
+    try:
+        return {'True': True, 'False': False, 'None': None}[s]
+    except KeyError:
+        pass
     first, last = s[0], s[-1]
     if '\\' in s:
         s = ntpath.normpath(s)
-    if first==last and first in '\'\"':
+    if first == last and first in '\'\"':
         return s[1:-1]
     if first in '[(' and last in ')]':
         l = map(eval_string, s[1:-1].split(', '))
-        return l if first=='[' else tuple(l)
+        return l if first == '[' else tuple(l)
     nums = '-0123456789'
     issub = set(s).issubset
     if issub(set(nums + 'L')):
@@ -334,6 +350,7 @@ DRIVES = {
         'Seagate\\ Expansion\\ Drive': 'Seagate4T',
         'Users':  'Darwin', 'home':   'Linux',
         'C:': 'Windows', 'H:': 'hopper', }
+
 
 def drive_path(path, local=False, both=False):
     """
@@ -352,9 +369,9 @@ def drive_path(path, local=False, both=False):
             elif split[1] in ('Users', 'home'):
                 drive = drive or split[1]
             else:
-                raise ValueError, split[1]
+                raise ValueError(split[1])
         drive = DRIVES.get(drive, drive)
-        if local and drive==getsystem():
+        if local and drive == getsystem():
             drive = gethost()
         path = drive, path
     elif isinstance(path, tuple):
@@ -365,11 +382,13 @@ def drive_path(path, local=False, both=False):
         path = mount(path[0]) + path[1]
     return drive_path(path, local=local, both=False) if both else path
 
+
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
     if len(timezone) > 3:
         timezone = ''.join(s[0] for s in timezone.split())
     return timestamp+' '+timezone
+
 
 def load_meta(prefix):
     suffix = '_META.txt'
@@ -379,6 +398,7 @@ def load_meta(prefix):
     with open(path, 'r') as f:
         lines = f.readlines()
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
+
 
 def merge_meta(*metas, **conflicts):
     """
@@ -403,7 +423,6 @@ def merge_meta(*metas, **conflicts):
         a list, in the same order as the member dicts were given as arugments,
         as the the new value for that key.
     """
-
     merged = {}
     keys = {key for meta in metas for key in meta.keys()}
     for key in keys:
@@ -481,6 +500,7 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
     with open(path, 'w') as f:
         f.writelines(lines)
 
+
 def save_log_entry(prefix, entries, mode='a'):
     """save an entry to log file '{prefix}_LOG.txt'
 
@@ -492,7 +512,7 @@ def save_log_entry(prefix, entries, mode='a'):
     pre = '{} {}@{}/{}: '.format(timestamp(), getuser(), gethost(), getcommit())
     suffix = '_LOG.txt'
     path = prefix if prefix.endswith(suffix) else prefix+suffix
-    if entries=='argv':
+    if entries == 'argv':
         entries = [' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])]
     elif isinstance(entries, basestring):
         entries = entries.split('\n')
@@ -510,13 +530,14 @@ def clear_execution_counts(nbpath, inplace=False):
     out = nbpath if inplace else nbpath.replace('.ipynb', '.nulled.ipynb')
     nbformat.write(nb, out)
 
+
 def load_data(fullprefix, sets='tracks', verbose=False):
     """ Load data from an npz file
 
         Given `fullprefix`, returns data arrays from a choice of:
             tracks, orientation, position, corner
     """
-    sets = [s[0].lower() for s in sets.replace(',',' ').split()]
+    sets = [s[0].lower() for s in sets.replace(',', ' ').split()]
 
     name = {'t': 'tracks', 'o': 'orientation',
             'p': 'positions', 'c': 'corner_positions'}
@@ -553,6 +574,7 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
     ret = [data[s] for s in sets]
     return ret if len(ret) > 1 else ret[0]
+
 
 def load_MSD(fullprefix, pos=True, ang=True):
     """ Loads ms(a)ds from an MS(A)D.npz file
@@ -703,13 +725,14 @@ def consecutive_fields_view(arr, fields, careful=False):
             "last row mismatch\narr: {}\nout: {}".format(l, r)
     return out
 
-track_dtype = np.dtype({'names': 'id f  t  x  y  o'.split(),
-                      'formats': 'u4 u2 i4 f4 f4 f4'.split()})
-pos_dtype = np.dtype({  'names': 'f  x  y  lab ecc area id'.split(),
-                      'formats': 'i4 f8 f8 i4  f8  i4   i4'.split()})
+track_dtype = np.dtype({'names': '  id f  t  x  y  o'.split(),
+                        'formats': 'u4 u2 i4 f4 f4 f4'.split()})
+pos_dtype = np.dtype({'names': '    f  x  y  lab ecc area id'.split(),
+                      'formats': '  i4 f8 f8 i4  f8  i4   i4'.split()})
+
 
 def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
-    if pdata.dtype==track_dtype:
+    if pdata.dtype == track_dtype:
         data = pdata
     else:
         data = np.empty(len(pdata), dtype=track_dtype)
@@ -722,23 +745,25 @@ def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
         data['o'] = orientations
     return data
 
+
 def dtype_info(dtype='all'):
-    if dtype=='all':
+    if dtype == 'all':
         [dtype_info(s+b) for s in 'ui' for b in '1248']
         return
     dt = np.dtype(dtype)
     bits = 8*dt.itemsize
-    if dt.kind=='f':
+    if dt.kind == 'f':
         print np.finfo(dt)
         return
-    if dt.kind=='u':
+    if dt.kind == 'u':
         mn = 0
         mx = 2**bits - 1
-    elif dt.kind=='i':
+    elif dt.kind == 'i':
         mn = -2**(bits-1)
         mx = 2**(bits-1) - 1
     print "{:6} ({}{}) min: {:20}, max: {:20}".format(
                 dt.name, dt.kind, dt.itemsize, mn, mx)
+
 
 def txt_to_npz(datapath, verbose=False, compress=True):
     """ Reads raw txt positions data into a numpy array and saves to an npz file
@@ -753,7 +778,7 @@ def txt_to_npz(datapath, verbose=False, compress=True):
         elif os.path.exists(datapath[:-3]):
             datapath = datapath[:-3]
         else:
-            raise IOError, 'File {} not found'.format(datapath)
+            raise IOError('File {} not found'.format(datapath))
     if verbose:
         print "loading positions data from", datapath,
     if datapath.endswith('results.txt'):
@@ -784,11 +809,14 @@ def txt_to_npz(datapath, verbose=False, compress=True):
     else:
         raise ValueError, ("is {} from imagej or positions.py?".format(datapath.rsplit('/')[-1]) +
                 "Please rename it to end with _results.txt[.gz] or _POSITIONS.txt[.gz]")
-    if verbose: print '...',
+    if verbose:
+        print '...',
     outpath = datapath[:datapath.rfind('txt')] + 'npz'
     (np.savez, np.savez_compressed)[compress](outpath, data=data)
-    if verbose: print 'and saved to', outpath
+    if verbose:
+        print 'and saved to', outpath
     return
+
 
 def compress_existing_npz(path, overwrite=False, careful=False):
     orig = np.load(path)
@@ -802,11 +830,12 @@ def compress_existing_npz(path, overwrite=False, careful=False):
     os.utime(out, amtime)
     if careful:
         comp = np.load(out)
-        assert comp.files==orig.files
+        assert comp.files == orig.files
         for n in comp.files:
-            assert np.all(np.nan_to_num(orig[n])==np.nan_to_num(comp[n])),\
+            assert np.all(np.nan_to_num(orig[n]) == np.nan_to_num(comp[n])),\
                     'FAIL {}[{}] --> {}'.format(path, n, out)
-        if overwrite: os.rename(out, path)
+        if overwrite:
+            os.rename(out, path)
         print 'Success!'
 
 
@@ -887,17 +916,19 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         print "saved merged tracks to", savename
     return merged
 
+
 def bool_input(question='', default=None):
     "Returns True or False from yes/no user-input question"
     if question and question[-1] not in ' \n\t':
         question += ' '
     answer = raw_input(question).strip().lower()
-    if answer=='':
+    if answer == '':
         if default is None:
             return bool_input(question, default)
         else:
             return default
     return answer.startswith('y') or answer.startswith('t')
+
 
 def farange(start, stop, factor):
     start_power = log(start, factor)
@@ -923,6 +954,7 @@ def mode(x, count=False):
         m = x.min()
     return np.argmax(np.bincount(x-m)) + m
 
+
 def loglog_slope(x, y, smooth=0):
     dx = 0.5*(x[1:] + x[:-1])
     dy = np.diff(np.log(y)) / np.diff(np.log(x))
@@ -932,10 +964,12 @@ def loglog_slope(x, y, smooth=0):
         dy = gaussian_filter1d(dy, smooth, mode='reflect')
     return dx, dy
 
+
 def dist(a, b):
     """ The 2d distance between two arrays of shape (N, 2) or just (2,)
     """
     return np.hypot(*(a - b).T)
+
 
 def circle_three_points(*xs):
     """ With three points, calculate circle
@@ -955,6 +989,7 @@ def circle_three_points(*xs):
     r = ((xo - x1)**2 + (yo - y1)**2)**0.5
 
     return xo, yo, r
+
 
 def parse_slice(desc, shape=0, index_array=False):
     if desc is True:
@@ -980,6 +1015,7 @@ def parse_slice(desc, shape=0, index_array=False):
     else:
         return slice_obj
 
+
 def find_tiffs(path='', prefix='', meta='', frames='', single=False,
                load=False, verbose=False):
     meta = meta or load_meta(prefix)
@@ -999,7 +1035,8 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
                 break
     tar = path.endswith(('.tar', '.tbz', '.tgz')) and os.path.isfile(path)
     if tar:
-        if verbose: print 'loading tarfile', os.path.basename(path)
+        if verbose:
+            print 'loading tarfile', os.path.basename(path)
         import tarfile
         tar = tarfile.open(path)
         fnames = [f for f in tar if f.name.endswith('.tif')]
@@ -1007,7 +1044,8 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         if os.path.isdir(path):
             path = os.path.join(path, '*.tif')
         if glob.has_magic(path):
-            if verbose: print 'seeking matches to', path
+            if verbose:
+                print 'seeking matches to', path
             fnames = glob.glob(path)
         elif os.path.isfile(path):
             fnames = [path]
@@ -1026,11 +1064,14 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         if load:
             from scipy.ndimage import imread
             fnames = fnames[:100]
-            if verbose: print '. . .',
+            if verbose:
+                print '. . .',
             imfiles = map(tar.extractfile, fnames) if tar else fnames
             fnames = np.squeeze(map(imread, imfiles))
-            if verbose: print 'loaded'
-        if tar: tar.close()
+            if verbose:
+                print 'loaded'
+        if tar:
+            tar.close()
         return path, fnames, frames.indices(nfound)
     else:
         print "No files found; please correct the path"
@@ -1043,6 +1084,7 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         new_path = raw_input('>>> ').format(**subval)
         return find_tiffs(path=new_path, prefix=prefix, meta=meta,
                           frames=frames, single=single, load=load, verbose=True)
+
 
 def circle_click(im):
     """saves points as they are clicked, then find the circle that they define
@@ -1069,16 +1111,16 @@ def circle_click(im):
     ax.imshow(im)
 
     def circle_click_connector(click):
-        #print 'you clicked', click.xdata, '\b,', click.ydata
+        # print 'you clicked', click.xdata, '\b,', click.ydata
         xs.append(click.xdata)
         ys.append(click.ydata)
         if len(xs) == 3:
             # With three points, calculate circle
             print 'got three points'
-            global xo, yo, r # can't access connector function's returned value
+            global xo, yo, r  # can't access connector function's returned value
             xo, yo, r = circle_three_points(xs, ys)
-            cpatch = matplotlib.patches.Circle([xo, yo], r,
-                        linewidth=3, color='g', fill=False)
+            cpatch = matplotlib.patches.Circle([xo, yo], r, linewidth=3,
+                                               color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
 
@@ -1225,29 +1267,35 @@ class SciFormatter(Formatter):
 # Pixel-Physical Unit Conversions
 # Physical measurements
 R_inch = 4.0           # as machined
-R_mm   = R_inch * 25.4
-S_measured = np.array([4,3,6,7,9,1,9,0,0,4,7,5,3,6,2,6,0,8,8,4,3,4,0,-1,0,1,7,7,5,7])*1e-4 + .309
+R_mm = R_inch * 25.4
+S_measured = np.array([4, 3, 6, 7, 9, 1, 9, 0, 0, 4, 7, 5, 3, 6, 2, 6,
+                       0, 8, 8, 4, 3, 4, 0, -1, 0, 1, 7, 7, 5, 7])*1e-4 + .309
 S_inch = S_measured.mean()
 S_mm = S_inch * 25.4
 R_S = R_inch / S_inch
 
 # Still (D5000)
 R_slr = 2459 / 2
-S_slr_m = np.array([3.72, 2.28, 4.34, 3.94, 2.84, 4.23, 4.87, 4.73, 3.77]) + 90 # don't use this, just use R_slr/R_S
+# don't use S_slr_m, just use R_slr/R_S
+S_slr_m = np.array([3.72, 2.28, 4.34, 3.94, 2.84, 4.23, 4.87, 4.73, 3.77]) + 90
+
 
 # Video (Phantom)
 R_vid = 585.5 / 2
-S_vid_m = 22 #ish
+S_vid_m = 22  # ish
 
 
 # What we'll use:
-R = R_S         # radius in particle units
-S_vid = R_vid/R # particle in video pixels
-S_slr = R_slr/R # particle in still pixels
-A_slr = S_slr**2 # particle area in still pixels
-A_vid = S_vid**2 # particle area in still pixels
+R = R_S             # radius in particle units
+S_vid = R_vid/R     # particle in video pixels
+S_slr = R_slr/R     # particle in still pixels
+A_slr = S_slr**2    # particle area in still pixels
+A_vid = S_vid**2    # particle area in video pixels
 
-pi = np.pi
-# N = max number of particles (πR^2)/S^2 where S = 1
-Nb = lambda margin: pi * (R - margin)**2
+
+def Nb(margin):
+    """N = max number of particles (πR^2)/S^2 where S = 1
+    """
+    return np.pi * (R - margin)**2
+
 N = Nb(0)

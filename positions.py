@@ -3,6 +3,25 @@
 
 from __future__ import division
 
+from collections import namedtuple
+from itertools import izip
+from distutils.version import StrictVersion as version
+
+import numpy as np
+from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
+
+import helpy
+
+import skimage
+from skimage.morphology import disk as _disk
+skversion = version(skimage.__version__)
+if skversion < version('0.10'):
+    from skimage.morphology import label as sklabel
+    from skimage.measure import regionprops
+else:
+    from skimage.measure import regionprops, label as sklabel
+
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -34,22 +53,6 @@ if __name__ == '__main__':
     arg('--cecc', default=.8, type=float, help='Max ecc for corners')
     args = parser.parse_args()
 
-from distutils.version import StrictVersion as version
-import skimage
-skversion = version(skimage.__version__)
-
-import numpy as np
-from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
-if skversion < version('0.10'):
-    from skimage.morphology import label as sklabel
-    from skimage.measure import regionprops
-else:
-    from skimage.measure import regionprops, label as sklabel
-from skimage.morphology import disk as _disk
-from collections import namedtuple
-from itertools import izip
-
-import helpy
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     """ label_particles_edge(image, sigma=3, closing_size=3)
@@ -72,8 +75,10 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
     edges = skeletonize(edges)
     labels = sklabel(edges)
     print "found {} segments".format(labels.max())
-    labels = np.ma.array(labels, mask=edges==0) # in ma.array mask, False is True, and vice versa
+    # in ma.array mask, False is True, and vice versa
+    labels = np.ma.array(labels, mask=edges == 0)
     return labels
+
 
 def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     """ label_particles_walker(image, min_thresh=0.3, max_thresh=0.5)
@@ -86,11 +91,11 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
         max_thresh   -- The upper limit for binary threshold
     """
     from skimage.segmentation import random_walker
-    if sigma>0:
+    if sigma > 0:
         im = gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
-    labels[im<min_thresh*im.max()] = 1
-    labels[im>max_thresh*im.max()] = 2
+    labels[im < min_thresh*im.max()] = 1
+    labels[im > max_thresh*im.max()] = 2
     return random_walker(im, labels)
 
 
@@ -132,7 +137,8 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
-def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
+
+def filter_segments(labels, max_ecc, min_area, max_area,
                     circ=None, intensity=None, **extra_args):
     """filter_segments(labels, max_ecc, min_area, max_area) -> [Segment]
 
@@ -140,13 +146,12 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
     particles not meeting acceptance criteria.
     """
     pts = []
-    strengths = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
     if skversion < version('0.10'):
-        rprops = regionprops(labels, ['Area', 'Eccentricity', centroid], intensity)
+        rpropargs = labels, ['Area', 'Eccentricity', centroid], intensity
     else:
-        rprops = regionprops(labels, intensity)
-    for rprop in rprops:
+        rpropargs = labels, intensity
+    for rprop in regionprops(*rpropargs):
         area = rprop['area']
         if area < min_area or area > max_area:
             continue
@@ -159,14 +164,12 @@ def filter_segments(labels, max_ecc, min_area, max_area, max_detect=None,
             if (x - xo)**2 + (y - yo)**2 > ro**2:
                 continue
         pts.append(Segment(x, y, rprop.label, ecc, area))
-        if max_detect is not None:
-            strengths.append(rprop['mean_intensity'])
-    if max_detect is not None:
-        pts = pts[np.argsort(-strengths)]
-    return pts[:max_detect]
+    return pts
+
 
 def prep_image(imfile):
-    if args.verbose: print "opening", imfile
+    if args.verbose:
+        print "opening", imfile
     im = imread(imfile).astype(float)
     if args.plot > 1:
         snapshot('orig', im)
@@ -184,6 +187,7 @@ def prep_image(imfile):
     if args.plot > 1:
         snapshot('clip', im)
     return im
+
 
 def find_particles(im, method, **kwargs):
     """find_particles(im, method, **kwargs) -> [Segment], labels
@@ -207,8 +211,10 @@ def find_particles(im, method, **kwargs):
     pts = filter_segments(labels, intensity=intensity, **kwargs)
     return pts, labels, convolved
 
+
 def disk(n):
     return _disk(n).astype(int)
+
 
 def gdisk(width, inner=0, outer=None):
     """return a gaussian kernel with zero integral and unity std dev.
@@ -243,11 +249,13 @@ def gdisk(width, inner=0, outer=None):
     g *= circ
     return g
 
+
 def remove_segments(orig, particles, labels):
     """ remove_segments(orig, particles, labels)
         attempts to remove the found big dot segment as found in original
     """
     return
+
 
 def remove_disks(orig, particles, dsk, replace='sign', out=None):
     """removes a disk of given size centered at dot location
@@ -276,7 +284,7 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     if isinstance(particles[0], Segment):
         xys = zip(*(map(int, np.round((p.x, p.y))) for p in particles))
     elif 'X' in particles.dtype.names:
-        xys = np.round(particles['X']).astype(int), np.round(particles['Y']).astype(int)
+        xys = tuple([np.round(particles[x]).astype(int) for x in 'XY'])
     disks = np.zeros(orig.shape, bool)
     disks[xys] = True
     disks = binary_dilation(disks, dsk)
@@ -289,7 +297,7 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     return out
 
 if __name__ == '__main__':
-    if helpy.gethost()=='foppl':
+    if helpy.gethost() == 'foppl':
         import matplotlib
         matplotlib.use('Agg')
     import matplotlib.pyplot as pl
@@ -443,7 +451,11 @@ if __name__ == '__main__':
             imprefix = '_'.join([imbase, dot.upper()])
             snapshot_num = 0
             if args.remove and dot == 'corner':
-                rmv = segments, args.kern
+                # segments will only be defined in second iteration of loop
+                try:
+                    rmv = segments, args.kern
+                except NameError:
+                    rmv = None
             else:
                 rmv = None
             out = find_particles(image, method='convolve', circ=args.boundary,
@@ -484,8 +496,8 @@ if __name__ == '__main__':
     if args.save:
         savenotice = "Saving {} positions to {}{{{},.npz}}".format
         hfmt = ('Kern {kern:.2f}, Min area {min_area:d}, '
-          'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
-          'Frame    X           Y             Label  Eccen        Area').format
+                'Max area {max_area:d}, Max eccen {max_ecc:.2f}\n'
+                'Frame    X           Y             Label  Eccen        Area')
         txtfmt = ['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d']
         ext = '.txt'+'.gz'*args.gz
 
@@ -512,7 +524,7 @@ if __name__ == '__main__':
         aax.legend(loc='best', fontsize='small')
         if args.save:
             print savenotice(dot, out, ext)
-            np.savetxt(out+ext, point, header=hfmt(**size),
+            np.savetxt(out+ext, point, header=hfmt.format(**size),
                        delimiter='     ', fmt=txtfmt)
             helpy.txt_to_npz(out+ext, verbose=args.verbose, compress=args.gz)
     if args.save:
