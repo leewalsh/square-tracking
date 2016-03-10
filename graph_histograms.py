@@ -48,8 +48,8 @@ def plot(data, size, bins=100, contrast=1,
             y = height * (1 - (b + 1) / bins)
             bmin = b / bins
             bmax = bmin + dy
-            in_range = [x for x in data[t] if bmin < x < bmax]
-            freq = len(in_range) / len(data[t])
+            count = np.count_nonzero((bmin < data[t]) & (data[t] < bmax))
+            freq = count / len(data[t])
             color = [x * 255 for x in cmap(freq * contrast)]
             pygame.draw.rect(screen, color, (t * dx, y, dx, dy * height), 0)
 
@@ -66,29 +66,30 @@ if __name__ == '__main__':
               "[psi/densities] [save(s)]?")
         sys.exit(0)
 
-    pygame.init()
-    font = pygame.font.Font(None, 50)
-    fname, stat = sys.argv[1:3]
-    pygame.display.set_caption("Plot of histogram of {} over time".format(stat))
-    data = np.load(fname + "_DATA.npz")
     size = (800, 800)
-    if stat == 'rpsi':
-        screen = plot(data['radial_psi'], size, contrast=3)
-    elif stat == 'rdensities':
-        screen = plot(data['radial_densities'], size, contrast=3)
-    elif stat == 'psi':
-        screen = plot(data['psi'], size, contrast=5, avg='mean')
-    elif stat == 'densities':
-        screen = plot(data['densities'], size, contrast=3, avg='median')
-    title = font.render(fname.replace('_', ' '), 1, (255,)*3)
-    screen.blit(title, (330, 20))
-    pygame.display.flip()
+    stat_options = {'rpsi': ('radial_psi', 3, 'median'),
+                    'rdensities': ('radial_densities', 3, 'median'),
+                    'psi': ('psi', 5, 'mean'),
+                    'densities': ('densities', 3, 'median')}
+    fname, stats = sys.argv[1:3]
+    if stats == 'all':
+        stats = stat_options.keys()
+    for stat in stats:
+        pygame.init()
+        font = pygame.font.Font(None, 50)
+        pygame.display.set_caption("Plot of histogram of {} over time".format(stat))
+        data = np.load(fname + "_DATA.npz")
+        name, contrast, avg = stat_options[stat]
+        screen = plot(data[name], size, contrast=contrast, avg=avg)
+        title = font.render(fname.replace('_', ' '), 1, (255,)*3)
+        screen.blit(title, (330, 20))
+        pygame.display.flip()
 
-    if len(sys.argv) > 3 and sys.argv[3] in ('s', 'save'):
-        pygame.image.save(screen,"{}_{}.png".format(fname, stat))
-    else:
-        running = True
-        while running:
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    running = False
+        if len(sys.argv) > 3 and sys.argv[3] in ('s', 'save'):
+            pygame.image.save(screen,"{}_{}.png".format(fname, stat))
+        else:
+            running = True
+            while running:
+                for event in pygame.event.get():
+                    if event.type == QUIT:
+                        running = False
