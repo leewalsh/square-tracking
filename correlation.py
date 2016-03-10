@@ -586,6 +586,82 @@ def get_neighbors(tess, p, pm=None, ret_pairs=False):
         pairs = tess.ridge_points[pm]
         return pairs if ret_pairs else pairs[pairs != p]
 
+
+def neighborhoods(positions, voronoi=False, size=None, reach=None,
+                  tess=None, tree=None):
+    """Build a list of lists or padded array of neighborhoods around each point
+
+    select neighbors by any combination of three basic choices:
+        Voronoi/Delaunay, distance/ball, count/nearest/number
+
+    parameters
+    positions : array with shape (N, 2) or fields 'x' and 'y'
+    voronoi : whether to require pairs to be voronoi or delaunay neighbors
+    size : maximum size for each neighborhood excluding center/self
+    reach : maximum distance to search (exclusive).  scalar for distance/ball
+        for other criteria, it may be an array of distances or a str such as
+        '[min|max|mean]*{factor}' where the function is of neighbor distances
+    tess, tree : optionally provide spatial.Delaunay or spatial.KDTree instance
+
+    returns
+    neighbors : list of lists (or padded array) with shape (npoints, size)
+        neighbors[i] gives indices in positions to neighbors of positions[i]
+        i.e., the coordinates for all neighbors of positions[i] are given by
+        positions[neighbors[i]], with shape (size, 2)
+    mask : True if not a real neighbor
+    distances : distance to the neighbor, only calculated if needed.
+    """
+    try:
+        fewest, most = size
+    except TypeError:
+        fewest, most = None, size
+    need_dist = True
+    filter_reach = reach is not None
+    try:
+        dub = float(reach)
+        filter_reach = False
+    except (TypeError, ValueError):
+        dub = np.inf
+    if voronoi:
+        tess = tess or Delaunay(positions)
+        neighbors = get_neighbors(tess, 'all')
+    elif most:
+        tree = tree or cKDTree(positions)
+        distances, neighbors = tree.query(positions, most+1,
+                                          distance_upper_bound=dub)
+        distances, neighbors = distances[:, 1:], neighbors[:, 1:]  # remove self
+        mask = np.isinf(distances)
+        neighbors[mask] = np.where(mask)[0]
+        need_dist = False
+    elif reach is None:
+        raise ValueError("No limits on neighborhood selection applied")
+    else:
+        tree = tree or cKDTree(positions)
+        neighbors = tree.query_ball_tree(tree, dub)
+        for i in xrange(len(neighbors)):
+            neighbors[i].remove(i)  # remove self
+    if need_dist:
+        ix = np.arange(len(positions))[:, None]
+        neighbors, mask = helpy.pad_uneven(neighbors, ix, True, int)
+        distances = cdist(positions, positions)[ix, neighbors]
+        distances[mask] = np.inf
+        sort = distances.argsort(1)
+        distances, neighbors = distances[ix, sort], neighbors[ix, sort]
+    if isinstance(reach, basestring):
+        fun, fact = reach.split('*') if '*' in reach else (reach, 1)
+        ix = np.arange(len(positions))
+        fun = {'mean': np.nanmean, 'min': np.nanmin, 'max': np.nanmax,
+               'median': np.nanmedian}[fun]
+        fact = float(fact)
+        reach = fun(np.where(mask, np.nan, distances), 1, keepdims=True)*fact
+    if filter_reach:
+        mask[distances >= reach] = True
+        distances[mask] = np.inf
+    if fewest:
+        mask[(~mask).sum(1) < fewest] = True
+    return neighbors[:, :most], mask[:, :most], distances[:, :most]
+
+
 def binder(positions, orientations, bl, m=4, method='ball', margin=0):
     """Calculate the binder cumulant, given positions and orientations.
 
@@ -623,45 +699,27 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         #              np.digitize(positions[:,1], ybins)])
 
 
-def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub=2*ss):
+def pair_angles(positions, neighbors, nmask, ang_type='absolute',
+                margin=0, dub=2*ss):
     """ do something with the angles a given particle makes with its neighbors
 
         Parameters
         positions:  (N, 2) array of positions
+        neighbors:  (N, k) array of k neighbors
+        nmask:      mask for neighbors
         ang_type:   string, choice of 'absolute' (default), 'relative', 'delta'
-        neighborhood:   how to choose which pairs are neighbors. can be:
-            integer (probably 4, 6, or 8), giving that many nearest neighbors
-            'vor' or None, gives voronoi/delaunay neighbors
         margin:     is the width of excluded boundary margin
         dub:        is the distance upper bound (won't use pairs farther apart)
 
         Returns
         angles:     array of angles between neighboring pairs
-        nmask:      neighbor mask
         dmask:      margin mask, only returned if margin > 0
     """
-    if neighborhood is None or str(neighborhood).lower() in ['voronoi', 'delauney']:
-        #method = 'voronoi'
-        tess = Delaunay(positions)
-        neighbors = get_neighbors(tess, xrange(tess.npoints))
-        neighbors, nmask = helpy.pad_uneven(neighbors, 0, True, int)
-    elif isinstance(neighborhood, int):
-        #method = 'nearest'
-        tree = cKDTree(positions)
-        # tree.query(P, N) returns query particle and N-1 neighbors
-        distances, neighbors = tree.query(positions, 1 + neighborhood,
-                                          distance_upper_bound=dub)
-        assert np.allclose(distances[:,0], 0), "distance to self not zero"
-        distances = distances[:,1:]
-        assert np.allclose(neighbors[:,0], np.arange(tree.n)), "first neighbor not self"
-        neighbors = neighbors[:,1:]
-        nmask = np.isfinite(distances)
-        neighbors[~nmask] = np.where(~nmask)[0]
     dx, dy = (positions[neighbors] - positions[:, None, :]).T
     angles = np.arctan2(dy, dx).T % tau
     if ang_type == 'relative':
         # subtract off angle to nearest neighbor
-        angles -= angles[:, 0, None] # None to keep dims
+        angles -= angles[:, :1]
     elif ang_type == 'delta':
         # sort by angle then take diff
         angles[~nmask] = np.inf
@@ -672,9 +730,10 @@ def pair_angles(positions, neighborhood=None, ang_type='absolute', margin=0, dub
         raise ValueError("unknown ang_type {}".format(ang_type))
     angles[~nmask] = np.nan
     if margin:
-        if margin < ss: margin *= ss
+        if margin < ss:
+            margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = helpy.dist(positions, center) # distances to center
+        d = helpy.dist(positions, center)
         dmask = d < d.max() - margin
         angles = angles[dmask]
         nmask = nmask[dmask]
