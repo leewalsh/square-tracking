@@ -1277,6 +1277,8 @@ if __name__=='__main__' and args.nn:
     # Calculate the <nn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
 
+
+    corr_args = {'cumulant': False, 'norm': False}
     if args.verbose:
         print 'calculating <nn> correlations for track'
         coscorrs = []
@@ -1289,14 +1291,14 @@ if __name__=='__main__' and args.nn:
             sys.stdout.flush()
             cos = np.cos(o)
             sin = np.sin(o)
-            coscorr = corr.autocorr(cos, cumulant=False, norm=False)
-            sincorr = corr.autocorr(sin, cumulant=False, norm=False)
+            coscorr = corr.autocorr(cos, **corr_args)
+            sincorr = corr.autocorr(sin, **corr_args)
             coscorrs.append(coscorr)
             sincorrs.append(sincorr)
     else:
-        coscorrs = [corr.autocorr(np.cos(trackset['o']), cumulant=False, norm=False)
+        coscorrs = [corr.autocorr(np.cos(trackset['o']), **corr_args)
                     for trackset in tracksets.values()]
-        sincorrs = [corr.autocorr(np.sin(trackset['o']), cumulant=False, norm=False)
+        sincorrs = [corr.autocorr(np.sin(trackset['o']), **corr_args)
                     for trackset in tracksets.values()]
 
     # Gather all the track correlations and average them
