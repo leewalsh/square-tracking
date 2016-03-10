@@ -214,21 +214,24 @@ def groupby(arr, key, method, min_size=1):
         return
 
 
-def pad_uneven(lol, fill=0, return_mask=False, dtype=None):
+def pad_uneven(lol, fill=0, return_mask=False,
+               dtype=None, longest=None, shortest=None):
     """ take uneven list of lists
         return new 2d array with shorter lists padded with fill value
     """
     if dtype is None:
         dtype = np.result_type(fill, lol[0][0])
-    shape = len(lol), max(map(len, lol))
+    lengths = np.array(map(len, lol))
+    lengths[lengths < shortest] = 0
+    shape = len(lol), min(longest or np.inf, lengths.max())
     result = np.empty(shape, dtype)
     result[:] = fill  # this allows broadcasting unlike np.full
     if return_mask:
         mask = np.zeros(shape, bool)
-    for i, lst in enumerate(lol):
-        result[i, :len(lst)] = lst
+    for i, (lst, j) in enumerate(it.izip(lol, lengths)):
+        result[i, :j] = lst[:j and longest]
         if return_mask:
-            mask[i, :len(lst)] = True
+            mask[i, j:] = True
     return (result, mask) if return_mask else result
 
 
