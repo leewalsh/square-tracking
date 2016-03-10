@@ -118,16 +118,13 @@ def get_stats(a):
     """Computes mean, D_T or D_R, and standard error for a list.
     """
     a = np.asarray(a)
-    if a.ndim==1:
-        a = a[np.isfinite(a)]
-    else:
-        print 'ndims = ',a.ndim
     n = a.shape[-1]
-    M = a.mean(-1, keepdims=a.ndim>1)
-    c = a - M
-    variance = np.einsum('...j,...j->...', c, c)/n
+    M = np.nanmean(a, -1, keepdims=a.ndim > 1)
+    # c = a - M
+    # variance = np.einsum('...j,...j->...', c, c)/n
+    variance = np.nanvar(a, -1, keepdims=a.ndim > 1)
     D = 0.5*variance
-    SE = np.sqrt(variance)/sqrt(n)
+    SE = np.sqrt(variance)/sqrt(n - 1)
     return M, D, SE
 
 
