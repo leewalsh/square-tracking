@@ -5,72 +5,17 @@ from __future__ import division
 import itertools as it
 from math import sqrt
 import numpy as np
-from PIL import Image as Im
 
 import helpy
 import correlation as corr
 
-if __name__=='__main__':
-    HOST = helpy.gethost()
-    if HOST=='foppl':
-        locdir = '/home/lawalsh/Granular/Squares/orientation/'
-    elif HOST=='rock':
-        locdir = '/Users/leewalsh/Physics/Squares/orientation/'
-    else:
-        print "computer not defined"
-        print "where are you working?"
-
 pi = np.pi
 twopi = 2*pi
 
+
 def field_rename(a, old, new):
-    a.dtype.names = [ fn if fn != old else new for fn in a.dtype.names ]
+    a.dtype.names = [fn if fn != old else new for fn in a.dtype.names]
 
-def get_fft(ifile=None,location=None):
-    """ get the fft of an image
-        FFT information from:
-        http://stackoverflow.com/questions/2652415/fft-and-array-to-image-image-to-array-conversion
-    """
-    if ifile is None:
-        ifile= "n20_bw_dots/n20_b_w_dots_0010.tif"
-    if location is None:
-        x = 424.66; y = 155.56; area = 125
-        #x = 302.95; y = 221.87; area = 145
-        #x = 386.27; y = 263.62; area = 141
-        #x = 35.39; y = 305.92; area = 154
-        location = x,y
-    wdth = int(24 * sqrt(2))
-    hght = wdth
-    cropbox = map(int,(x - wdth/2., y - hght/2.,\
-            x + wdth/2., y + hght/2.))
-    i = Im.open(ifile)
-    i = i.crop(cropbox)
-    i.show()
-    a = np.asarray(i)
-    aa = np.gradient(a)
-    b = np.fft.fft2(a)
-    j = Im.fromarray(abs(b))
-    ii = Im.fromarray(aa)
-    return b
-
-def get_orientation(b):
-    """ get orientation from `b`, the fft of an image """
-    p = []
-    for (mi,m) in enumerate(b):
-        for (ni, n) in enumerate(m):
-            ang = np.arctan2(mi - hght/2, ni - wdth/2)
-            p.append([ang,abs(n)])
-    p = np.asarray(p)
-    p[:,0] = p[:,0] + pi
-    slices = 45
-    slicewidth = 2*pi/slices
-    s = []
-    for sl in range(slices):
-        si = np.nonzero(abs(p[:,0] - sl*slicewidth) < slicewidth)
-        sm = np.average(p[si,1])
-        s.append([sl*slicewidth,sm])
-    s = np.asarray(s)
-    return s, p
 
 def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
                 rank_by='rc', tree=None, do_average=True):
@@ -119,40 +64,46 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
     cdist = cdists[legal]
     cdiffs = cdiffs[legal]
 
-    if ang and nc > 1:
+    if ang:
+        # check the angle between corner displacements
         corients = np.arctan2(cdisp[:, 1], cdisp[:, 0])
-        pairs = np.array(list(it.combinations(xrange(nfound), 2)))
+        pairs = corr.pair_indices(nfound, True)
         cangles = corr.dtheta(corients[pairs])
         dcangles = np.abs(cangles - ang)
         legal = pairs[np.where(dcangles < dang)]
-        nfound = len(legal)*2
+        nfound = len(set(legal.flat))
+        if nfound < nc:
+            return (None,)*3
+        elif nfound == nc:
+            legal = legal[0]
+        elif nfound > nc:
+            # too many, how to rank?
+            if rank_by == 'ang':
+                # keep pair with the best angular separation
+                if nc == 2:
+                    ibest = dcangles.argmin()
+                    best = dcangles[ibest]
+                    if dang and best > dang:
+                        # best not good enough
+                        return (None,)*3
+                    legal = pairs[ibest]
+                elif nc == 3:
+                    best = dcangles.argsort()[:2]
+                    if dang and np.any(dcangles[best] > dang):
+                        # best not good enough
+                        return (None,)*3
+                    legal = np.unique(pairs[best])
+                    if len(legal) > nc:
+                        # not trivial to pick best 3 if the two best separation
+                        # angles don't share a corner
+                        return (None,)*3
+            elif rank_by == 'rc':
+                # keep only the nc closest to rc away
+                legal = legal[np.argmin(cdiffs[legal].sum(-1))]
+    elif nfound > nc:
+        legal = cdiffs.argsort()[:nc]
     else:
         legal = slice(None)
-    if nfound < nc:
-        # too few, skip.
-        return (None,)*3
-    elif nfound > nc and rank_by == 'ang':
-        if nc == 2:
-            # too many found, keep the two with the best angular separation
-            ibest = dcangles.argmin()
-            best = dcangles[ibest]
-            if dang and best > dang:
-                return (None,)*3
-            legal = pairs[ibest]
-        elif nc == 3:
-            best = dcangles.argsort()[:2]
-            if dang and np.any(dcangles[best] > dang):
-                return (None,)*3
-            legal = np.unique(pairs[best])
-            if len(legal) > nc:
-                # not trivial to pick best 3 if the two best separation angles
-                # don't share a corner
-                raise NotImplementedError("Ask me later")
-    elif nfound > nc and rank_by == 'rc':
-        # too many, keep only the nc closest to rc away
-        legal = legal[np.argmin(cdiffs[legal].sum(-1))]
-    else:
-        legal = legal[0]
 
     pcorner = pcorner[legal]
     cdisp = cdisp[legal]
@@ -161,61 +112,16 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
     if do_average and nc > 1:
         # average the angle by finding angle of mean vector displacement
         # keep the corner displacements (as amplitude) and positions
-        meandisp = (cdisp/cdist[...,None]).mean(0)
+        meandisp = (cdisp/cdist[..., None]).mean(0)
         porient = np.arctan2(*meandisp[::-1]) % twopi
     else:
-        porient = np.arctan2(cdisp[...,1], cdisp[...,0]) % twopi
+        porient = np.arctan2(cdisp[..., 1], cdisp[..., 0]) % twopi
 
     return pcorner, porient, cdist
 
-# TODO: use p.map() to find corners in parallel
-# try splitting by frame first, use views for each frame
-# or just pass a tuple of (datum, cdata[f==f]) to get_angle()
 
-def get_angle((datum, cdata)):
-    corner = find_corner(
-                np.asarray((datum['x'],datum['y'])),
-                np.column_stack((cdata['x'][cdata['f']==datum['f']],
-                                 cdata['y'][cdata['f']==datum['f']])))
-    dt = np.dtype([('corner',float,(2,)),('orient',float),('cdisp',float,(2,))])
-    return np.array([corner], dtype=dt)
-
-def get_angles_map(data, cdata, nthreads=None):
-    """ get_angles(data, cdata, nthreads=None)
-
-        arguments:
-            data    - data array with 'x' and 'y' fields for particle centers
-            cdata   - data array wity 'x' and 'y' fields for corners
-            (these arrays need not have the same length,
-                but both must have 'f' field for the image frame)
-            nthreads - number of processing threads (cpu cores) to use
-                None uses all cores of machine (8 for foppl, 2 for rock)
-
-        returns:
-            odata   - array with fields:
-                'orient' for orientation of particles
-                'corner' for particle corner (with 'x' and 'y' sub-fields)
-            (odata has the same shape as data)
-    """
-    field_rename(data,'s','f')
-    field_rename(cdata,'s','f')
-
-    from multiprocessing import Pool
-    if nthreads is None or nthreads > 8:
-        nthreads = 8 if HOST=='foppl' else 2
-    elif nthreads > 2 and HOST=='rock':
-        nthreads = 2
-    print "on {}, using {} threads".format(HOST,nthreads)
-    pool = Pool(nthreads)
-
-    datums = [ (datum,cdata[cdata['f']==datum['f']])
-                for datum in data ]
-    odatalist = pool.map(get_angle, datums)
-    odata = np.vstack(odatalist)
-    return odata
-
-def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
-                    ang=None, dang=None, do_average=True, verbose=False):
+def get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
+               ang=None, dang=None, do_average=True, verbose=False):
     """find the orientations of particles given center and corner positions
 
     Parameters
@@ -260,8 +166,8 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
     odata_orient = odata['orient']
     odata_cdisp = odata['cdisp']
     full_ids = pdata['id']
-    id_ok = full_ids[0]==0 and np.all(np.diff(full_ids)==1)
-    print_freq = len(pfsets)//(100 if verbose>1 else 5) + 1
+    id_ok = full_ids[0] == 0 and np.all(np.diff(full_ids) == 1)
+    print_freq = len(pfsets)//(100 if verbose > 1 else 5) + 1
     print 'seeking orientations'
     for f in pfsets:
         if verbose and not f % print_freq:
@@ -273,12 +179,13 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
         cpositions = helpy.consecutive_fields_view(fcdata, 'xy')
         fp_ids = helpy.quick_field_view(fpdata, 'id')
         for fp_id, posi in it.izip(fp_ids, positions):
-            #TODO could probably be sped up by looping through the output of
-            #     ptree.query_ball_tree(ctree)
+            # TODO could probably be sped up by looping through the output of
+            # ptree.query_ball_tree(ctree)
             corner, orient, disp = \
                 find_corner(posi, cpositions, nc=nc, rc=rc, drc=drc, ang=ang,
                             dang=dang, tree=cftree, do_average=do_average)
-            if orient is None: continue
+            if orient is None:
+                continue
             full_id = fp_id if id_ok else np.searchsorted(full_ids, fp_id)
             odata_corner[full_id] = corner
             odata_orient[full_id] = orient
@@ -291,16 +198,6 @@ def get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
 
     return odata, mask
 
-def plot_orient_hist(odata, figtitle=''):
-    if HOST!='rock':
-        print 'computer must be rock'
-        return False
-    import matplotlib.pyplot as pl
-
-    pl.figure()
-    pl.hist(odata['orient'][np.isfinite(odata['orient'])], bins=90)
-    pl.title('orientation histogram' if figtitle is '' else figtitle)
-    return True
 
 def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', figsize=None):
     """ plot_orient_quiver(data, odata, mask=None, imfile='')
@@ -309,8 +206,8 @@ def plot_orient_quiver(data, odata, mask=None, imfile='', fps=1, savename='', fi
     import matplotlib.colors as mcolors
     import matplotlib.colorbar as mcolorbar
     pl.figure(tight_layout=False, figsize=figsize)
-    if imfile is not None:
-        bgimage = Im.open(extdir+prefix+'_0001.tif' if imfile is '' else imfile)
+    if imfile:
+        bgimage = pl.imread(imfile)
         pl.imshow(bgimage, cmap=pl.cm.gray, origin='upper')
     #pl.quiver(X, Y, U, V, **kw)
     if mask is None:

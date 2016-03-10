@@ -5,6 +5,7 @@ from __future__ import division
 
 from math import sqrt
 from cmath import phase
+from itertools import combinations
 
 import numpy as np
 from numpy.polynomial import polynomial as poly
@@ -68,7 +69,7 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
         bulk_N *= full_N/len(positions)
     return bulk_N, bulk_mask
 
-def pair_indices(n):
+def pair_indices(n, asarray=False):
     """ pairs of indices to a 1d array of objects.
         equivalent to but faster than `np.triu_indices(n, 1)`
         stackoverflow.com/questions/22390418
@@ -77,10 +78,14 @@ def pair_indices(n):
         Otherwise, use `i` and `j` separately to index the first then second of
         the pair
     """
+    if n < 7:
+        ind = combinations(xrange(n), 2)
+        return np.array(tuple(ind)) if asarray else zip(*ind)
     rng = np.arange(1, n)
     i = np.repeat(rng - 1, rng[::-1])
     j = np.arange(n*(n-1)//2) + np.repeat(n - np.cumsum(rng[::-1]), rng[::-1])
-    return i, j
+    ind = i, j
+    return np.array(ind).T if asarray else ind
 
 def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
     """ radial_distribution(positions):

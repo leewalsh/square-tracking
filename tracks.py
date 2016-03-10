@@ -1143,14 +1143,14 @@ if __name__ == '__main__':
     if args.orient:
         if args.rcorner is None:
             raise ValueError("argument -r/--rcorner is required")
-        from orientation import get_angles_loop
+        from orientation import get_angles
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
                              leafsize=50) for f, cfset in cfsets.iteritems()}
-        odata, omask = get_angles_loop(pdata, cdata, pfsets, cfsets, cftrees,
-                                       nc=args.ncorners, rc=args.rcorner,
-                                       drc=args.drcorner, ang=args.angsep,
-                                       dang=args.dangsep)
+        odata, omask = get_angles(pdata, cdata, pfsets, cfsets, cftrees,
+                                  nc=args.ncorners, rc=args.rcorner,
+                                  drc=args.drcorner, ang=args.angsep,
+                                  dang=args.dangsep)
         if args.save:
             save = saveprefix+'_ORIENTATION.npz'
             print "saving orientation data to",
