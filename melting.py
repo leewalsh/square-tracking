@@ -157,6 +157,16 @@ if __name__ == '__main__':
         shell_ind = [np.where(fshells == s) for s in xrange(nshells)]
 
         vor = Voronoi(frame)
+        # what we want:
+        # [(shell, density) for region in vor]
+        # actually:
+        # densities = [density for region in vor]
+        # r_densities = [[density for region in shell] for shell in frame]
+        # which can be gotten by
+        # regions = [vor.regions[regi] for regi in vor.point_region
+        #            if -1 not in vor.regions[regi]]
+        # areas = [poly_area(vor.vertices[reg])
+        #          for reg in regions]
         areas = []                                      # (particle,)
         r_densities = [[] for i in xrange(nshells)]     # (shell, particle)
         r_psi = [[] for i in xrange(nshells)]           # (shell, particle)
