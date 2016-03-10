@@ -3,6 +3,16 @@
 
 from __future__ import division
 
+import sys
+import itertools as it
+from collections import defaultdict
+
+import numpy as np
+from scipy.optimize import curve_fit
+
+import helpy
+import correlation as corr
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -100,14 +110,6 @@ if __name__ == '__main__':
 else:
     verbose = False
 
-import sys
-import itertools as it
-from collections import defaultdict
-
-import helpy
-
-import numpy as np
-from scipy.optimize import curve_fit
 
 if __name__ != '__main__' or need_plt:
     if helpy.gethost() == 'foppl':
@@ -115,13 +117,13 @@ if __name__ != '__main__' or need_plt:
         matplotlib.use("agg")
     import matplotlib.pyplot as plt
 
-import correlation as corr
 
 sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
 rt2 = np.sqrt(2)
+
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
     """recursive function to find nearest dot in previous frame.
@@ -184,6 +186,7 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
             print info(newtrackid, frame, n, thisdot[-1]),
             print "passed", giveup, "frames"
         return newtrackid
+
 
 def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
                 cut=False, boundary=None, margin=0):
@@ -257,11 +260,13 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         stubs = np.argsort(track_lens)[:-n]  # all but the longest n
     elif stub > 0:
         stubs = np.where(track_lens < stub)[0]
-        if verbose: print "removing {} stubs".format(len(stubs))
+        if verbose:
+            print "removing {} stubs".format(len(stubs))
     if n or stub > 0:
         stubs = np.in1d(trackids, stubs)
         trackids[stubs] = -1
     return trackids
+
 
 def remove_duplicates(trackids=None, data=None, tracksets=None,
                       target='', inplace=False, verbose=False):
@@ -276,38 +281,48 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
     for t, tset in tracksets.iteritems():
         fs = tset['f']
         count = np.bincount(fs)
-        dup_fs = np.where(count>1)[0]
+        dup_fs = np.where(count > 1)[0]
         if not len(dup_fs):
             continue
         ftsets = helpy.splitter(tset, fs, ret_dict=True)
         for f in dup_fs:
             prv = fs[np.searchsorted(fs, f, 'left') - 1] if f > fs[0] else None
             nxt = fs[np.searchsorted(fs, f, 'right')] if f < fs[-1] else None
-            if nxt is not None and nxt in dup_fs:
-                nxt = fs[np.searchsorted(fs, nxt, 'right')] if nxt < fs[-1] else None
+            if nxt is not None and nxt in dup_fs and nxt < fs[-1]:
+                nxt = fs[np.searchsorted(fs, nxt, 'right')]
                 if nxt is not None and nxt in dup_fs:
                     nxt = None
                     if prv is None:
                         raise RuntimeError(
-                            "Duplicate track particles in too many frames in a"
-                            " row at frame {} for track {}".format(f, t))
+                            "Duplicate track particles in too many frames in a "
+                            "row at frame {} for track {}".format(f, t))
             seps = np.zeros(count[f])
-            for neigh in (prv, nxt):
-                if neigh is None: continue
-                if count[neigh] > 1 and neigh in rejects[t]:
-                    isreject = np.in1d(ftsets[neigh]['id'], rejects[t][neigh], assume_unique=True)
-                    ftsets[neigh] = ftsets[neigh][~isreject]
-                sepx = ftsets[f]['x'] - ftsets[neigh]['x']
-                sepy = ftsets[f]['y'] - ftsets[neigh]['y']
+            for g in (prv, nxt):
+                if g is None:
+                    continue
+                if count[g] > 1 and g in rejects[t]:
+                    notreject = np.in1d(ftsets[g]['id'], rejects[t][g],
+                                        assume_unique=True, invert=True)
+                    ftsets[g] = ftsets[g][notreject]
+                sepx = ftsets[f]['x'] - ftsets[g]['x']
+                sepy = ftsets[f]['y'] - ftsets[g]['y']
                 seps += sepx*sepx + sepy*sepy
             rejects[t][f] = ftsets[f][seps > seps.min()]['id']
     if not rejects:
         if verbose:
             print "no duplicate tracks"
-        return None if inplace else trackids if target=='trackids' else tracksets
+        if inplace:
+            return
+        else:
+            return trackids if target == 'trackids' else tracksets
     elif verbose:
         print "repairing {} duplicate tracks".format(len(rejects))
-    if target=='tracksets':
+        if verbose > 1:
+            for t, r in rejects.iteritems():
+                print '\ttrack {}: {} duplicate frames'.format(t, len(r))
+                if verbose > 2:
+                    print sorted(r)
+    if target == 'tracksets':
         if not inplace:
             tracksets = tracksets.copy()
         for t, tr in rejects.iteritems():
@@ -317,7 +332,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
             if inplace:
                 tracksets[t] = new
         return None if inplace else tracksets
-    elif target=='trackids':
+    elif target == 'trackids':
         if not inplace:
             trackids = trackids.copy()
         rejects = np.concatenate([tfr for tr in rejects.itervalues()
@@ -440,11 +455,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                       width=side/8, scale_units='xy', scale=1/side, zorder=.4)
         ps = ax.scatter(y, x, c='r', zorder=.8)
-        cs = ax.scatter(xyc[:,1], xyc[:,0], c='g', s=8, zorder=.6)
+        cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=8, zorder=.6)
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
             oca = oc.reshape(-1, 2)
-            ocs = ax.scatter(oca[:,1], oca[:,0], c='orange', s=8, zorder=1)
+            ocs = ax.scatter(oca[:, 1], oca[:, 0], c='orange', s=8, zorder=1)
             remove.append(ocs)
 
             # corner displacements has shape (n_particles, n_corners, n_dim)
@@ -568,7 +583,7 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
 
 def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=False):
     if not inplace:
-        tracksets = {t: s.copy() for t,s in tracksets.iteritems()}
+        tracksets = {t: s.copy() for t, s in tracksets.iteritems()}
     if verbose:
         print 'filling gaps with nans'
         if interp:
@@ -605,7 +620,7 @@ def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=Fal
         tracksets[t] = tset
     return tracksets
 
-# Plotting tracks:
+
 def plot_tracks(data, trackids=None, bgimage=None, mask=None,
                 fignum=None, save=True, show=True):
     """ Plots the tracks of particles in 2D
@@ -649,6 +664,7 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
 #              <  averaged over t0, then i   >
 
+
 def t0avg(trackset, tracklen, tau):
     """ Averages the squared displacement of a track for a certain value of tau
         over all valid values of t0 (such that t0 + tau < tracklen)
@@ -670,24 +686,27 @@ def t0avg(trackset, tracklen, tau):
     totsqdisp = 0.0
     nt0s = 0.0
     tfsets = helpy.splitter(trackset, trackset['f'], ret_dict=True)
-    for t0 in np.arange(1,(tracklen-tau-1),dt0): # for t0 in (T - tau - 1), by dt0 stepsize
+    # for t0 in (T - tau - 1), by dt0 stepsize
+    for t0 in np.arange(1, (tracklen-tau-1), dt0):
         olddot = tfsets[t0]
         newdot = tfsets[t0+tau]
         if len(newdot) != 1 or len(olddot) != 1:
             continue
-        sqdisp  = (newdot['x'] - olddot['x'])**2 \
-                + (newdot['y'] - olddot['y'])**2
+        sqdisp = (newdot['x'] - olddot['x'])**2 + (newdot['y'] - olddot['y'])**2
         if len(sqdisp) == 1:
-            if verbose > 1: print 'unflattened'
+            if verbose > 1:
+                print 'unflattened'
             totsqdisp += sqdisp
         elif len(sqdisp[0]) == 1:
-            if verbose: print 'flattened once'
+            if verbose:
+                print 'flattened once'
             totsqdisp += sqdisp[0]
         else:
             if verbose: print "fail"
             continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
+
 
 def trackmsd(trackset, dt0, dtau):
     """ finds the mean squared displacement as a function of tau,
@@ -716,7 +735,7 @@ def trackmsd(trackset, dt0, dtau):
         xy = helpy.consecutive_fields_view(trackset, 'xy')
         return corr.msd(xy, ret_taus=True)
 
-    trackbegin, trackend = trackset['f'][[0,-1]]
+    trackbegin, trackend = trackset['f'][[0, -1]]
     tracklen = trackend - trackbegin + 1
     if verbose:
         print "length {} from {} to {}".format(tracklen, trackbegin, trackend)
@@ -729,10 +748,11 @@ def trackmsd(trackset, dt0, dtau):
     for tau in taus:
         avg = t0avg(trackset, tracklen, tau)
         if avg > 0 and not np.isnan(avg):
-            tmsd.append([tau,avg[0]])
+            tmsd.append([tau, avg[0]])
     if verbose:
         print "\t...actually", len(tmsd)
     return tmsd
+
 
 def find_msds(tracksets, dt0, dtau, min_length=0):
     """ Calculates the MSDs for all tracks
@@ -750,7 +770,8 @@ def find_msds(tracksets, dt0, dtau, min_length=0):
     """
     print "Calculating MSDs with",
     print "dt0 = {}, dtau = {}".format(dt0, dtau)
-    if verbose: print "for track",
+    if verbose:
+        print "for track",
     msds = []
     msdids = []
     for t in sorted(tracksets):
@@ -763,13 +784,14 @@ def find_msds(tracksets, dt0, dtau, min_length=0):
             msdids.append(t)
         elif verbose:
             print "\ntrack {}'s msd is too short!".format(t)
-    if verbose: print
+    if verbose:
+        print
     return msds, msdids
 
 
-def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
-             show_tracks=False, singletracks=None, tnormalize=False,
-             errorbars=False, fps=1, A=1):
+def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
+             kill_flats=1, kill_jumps=1e9, errorbars=False,
+             show_tracks=False, singletracks=None):
     """ return the mean of several track msds """
 
     # msd has shape (number of tracks, length of tracks)
@@ -796,16 +818,18 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
             ti, tmsd, msdid = thismsd
         else:
             ti, tmsd = thismsd
-        if len(tmsd) < 2: continue
+        if len(tmsd) < 2:
+            continue
         tmsdt, tmsdd = np.asarray(tmsd).T
-        if tmsdd[-50:].mean() < kill_flats: continue
-        if tmsdd[:2].mean() > kill_jumps: continue
+        if tmsdd[-50:].mean() < kill_flats or tmsdd[:2].mean() > kill_jumps:
+            continue
         tau_match = np.searchsorted(taus, tmsdt)
         msd[ti, tau_match] = tmsdd
     if verbose:
         print 'shapes of msd, taus:',
         print msd.shape, taus.shape
-    msd, msd_mean, msd_err, msd_std, added, enough = helpy.avg_uneven(msd, ret_all=True)
+    msd, msd_mean, msd_err, msd_std, added, enough = helpy.avg_uneven(
+        msd, ret_all=True)
     if verbose:
         not_enough = np.where(added <= 2)[0]
         bad_taus = taus[not_enough]
@@ -839,11 +863,11 @@ def mean_msd(msds, taus, msdids=None, kill_flats=0, kill_jumps=1e9,
         plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
     return taus, msd_mean, msd_err
 
-def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
-        show_tracks=True, figsize=(8,6), xscale='log', meancol='',
-        title=None, xlim=None, ylim=None, fignum=None, errorbars=False,
-        lw=1, singletracks=None, fps=1, S=1, ang=False, sys_size=0,
-        kill_flats=0, kill_jumps=1e9, show_legend=False, save='', show=True):
+def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
+             xscale='log', meancol='', figsize=(8, 6), title=None, xlim=None,
+             ylim=None, lw=1, legend=False, errorbars=False, show_tracks=True,
+             singletracks=None, sys_size=0, kill_flats=0, kill_jumps=1e9, S=1,
+             fps=1, ang=False, save='', show=True,):
     """ Plots the MS(A)Ds """
     A = 1 if ang else S**2
     if verbose:
@@ -857,14 +881,13 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         taus = helpy.farange(dt0, nframes+1, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes+1, dtau, dtype=float)
-    fig = plt.figure(fignum, figsize)
+    fig = plt.figure(figsize=figsize)
     ax = fig.gca()
 
     # Get the mean of msds
-    msd_taus, msd_mean, msd_err = mean_msd(msds, taus, msdids,
-            kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
-            singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars,
-            fps=fps, A=A)
+    msd_taus, msd_mean, msd_err = mean_msd(msds, taus, msdids, fps=fps, A=A,
+        kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
+        singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars)
     if verbose:
         print '     taus:', taus.shape
         print ' from msd:', msd_taus.shape
@@ -894,8 +917,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         #          label="slope = 1")
     if errorbars:
         msd_err /= A
-        ax.errorbar(taus, msd/taus**tnormalize,
-                    msd_err/taus**tnormalize,
+        ax.errorbar(taus, msd/taus**tnormalize, msd_err/taus**tnormalize,
                     fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
@@ -910,7 +932,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, tnormalize=False, prefix='',
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    if show_legend:
+    if legend:
         ax.legend(loc='best')
     if save is True:
         save = prefix + "_MS{}D.pdf".format('A' if ang else '')
@@ -1094,9 +1116,10 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
     return sigma
 
 
-sigfmt = ('{:7.4g}, '*5)[:-2].format
-sigprint = lambda sigma: sigfmt(sigma.min(), sigma.mean(), sigma.max(),
-                                sigma.std(ddof=1), sigma.max()/sigma.min())
+def sigprint(sigma):
+    sigfmt = ('{:7.4g}, '*5)[:-2].format
+    mn, mx = sigma.min(), sigma.max()
+    return sigfmt(mn, sigma.mean(), mx, sigma.std(ddof=1), mx/mn)
 
 
 if __name__ == '__main__':
@@ -1191,7 +1214,8 @@ if __name__ == '__main__':
             run_fill_gaps=args.gaps, verbose=args.verbose)
 
     if args.msd:
-        msds, msdids = find_msds(tracksets, args.dt0, args.dtau, min_length=args.stub)
+        msds, msdids = find_msds(
+            tracksets, args.dt0, args.dtau, min_length=args.stub)
         meta.update(msd_dt0=args.dt0, msd_dtau=args.dtau, msd_stub=args.stub)
         if args.save:
             save = saveprefix+"_MSD.npz"
@@ -1200,29 +1224,29 @@ if __name__ == '__main__':
             np.savez(save, msds=np.asarray(msds), msdids=np.asarray(msdids),
                      dt0=np.asarray(args.dt0), dtau=np.asarray(args.dtau))
     elif args.plotmsd or args.rr:
-        if verbose: print "loading msd data from npz files"
+        if verbose:
+            print "loading msd data from npz files"
         msdnpz = np.load(readprefix+"_MSD.npz")
         msds = msdnpz['msds']
-        try: msdids = msdnpz['msdids']
-        except KeyError: msdids = None
-        #TODO get dt0 and dtau from meta if not in args.dt0 or args.dtau
         try:
-            args.dt0  = np.asscalar(msdnpz['dt0'])
-            args.dtau = np.asscalar(msdnpz['dtau'])
+            msdids = msdnpz['msdids']
         except KeyError:
-            args.dt0  = 10  # here's assuming...
-            args.dtau = 10  #  should be true for all from before dt* was saved
+            msdids = None
+        helpy.sync_args_meta(args, meta, ['dt0', 'dtau'],
+                             ['msd_dt0', 'msd_dtau'])
 
     if args.plotmsd:
-        if verbose: print 'plotting msd now!'
-        plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1, tnormalize=False,
-                 prefix=saveprefix, show_tracks=args.showtracks, show=args.show,
-                 singletracks=args.singletracks, fps=args.fps, S=args.side,
-                 save=args.save, kill_flats=args.killflat,
-                 kill_jumps=args.killjump*args.side**2)
+        if verbose:
+            print 'plotting msd now!'
+        plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1,
+                 tnormalize=False, prefix=saveprefix, show=args.show,
+                 show_tracks=args.showtracks, singletracks=args.singletracks,
+                 kill_flats=args.killflat, S=args.side, save=args.save,
+                 kill_jumps=args.killjump*args.side**2, fps=args.fps)
 
     if args.plottracks:
-        if verbose: print 'plotting tracks now!'
+        if verbose:
+            print 'plotting tracks now!'
         if args.slice:
             allframes = data['f']
             nframes = allframes.max()+1
@@ -1296,7 +1320,10 @@ if __name__=='__main__' and args.nn:
     # Fit to functional form:
     D_R = meta.get('fit_nn_DR', 0.1)
     p0 = [D_R]
-    fitform = lambda s, DR: 0.5*np.exp(-DR*s)
+
+    def fitform(s, DR):
+        return 0.5*np.exp(-DR*s)
+
     fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
@@ -1319,9 +1346,8 @@ if __name__=='__main__' and args.nn:
     ax.errorbar(taus, meancorr, errcorr, None, 'ok',
                 label="Mean Orientation Autocorrelation",
                 capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(taus, fit, 'r',
-            label=fitstr + '\n' + sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$",
-                                     D_R, 1/D_R))
+    fitinfo = sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$", D_R, 1/D_R)
+    ax.plot(taus, fit, 'r', label=fitstr + '\n' + fitinfo)
     ax.set_xlim(0, tmax)
     ax.set_ylim(fit[fmax], 1)
     ax.set_yscale('log')
@@ -1338,7 +1364,7 @@ if __name__=='__main__' and args.nn:
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-if __name__=='__main__' and args.rn:
+if __name__ == '__main__' and args.rn:
     print "====== <rn> ======"
     # Calculate the <rn> correlation for all the tracks in a given dataset
     # TODO: fix this to combine multiple datasets (more than one prefix)
@@ -1347,12 +1373,12 @@ if __name__=='__main__' and args.rn:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
     corr_args = {'side': 'both', 'ret_dx': True,
-                 'cumulant': (True, False), 'norm': 0 }
+                 'cumulant': (True, False), 'norm': 0}
 
-    xcoscorrs = [ corr.crosscorr(trackset['x']/args.side, np.cos(trackset['o']),
-                 **corr_args) for trackset in tracksets.values() ]
-    ysincorrs = [ corr.crosscorr(trackset['y']/args.side, np.sin(trackset['o']),
-                 **corr_args) for trackset in tracksets.values() ]
+    xcoscorrs = [corr.crosscorr(trackset['x']/args.side, np.cos(trackset['o']),
+                 **corr_args) for trackset in tracksets.values()]
+    ysincorrs = [corr.crosscorr(trackset['y']/args.side, np.sin(trackset['o']),
+                 **corr_args) for trackset in tracksets.values()]
 
     # Align and merge them
     fmax = int(2*args.fps/D_R*args.zoom)
@@ -1375,9 +1401,9 @@ if __name__=='__main__' and args.rn:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
-    # Fit to functional form:
-    fitform = lambda s, v_D, D=D_R:\
-                  0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+    def fitform(s, v_D, D=D_R):
+        return 0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
 
     # p0 = [v_0/D_R, D_R]
@@ -1399,18 +1425,19 @@ if __name__=='__main__' and args.rn:
             popt = p0
 
     print "Fits to <rn>:"
-    if len(popt) > 1:
+    nfree = len(popt)
+    if nfree > 1:
         D_R = popt[1]
     v0 = D_R*popt[0]
     print '\n'.join([' v0/D_R: {:.4g}',
-                     '    D_R: {:.4g}'][:len(popt)]).format(*popt)
+                     '    D_R: {:.4g}'][:nfree]).format(*popt)
     print "Giving:"
     print '\n'.join(['     v0: {:.4f}',
-                     'D_R(rn): {:.4f}'][:len(popt)]
-                    ).format(*[v0, D_R][:len(popt)])
+                     'D_R(rn): {:.4f}'][:nfree]
+                    ).format(*[v0, D_R][:nfree])
     if args.save:
         helpy.save_meta(saveprefix, dict([('fit_rn_v0', v0),
-                        ('fit_rn_DR', D_R)][:len(popt)]))
+                        ('fit_rn_DR', D_R)][:nfree]))
 
     fig, ax = plt.subplots()
     fit = fitform(taus, *popt)
@@ -1421,12 +1448,10 @@ if __name__=='__main__' and args.rn:
     ax.errorbar(taus, sgn*meancorr, errcorr, None, 'ok',
                 label="Mean Position-Orientation Correlation",
                 capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(taus, sgn*fit, 'r', lw=2,
-            #label=fitstr+'\n'+
-            #       ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
-            label=fitstr + '\n' + sf(', '.join(
-                  ['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:len(popt)]
-                  ), *(abs(v0), D_R)[:len(popt)]))
+    # fitinfo = ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
+    fitinfo = sf(', '.join(['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:nfree]),
+                 *(abs(v0), D_R)[:nfree])
+    ax.plot(taus, sgn*fit, 'r', lw=2, label=fitstr + '\n' + fitinfo)
 
     ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
@@ -1446,13 +1471,14 @@ if __name__=='__main__' and args.rn:
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-if __name__=='__main__' and args.rr:
+if __name__ == '__main__' and args.rr:
     print "====== <rr> ======"
     fig, ax, taus, msd, errcorr = plot_msd(
-        msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False, show=False,
-        tnormalize=False, errorbars=5, prefix=saveprefix, show_tracks=True,
-        meancol='ok', singletracks=args.singletracks, fps=args.fps, S=args.side,
-        kill_flats=args.killflat, kill_jumps=args.killjump*args.side**2)
+        msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
+        show=False, tnormalize=0, errorbars=5, prefix=saveprefix,
+        show_tracks=True, meancol='ok', singletracks=args.singletracks,
+        fps=args.fps, S=args.side, kill_flats=args.killflat,
+        kill_jumps=args.killjump*args.side**2)
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
@@ -1470,7 +1496,6 @@ if __name__=='__main__' and args.rr:
         if args.save:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
-
     # Fit to functional form:
     D_T = meta.get('fit_rr_DT', 0.01)
     p0 = [D_T]
@@ -1482,8 +1507,9 @@ if __name__=='__main__' and args.rr:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
         p0 += [D_R]
 
-    fitform = lambda s, D, v=v0, DR=D_R:\
-              2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+    def fitform(s, D, v=v0, DR=D_R):
+        return 2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
 
     try:
@@ -1497,27 +1523,30 @@ if __name__=='__main__' and args.rr:
         popt = p0
 
     print "Fits to <rr>:"
+    nfree = len(popt)
     D_T = popt[0]
-    if len(popt) > 1:
+    if nfree > 1:
         v0 = popt[1]
-        if len(popt) > 2:
+        if nfree > 2:
             D_R = popt[2]
     print '\n'.join(['   D_T: {:.3g}',
                      'v0(rr): {:.3g}',
-                     '   D_R: {:.3g}'][:len(popt)]).format(*popt)
-    if len(popt) > 1:
+                     '   D_R: {:.3g}'][:nfree]).format(*popt)
+    if nfree > 1:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
         helpy.save_meta(saveprefix,
                         dict([('fit_rr_DT', D_T),
                               ('fit_rr_v0', v0),
-                              ('fit_rr_DR', D_R)][:len(popt)]))
+                              ('fit_rr_DR', D_R)][:nfree]))
     fit = fitform(taus, *popt)
-    ax.plot(taus, fit, 'r', lw=2,
-            label=fitstr + "\n" + sf(', '.join(
-                ["$D_T={0:.3T}$", "$v_0={1:.3T}$", "$D_R={2:.3T}$"][:len(popt)]
-                ), *(popt*[1, sgn, 1][:len(popt)])))
+
+    fitinfo = sf(', '.join(["$D_T={0:.3T}$",
+                            "$v_0={1:.3T}$",
+                            "$D_R={2:.3T}$"][:nfree]),
+                 *(popt*[1, sgn, 1][:nfree]))
+    ax.plot(taus, fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + "\n" + fitinfo)
 
     ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = ax.set_xlim(taus[0], tmax)
