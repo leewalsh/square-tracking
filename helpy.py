@@ -5,10 +5,14 @@ from __future__ import division
 
 import itertools as it
 from math import log
-import sys, os, ntpath
+import sys
+import os
+import ntpath
+from string import Formatter
 import readline     # this is used by raw_input
 import glob
-import platform, getpass
+import platform
+import getpass
 from time import strftime
 
 import numpy as np
@@ -1111,36 +1115,39 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
     return patches
 
 
-def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
-    """ Take a finite derivative of f(x) using convolution with the derivative
-        of a gaussian kernel.  For any convolution:
-            (f * g)' = f * g' = g * f'
-        so we start with f and g', and return g and f', a smoothed derivative.
+def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
+    """ Take a finite derivative of f(x) using convolution with gaussian
 
-        parameters
-        ----------
-        f : an array to differentiate
-        xwidth or iwidth : smoothing width (sigma) for gaussian.
-            use iwidth for index units, (simple array index width)
-            use xwidth for the physical units of x (x array is required)
-            use 0 for no smoothing. Gives an array shorter by 1.
-        x or dx : required for normalization
-            if x is provided, dx = np.diff(x)
-            otherwise, a scalar dx is presumed
-            if dx=1, use a simple finite difference with np.diff
-            if dx>1, convolves with the derivative of a gaussian, sigma=dx
+    A function convolved with the derivative of a gaussian kernel gives the
+    derivative of the function convolved with the integral of the kernel of a
+    gaussian kernel.  For any convolution:
+        (f * g)' = f * g' = g * f'
+    so we start with f and g', and return g and f', a smoothed derivative.
 
-        returns
-        -------
-        df_dx : the derivative of f with respect to x
+    Optionally can not smooth by giving width 0.
+
+    parameters
+    ----------
+    f : an array to differentiate
+    xwidth or iwidth : smoothing width (sigma) for gaussian.
+        use iwidth for index units, (simple array index width)
+        use xwidth for the physical units of x (x array is required)
+        use 0 for no smoothing. Gives an array shorter by 1.
+    x or dx : required for normalization
+        if x is provided, dx = np.diff(x)
+        otherwise, a scalar dx is presumed
+        if dx=1, use a simple finite difference with np.diff
+        if dx>1, convolves with the derivative of a gaussian, sigma=dx
+    order : how many derivatives to take
+    min_scale : the smallest physical scale involved in index units. e.g., fps.
+
+    returns
+    -------
+    df_dx : the `order`th derivative of f with respect to x
     """
-    nf = len(f)
-
     if dx is None and x is None:
         dx = 1
-        nx = 1
     elif dx is None:
-        nx = len(x)
         dx = x.copy()
         dx[:-1] = dx[1:] - dx[:-1]
         assert dx[:-1].min() > 1e-6, ("Non-increasing independent variable "
@@ -1164,21 +1171,45 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1):
             df = np.diff(f, n=order)
             beg, end = order//2, (order+1)//2
             df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
-
-    #elif iwidth < .5:
-    #   raise ValueError("width of {} too small for reliable "
-    #                    "results".format(iwidth))
     else:
+        min_iwidth = 0.5
+        if iwidth < min_iwidth:
+            msg = "Width of {} too small for reliable results using {}"
+            raise UserWarning(msg.format(iwidth, min_iwidth))
+            iwidth = min_iwidth
         from scipy.ndimage import gaussian_filter1d
-        df = gaussian_filter1d(f, iwidth, order=order)
+        # kernel truncated at truncate*iwidth; it is 4 by default
+        truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
+        df = gaussian_filter1d(f, iwidth, order=order, truncate=truncate)
 
-    newnf = len(df)
-    assert nf==newnf, "df was len {}, now len {}".format(nf, newnf)
-    newnx = len(np.atleast_1d(dx))
-    assert nx==newnx, "dx was len {}, now len {}".format(nx, newnx)
     return df/dx**order
 
-from string import Formatter
+
+def derivwidths(w, dx, sigmas, order):
+    from scipy.ndimage import gaussian_filter1d
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    x = np.arange(-w, w+1)*dx
+    y = x.max() - 2*np.abs(x)
+    np.clip(y, 0, None, out=y)
+    dy = -2*np.sign(x)
+    dy[y == 0] = 0
+
+    ax.plot(x, y, '-k', zorder=10)
+    ax.plot(x, dy, '-k', zorder=10)
+    sigmin, sigptp = min(sigmas), np.ptp(sigmas)
+    print 'sigma\tsum(g)\tsum(abs(g))\tptp\tchi2'
+    for sigma in sigmas:
+        c = plt.cm.jet((sigma-sigmin)/sigptp)
+        g = gaussian_filter1d(y, sigma, order=order, truncate=w/sigma)/dx
+        # gi = gaussian_filter1d(y, sigma, order=order-1, truncate=w/sigma)
+        ax.plot(x, g, alpha=.5, c=c)
+        # ax.plot(x, gi, ':', c=c)
+        ax.plot(x, np.cumsum(g)*dx, '--', alpha=.75, c=c)
+        print ('{:.3f}\t'*5).format(
+            sigma, g.sum(), np.abs(g).sum(), g.ptp(), ((g-dy)**2).sum())
+
+
 class SciFormatter(Formatter):
     def format_field(self, value, format_spec):
         if format_spec.endswith('T'):
