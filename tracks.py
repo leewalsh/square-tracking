@@ -911,14 +911,14 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         ax.set_xscale(xscale)
         ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
-        ax.loglog(taus, msd, meancol, lw=lw,
+        ax.loglog(taus, msd, c=meancol, lw=lw,
                   label="Mean Squared {}Displacement".format('Angular '*ang))
         #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
         msd_err /= A
-        ax.errorbar(taus, msd/taus**tnormalize, msd_err/taus**tnormalize,
-                    fmt=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
+        ax.errorbar(taus, msd/taus**tnormalize, msd_err/taus**tnormalize, lw=lw,
+                    c=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     ax.set_title(title or "Mean Sq {}Disp".format("Angular " if ang else ""))
@@ -1343,11 +1343,11 @@ if __name__=='__main__' and args.nn:
     plot_individual = True
     if plot_individual:
         ax.plot(taus, allcorrs.T, 'b', alpha=.2)
-    ax.errorbar(taus, meancorr, errcorr, None, 'ok',
+    ax.errorbar(taus, meancorr, errcorr, None, c=(1, 0.4, 0), lw=3,
                 label="Mean Orientation Autocorrelation",
-                capthick=0, elinewidth=1, errorevery=3)
+                capthick=0, elinewidth=0.5, errorevery=3)
     fitinfo = sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$", D_R, 1/D_R)
-    ax.plot(taus, fit, 'r', label=fitstr + '\n' + fitinfo)
+    ax.plot(taus, fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + '\n' + fitinfo)
     ax.set_xlim(0, tmax)
     ax.set_ylim(fit[fmax], 1)
     ax.set_yscale('log')
@@ -1445,13 +1445,13 @@ if __name__ == '__main__' and args.rn:
     sgn = np.sign(v0)
     if plot_individual:
         ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2)
-    ax.errorbar(taus, sgn*meancorr, errcorr, None, 'ok',
+    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=(1, 0.4, 0), lw=3,
                 label="Mean Position-Orientation Correlation",
-                capthick=0, elinewidth=1, errorevery=3)
+                capthick=0, elinewidth=0.5, errorevery=3)
     # fitinfo = ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
     fitinfo = sf(', '.join(['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:nfree]),
                  *(abs(v0), D_R)[:nfree])
-    ax.plot(taus, sgn*fit, 'r', lw=2, label=fitstr + '\n' + fitinfo)
+    ax.plot(taus, sgn*fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + '\n' + fitinfo)
 
     ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
@@ -1475,8 +1475,8 @@ if __name__ == '__main__' and args.rr:
     print "====== <rr> ======"
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
-        show=False, tnormalize=0, errorbars=5, prefix=saveprefix,
-        show_tracks=True, meancol='ok', singletracks=args.singletracks,
+        show=False, tnormalize=0, errorbars=3, prefix=saveprefix,
+        show_tracks=True, meancol=(1, 0.4, 0), lw=3, singletracks=args.singletracks,
         fps=args.fps, S=args.side, kill_flats=args.killflat,
         kill_jumps=args.killjump*args.side**2)
 
@@ -1509,6 +1509,17 @@ if __name__ == '__main__' and args.rr:
 
     def fitform(s, D, v=v0, DR=D_R):
         return 2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+
+    def limiting_regimes(s, D, v=v0, DR=D_R):
+        tau_T = D/v**2
+        tau_R = 1/DR
+        early = 2*D*s * (s < tau_T)
+        middle = (v*s)**2 * (tau_T < s) * (s < tau_R)
+        late = 2*(v**2/DR + D)*s * (tau_R < s)
+        tau_f = np.searchsorted(s, [tau_T, tau_R])
+        lines = early + middle + late
+        lines[tau_f] = np.nan
+        return lines
 
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
 
@@ -1547,6 +1558,9 @@ if __name__ == '__main__' and args.rr:
                             "$D_R={2:.3T}$"][:nfree]),
                  *(popt*[1, sgn, 1][:nfree]))
     ax.plot(taus, fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + "\n" + fitinfo)
+
+    guide = limiting_regimes(taus, *popt)
+    ax.plot(taus, guide, '--k', lw=1)
 
     ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = ax.set_xlim(taus[0], tmax)
