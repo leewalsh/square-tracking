@@ -429,9 +429,8 @@ def load_meta(prefix):
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
 
-def merge_meta(*metas, **conflicts):
-    """
-    Merges several meta dicts into single dict without loss of data.
+def merge_meta(metas, conflicts={}, incl=set(), excl=set(), excl_start=()):
+    """Merges several meta dicts into single dict without loss of data.
 
     parameters
     ----------
@@ -453,49 +452,57 @@ def merge_meta(*metas, **conflicts):
         as the the new value for that key.
     """
     merged = {}
-    keys = {key for meta in metas for key in meta.iterkeys()}
+    keys = incl or {key for meta in metas for key in meta.iterkeys()
+                    if not key.startswith(excl_start)}
+    keys -= excl
     for key in keys:
+        conflict = conflicts.get(key, 'join')
         vals = [meta[key] for meta in metas if key in meta]
         u = set(vals)
         if len(u) == 1:
             merged[key] = u.pop()
         else:
-            conflict = conflicts.get(key, 'join')
             if conflict == 'fail':
                 msg = "Values " + "{!r} "*len(vals) + "conflict for key {!r}"
                 raise RuntimeError(msg.format(vals, key))
             elif conflict == 'join':
                 merged[key] = vals
-            elif conflict == 'mean':
-                merged[key] = np.mean(vals)
-            elif conflict == 'drop':
-                continue
+            elif callable(conflict):
+                merged[key] = conflict(vals)
             else:
                 raise ValueError("Unknown conflict choice {}".format(conflict))
     return merged
 
 
-def meta_meta(patterns, keys=None):
+def meta_meta(patterns, include=set(), exclude=set()):
     """build a dict and/or structured array to hold meta values across datasets
     """
     if isinstance(patterns, basestring):
         patterns = [patterns]
     meta_names = [filename.replace('_META.txt', '') for p in patterns
                   for filename in glob.iglob(with_suffix(p, '_META.txt'))]
+    print '\n'.join(meta_names)
+    if not meta_names:
+        raise RuntimeError("No files found")
     bases = map(os.path.basename, meta_names)
     source = np.array(bases if len(set(bases)) == len(bases) else meta_names)
     # dict of meta dicts {meta_name: meta}
     metas = dmap(load_meta, dict(zip(source, meta_names)))
-    keys = keys or {k for meta in metas.itervalues() for k in meta.iterkeys()}
     # all values keyed by meta key {key: {meta_name: meta[key]}}
     fields = transpose_dict(metas)
+    keys = include or set(fields)
+    keys -= exclude
+    map(fields.pop, set(fields) - keys)
     dtypes = {k: np.array([v for v in f.itervalues() if v is not None]).dtype
               for k, f in fields.iteritems()}
     dtype = np.dtype([('source', source.dtype)] + dtypes.items())
     meta_array = np.empty(source.shape, dtype=dtype)
     meta_array['source'][:] = source
+    bad = {'i': -1, 'f': np.nan, 'S': 'None', 'b': False, 'O': None}
     for key, field in fields.iteritems():
-        meta_array[key][:] = [field[s] for s in source]
+        r = bad[dtypes[key].kind]
+        meta_array[key][:] = [r if field[s] is None else field[s]
+                              for s in source]
     return metas, fields, meta_array
 
 
@@ -926,10 +933,11 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
     merged = np.concatenate(datasets)
 
     if savename:
-        meta_conflicts = {'fit_{}_{}'.format(*c): 'drop' for c in
-                          it.product(['nn', 'rn', 'rr'], ['DR', 'v0', 'DT'])}
-        meta_conflicts.update(track_cut='fail', fps='fail', sidelength='fail')
-        merged_meta = merge_meta(*map(load_meta, members), **meta_conflicts)
+        meta_conflicts = dict(track_cut='fail', fps='fail', sidelength='fail',
+                              path_to_tiffs=str_union)
+        merged_meta = merge_meta(map(load_meta, members),
+                                 conflicts=meta_conflicts,
+                                 excl_start=('fit_',))
         savedir = os.path.dirname(savename) or os.path.curdir
         if not os.path.exists(savedir):
             print "Creating new directory", savedir
