@@ -475,6 +475,30 @@ def merge_meta(*metas, **conflicts):
     return merged
 
 
+def meta_meta(patterns, keys=None):
+    """build a dict and/or structured array to hold meta values across datasets
+    """
+    if isinstance(patterns, basestring):
+        patterns = [patterns]
+    meta_names = [filename.replace('_META.txt', '') for p in patterns
+                  for filename in glob.iglob(with_suffix(p, '_META.txt'))]
+    bases = map(os.path.basename, meta_names)
+    source = np.array(bases if len(set(bases)) == len(bases) else meta_names)
+    # dict of meta dicts {meta_name: meta}
+    metas = dmap(load_meta, dict(zip(source, meta_names)))
+    keys = keys or {k for meta in metas.itervalues() for k in meta.iterkeys()}
+    # all values keyed by meta key {key: {meta_name: meta[key]}}
+    fields = transpose_dict(metas)
+    dtypes = {k: np.array([v for v in f.itervalues() if v is not None]).dtype
+              for k, f in fields.iteritems()}
+    dtype = np.dtype([('source', source.dtype)] + dtypes.items())
+    meta_array = np.empty(source.shape, dtype=dtype)
+    meta_array['source'][:] = source
+    for key, field in fields.iteritems():
+        meta_array[key][:] = [field[s] for s in source]
+    return metas, fields, meta_array
+
+
 def sync_args_meta(args, meta, argnames, metanames, defaults=None):
     """synchronize values between the args namespace and saved metadata dict
 
