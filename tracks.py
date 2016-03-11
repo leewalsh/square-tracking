@@ -1276,11 +1276,10 @@ if __name__ == '__main__':
     if args.save:
         helpy.save_meta(saveprefix, meta)
 
-if __name__=='__main__' and args.nn:
+
+if __name__ == '__main__' and args.nn:
     print "====== <nn> ======"
     # Calculate the <nn> correlation for all the tracks in a given dataset
-    # TODO: fix this to combine multiple datasets (more than one prefix)
-
 
     corr_args = {'cumulant': False, 'norm': False}
     if args.verbose:
@@ -1523,13 +1522,19 @@ if __name__ == '__main__' and args.rr:
         return 2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
 
     def limiting_regimes(s, D, v=v0, DR=D_R):
-        tau_T = D/v**2
+        v *= v  # v is squared everywhere
+        tau_T = D/v
         tau_R = 1/DR
-        early = 2*D*s * (s < tau_T)
-        middle = (v*s)**2 * (tau_T < s) * (s < tau_R)
-        late = 2*(v**2/DR + D)*s * (tau_R < s)
-        tau_f = np.searchsorted(s, [tau_T, tau_R])
-        lines = early + middle + late
+        taus = (tau_T, tau_R)
+
+        early = 2*D*s       # s < tau_T
+        middle = v*s**2         # tau_T < s < tau_R
+        late = 2*(v/DR + D)*s               # tau_R < s
+        lines = np.choose(np.searchsorted(taus, s), [early, middle, late])
+
+        tau_f = np.searchsorted(s, taus)
+        if tau_f[-1] >= len(s):
+            tau_f = tau_f[0]
         lines[tau_f] = np.nan
         return lines
 
