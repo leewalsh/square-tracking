@@ -330,10 +330,15 @@ def str_union(a, b=None):
         l = [ac if ac == bc else '?' for ac, bc in it.izip(a, b)]
         return ''.join(l)
     else:
-        print 'WARNING!!! pattern may fit more than just the given strings'
-        l = [ac if ac == bc else '?' for ac, bc in it.izip(a, b)]
-        r = [ac if ac == bc else '?'
-             for ac, bc in reversed(it.izip(reversed(a), reversed(b)))]
+        msg = "Lengths differ, resulting pattern may not match.\na: {}\nb: {}"
+        # this seems to cause exception, not just warn?
+        # raise RuntimeWarning(msg.format(a, b))
+        print '-'*79
+        print 'RuntimeWarning:', msg.format(a, b)
+        print '_'*79
+        l = ''.join([ac if ac == bc else '?' for ac, bc in it.izip(a, b)])
+        r = ''.join([ac if ac == bc else '?'
+                     for ac, bc in reversed(zip(*map(reversed, (a, b))))])
         l = l.partition('?')[0]
         r = r.rpartition('?')[-1]
         return '*'.join((l, r))
