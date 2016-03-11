@@ -19,21 +19,12 @@ from skimage.morphology import disk, binary_dilation
 
 import helpy
 
-if __name__=='__main__':
-    HOST = helpy.gethost()
-    if HOST=='foppl':
-        locdir = '/home/lawalsh/Granular/Squares/spatial_diffusion/'
-    elif HOST=='rock':
-        import matplotlib.pyplot as pl
-        locdir = '/Users/leewalsh/Physics/Squares/spatial_diffusion/'
-    else:
-        print "computer not defined\nwhere are you working?"
-
-ss = 95     # side length of square in pixels, see equilibrium.ipynb
-rr = 1229.5 # radius of disk in pixels, see equilibrium.ipynb
+ss = 95      # side length of square in pixels, see equilibrium.ipynb
+rr = 1229.5  # radius of disk in pixels, see equilibrium.ipynb
 
 pi = np.pi
 tau = 2*pi
+
 
 def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
     """ Filter marginal particles from bulk particles to reduce boundary effects
@@ -51,23 +42,27 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
     #raise StandardError, "not yet tested"
     if center is None:
         center = 0.5*(positions.max(0) + positions.min(0))
-    if margin < ss: margin *= ss
-    d = helpy.dist(positions, center) # distances to center
+    if margin < ss:
+        margin *= ss
+    d = helpy.dist(positions, center)   # distances to center
     if radius is None:
-        if len(positions) > 1e5: raise ValueError, "too many points to calculate radius"
-        r = cdist(positions, positions)       # distances between all pairs
+        if len(positions) > 1e5:
+            raise ValueError("too many points to calculate radius")
+        r = cdist(positions, positions)     # distances between all pairs
         radius = np.maximum(r.max()/2, d.max()) + ss/2
     elif radius < ss:
         radius *= ss
     dmax = radius - margin
-    #print 'radius: ', radius/ss
-    #print 'margin: ', margin/ss
-    #print 'max r: ', dmax/ss
-    bulk_mask = d <= dmax # mask of particles in the bulk
+    if verbose:
+        print 'radius: ', radius/ss
+        print 'margin: ', margin/ss
+        print 'max r: ', dmax/ss
+    bulk_mask = d <= dmax   # mask of particles in the bulk
     bulk_N = np.count_nonzero(bulk_mask)
     if full_N:
         bulk_N *= full_N/len(positions)
     return bulk_N, bulk_mask
+
 
 def pair_indices(n, asarray=False):
     """ pairs of indices to a 1d array of objects.
@@ -87,22 +82,26 @@ def pair_indices(n, asarray=False):
     ind = i, j
     return np.array(ind).T if asarray else ind
 
-def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, margin=0, do_err=False):
+
+def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
+                        margin=0, do_err=False):
     """ radial_distribution(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
         excludes pairs in margin of given width
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = helpy.dist(positions, center) # distances to center
-    r = cdist(positions, positions) # faster than squareform(pdist(positions)) wtf
+    d = helpy.dist(positions, center)   # distances to center
+    # faster than squareform(pdist(positions)) wtf
+    r = cdist(positions, positions)
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
-        rmax = 2*radius # this will have terrible statistics at large r
+        rmax = 2*radius     # this will have terrible statistics at large r
     if nbins is None:
         nbins = rmax/dr
     if dmax is None:
-        if margin < ss: margin *= ss
+        if margin < ss:
+            margin *= ss
         dmax = radius - margin
     ind = pair_indices(len(positions))
     # for weighting, use areas of the annulus, which is:
@@ -114,16 +113,21 @@ def radial_distribution(positions, dr=ss/5, dmax=None, rmax=None, nbins=None, ma
     w = np.where(dmask, np.reciprocal(alpha*r*dr), 0)
     w = 0.5*(w + w.T)
     assert np.all(np.isfinite(w[ind]))
-    n = np.count_nonzero(dmask) # number of 'bulk' (inner) particles
-    #n = 0.5*(1 + sqrt(1 + 8*np.count_nonzero(w[ind]))) # effective N from no. of pairs
-    #n = len(w) # total number of particles
+    # Different ways to count `n`:
+    # number of 'bulk' (inner) particles
+    n = np.count_nonzero(dmask)
+    # effective N from number of pairs:
+    # n = 0.5*(1 + sqrt(1 + 8*np.count_nonzero(w[ind])))
+    # total number of particles:
+    # n = len(w)
     w *= 2/n
-    assert np.allclose(positions.shape[0], [len(r), len(d), len(w), len(positions)])
+    assert np.allclose(positions.shape[0], map(len, [r, d, w, positions]))
     ret = np.histogram(r[ind], bins=nbins, range=(0, rmax), weights=w[ind])
     if do_err:
         return ret, np.histogram(r[ind], bins=nbins, range=(0, rmax)), n
     else:
         return ret + (n,)
+
 
 def rectify(positions, margin=0, dangonly=False):
     angles, nmask, dmask = pair_angles(positions, margin=margin)
@@ -132,7 +136,8 @@ def rectify(positions, margin=0, dangonly=False):
         # rotate by angle of greater of first two gaps
         # so that first gap is larger of two, last gap is smaller
         pang = primary_angles(angles, m=4, bins=720, ret_hist=False)[0]
-        dang = dtheta(pang, np.roll(pang, -1), m=1) # dang[i] = pang[i] - pang[i-1]
+        # dang[i] = pang[i] - pang[i-1]
+        dang = dtheta(pang, np.roll(pang, -1), m=1)
         rectang = np.nan if dangonly else -pang[np.argmax(dang[:2])]
     except RuntimeError:
         print "Can't find four peaks, using one"
@@ -140,26 +145,31 @@ def rectify(positions, margin=0, dangonly=False):
         dang = np.array([np.nan, np.nan, np.nan, np.nan])
     return rectang, dang
 
+
 def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
-    if margin < ss: margin *= ss
+    if margin < ss:
+        margin *= ss
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = helpy.dist(positions, center) # distances to center
+    d = helpy.dist(positions, center)   # distances to center
     dmask = d < d.max() - margin
-    r = cdist(positions, positions[dmask])#.ravel()
+    r = cdist(positions, positions[dmask])  # .ravel()
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
     dr = radius / bins
     w = dr**-2 * tau/alpha
     w[~np.isfinite(w)] = 0
-    if rmax < ss: rmax *= ss
+    if rmax < ss:
+        rmax *= ss
     rmask = r < rmax
-    displacements = positions[:, None] - positions[None, dmask] #origin must be within margin
+    # origin must be within margin
+    displacements = positions[:, None] - positions[None, dmask]
     if rectang:
         if rectang is True:
             rectang = rectify(positions, margin=margin)[0]
         rotate2d(displacements, rectify(positions, margin=margin))
     return np.histogramdd(displacements[rmask], bins=bins, weights=w[rmask])[0]
+
 
 def rotate2d(vectors, angles=None, basis=None):
     """ rotate vectors by angles
@@ -181,23 +191,27 @@ def rotate2d(vectors, angles=None, basis=None):
 
 
 def get_positions(data, frame, pid=None):
-    """ get_positions(data,frame)
+    """ get_positions(data, frame)
 
         Takes:
             data: structured array of data
             frame: int or list of ints of frame number
 
         Returns:
-            list of tuples (x,y) of positions of all particles in those frames
+            list of tuples (x, y) of positions of all particles in those frames
     """
-    fmask = np.in1d(data['f'], frame) if np.iterable(frame) else data['f']==frame
+    if np.iterable(frame):
+        fmask = np.in1d(data['f'], frame)
+    else:
+        fmask = data['f'] == frame
     if pid is not None:
-        fiddata = data[fmask & (data['id']==pid)]
+        fiddata = data[fmask & (data['id'] == pid)]
         return np.array(fiddata['x'], fiddata['y'])
     return np.column_stack((data['x'][fmask], data['y'][fmask]))
 
+
 def avg_hists(gs, rgs):
-    """ avg_hists(gs,rgs)
+    """ avg_hists(gs, rgs)
         takes:
             gs: an array of g(r) for several frames
             rgs: their associated r values
@@ -207,13 +221,15 @@ def avg_hists(gs, rgs):
             rg: r for the avgs (just uses rgs[0] for now)
     """
     assert np.all([np.allclose(rgs[i], rgs[j])
-        for i in xrange(len(rgs)) for j in xrange(len(rgs))])
+                   for i in xrange(len(rgs)) for j in xrange(len(rgs))])
     rg = rgs[0]
     g_avg = gs.mean(0)
     dg_avg = gs.std(0)/sqrt(len(gs))
     return g_avg, dg_avg, rg
 
-def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=False):
+
+def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
+             do_err=False):
     """ build_gs(data, framestep=10)
         calculates and builds g(r) for each (framestep) frames
         Takes:
@@ -233,8 +249,8 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
-        g, rg, n = radial_distribution(positions, dr=dr, dmax=dmax, rmax=rmax, nbins=nbins,
-                               margin=margin, do_err=do_err)
+        g, rg, n = radial_distribution(positions, dr=dr, nbins=nbins, dmax=dmax,
+                                       rmax=rmax, margin=margin, do_err=do_err)
         if do_err:
             (g, rg), (eg, erg), n = g, rg, n
             erg = erg[1:]
@@ -246,25 +262,28 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0, do_err=
             if do_err:
                 egs = np.zeros((frames.size, nbins))
                 ergs = gs.copy()
-        gs[nf,:len(g)]  = g
-        rgs[nf,:len(g)] = rg
+        gs[nf, :len(g)]  = g
+        rgs[nf, :len(g)] = rg
         if do_err:
             egs[nf, :len(eg)] = eg
             ergs[nf, :len(eg)] = erg
     return ((gs, rgs), (egs, ergs), n) if do_err else (gs, rgs, n)
 
+
 def structure_factor(positions, m=4, margin=0):
     """return the 2d structure factor"""
-    raise StandardError, "um this isn't finished"
+    raise StandardError("um this isn't finished")
     from scipy.fftpack import fft2
-    #center = 0.5*(positions.max(0) + positions.min(0))
+    # center = 0.5*(positions.max(0) + positions.min(0))
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)
-    f[inds[:,0], inds[:,1]] = 1
+    f[inds[:, 0], inds[:, 1]] = 1
     f = binary_dilation(f, disk(ss/2))
     return fft2(f, overwrite_x=True)
 
-def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=False):
+
+def orient_op(orientations, positions, m=4, margin=0,
+              ret_complex=True, do_err=False):
     """ orient_op(orientations, m=4)
         Returns the global m-fold particle orientational order parameter
 
@@ -274,9 +293,10 @@ def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=F
     """
     np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
     if margin:
-        if margin < ss: margin *= ss
+        if margin < ss:
+            margin *= ss
         center = 0.5*(positions.max(0) + positions.min(0))
-        d = helpy.dist(positions, center) # distances to center
+        d = helpy.dist(positions, center)   # distances to center
         orientations = orientations[d < d.max() - margin]
     phi = np.exp(m*orientations*1j).mean()
     if do_err:
@@ -285,18 +305,20 @@ def orient_op(orientations, positions, m=4, margin=0, ret_complex=True, do_err=F
     else:
         return phi if ret_complex else np.abs(phi)
 
+
 def dtheta(i, j=None, m=1, sign=False):
-    """ given two angles or one array (N,2) of pairs
+    """ given two angles or one array (N, 2) of pairs
         returns the _smallest angle between them, modulo m
         if sign is True, retuns a negative angle for i<j, else abs
     """
     ma = tau/m
     if j is not None:
         diff = i - j
-    elif i.shape[1]==2:
+    elif i.shape[1] == 2:
         diff = np.subtract(*i.T)
-    diff = (diff + ma/2)%ma - ma/2
+    diff = (diff + ma/2) % ma - ma/2
     return diff if sign else np.abs(diff)
+
 
 def bin_average(r, f, bins=10):
     """ Binned average of function f(r)
@@ -306,6 +328,7 @@ def bin_average(r, f, bins=10):
     """
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
+
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
              verbose=False, reverse=False, ret_dx=False):
@@ -326,8 +349,9 @@ def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
         mode:   passed to scipy.signal.correlate, has little effect here, but
                 returns shorter correlation array
     """
-    return crosscorr(f, f, side=side, cumulant=cumulant, norm=norm,
-                    mode=mode, verbose=verbose, reverse=reverse, ret_dx=ret_dx)
+    return crosscorr(f, f, side=side, cumulant=cumulant, norm=norm, mode=mode,
+                     verbose=verbose, reverse=reverse, ret_dx=ret_dx)
+
 
 def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
               verbose=False, reverse=False, ret_dx=False):
@@ -357,13 +381,12 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
                     if 2 or greater, be careful and verbose
     """
     l = len(f)
-    m = l//2 if mode=='same' else l-1   # midpoint (dx = 0)
-    L = l    if mode=='same' else 2*l-1 # length of correlation
+    # midpoint (dx = 0), length of correlation
+    m, L = (l//2, l) if mode == 'same' else (l-1, 2*l-1)
     if verbose > 1:
         print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
-    assert l == len(g), ("len(f) = {:d}, len(g) = {:d}\n"
-                         "right now only properly normalized "
-                         "for matching lengths").format(l, len(g))
+    msg = "len(f): {}, len(g): {}\nlengths must match for proper normalization"
+    assert l == len(g), msg.format(l, len(g))
 
     if cumulant:
         if cumulant is True:
@@ -382,55 +405,50 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
 
     # divide by overlap
     nl = np.arange(l - m, l)
-    nr = np.arange(l, m - (L - l) , -1)
+    nr = np.arange(l, m - (L - l), -1)
     n = np.concatenate([nl, nr])
     if verbose:
         overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
         if verbose > 1:
             print nl, nr
             print '      n: {}\noverlap: {}'.format(n, overlap)
-        assert np.allclose(n, overlap),\
-                "overlap miscalculated:\n\t{}\n\t{}".format(n, overlap)
-        assert n[m]==l, "overlap normalizer not l at m"
+        msg = "overlap miscalculated:\n\t{}\n\t{}"
+        assert np.allclose(n, overlap), msg.format(n, overlap)
+        assert n[m] == l, "overlap normalizer not l at m"
     c /= n
+    if verbose:
+        msg = ("normalization calculations don't all match: "
+               "c[m]: {}, np.dot(f, g): {}, c.max(): {}")
+        fgs = c[m], np.dot(f, g)/len(f), c[m]  #, c.max()
+        if verbose > 1 and norm in (0, 1):
+            print ("subtracting", "normalizing by")[norm], "scaler:", fgs[0]
+        assert np.allclose(fgs[0], fgs), norm_assert_msg.format(*fgs)
 
     if norm is 1:
-        # Normalize by no-shift value
-        if verbose:
-            fgs = c[m], np.dot(f, g)/len(f), c[m]#, c.max()
-            if verbose > 1: print "normalizing by scaler:", fgs[0]
-            assert np.allclose(fgs[0], fgs), (
-                    "normalization calculations don't all match:"
-                    "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
         c /= c[m]
     elif norm is 0:
-        if verbose:
-            fgs = c[m], np.dot(f, g)/len(f), c[m]#c.max()
-            if verbose > 1: print "subtracting scaler:", fgs[0]
-            assert np.allclose(fgs[0], fgs), (
-                    "normalization calculations don't all match:"
-                    "c[m]: {}, np.dot(f, g): {}, c.max(): {}").format(*fgs)
         c -= c[m]
     elif verbose > 1:
         print 'central value:', c[m]
 
     if ret_dx:
-        if side=='both':
+        if side == 'both':
             return np.arange(-m, L-m), c
-        elif side=='left':
-            #return np.arange(0, -m-1, -1), c[m::-1]
-            return np.arange(-m, 1,), c[:m+1]
-        elif side=='right':
+        elif side == 'left':
+            # return np.arange(0, -m-1, -1), c[m::-1]
+            return np.arange(-m, 1), c[:m+1]
+        elif side == 'right':
             return np.arange(0, L-m), c[m:]
 
-    if side=='both':
+    if side == 'both':
         return c
-    elif side=='left':
+    elif side == 'left':
         return c[m::-1]
-    elif side=='right':
+    elif side == 'right':
         return c[m:]
 
-def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
+
+def poly_exp(x, gamma, a, *coeffs):  # return_poly=False):
     """ exponential decay with a polynomial decay scale
 
                  - x
@@ -438,11 +456,11 @@ def poly_exp(x, gamma, a, *coeffs):#, return_poly=False):
            a + b x + c x² ...
         e
     """
-    return_poly=False
-    if len(coeffs) == 0: coeffs = (1,)
-    d = poly.polyval(x, coeffs)
+    return_poly = False
+    d = poly.polyval(x, coeffs or (1,))
     f = a*np.exp(-x**gamma/d)
     return (f, d) if return_poly else f
+
 
 def vary_gauss(a, sig=1, verbose=False):
     n = len(a)
@@ -456,12 +474,13 @@ def vary_gauss(a, sig=1, verbose=False):
         sig = sig(np.arange(n))
     elif hasattr(sig, '__getitem__'):
         assert len(a) == len(sig)
-    else: raise TypeError('`sig` is neither callable nor arraylike')
-
+    else:
+        raise TypeError('`sig` is neither callable nor arraylike')
     for i, s in enumerate(sig):
         # build the kernel:
-        w = round(2*s) # kernel half-width, must be integer
-        if s == 0: s = 1
+        w = round(2*s)  # kernel half-width, must be integer
+        if s == 0:
+            s = 1
         k = np.arange(-w, w+1, dtype=float)
         k = np.exp(-.5 * k**2 / s**2)
 
@@ -477,6 +496,7 @@ def vary_gauss(a, sig=1, verbose=False):
         b[i] = np.dot(ao, ko)/ko.sum()
 
     return b
+
 
 def msd(xs, ret_taus=False):
     """ So far:
@@ -498,32 +518,34 @@ def msd(xs, ret_taus=False):
 
     xs = np.asarray(xs)
     d = xs.ndim
-    if d==1:
+    if d == 1:
         T = len(xs)
         xs = xs[:, None]
-    elif d==2:
+    elif d == 2:
         T, d = xs.shape
     else:
-        raise ValueError, "can't handle xs.ndims > 2. xs.shape is {}".format(xs.shape)
+        msg = "can't handle xs.ndims > 2. xs.shape is {}"
+        raise ValueError(msg.format(xs.shape))
 
     # The last term is an autocorrelation for x(t):
-    xx0 = np.apply_along_axis(autocorr, 0, xs,
-                              side='right', cumulant=False, norm=False, mode='full',
-                              verbose=False, reverse=False, ret_dx=False)
+    xx0 = np.apply_along_axis(autocorr, 0, xs, side='right', cumulant=False,
+                              norm=False, mode='full', verbose=False,
+                              reverse=False, ret_dx=False)
 
-    ntau = np.arange(T, 0, -1) # = T - tau
+    ntau = np.arange(T, 0, -1)  # = T - tau
     x2 = xs * xs
-    #x0avg = np.cumsum(x2)[::-1] / ntau
-    #xavg = np.cumsum(x2[::-1])[::-1] / ntau
+    # x0avg = np.cumsum(x2)[::-1] / ntau
+    # xavg = np.cumsum(x2[::-1])[::-1] / ntau
     # we'll only ever combine these, which can be done with one call:
-    #x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
-    #assert x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    # x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    # assert x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
     msd = x2s - 2*xx0
-    msd = msd.sum(1) # straight sum over dimensions (x2 + y2 + ...)
+    msd = msd.sum(1)    # straight sum over dimensions (x2 + y2 + ...)
 
     return np.column_stack([np.arange(T), msd]) if ret_taus else msd
+
 
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     """ Find the decay scale of a function f(x)
@@ -535,15 +557,16 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
         smooth: smooth data first using poly_exp
     """
     l = len(f)
-    if x is None: x = np.arange(l)
+    if x is None:
+        x = np.arange(l)
 
-    if smooth=='fit':
-        p, _ = curve_fit(poly_exp, x, f, [1,1,1])
+    if smooth == 'fit':
+        p, _ = curve_fit(poly_exp, x, f, [1, 1, 1])
         f = poly_exp(x, *p)
     elif smooth.startswith('gauss'):
         g = [gaussian_filter(f, sig, mode='constant', cval=f[sig])
-                for sig in (1, 10, 100, 1000)]
-        f = np.choose(np.repeat([0,1,2,3], [10,90,900,len(f)-1000]), g)
+             for sig in (1, 10, 100, 1000)]
+        f = np.choose(np.repeat([0, 1, 2, 3], [10, 90, 900, len(f)-1000]), g)
 
     if rectify:
         np.maximum(f, 0, f)
@@ -556,14 +579,16 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     elif method.startswith('inv'):
         return f.sum() / np.dot(1/(x+1), f)
 
+
 def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     """ orient_corr():
         the orientational correlation function g_m(r)
         given by mean(phi(0)*phi(r))
     """
     center = 0.5*(positions.max(0) + positions.min(0))
-    d = helpy.dist(positions, center) # distances to center
-    if margin < ss: margin *= ss
+    d = helpy.dist(positions, center)   # distances to center
+    if margin < ss:
+        margin *= ss
     loc_mask = d < d.max() - margin
     r = pdist(positions[loc_mask])
     ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
@@ -585,7 +610,7 @@ def get_neighbors(tess, p, pm=None, ret_pairs=False):
         return indptr[indices[p]:indices[p+1]]
     elif isinstance(tess, Voronoi):
         if np.iterable(p):
-            raise ValueError, "cannot find neighbors of multiple points with Voronoi"
+            raise ValueError("Can only find neighbors of 1 point with Voronoi")
         pm = tess.ridge_points == p if pm is None else pm[p]
         pm = np.any(pm, 1)
         pairs = tess.ridge_points[pm]
@@ -700,8 +725,8 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         # ybins = np.arange(bottom, top + bl, bl)
         # blocks = np.rollaxis(np.indices((xbins.size, ybins.size)), 0, 3)
         # block_ind = np.column_stack([
-        #              np.digitize(positions[:,0], xbins),
-        #              np.digitize(positions[:,1], ybins)])
+        #              np.digitize(positions[:, 0], xbins),
+        #              np.digitize(positions[:, 1], ybins)])
 
 
 def pair_angles(positions, neighbors, nmask, ang_type='absolute',
@@ -744,6 +769,7 @@ def pair_angles(positions, neighbors, nmask, ang_type='absolute',
         nmask = nmask[dmask]
     return (angles % tau, nmask) + ((dmask,) if margin else ())
 
+
 def pair_angle_op(angles, nmask=None, m=4, ret_complex=False):
     """ calculate the pair-angle (bond angle) order parameter
 
@@ -772,32 +798,36 @@ def pair_angle_op(angles, nmask=None, m=4, ret_complex=False):
     ang = phase(psim)/m
     return mag, ang, psims
 
+
 def pair_angle_corr(positions, psims, rbins=10):
     assert len(positions) == len(psims), "positions does not match psi_m(r)"
     i, j = pair_indices(len(positions))
     psi2 = psims[i].conj() * psims[j]
     return bin_average(pdist(positions), psi2, rbins)
 
+
 class vonmises_m(rv_continuous):
     def __init__(self, m):
         self.shapes = ''
         for i in range(m):
-            self.shapes += 'k%d,l%d' % (i,i)
+            self.shapes += 'k%d,l%d' % (i, i)
         self.shapes += ',scale'
         rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
         self.numargs = 2*m
 
     def _pdf(self, x, *lks):
         print 'lks', lks
-        locs, kappas= lks[:len(lks)/2], lks[len(lks)/2:]
+        locs, kappas = lks[:len(lks)/2], lks[len(lks)/2:]
         print 'x', x
         print 'locs', locs
         print 'kapps', kappas
-        #return np.sum([vonmises.pdf(x, l, k) for l, k in zip(locs, kappas)], 0)
+        # return np.sum([vonmises.pdf(x, l, k)
+        #                for l, k in zip(locs, kappas)], 0)
         ret = np.zeros_like(x)
         for l, k in zip(locs, kappas):
             ret += vonmises.pdf(x, l, k)
         return ret / len(locs)
+
 
 class vonmises_4(rv_continuous):
     def __init__(self):
@@ -806,11 +836,12 @@ class vonmises_4(rv_continuous):
     def _pdf(self, x,
              l1, l2, l3, l4,
              k1, k2, k3, k4,
-             a1, a2, a3, a4):
+             a1, a2, a3, a4, c):
         return a1*vonmises.pdf(x, k1, l1) + \
                a2*vonmises.pdf(x, k2, l2) + \
                a3*vonmises.pdf(x, k3, l3) + \
                a4*vonmises.pdf(x, k4, l4) + c
+
 
 def vm4_pdf(x,
             l1, l2, l3, l4,
@@ -821,8 +852,9 @@ def vm4_pdf(x,
            a3*vonmises.pdf(x, k3, l3) + \
            a4*vonmises.pdf(x, k4, l4) + c
 
+
 def primary_angles(angles, m=4, bins=720, ret_hist=False):
-    angles = angles[angles!=0].ravel()
+    angles = angles[angles != 0].ravel()
     h, t = np.histogram(angles, bins, (0, tau), True)
     t = 0.5*(t[1:] + t[:-1])
 
@@ -840,19 +872,13 @@ def primary_angles(angles, m=4, bins=720, ret_hist=False):
         return l, k, a, c, h, t
     return l, k, a, c
 
-def domyneighbors(prefix):
-    tracksnpz = np.load(locdir+prefix+"_TRACKS.npz")
-    data = tracksnpz['data']
-    ndata = add_neighbors(data)
-    np.savez(locdir+prefix+'_NEIGHBORS.npz',ndata=ndata)
 
-def get_gdata(locdir,ns):
-    return dict([
-            ('n'+str(n), np.load(locdir+'n'+str(n)+'_GR.npz'))
-            for n in ns])
+def get_gdata(locdir, ns):
+    return {'n'+str(n): np.load(locdir+'n'+str(n)+'_GR.npz') for n in ns}
 
-def find_gpeaks(ns,locdir,binmax=258):
-    """ find_gpeaks(ns,locdir,binmax)
+
+def find_gpeaks(ns, locdir, binmax=258):
+    """ find_gpeaks(ns, locdir, binmax)
         finds peaks and valleys in g(r) curve
         takes:
             ns, list of densities to analyse
@@ -863,59 +889,60 @@ def find_gpeaks(ns,locdir,binmax=258):
                     in format given by peakdetect.py
     """
     import peakdetect as pk
-    #ns = np.array([8,16,32,64,128,192,256,320,336,352,368,384,400,416,432,448])
+    ns = np.array([8, 16, 32, 64, 128, 192, 256, 320, 336,
+                   352, 368, 384, 400, 416, 432, 448])
     binmax = 258
-    gdata = get_gdata(locdir,ns)
-    peaks  = {}
-    maxima = {}
-    minima = {}
+    gdata = get_gdata(locdir, ns)
+    peaks, maxima, minima = {}, {}, {}
     for k in gdata:
-        extrema = pk.peakdetect(
-                gdata[k]['g'][:binmax]/22.0, gdata[k]['rg'][:binmax]/22.,
-                lookahead=2.,delta=.0001)
+        extrema = pk.peakdetect(gdata[k]['g'][:binmax]/22.0,
+                                gdata[k]['rg'][:binmax]/22.,
+                                lookahead=2., delta=1e-4)
         peaks[k] = extrema
         maxima[k] = np.asarray(extrema[0])
         minima[k] = np.asarray(extrema[1])
     return peaks
 
-def plot_gpeaks(peaks,gdata,pksonly=False,hhbinmax=258):
-    """ plot_gpeaks(peaks,gdata,binmax)
-        plots locations and/or heights of peaks and/or valleys in g(r)
-        takes:
-            peaks,  list of peaks from output of find_gpeaks()
-            gdata,  g(r) arrays, loaded from get_gdata()
-            binmax, the max bin number, hopefully temporary problem
-        side affects:
-            creates a figure and plots things
-        returns:
-            nothing
+
+def plot_gpeaks(peaks, gdata, pksonly=False, hhbinmax=258):
+    """plots locations and/or heights of peaks and/or valleys in g(r)
+
+    takes:
+        peaks,  list of peaks from output of find_gpeaks()
+        gdata,  g(r) arrays, loaded from get_gdata()
+        binmax, the max bin number, hopefully temporary problem
+    side affects:
+        creates a figure and plots things
+    returns:
+        nothing
     """
-    if HOST=='foppl':
-        print "cant do this on foppl"
-        return
     pl.figure()
     for k in peaks:
         try:
-            pl.plot(gdata[k]['rg'][:binmax]/22.,gdata[k]['g'][:binmax]/22.,',-',label=k)
-            #pl.scatter(*np.asarray(peaks[k][0]).T,
-            #        marker='o', label=k, c = pl.cm.jet((int(k[1:])-200)*255/300))
-            #pl.scatter(*np.asarray(peaks[k][1]).T,marker='x',label=k)  # minima
+            pl.plot(gdata[k]['rg'][:binmax]/22., gdata[k]['g'][:binmax]/22.,
+                    ',-', label=k)
+            pl.scatter(*np.asarray(peaks[k][0]).T, marker='o', label=k,
+                       c=pl.cm.jet((int(k[1:])-200)*255/300))
+            pl.scatter(*np.asarray(peaks[k][1]).T,
+                       marker='x', label=k)  # minima
 
-            if pksonly is False:
-                pks = np.asarray(peaks[k][0]).T # gets just maxima
-            elif pksonly is True:
-                pks = np.asarray(peaks[k]).T    # if peaks is already just maxima
+            if pksonly:
+                pks = np.asarray(peaks[k]).T    # if peaks already just maxima
+            else:
+                pks = np.asarray(peaks[k][0]).T     # gets just maxima
             try:
                 pkpos = pks[0]
             except:
-                print "pks has wrong shape for k=",k
+                print "pks has wrong shape for k =", k
                 print pks.shape
                 continue
-            #pl.scatter(int(k[1:])*np.ones_like(pkpos),pkpos,marker='*',label=k)  # maxima
+            pl.scatter(int(k[1:])*np.ones_like(pkpos), pkpos,
+                       marker='*', label=k)  # maxima
         except:
-            print "failed for ",k
+            print "failed for", k
             continue
     pl.legend()
+
 
 def apply_hilbert(a, sig=None, full=False):
     """ Attempts to apply hilbert transform to a signal about a mean.
@@ -935,8 +962,9 @@ def apply_hilbert(a, sig=None, full=False):
     else:
         return np.abs(h) + a_smoothed
 
-def gpeak_decay(peaks,f,pksonly=False):
-    """ gpeak_decay(peaks,f)
+
+def gpeak_decay(peaks, f, pksonly=False):
+    """ gpeak_decay(peaks, f)
     fits curve to the peaks in g(r)
     takes:
         peaks,  list of peak/valley positions and heights
@@ -947,33 +975,31 @@ def gpeak_decay(peaks,f,pksonly=False):
         popt, a tuple of parameters for f
         pcov, their covariances
     """
-    if HOST=='foppl':
-        print "cant do this on foppl"
-        return
-    if pksonly is False:
-        maxima = dict([ (k, np.asarray(peaks[k][0])) for k in peaks])
-        minima = dict([ (k, np.asarray(peaks[k][1])) for k in peaks])
-    elif pksonly is True:
+    if pksonly is True:
         maxima = peaks
-    popt = {}
-    pcov = {}
+    else:
+        maxima = {k: np.asarray(peaks[k][0]) for k in peaks}
+        minima = {k: np.asarray(peaks[k][1]) for k in peaks}
+    popt, pcov = {}, {}
     pl.figure()
     for k in peaks:
         maximak = maxima[k].T
-        print "k: f,maximak"
-        print k,f,maximak
+        print "k: f, maximak"
+        print k, f, maximak
         if len(maxima[k]) > 1:
-            popt[k],pcov[k] = curve_fit(f,maximak[0],maximak[1])
-            fitrange = np.arange(min(maximak[0]),max(maximak[0]),.05)
-            pl.plot(fitrange,f(fitrange,*popt[k]),'--',label='fit '+k)
+            popt[k], pcov[k] = curve_fit(f, maximak[0], maximak[1])
+            fitrange = np.arange(min(maximak[0]), max(maximak[0]), .05)
+            pl.plot(fitrange, f(fitrange, *popt[k]), '--', label='fit '+k)
         else:
-            print "maximak empty:",maximak
-    return popt,pcov
+            print "maximak empty:", maximak
+    return popt, pcov
+
 
 def gauss_peak(x, c=0., a=1., x0=0., sig=1.):
     x2 = np.square(x-x0)
     s2 = sig*sig
     return c + a*np.exp(-x2/s2)
+
 
 def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
     l = np.searchsorted(xdata, x0-w/2)
@@ -991,6 +1017,7 @@ def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
         height = c[0] + c[1]
     return loc, height, x, y, c
 
+
 def exp_decay(t, sig=1., a=1., c=0):
     """ exp_decay(t, sig, a, c)
         exponential decay function for fitting
@@ -1007,8 +1034,10 @@ def exp_decay(t, sig=1., a=1., c=0):
     """
     return c + a*np.exp(-t/sig)
 
+
 def log_decay(t, a=1, l=1., c=0.):
     return c - a*np.log(t/l)
+
 
 def powerlaw(t, b=1., a=1., c=0):
     """ powerlaw(t, b, a, c)
@@ -1026,6 +1055,7 @@ def powerlaw(t, b=1., a=1., c=0):
             power law value at t
     """
     return c + a * np.power(t, -b)
+
 
 def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
     p1 = powerlaw(t, b1, d1, c1)
