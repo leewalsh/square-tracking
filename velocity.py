@@ -237,7 +237,6 @@ def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
 
 
 if __name__ == '__main__':
-    helpy.save_log_entry(args.prefix, 'argv')
     suf = '_TRACKS.npz'
     if '*' in args.prefix or '?' in args.prefix:
         fs = iglob(args.prefix+suf)
