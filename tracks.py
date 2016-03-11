@@ -1208,6 +1208,9 @@ if __name__ == '__main__':
         # args.dx is in units of pixels
         args.dx /= args.side
 
+    if args.rr or args.nn or args.rn:
+        fit_source = {}
+
     if args.msd or args.nn or args.rn:
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
         tracksets = helpy.load_tracksets(
@@ -1338,6 +1341,7 @@ if __name__=='__main__' and args.nn:
     D_R = float(popt[0])
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
+    fit_source['DR'] = 'nn'
     if args.save:
         helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
@@ -1431,7 +1435,9 @@ if __name__ == '__main__' and args.rn:
     nfree = len(popt)
     if nfree > 1:
         D_R = popt[1]
+        fit_source['DR'] = 'rn'
     v0 = D_R*popt[0]
+    fit_source['v0'] = 'rn'
     print '\n'.join([' v0/D_R: {:.4g}',
                      '    D_R: {:.4g}'][:nfree]).format(*popt)
     print "Giving:"
@@ -1439,8 +1445,11 @@ if __name__ == '__main__' and args.rn:
                      'D_R(rn): {:.4f}'][:nfree]
                     ).format(*[v0, D_R][:nfree])
     if args.save:
-        helpy.save_meta(saveprefix, dict([('fit_rn_v0', v0),
-                        ('fit_rn_DR', D_R)][:nfree]))
+        if nfree == 1:
+            meta_fits = {'fit_nn_rn_v0': v0}
+        elif nfree == 2:
+            meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
+        helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots()
     fit = fitform(taus, *popt)
@@ -1539,10 +1548,13 @@ if __name__ == '__main__' and args.rr:
     print "Fits to <rr>:"
     nfree = len(popt)
     D_T = popt[0]
+    fit_source['DT'] = 'rr'
     if nfree > 1:
         v0 = popt[1]
+        fit_source['v0'] = 'rr'
         if nfree > 2:
             D_R = popt[2]
+            fit_source['DR'] = 'rr'
     print '\n'.join(['   D_T: {:.3g}',
                      'v0(rr): {:.3g}',
                      '   D_R: {:.3g}'][:nfree]).format(*popt)
@@ -1550,10 +1562,16 @@ if __name__ == '__main__' and args.rr:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
-        helpy.save_meta(saveprefix,
-                        dict([('fit_rr_DT', D_T),
-                              ('fit_rr_v0', v0),
-                              ('fit_rr_DR', D_R)][:nfree]))
+        if nfree == 1:
+            meta_fits = {'fit_{DR}_{v0}_rr_DT'.format(**fit_source): D_T}
+        elif nfree == 2:
+            meta_fits = {'fit_{DR}_rr_DT'.format(**fit_source): D_T,
+                         'fit_{DR}_rr_v0'.format(**fit_source): v0}
+        elif nfree == 3:
+            meta_fits = {'fit_rr_DT': D_T,
+                         'fit_rr_v0': v0,
+                         'fit_rr_DR': D_R}
+        helpy.save_meta(saveprefix, meta_fits)
     fit = fitform(taus, *popt)
 
     fitinfo = sf(', '.join(["$D_T={0:.3T}$",
