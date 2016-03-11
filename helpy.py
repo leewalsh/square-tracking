@@ -781,34 +781,17 @@ def txt_to_npz(datapath, verbose=False, compress=True):
             raise IOError('File {} not found'.format(datapath))
     if verbose:
         print "loading positions data from", datapath,
-    if datapath.endswith('results.txt'):
-        shapeinfo = False
-        # imagej output (called *_results.txt)
-        dtargs = {  'usecols' : [0,2,3,5],
-                    'names'   : "id,x,y,f",
-                    'dtype'   : [int,float,float,int]} \
-            if not shapeinfo else \
-                 {  'usecols' : [0,1,2,3,4,5,6],
-                    'names'   : "id,area,mean,x,y,circ,f",
-                    'dtype'   : [int,float,float,float,float,float,int]}
-        data = np.genfromtxt(datapath, skip_header=1, **dtargs)
-        data['id'] -= 1 # data from imagej is 1-indexed
-    elif 'POSITIONS.txt' in datapath:
-        # positions.py output (called *_POSITIONS.txt[.gz])
-        from numpy.lib.recfunctions import append_fields
-        # successfully tested the following reduced datatype sizes on
-        # Squares/diffusion/orientational/n464_CORNER_POSITIONS.npz
-        # with no real loss in float precision nor cutoff in ints
-        # names:   'f  x  y  lab ecc area id'
-        # formats: 'u2 f4 f4 i4  f2  u2   u4'
-        data = np.genfromtxt(datapath, skip_header=1,
-                             names="f,x,y,lab,ecc,area",
-                             dtype="u2,f4,f4,i4,f2,u2")
-        ids = np.arange(len(data), dtype='u4')
-        data = append_fields(data, 'id', ids, usemask=False)
-    else:
-        raise ValueError, ("is {} from imagej or positions.py?".format(datapath.rsplit('/')[-1]) +
-                "Please rename it to end with _results.txt[.gz] or _POSITIONS.txt[.gz]")
+    from numpy.lib.recfunctions import append_fields
+    # successfully tested the following reduced datatype sizes on
+    # Squares/diffusion/orientational/n464_CORNER_POSITIONS.npz
+    # with no real loss in float precision nor cutoff in ints
+    # names:   'f  x  y  lab ecc area id'
+    # formats: 'u2 f4 f4 i4  f2  u2   u4'
+    data = np.genfromtxt(datapath, skip_header=1,
+                         names="f,x,y,lab,ecc,area",
+                         dtype="u2,f4,f4,i4,f2,u2")
+    ids = np.arange(len(data), dtype='u4')
+    data = append_fields(data, 'id', ids, usemask=False)
     if verbose:
         print '...',
     outpath = datapath[:datapath.rfind('txt')] + 'npz'
