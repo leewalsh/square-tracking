@@ -1013,6 +1013,14 @@ def mode(x, count=False):
     return np.argmax(np.bincount(x-m)) + m
 
 
+def decade(n, m=None):
+    if m in (None, 'down'):
+        return 10**int(np.log10(n))
+    elif m == 'up':
+        return 10**int(1 + np.log10(n))
+    return decade(n, 'down'), decade(m, 'up')
+
+
 def loglog_slope(x, y, smooth=0):
     dx = 0.5*(x[1:] + x[:-1])
     dy = np.diff(np.log(y)) / np.diff(np.log(x))
