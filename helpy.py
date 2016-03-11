@@ -504,10 +504,16 @@ def meta_meta(patterns, include=set(), exclude=set()):
     map(fields.pop, set(fields) - keys)
     dtypes = {k: np.array([v for v in f.itervalues() if v is not None]).dtype
               for k, f in fields.iteritems()}
-    dtype = np.dtype([('source', source.dtype)] + dtypes.items())
+    spaces = [replace_all(s.lower(), '_,', ' ') for s in source]
+    mv = [int(s.partition('mv')[0].split()[-1]) for s in spaces]
+    hz = [int(s.partition('hz')[0].split()[-1]) for s in spaces]
+    dtype = [('source', source.dtype), ('mv', 'u2'), ('hz', 'u2')]
+    dtype = np.dtype(dtype + dtypes.items())
     meta_array = np.empty(source.shape, dtype=dtype)
     meta_array['source'][:] = source
-    bad = {'i': -1, 'f': np.nan, 'S': 'None', 'b': False, 'O': None}
+    meta_array['mv'][:] = mv
+    meta_array['hz'][:] = hz
+    bad = {'i': -1, 'f': np.nan, 'S': 'None', 'b': False, 'O': None, 'u': -1}
     for key, field in fields.iteritems():
         r = bad[dtypes[key].kind]
         meta_array[key][:] = [r if field[s] is None else field[s]
