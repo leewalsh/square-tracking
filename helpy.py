@@ -383,6 +383,20 @@ def drive_path(path, local=False, both=False):
     return drive_path(path, local=local, both=False) if both else path
 
 
+def with_suffix(prefix, suffix):
+    return prefix if prefix.endswith(suffix) else prefix+suffix
+
+
+def fio(path, content='', mode='w'):
+    if content:
+        with open(path, mode) as f:
+            f.writelines(content)
+    else:
+        with open(path, 'r') as f:
+            lines = f.readlines()
+        return lines
+
+
 def timestamp():
     timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
     if len(timezone) > 3:
@@ -391,8 +405,7 @@ def timestamp():
 
 
 def load_meta(prefix):
-    suffix = '_META.txt'
-    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    path = with_suffix(prefix, '_META.txt')
     if not os.path.exists(path):
         return {}
     with open(path, 'r') as f:
@@ -495,8 +508,7 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
     meta.update(meta_dict or {}, **meta_kw)
     fmt = '{0[0]!r:18}: {0[1]!r}\n'.format
     lines = sorted(map(fmt, meta.iteritems()))
-    suffix = '_META.txt'
-    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    path = with_suffix(prefix, '_META.txt')
     with open(path, 'w') as f:
         f.writelines(lines)
 
@@ -510,8 +522,7 @@ def save_log_entry(prefix, entries, mode='a'):
         mode:       mode with which to write. only use 'a'
     """
     pre = '{} {}@{}/{}: '.format(timestamp(), getuser(), gethost(), getcommit())
-    suffix = '_LOG.txt'
-    path = prefix if prefix.endswith(suffix) else prefix+suffix
+    path = with_suffix(prefix, '_LOG.txt')
     if entries == 'argv':
         entries = [' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])]
     elif isinstance(entries, basestring):
@@ -520,6 +531,7 @@ def save_log_entry(prefix, entries, mode='a'):
     entries = pre + ('\n' + pre).join(entries) + '\n'
     with open(path, mode) as f:
         f.write(entries)
+
 
 def clear_execution_counts(nbpath, inplace=False):
     import nbformat
