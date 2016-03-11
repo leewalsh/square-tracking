@@ -287,24 +287,38 @@ def nan_info(arr, verbose=False):
 
 
 def transpose_dict(outerdict={}, **innerdicts):
-    isdict = lambda d: hasattr(d, 'keys')
-    if not isdict(outerdict):
-        outerdict = dict(outerdict)
+    """transpose a dict of dicts.
+
+    Input is a dict of dicts and/or several dicts as keyword args.  Keys present
+    in some innerdicts but missing from another innerdict are kept as value None
+
+    return value is basically
+        {inner_key: {outer_key: inner_dict[inner_key]
+                     for outer_key, inner_dict in outer_dict.items()}
+         for inner_key in set(inner_dict.keys for inner_dict in outer_dict)}
+    """
+    outerdict = dict(outerdict)
     outerdict.update(innerdicts)
     innerdicts = outerdict.viewvalues()
-    assert all(map(isdict, innerdicts))
     innerkeys = {innerkey for innerdict in innerdicts for innerkey in innerdict}
-    return {ki: {ko: di.get(ki)
-                 for ko, di in outerdict.iteritems()}
+    return {ki: {ko: di.get(ki) for ko, di in outerdict.iteritems()}
             for ki in innerkeys}
 
 
 def dmap(f, d):
-    return {k: f(v) for k, v in d.iteritems()}
+    try:
+        target = d.iteritems()
+        return {k: f(v) for k, v in target}
+    except AttributeError:
+        return dict(it.izip(d, it.imap(f, d)))
 
 
-def dfilter(f, d):
-    return {k: d[k] for k in it.ifilter(f, d)}
+def dfilter(d, f=None, by='k'):
+    if by.startswith('k'):
+        return {k: d[k] for k in it.ifilter(f, d)}
+    elif by.startswith('v'):
+        f = f or bool
+        return dict(it.izip(it.ifilter(lambda i: f(i[1]), d.iteritems())))
 
 
 def str_union(a, b):
@@ -437,7 +451,7 @@ def merge_meta(*metas, **conflicts):
         as the the new value for that key.
     """
     merged = {}
-    keys = {key for meta in metas for key in meta.keys()}
+    keys = {key for meta in metas for key in meta.iterkeys()}
     for key in keys:
         vals = [meta[key] for meta in metas if key in meta]
         u = set(vals)
