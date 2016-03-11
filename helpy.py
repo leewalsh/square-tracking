@@ -408,6 +408,10 @@ def with_suffix(prefix, suffix):
     return prefix if prefix.endswith(suffix) else prefix+suffix
 
 
+def with_prefix(suffix, prefix):
+    return suffix if suffix.startswith(prefix) else prefix+suffix
+
+
 def fio(path, content='', mode='w'):
     if content:
         with open(path, mode) as f:

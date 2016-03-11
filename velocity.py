@@ -33,7 +33,7 @@ if __name__ == '__main__':
         dest='do_orientation', help='Only translational noise?')
     arg('--sets', type=int, default=0, metavar='N', nargs='?', const=1,
         help='Number of sets')
-    arg('--width', type=float, default=(0.75,), metavar='W', nargs='*',
+    arg('--width', type=float, default=(0.65,), metavar='W', nargs='*',
         help='Smoothing width for derivative, may give several')
     arg('--particle', type=str, default='', help='Particle name')
     arg('--save', type=str, nargs='?', const='velocity', default='',
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     arg('-g', '--gaps', choices=['interp', 'nans', 'leave'], default='interp',
         nargs='?', const='nans', help="Gap handling: choose from %(choices)s. "
         "default is %(default)s, `-g` or `--gaps` alone gives %(const)s")
-    arg('--stub', type=int, default=10, help='Min track length. Default: 10')
+    arg('--stub', type=int, help='Min track length. Default: 10')
     arg('--nosubtract', action='store_false', dest='subtract',
         help="Don't subtract v0?")
     arg('-s', '--side', type=float,
@@ -252,8 +252,8 @@ if __name__ == '__main__':
     if args.verbose:
         print 'prefixes:',
         print '\n          '.join(np.atleast_1d(prefixes))
-    helpy.sync_args_meta(args, meta, ['side', 'fps'],
-                         ['sidelength', 'fps'], [1, 1])
+    helpy.sync_args_meta(args, meta,
+                         ['side', 'fps'], ['sidelength', 'fps'], [1, 1])
     compile_args = dict(args.__dict__)
 
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
@@ -273,8 +273,12 @@ if __name__ == '__main__':
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         ax.legend(loc='best')
     else:
-        meta.update(vel_stub=args.stub, vel_gaps=args.gaps,
-                    vel_dx_width=args.width[0])
+        args.width = args.width[0]
+        helpy.sync_args_meta(args, meta,
+                             ['stub', 'gaps', 'width'],
+                             ['vel_stub', 'vel_gaps', 'vel_dx_width'],
+                             [10, 'interp', 0.65])
+        args.width = [args.width]
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
 
@@ -315,7 +319,7 @@ if __name__ == '__main__':
     if args.save:
         savename = os.path.abspath(args.prefix.rstrip('/._?*'))
         helpy.save_meta(savename, meta)
-        savename += '_' + args.save + '.pdf'
+        savename += '_' + helpy.with_prefix(args.save, 'velocity_') + '.pdf'
         print 'Saving plot to {}'.format(savename)
         plt.savefig(savename)
     else:
