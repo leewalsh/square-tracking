@@ -321,7 +321,9 @@ def dfilter(d, f=None, by='k'):
         return dict(it.izip(it.ifilter(lambda i: f(i[1]), d.iteritems())))
 
 
-def str_union(a, b):
+def str_union(a, b=None):
+    if b is None:
+        return reduce(str_union, a)
     if a == b:
         return a
     elif len(a) == len(b):
@@ -909,7 +911,7 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
             print "Creating new directory", savedir
             os.makedirs(savedir)
         if n*len(members[0]) > 200:
-            pattern = pattern or reduce(str_union, members)
+            pattern = pattern or str_union(members)
         else:
             pattern = members
         args = ', dupes=True'*dupes + ', do_orient=True'*do_orient

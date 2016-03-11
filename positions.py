@@ -308,7 +308,7 @@ if __name__ == '__main__':
     first = args.files[0]
     if len(args.files) > 1:
         filenames = sorted(args.files)
-        filepattern = reduce(helpy.str_union, args.files)
+        filepattern = helpy.str_union(args.files)
         i = sys.argv.index(first)
         argv = filter(lambda s: s not in filenames, sys.argv)
         argv.insert(i, filepattern)
