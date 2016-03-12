@@ -10,7 +10,7 @@ from itertools import combinations
 import numpy as np
 from numpy.polynomial import polynomial as poly
 from scipy.spatial.distance import pdist, cdist
-from scipy.spatial import Voronoi, cKDTree, Delaunay
+from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
 from scipy.ndimage import gaussian_filter
 from scipy.signal import hilbert, correlate, convolve
 from scipy.stats import rv_continuous, vonmises
@@ -282,8 +282,8 @@ def structure_factor(positions, m=4, margin=0):
     return fft2(f, overwrite_x=True)
 
 
-def orient_op(orientations, positions, m=4, margin=0,
-              ret_complex=True, do_err=False):
+def orient_op(orientations, m=4, positions=None, margin=0,
+              ret_complex=True, do_err=False, globl=False, locl=False):
     """ orient_op(orientations, m=4)
         Returns the global m-fold particle orientational order parameter
 
@@ -291,6 +291,8 @@ def orient_op(orientations, positions, m=4, margin=0,
         Phi  = --- SUM e          j
            m    N  j=1
     """
+    if not (globl or locl):
+        globl = locl = True
     np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
     if margin:
         if margin < ss:
@@ -298,12 +300,15 @@ def orient_op(orientations, positions, m=4, margin=0,
         center = 0.5*(positions.max(0) + positions.min(0))
         d = helpy.dist(positions, center)   # distances to center
         orientations = orientations[d < d.max() - margin]
-    phi = np.exp(m*orientations*1j).mean()
+    phis = np.nanmean(np.exp(m*orientations*1j), 1)
     if do_err:
-        err = phi.std(ddof=1)/sqrt(phi.size)
-        return (phi, err) if ret_complex else (np.abs(phi), err)
-    else:
-        return phi if ret_complex else np.abs(phi)
+        err = np.nanstd(phis, ddof=1)/sqrt(np.count_nonzero(~np.isnan(phis)))
+    if not globl:
+        return (phis, err) if do_err else phis
+    phi = np.nanmean(phis) if ret_complex else np.abs(np.nanmean(phis))
+    if locl:
+        return (phis, phi, err) if do_err else (phis, phi)
+    return (phi, err) if do_err else phi
 
 
 def dtheta(i, j=None, m=1, sign=False):
@@ -656,7 +661,7 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
         tess = tess or Delaunay(positions)
         neighbors = get_neighbors(tess, 'all')
     elif most:
-        tree = tree or cKDTree(positions)
+        tree = tree or KDTree(positions)
         distances, neighbors = tree.query(positions, most+1,
                                           distance_upper_bound=dub)
         distances, neighbors = distances[:, 1:], neighbors[:, 1:]  # remove self
@@ -666,7 +671,7 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     elif reach is None:
         raise ValueError("No limits on neighborhood selection applied")
     else:
-        tree = tree or cKDTree(positions)
+        tree = tree or KDTree(positions)
         neighbors = tree.query_ball_tree(tree, dub)
         for i in xrange(len(neighbors)):
             neighbors[i].remove(i)  # remove self
@@ -692,6 +697,33 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     return neighbors[:, :most], mask[:, :most], distances[:, :most]
 
 
+def poly_area(corners):
+    # calculate area of polygon
+    area = 0.0
+    n = len(corners)
+    for i in xrange(n):
+        j = (i + 1) % n
+        area += corners[i][0] * corners[j][1]
+        area -= corners[j][0] * corners[i][1]
+    return abs(area) / 2.0
+
+
+def density(positions, method, vor=None, tess=None, tree=None, neighbors=None):
+    if method == 'vor':
+        return voronoi_density(vor or positions)
+    if method == 'inv_dist':
+        if neighbors is None:
+            neighbors = neighborhoods(positions, tess=tess, tree=tree, **nargs)
+        neigh, nmask, dists = neighbors
+        dists = np.where(nmask, np.nan, dists)
+        areas = dists**2
+        a = 1/np.nanmean(dists, 1)**2
+        b = np.nanmean(1/dists, 1)**2
+        c = 1/np.nanmean(areas, 1)
+        d = np.nanmean(1/areas, 1)
+        return a, b, c, d
+
+
 def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):
     dens = np.zeros(extent, float)
     indices = np.around(positions).astype('u4').T
@@ -700,6 +732,12 @@ def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):
         scale = 2*unit_length
     gaussian_filter(dens, scale, mode='constant')
 
+
+def voronoi_density(pos_or_vor):
+    vor = pos_or_vor if isinstance(pos_or_vor, Voronoi) else Voronoi(pos_or_vor)
+    regions = (vor.regions[regi] for regi in vor.point_region)
+    return np.array([0 if -1 in reg else 1/poly_area(vor.vertices[reg])
+                     for reg in regions])
 
 def binder(positions, orientations, bl, m=4, method='ball', margin=0):
     """Calculate the binder cumulant, given positions and orientations.
@@ -716,7 +754,7 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         positions = positions[dmask]
         orientations = orientations[dmask]
     if 'neigh' in method or 'ball' in method:
-        tree = cKDTree(positions)
+        tree = KDTree(positions)
         balls = tree.query_ball_tree(tree, bl)
         balls, ball_mask = helpy.pad_uneven(balls, 0, True, int)
         ball_orient = orientations[balls]
@@ -738,36 +776,39 @@ def binder(positions, orientations, bl, m=4, method='ball', margin=0):
         #              np.digitize(positions[:, 1], ybins)])
 
 
-def pair_angles(positions, neighbors, nmask, ang_type='absolute',
-                margin=0, dub=2*ss):
-    """ do something with the angles a given particle makes with its neighbors
+def pair_angles(xy_or_orient, neighbors, nmask, ang_type='absolute', margin=0):
+    """do something with the angles a given particle makes with its neighbors
 
-        Parameters
-        positions:  (N, 2) array of positions
-        neighbors:  (N, k) array of k neighbors
-        nmask:      mask for neighbors
-        ang_type:   string, choice of 'absolute' (default), 'relative', 'delta'
-        margin:     is the width of excluded boundary margin
-        dub:        is the distance upper bound (won't use pairs farther apart)
+    Parameters
+    xy_or_orient:  either (N, 2) array of positions or (N,) array of angles
+    neighbors:  (N, k) array of k neighbors
+    nmask:      mask for neighbors
+    ang_type:   string, choice of 'absolute' (default), 'relative', 'delta'
+    margin:     is the width of excluded boundary margin
 
-        Returns
-        angles:     array of angles between neighboring pairs
-        dmask:      margin mask, only returned if margin > 0
+    Returns
+    angles:     array of angles between neighboring pairs
+    dmask:      margin mask, only returned if margin > 0
     """
-    dx, dy = (positions[neighbors] - positions[:, None, :]).T
-    angles = np.arctan2(dy, dx).T % tau
+
+    if xy_or_orient.ndim == 2:
+        dx, dy = (xy_or_orient[neighbors] - xy_or_orient[:, None, :]).T
+        angles = np.arctan2(dy, dx).T % tau
+    else:
+        angles = xy_or_orient[neighbors] - xy_or_orient[:, None]
     if ang_type == 'relative':
         # subtract off angle to nearest neighbor
         angles -= angles[:, :1]
     elif ang_type == 'delta':
         # sort by angle then take diff
-        angles[~nmask] = np.inf
+        angles[nmask] = np.inf
         angles.sort(-1)
         angles -= np.roll(angles, 1, -1)
+        # only keep if we have all k neighbors
         nmask = np.all(nmask, 1)
     elif ang_type != 'absolute':
         raise ValueError("unknown ang_type {}".format(ang_type))
-    angles[~nmask] = np.nan
+    angles[nmask] = np.nan
     if margin:
         if margin < ss:
             margin *= ss
@@ -779,8 +820,8 @@ def pair_angles(positions, neighbors, nmask, ang_type='absolute',
     return (angles % tau, nmask) + ((dmask,) if margin else ())
 
 
-def pair_angle_op(angles, nmask=None, m=4, ret_complex=False):
-    """ calculate the pair-angle (bond angle) order parameter
+def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
+    """calculate the pair-angle (bond angle) order parameter
 
     the parameter for particle i is defined as:
         psi_m_i = < exp(i m theta_ij) >
@@ -790,22 +831,27 @@ def pair_angle_op(angles, nmask=None, m=4, ret_complex=False):
 
     Parameters
     angles: angles between neighboring pairs (from pair_angles)
-    nmask:  neighbor mask (None)
-    m:      angles will be considered modulo tau/m
+    nmask:  neighbor mask if invalid angles are not np.nan (None)
+    m:      symmetryangles will be considered modulo tau/m
 
     Returns
     mag:    the absolute value |psi|
     ang:    the phase of psi mod tau/m
     psims:  the local values of psi for each particle
     """
-
+    if not (globl or locl):
+        globl = locl = True
     if nmask is not None:
-        angles[~nmask] = np.nan
+        angles[nmask] = np.nan
     psims = np.nanmean(np.exp(m*angles*1j), 1)
+    if not globl:
+        return psims
     psim = np.nanmean(psims)
     mag = abs(psim)
     ang = phase(psim)/m
-    return mag, ang, psims
+    if locl:
+        return mag, ang, psims
+    return mag, ang
 
 
 def pair_angle_corr(positions, psims, rbins=10):

@@ -90,20 +90,20 @@ def getcommit():
     return COMMIT
 
 
-def splitter(data, indices=None, method=None,
+def splitter(data, indices='f', method=None,
              ret_dict=False, noncontiguous=False):
     """Splits a dataset into subarrays with unique index value
 
     parameters:
-        data:       dataset to be split along first axis
-        indices:    values to group by, can be array of indices or field
-                    name.  default is field name 'f'
-        method:     either 'diff' or 'unique':
-                    diff is faster*, but
-                    unique returns the `index` value
-        ret_dict:   whether to return a dict with indices as keys
-        noncontiguous:  whether to assume indices array has matching values
-                        separated by other values
+    data:       dataset to be split along first axis
+    indices:    values to group by, can be array of indices or field name.
+                default is field name 'f'
+    method:     either 'diff' or 'unique':
+                diff is faster*, but
+                unique returns the `index` value
+    ret_dict:   whether to return a dict with indices as keys
+    noncontiguous:  whether to assume indices array has matching values
+                    separated by other values
 
     returns:
         a list or dict of subarrays of `data` split and grouped by unique values
@@ -130,29 +130,28 @@ def splitter(data, indices=None, method=None,
         tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
         trackset = tracksets[trackid]
     """
-    if indices is None:
-        indices = 'f'
+    multi = isinstance(data, tuple)
+    if not multi:
+        data = (data,)
     if isinstance(indices, basestring):
-        indices = data[indices]
+        indices = data[0][indices]
     if method is None:
         method = 'unique' if ret_dict or noncontiguous else 'diff'
     if method.lower().startswith('d'):
-        sects = np.split(data, np.diff(indices).nonzero()[0] + 1)
-        if ret_dict:
-            return dict(enumerate(sects))
-        else:
-            return sects
+        di = np.diff(indices).nonzero()[0] + 1
+        sects = [np.split(datum, di) for datum in data]
+        ret = [dict(enumerate(sect)) for sect in sects] if ret_dict else sects
     elif method.lower().startswith('u'):
         u, i = np.unique(indices, return_index=True)
         if noncontiguous:
             # no nicer way to do this:
-            sects = [data[np.where(indices == ui)] for ui in u]
+            uinds = [np.where(indices == ui) for ui in u]
+            sects = [[datum[uind] for uind in uinds] for datum in data]
         else:
-            sects = np.split(data, i[1:])
-        if ret_dict:
-            return dict(it.izip(u, sects))
-        else:
-            return it.izip(u, sects)
+            sects = [np.split(datum, i[1:]) for datum in data]
+        ret = [dict(it.izip(u, sect)) if ret_dict else it.izip(u, sect)
+               for sect in sects]
+    return ret if multi else ret[0]
 
 
 def is_sorted(a):
@@ -646,6 +645,13 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         else:
             orient = load_data(fullprefix, 'o')['orient']
         data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
+    if 't' in sets:
+        fields = data['t'].dtype.fields
+        dtype = dict(fields)
+        xdt, xoff = dtype['x']
+        dtype['xy'] = np.dtype((xdt, (2,))), xoff
+        data['t'] = np.ndarray(data['t'].shape, dtype=dtype, buffer=data['t'],
+                               offset=0, strides=data['t'].strides)
     ret = [data[s] for s in sets]
     return ret if len(ret) > 1 else ret[0]
 
@@ -1237,7 +1243,7 @@ def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
         data = data[data['t'] >= 0]
     fdata = splitter(data, 'f')
     frame = fdata[frame]
-    positions = consecutive_fields_view(frame, 'xy')
+    positions = frame['xy']
     neighs, mask, dists = neighborhoods(positions, **neighbor_args)
     fmt = 'particle {} track {}: {} neighbors at dist {} - {} ({})'.format
     for pt, ns, m, ds, d in zip(positions, neighs, mask, dists, frame):
