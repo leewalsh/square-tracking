@@ -44,6 +44,8 @@ if __name__ == '__main__':
         help="Don't show figures (just save them)")
     arg('--nosave', action='store_false', dest='save',
         help="Don't save outputs or figures")
+    arg('--noplot', action='store_false', dest='plot',
+        help="Don't generate (fewer, not none at this point) figures")
     arg('--maxdist', type=int, help="maximum single-frame travel distance in "
         "pixels for track. default = side/fps if defined")
     arg('--giveup', type=int, default=10,
