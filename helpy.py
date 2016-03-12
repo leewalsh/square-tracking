@@ -1223,6 +1223,36 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
     return patches
 
 
+def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
+    import matplotlib.pyplot as plt
+    from correlation import neighborhoods
+    fig, ax = plt.subplots()
+
+    if im is None:
+        im = find_tiffs(prefix=prefix, frames=frame, single=True, load=True)[1]
+    ax.imshow(im, cmap='gray')
+
+    if data is None:
+        data = load_data(prefix)
+        data = data[data['t'] >= 0]
+    fdata = splitter(data, 'f')
+    frame = fdata[frame]
+    positions = consecutive_fields_view(frame, 'xy')
+    neighs, mask, dists = neighborhoods(positions, **neighbor_args)
+    fmt = 'particle {} track {}: {} neighbors at dist {} - {} ({})'.format
+    for pt, ns, m, ds, d in zip(positions, neighs, mask, dists, frame):
+        ns, ds = ns[~m], ds[~m]
+        if len(ns) == 0:
+            continue
+        print fmt(d['id'], d['t'], len(ns), ds.min(), ds.max(), ds.mean())
+        # print '\tneighbors:', (len(ns)*'{:5d} ').format(*ns)
+        # print '\tdistances:', (len(ns)*'{:5.2f} ').format(*ds)
+        ax.scatter(*positions.T[::-1], c='k', marker='o')
+        ax.scatter(*positions[ns].T[::-1], c='w', marker='o')
+        ax.scatter(pt[1], pt[0], c='r', marker='o')
+        plt.waitforbuttonpress()
+
+
 def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     """ Take a finite derivative of f(x) using convolution with gaussian
 

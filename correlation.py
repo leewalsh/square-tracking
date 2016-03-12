@@ -692,6 +692,15 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     return neighbors[:, :most], mask[:, :most], distances[:, :most]
 
 
+def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):
+    dens = np.zeros(extent, float)
+    indices = np.around(positions).astype('u4').T
+    dens[indices] = unit_length*unit_length
+    if scale is None:
+        scale = 2*unit_length
+    gaussian_filter(dens, scale, mode='constant')
+
+
 def binder(positions, orientations, bl, m=4, method='ball', margin=0):
     """Calculate the binder cumulant, given positions and orientations.
 
