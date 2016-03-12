@@ -1502,8 +1502,10 @@ if __name__ == '__main__' and args.rn:
                     ).format(*[v0, D_R][:nfree])
     if args.save:
         if nfree == 1:
-            meta_fits = {'fit_nn_rn_v0': v0}
+            psources = '_nn'
+            meta_fits = {'fit'+psources+'_rn_v0': v0}
         elif nfree == 2:
+            psources = ''
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1534,7 +1536,7 @@ if __name__ == '__main__' and args.rn:
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save = saveprefix+'_rn-corr.pdf'
+        save = saveprefix + psources + '_rn-corr.pdf'
         print 'saving <rn> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
@@ -1625,11 +1627,14 @@ if __name__ == '__main__' and args.rr:
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
         if nfree == 1:
-            meta_fits = {'fit_{DR}_{v0}_rr_DT'.format(**fit_source): D_T}
+            psources = '_{DR}_{v0}'.format(**fit_source)
+            meta_fits = {'fit'+psources+'_rr_DT': D_T}
         elif nfree == 2:
-            meta_fits = {'fit_{DR}_rr_DT'.format(**fit_source): D_T,
-                         'fit_{DR}_rr_v0'.format(**fit_source): v0}
+            psources = '_{DR}'.format(**fit_source)
+            meta_fits = {'fit'+psources+'_rr_DT': D_T,
+                         'fit'+psources+'_rr_v0': v0}
         elif nfree == 3:
+            psources = ''
             meta_fits = {'fit_rr_DT': D_T,
                          'fit_rr_v0': v0,
                          'fit_rr_DR': D_R}
@@ -1662,7 +1667,7 @@ if __name__ == '__main__' and args.rr:
         ax.text(tau_R, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save = saveprefix+'_rr-corr.pdf'
+        save = saveprefix + psources + '_rr-corr.pdf'
         print 'saving <rr> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
