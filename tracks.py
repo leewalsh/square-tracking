@@ -1117,6 +1117,61 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
     return sigma
 
 
+def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
+    """plot the fit parameters from correlations and histograms
+
+    plot parameters `y` vs `x` selected by `s`
+
+    parameters
+    params : structured array with keys for parameter name, from meta_meta
+    x, y, s : keys or lists of keys to plot on each axis (`s` will be color?)
+    """
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    if xs is None:
+        xs = (np.arange(len(s)) for y in ys)
+    else:
+        xs = (ps[x] for x in xs)
+
+    ps = params[np.in1d(params[by], s)]
+    for x, y in zip(xs, ys):
+        ax.plot(x, ps[y], label=y, **pltargs)
+    ax.legend()
+
+    if by == 'dict':
+        for k in s:
+            ps = params[k]
+            ax.scatter(ps[x], ps[y], **pltargs)
+            pltargs['label'] = None  # only label once
+
+    return ax
+
+
+def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1)):
+    ps = params[np.in1d(params['source'], sources)]
+    xy = xy or [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$'),
+                ('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$'),
+                ('fit_rr_DT', 'fit_vn_DT', 'b', 's', '$D_T$'),
+                ('fit_rr_DT', 'fit_vt_DT', 'b', 'D', None)]
+
+    fig, ax = plt.subplots()
+    for x, y, c, m, l in xy:
+        ax.scatter(ps[y], ps[x], marker=m, c=c, label=l)
+        # ax = plot_parametric(params, x, y, sources, 'source', ax=ax,
+
+    ax.set_xlabel('Fits from correlation functions', usetex=True)
+    ax.set_ylabel('Noise statistics from velocity', usetex=True)
+    ax.set_xscale(scale)
+    ax.set_yscale(scale)
+    ax.set_aspect('equal', adjustable='box')
+    xlim = ax.set_xlim(lims)
+    ylim = ax.set_ylim(lims)
+    ax.plot(xlim, ylim, '--k')
+    ax.legend(loc='upper left')
+    return ax
+
+
 def sigprint(sigma):
     sigfmt = ('{:7.4g}, '*5)[:-2].format
     mn, mx = sigma.min(), sigma.max()
