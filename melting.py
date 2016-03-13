@@ -61,7 +61,7 @@ def melting_stats(frames, dens_method='dist', dens_avg=0):
     # Density:
     dens = corr.density(xy, dens_method, vor=vor, tess=tess, neighbors=neighborhoods)
     if dens_method == 'dist':
-        dens[dens_avg]
+        dens = dens[dens_avg]
 
     # Order parameters:
     neigh, nmask = neighborhoods[:2]

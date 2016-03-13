@@ -667,10 +667,10 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     if voronoi:
         tess = tess or Delaunay(positions)
         neighbors = get_neighbors(tess, 'all')
-    elif most:
+    elif most is not None:
         tree = tree or KDTree(positions)
-        distances, neighbors = tree.query(positions, most+1,
-                                          distance_upper_bound=dub)
+        distances, neighbors = tree.query(
+            positions, np.max(most)+1, distance_upper_bound=dub)
         distances, neighbors = distances[:, 1:], neighbors[:, 1:]  # remove self
         mask = np.isinf(distances)
         neighbors[mask] = np.where(mask)[0]
@@ -699,8 +699,16 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     if filter_reach:
         mask[distances >= reach] = True
         distances[mask] = np.inf
-    if fewest:
+    if fewest is not None:
         mask[(~mask).sum(1) < fewest] = True
+    if np.iterable(most):
+        extra = np.clip(mask.shape[1] - most, 0, None)
+        i = np.where(extra)
+        extra = extra[i]
+        i = np.repeat(i[0], extra)
+        j = mask.shape[1] - np.concatenate(map(range, extra)) - 1
+        mask[i, j] = True
+        most = most.max()
     return neighbors[:, :most], mask[:, :most], distances[:, :most]
 
 
