@@ -352,8 +352,8 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         return None if inplace else trackids
 
 
-def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
-                      f_nums=None, verbose=False):
+def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
+                      meta={}, f_nums=None, verbose=False):
 
     global f_idx, f_num, xlim, ylim
 
@@ -388,12 +388,13 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
                 print 'will exit'
             sys.stdout.flush()
 
-    plt_text = np.vectorize(plt.text)
+    def plt_text(*args, **kwargs):
+        return [plt.text(*arg, **kwargs) for arg in zip(*args)]
 
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
     drc = meta.get('orient_drcorner') or np.sqrt(rc)
-    txtoff = min(rc, side/2)
+    txtoff = min(rc, side/2)/2
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -444,41 +445,66 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, meta={},
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
-        omask = np.isfinite(o)
-        xyoo = xyo[omask]
-        xo, yo, oo = xyoo.T
 
         p.set_data(imstack[f_idx])
         remove = []
+
+        # plot the detected dots
+        ts = helpy.quick_field_view(fsets[f_num], 't')
+        tracked = ts >= 0
+        ps = ax.scatter(y[tracked], x[tracked], c='r', zorder=.8)
+        us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
+        cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
+        remove.extend([ps, us, cs])
+
+        # plot the orientations
+        omask = np.isfinite(o)
+        xyoo = xyo[omask]
+        xo, yo, oo = xyoo.T
+        q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
+                      width=side/8, scale_units='xy', scale=1/side, zorder=.4)
+        remove.append(q)
         for dr in [-drc, 0, drc]:
             patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
                                          color='g', fill=False, zorder=.5)
             remove.extend(patches)
-        q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=1/side, zorder=.4)
-        ps = ax.scatter(y, x, c='r', zorder=.8)
-        cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=8, zorder=.6)
+        if fisets is not None:
+            xyi, oi, tsi = [fisets[f_num][fld] for fld in ['xy', 'o', 't']]
+            pim = fisets[f_num]['id'] == 0
+            if np.any(pim):
+                ips = ax.scatter(xyi[pim, 1], xyi[pim, 0], c='pink', zorder=.7)
+                itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
+                                tsi[pim].astype('S'), color='pink', zorder=.9,
+                                horizontalalignment='center')
+                remove.extend(itxt)
+                remove.append(ips)
+            iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
+                           angles='xy', units='xy', width=side/8,
+                           scale_units='xy', scale=1/side, zorder=.3,
+                           color=(.3,)*3)
+            remove.append(iq)
+
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
             oca = oc.reshape(-1, 2)
-            ocs = ax.scatter(oca[:, 1], oca[:, 0], c='orange', s=8, zorder=1)
+            ocs = ax.scatter(oca[:, 1], oca[:, 0], c='orange', s=10, zorder=1)
             remove.append(ocs)
 
             # corner displacements has shape (n_particles, n_corners, n_dim)
             cdisp = oc[omask] - xyoo[:, None, :2]
             cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
-            deg_str = np.degrees(cang).astype(int).astype('S')
-            ctxt = plt_text(yo+txtoff/2, xo-txtoff/2, deg_str,
-                            color='b', zorder=.9)
+            deg_str = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
+            cx, cy = oc[omask].mean(1).T
+            ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9,
+                            horizontalalignment='center',
+                            verticalalignment='center')
             remove.extend(ctxt)
 
-        remove.extend([q, ps, cs])
-
-        ts = helpy.quick_field_view(fsets[f_num], 't')
-        txt = plt_text(y+txtoff, x+txtoff, ts.astype('S'), color='r', zorder=.9)
+        txt = plt_text(y[tracked], x[tracked]+txtoff, ts[tracked].astype('S'),
+                       color='r', zorder=.9, horizontalalignment='center')
         remove.extend(txt)
 
-        nts = np.count_nonzero(ts >= 0)
+        nts = np.count_nonzero(tracked)
         nos = np.count_nonzero(omask)
         ncs = len(o)
         ax.set_title(title.format(f_num, nos, nts, ncs))
@@ -1150,27 +1176,34 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
     return ax
 
 
-def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1)):
+def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
+                    label_source=False, savename=''):
     ps = params[np.in1d(params['source'], sources)]
-    xy = xy or [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$'),
-                ('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$'),
-                ('fit_rr_DT', 'fit_vn_DT', 'b', 's', '$D_T$'),
-                ('fit_rr_DT', 'fit_vt_DT', 'b', 'D', None)]
+    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy]
+    xys = {'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
+          'v0': [('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$')],
+          'DT': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T$')]}[xy]
+                # ('fit_rr_DT', 'fit_vt_DT', 'b', 'D', None)]
 
-    fig, ax = plt.subplots()
-    for x, y, c, m, l in xy:
+    fig, ax = plt.subplots(figsize=(4,4))
+    for x, y, c, m, l in xys:
         ax.scatter(ps[y], ps[x], marker=m, c=c, label=l)
+        if label_source:
+            [plt.text(p[y], p[x], p['source']) for p in ps]
         # ax = plot_parametric(params, x, y, sources, 'source', ax=ax,
 
-    ax.set_xlabel('Fits from correlation functions', usetex=True)
-    ax.set_ylabel('Noise statistics from velocity', usetex=True)
+    ax.set_xlabel('Noise statistics from velocity', usetex=True)
+    ax.set_ylabel('Fits from correlation functions', usetex=True)
     ax.set_xscale(scale)
     ax.set_yscale(scale)
     ax.set_aspect('equal', adjustable='box')
     xlim = ax.set_xlim(lims)
     ylim = ax.set_ylim(lims)
-    ax.plot(xlim, ylim, '--k')
+    ax.plot(xlim, ylim, '--k', alpha=0.7)
     ax.legend(loc='upper left')
+    if savename:
+        fig.savefig('/Users/leewalsh/Physics/Squares/colson/Output/stats/'
+                    'parametric_{}.pdf'.format(savename))
     return ax
 
 
@@ -1256,9 +1289,12 @@ if __name__ == '__main__':
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
-        ftsets, fcsets = helpy.splitter(tdata), helpy.splitter(cdata)
-        fosets = helpy.splitter(odata, tdata['f'])
-        animate_detection(imstack, ftsets, fcsets, fosets, meta=meta,
+        idata = helpy.load_tracksets(tdata, run_fill_gaps='interp')
+        idata = np.concatenate(idata.values())
+        fisets = helpy.splitter(idata, 'f', noncontiguous=True, ret_dict=True)
+        ftsets, fosets = helpy.splitter((tdata, odata), 'f')
+        fcsets = helpy.splitter(cdata)
+        animate_detection(imstack, ftsets, fcsets, fosets, fisets, meta=meta,
                           f_nums=frames, verbose=args.verbose)
 
     if args.side > 1 and args.dx > 0.1:

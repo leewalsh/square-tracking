@@ -6,7 +6,8 @@ import math
 import itertools as it
 
 import numpy as np
-from scipy.spatial import Voronoi, Delaunay, ConvexHull, cKDTree as KDTree
+from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
+import matplotlib.pyplot as plt
 
 import helpy
 import correlation as corr
@@ -39,7 +40,7 @@ def initialize_mdata(data):
     # new fields to hold:
     # shell, radius (from initial c.o.m.), local density, local psi, local phi
     melt_dtype.extend(zip(['sh', 'r', 'dens', 'psi', 'phi'],
-                          ['u4', 'f4', 'f4', 'c8', 'c8']))
+                          ['u4', 'f4', 'f4', 'f4', 'f4']))
 
     mdata = np.empty(data.shape, melt_dtype)
     for keep in keep_fields:
@@ -47,7 +48,7 @@ def initialize_mdata(data):
     return mdata
 
 
-def melting_stats(frames):
+def melting_stats(frames, dens_method='dist', dens_avg=0):
     xy = frame['xy']
     orient = frame['o']
 
@@ -58,7 +59,9 @@ def melting_stats(frames):
     neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **neigh_def)
 
     # Density:
-    dens = corr.density(xy, 'vor', vor=vor, tess=tess, neighbors=neighborhoods)
+    dens = corr.density(xy, dens_method, vor=vor, tess=tess, neighbors=neighborhoods)
+    if dens_method == 'dist':
+        dens[dens_avg]
 
     # Order parameters:
     neigh, nmask = neighborhoods[:2]
@@ -124,6 +127,21 @@ def assign_shell(positions, ids=None, N=None, ref_basis=None):
     return shells
 
 
+def plot_against_shell(mdata, field, ax=None, side=1, fps=1):
+    units = side*side if field == 'dens' else 1
+    if ax is None:
+        fig, ax = plt.subplots()
+    smax = mdata['sh'].max()
+    for s, shell in helpy.splitter(mdata, 'sh', noncontiguous=True):
+        col = plt.cm.jet(s/smax)
+        mean_by_frame = corr.bin_average(shell['f'], shell[field]*units, 1)
+        ax.plot(np.arange(len(mean_by_frame))/fps, mean_by_frame,
+                label='Shell {}'.format(s), c=col)
+    ax.legend()
+    ax.set_title(field)
+    ax.set_xlim(0, 50)
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print "Please specify a filename."
@@ -137,6 +155,8 @@ if __name__ == '__main__':
 
     helpy.save_log_entry(fname, 'argv')
     meta = helpy.load_meta(fname)
+    fps = meta.get('fps', 1)
+    side = meta.get('sidelength', 1)
 
     M = 4  # number of neighbors
     data = helpy.load_data(fname)
@@ -164,13 +184,13 @@ if __name__ == '__main__':
     shells = assign_shell(frames[0]['xy'], frames[0]['t'])
     mdata['sh'] = shells[mdata['t']]
 
+    dens_method, dens_avg = 'dist', 0
     # Calculate radial speed (not MSD!) (maybe?)
     for frame, melt in it.izip(frames, mframes):
-        dens, psi, phi = melting_stats(frame)
+        dens, psi, phi = melting_stats(frame, dens_method, dens_avg)
         melt['dens'] = dens
         melt['psi'] = psi
         melt['phi'] = phi
 
-
-    helpy.save_meta(fname)
+    helpy.save_meta(fname, meta)
     np.savez_compressed(fname + '_MELT.npz', data=mdata)

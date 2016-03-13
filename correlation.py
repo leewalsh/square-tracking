@@ -304,10 +304,10 @@ def orient_op(orientations, m=4, positions=None, margin=0,
     if do_err:
         err = np.nanstd(phis, ddof=1)/sqrt(np.count_nonzero(~np.isnan(phis)))
     if not globl:
-        return (phis, err) if do_err else phis
+        return (np.abs(phis), err) if do_err else np.abs(phis)
     phi = np.nanmean(phis) if ret_complex else np.abs(np.nanmean(phis))
     if locl:
-        return (phis, phi, err) if do_err else (phis, phi)
+        return (np.abs(phis), phi, err) if do_err else (np.abs(phis), phi)
     return (phi, err) if do_err else phi
 
 
@@ -331,6 +331,13 @@ def bin_average(r, f, bins=10):
         f : function to be averaged
         bins (default 10): can be number of bins or bin edges len(nbins)+1
     """
+    if bins == 1:
+        if r.dtype.kind not in 'iu':
+            assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
+            print 'converting to int array'
+            r = r.astype(int)
+        n = np.bincount(r)
+        return np.bincount(r, weights=f)/n
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 
@@ -711,7 +718,7 @@ def poly_area(corners):
 def density(positions, method, vor=None, tess=None, tree=None, neighbors=None):
     if method == 'vor':
         return voronoi_density(vor or positions)
-    if method == 'inv_dist':
+    if method == 'dist':
         if neighbors is None:
             neighbors = neighborhoods(positions, tess=tess, tree=tree, **nargs)
         neigh, nmask, dists = neighbors
@@ -845,7 +852,7 @@ def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
         angles[nmask] = np.nan
     psims = np.nanmean(np.exp(m*angles*1j), 1)
     if not globl:
-        return psims
+        return np.abs(psims)
     psim = np.nanmean(psims)
     mag = abs(psim)
     ang = phase(psim)/m
