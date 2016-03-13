@@ -86,6 +86,7 @@ if __name__ == '__main__':
     arg('-z', '--zoom', metavar="ZOOM", type=float, default=1,
         help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
+    arg('-q', '--quiet', action='count', help='Be quiet, subtracts from -v')
     arg('--suffix', type=str, default='', help='Suffix to append to savenames')
 
     args = parser.parse_args()
@@ -102,11 +103,14 @@ if __name__ == '__main__':
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
+    args.verbose = args.verbose or 0
+    args.quiet = args.quiet or 0
+    args.verbose = max(0, args.verbose - args.quiet)
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
     from warnings import filterwarnings
-    warnlevel = {None: 'ignore', 1: 'once', 2: 'once', 3: 'error'}
+    warnlevel = {0: 'ignore', None: 'ignore', 1: 'once', 2: 'once', 3: 'error'}
     filterwarnings(warnlevel[verbose], category=RuntimeWarning,
                    module='numpy|scipy|matplot')
 else:
@@ -353,7 +357,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
 
 
 def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
-                      meta={}, f_nums=None, verbose=False):
+                      meta={}, f_nums=None, verbose=False, clean=0):
 
     global f_idx, f_num, xlim, ylim
 
@@ -403,7 +407,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     xlim, ylim = (0, w), (0, h)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    need_legend = True
+    need_legend = not clean
 
     if meta.get('track_cut', False):
         bndx, bndy, bndr = meta['boundary']
@@ -453,9 +457,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         ts = helpy.quick_field_view(fsets[f_num], 't')
         tracked = ts >= 0
         ps = ax.scatter(y[tracked], x[tracked], c='r', zorder=.8)
-        us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
-        cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
-        remove.extend([ps, us, cs])
+        remove.append(ps)
+        if not clean:
+            us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
+            cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
+            remove.extend([us, cs])
 
         # plot the orientations
         omask = np.isfinite(o)
@@ -464,24 +470,26 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
                       width=side/8, scale_units='xy', scale=1/side, zorder=.4)
         remove.append(q)
-        for dr in [-drc, 0, drc]:
-            patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
-                                         color='g', fill=False, zorder=.5)
-            remove.extend(patches)
+        if not clean:
+            for dr in [-drc, 0, drc]:
+                patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
+                                             color='g', fill=False, zorder=.5)
+                remove.extend(patches)
         if fisets is not None:
             xyi, oi, tsi = [fisets[f_num][fld] for fld in ['xy', 'o', 't']]
             pim = fisets[f_num]['id'] == 0
             if np.any(pim):
-                ips = ax.scatter(xyi[pim, 1], xyi[pim, 0], c='pink', zorder=.7)
+                ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
+                                 c=['pink', 'r'][clean], zorder=.7)
                 itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
-                                tsi[pim].astype('S'), color='pink', zorder=.9,
-                                horizontalalignment='center')
+                                tsi[pim].astype('S'), color='pink',
+                                zorder=.9-clean, horizontalalignment='center')
                 remove.extend(itxt)
                 remove.append(ips)
             iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
                            angles='xy', units='xy', width=side/8,
                            scale_units='xy', scale=1/side, zorder=.3,
-                           color=(.3,)*3)
+                           color=(.3*(1-clean),)*3)
             remove.append(iq)
 
         if fosets is not None:
@@ -495,13 +503,13 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
             deg_str = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
             cx, cy = oc[omask].mean(1).T
-            ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9,
+            ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9-clean,
                             horizontalalignment='center',
                             verticalalignment='center')
             remove.extend(ctxt)
 
         txt = plt_text(y[tracked], x[tracked]+txtoff, ts[tracked].astype('S'),
-                       color='r', zorder=.9, horizontalalignment='center')
+                       color='r', zorder=.9-clean, horizontalalignment='center')
         remove.extend(txt)
 
         nts = np.count_nonzero(tracked)
@@ -1295,7 +1303,7 @@ if __name__ == '__main__':
         ftsets, fosets = helpy.splitter((tdata, odata), 'f')
         fcsets = helpy.splitter(cdata)
         animate_detection(imstack, ftsets, fcsets, fosets, fisets, meta=meta,
-                          f_nums=frames, verbose=args.verbose)
+                          f_nums=frames, verbose=args.verbose, clean=args.quiet)
 
     if args.side > 1 and args.dx > 0.1:
         # args.dx is in units of pixels
