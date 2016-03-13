@@ -48,20 +48,19 @@ def initialize_mdata(data):
     return mdata
 
 
-def melting_stats(frames, dens_method='dist', dens_avg=0):
+def melting_stats(frame, dens_method, dens_args):
     xy = frame['xy']
     orient = frame['o']
 
     vor = Voronoi(xy)
     tess = Delaunay(xy)
     tree = KDTree(xy)
-    neigh_def = {'size': (1, 4), 'voronoi': True, 'reach': 'min*1.42'}
-    neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **neigh_def)
+    # neigh_def = {'size': (1, 4), 'voronoi': True, 'reach': 'min*1.42'}
+    neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **dens_args)
 
     # Density:
-    dens = corr.density(xy, dens_method, vor=vor, tess=tess, neighbors=neighborhoods)
-    if dens_method == 'dist':
-        dens = dens[dens_avg]
+    dens = corr.density(xy, dens_method, vor=vor, tess=tess,
+                        neighbors=neighborhoods)
 
     # Order parameters:
     neigh, nmask = neighborhoods[:2]
@@ -127,19 +126,21 @@ def assign_shell(positions, ids=None, N=None, ref_basis=None):
     return shells
 
 
-def plot_against_shell(mdata, field, ax=None, side=1, fps=1):
+def plot_against_shell(mdata, field, zero_to=0,
+                       ax=None, side=1, fps=1):
     units = side*side if field == 'dens' else 1
     if ax is None:
         fig, ax = plt.subplots()
     smax = mdata['sh'].max()
-    for s, shell in helpy.splitter(mdata, 'sh', noncontiguous=True):
+    splindex = np.where(mdata['sh'], mdata['sh'], zero_to)
+    for s, shell in helpy.splitter(mdata, splindex, noncontiguous=True):
         col = plt.cm.jet(s/smax)
         mean_by_frame = corr.bin_average(shell['f'], shell[field]*units, 1)
         ax.plot(np.arange(len(mean_by_frame))/fps, mean_by_frame,
                 label='Shell {}'.format(s), c=col)
     ax.legend()
     ax.set_title(field)
-    ax.set_xlim(0, 50)
+    ax.set_xlim(0, 500)
 
 
 if __name__ == '__main__':
@@ -184,10 +185,13 @@ if __name__ == '__main__':
     shells = assign_shell(frames[0]['xy'], frames[0]['t'])
     mdata['sh'] = shells[mdata['t']]
 
-    dens_method, dens_avg = 'dist', 0
+    dens_method = 'dist'
     # Calculate radial speed (not MSD!) (maybe?)
     for frame, melt in it.izip(frames, mframes):
-        dens, psi, phi = melting_stats(frame, dens_method, dens_avg)
+        nn = np.where(melt['sh'] == nshells-1, 3, 4)
+        dens_args = {'size': (nn,)*2}
+
+        dens, psi, phi = melting_stats(frame, 'dist', dens_args)
         melt['dens'] = dens
         melt['psi'] = psi
         melt['phi'] = phi

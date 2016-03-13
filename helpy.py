@@ -1236,7 +1236,7 @@ def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
 
     if im is None:
         im = find_tiffs(prefix=prefix, frames=frame, single=True, load=True)[1]
-    ax.imshow(im, cmap='gray')
+    ax.imshow(im, cmap='gray', origin='lower')
 
     if data is None:
         data = load_data(prefix)

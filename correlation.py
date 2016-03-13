@@ -723,20 +723,24 @@ def poly_area(corners):
     return abs(area) / 2.0
 
 
-def density(positions, method, vor=None, tess=None, tree=None, neighbors=None):
+def density(positions, method, vor=None, **neigh):
     if method == 'vor':
         return voronoi_density(vor or positions)
-    if method == 'dist':
-        if neighbors is None:
-            neighbors = neighborhoods(positions, tess=tess, tree=tree, **nargs)
-        neigh, nmask, dists = neighbors
+    if 'dist' in method or 'inv' in method:
+        neigh, nmask, dists = (neigh.get('neighbors') or
+                               neighborhoods(positions, **neigh))
         dists = np.where(nmask, np.nan, dists)
-        areas = dists**2
-        a = 1/np.nanmean(dists, 1)**2
-        b = np.nanmean(1/dists, 1)**2
-        c = 1/np.nanmean(areas, 1)
-        d = np.nanmean(1/areas, 1)
-        return a, b, c, d
+        if 'area' in method:
+            areas = dists**2
+            if 'inv' in method:
+                return np.nanmean(1/areas, 1)
+            else:
+                return 1/np.nanmean(areas, 1)
+        else:
+            if 'inv' in method:
+                return np.nanmean(1/dists, 1)**2
+            else:
+                return 1/np.nanmean(dists, 1)**2
 
 
 def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):

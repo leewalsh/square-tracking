@@ -573,7 +573,7 @@ def gapsize_distro(tracksetses, fields='fo', title=''):
     ax.set_title(title)
 
 
-def interp_nans(f, x=None, max_gap=5, inplace=False):
+def interp_nans(f, x=None, max_gap=10, inplace=False):
     """ Replace nans in function f(x) with their linear interpolation"""
     n = len(f)
     if n < 3:
@@ -617,7 +617,7 @@ def interp_nans(f, x=None, max_gap=5, inplace=False):
     return f
 
 
-def fill_gaps(tracksets, max_gap=5, interp=['xy','o'], inplace=True, verbose=False):
+def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=False):
     if not inplace:
         tracksets = {t: s.copy() for t, s in tracksets.iteritems()}
     if verbose:
