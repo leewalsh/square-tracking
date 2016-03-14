@@ -33,6 +33,7 @@ if __name__ == '__main__':
     arg('-o', '--output', help='Output filename prefix.')
     arg('-z', '--nozip', action='store_false', dest='gz', help="Don't compress")
     arg('--nosave', action='store_false', dest='save', help="Don't save output")
+    arg('--noplot', action='store_true', help="Don't depend on matplotlib")
     arg('-N', '--threads', type=int, help='Number of worker threads for '
         'parallel processing. N=0 uses all available cores')
     arg('--boundary', type=float, nargs='*', metavar='X0 Y0 R',
@@ -297,10 +298,12 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     return out
 
 if __name__ == '__main__':
-    if helpy.gethost() == 'foppl':
-        import matplotlib
-        matplotlib.use('Agg')
-    import matplotlib.pyplot as pl
+    args.plot = not args.noplot and (args.plot + 1)
+    if args.plot:
+        if helpy.gethost() == 'foppl':
+            import matplotlib
+            matplotlib.use('Agg')
+        import matplotlib.pyplot as pl
     from multiprocessing import Pool, cpu_count
     from os import path, makedirs
     import sys
@@ -320,12 +323,12 @@ if __name__ == '__main__':
         filepattern = first
         first = filenames[0]
         argv = 'argv'
-    if args.plot:
+    if args.plot > 1:
         if len(filenames) > 10:
             print "Are you sure you want to make plots for all",
             print len(filenames), "frames?"
-            args.plot *= helpy.bool_input()
-        if args.plot > 1 and (not args.save or len(filenames) > 2):
+            args.plot -= 1 - helpy.bool_input()
+        if args.plot > 2 and (not args.save or len(filenames) > 2):
             print "Do you want to display all the snapshots without saving?"
             args.plot -= 1 - helpy.bool_input()
 
@@ -466,7 +469,7 @@ if __name__ == '__main__':
                 centers = np.hstack([np.full((nfound, 1), n, 'f8'), segments])
             else:  # empty line of length 6 = id + len(Segment)
                 centers = np.empty((0, 6))
-            if args.plot:
+            if args.plot > 1:
                 plot_positions(*out, s=sizes[dot]['kern'])
             ret.append(centers)
         if not n % print_freq:
@@ -482,7 +485,7 @@ if __name__ == '__main__':
         if threads is None:
             print "How many cpu threads to use? [{}] ".format(cpus),
             threads = int(raw_input() or cpus)
-    threads = bool(args.plot) or threads or cpus
+    threads = (args.plot > 1) or threads or cpus
     if threads > 1:
         print "Multiprocessing with {} threads".format(threads)
         p = Pool(threads)
@@ -492,7 +495,11 @@ if __name__ == '__main__':
     points = mapper(get_positions, enumerate(filenames))
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
-    fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+    if args.plot:
+        fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+        axes = np.atleast_2d(axes)
+    else:
+        axes = [None, None]
     if args.save:
         savenotice = "Saving {} positions to {}{{{},.npz}}".format
         hfmt = ('Kern {kern:.2f}, Min area {min_area:d}, '
@@ -501,27 +508,28 @@ if __name__ == '__main__':
         txtfmt = ['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d']
         ext = '.txt'+'.gz'*args.gz
 
-    for dot, point, out, axis in zip(dots, points, outs, np.atleast_2d(axes)):
+    for dot, point, out, axis in zip(dots, points, outs, axes):
         size = sizes[dot]
-        eax, aax = axis
-        label = "{} eccen (max {})".format(dot, size['max_ecc'])
-        eax.hist(point[:, 4], bins=40, range=(0, 1),
-                 alpha=0.5, color='r', label=label)
-        eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
-        eax.set_xlim(0, 1)
-        eax.set_xticks(np.arange(0, 1.1, .1))
-        eax.legend(loc='best', fontsize='small')
+        if args.plot:
+            eax, aax = axis
+            label = "{} eccen (max {})".format(dot, size['max_ecc'])
+            eax.hist(point[:, 4], bins=40, range=(0, 1),
+                     alpha=0.5, color='r', label=label)
+            eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
+            eax.set_xlim(0, 1)
+            eax.set_xticks(np.arange(0, 1.1, .1))
+            eax.legend(loc='best', fontsize='small')
 
-        areas = point[:, 5]
-        amin, amax = size['min_area'], size['max_area']
-        s = 1 + (amax-amin) // 40
-        bins = np.arange(amin, amax+s, s)
-        label = "{} area ({} - {})".format(dot, amin, amax)
-        aax.hist(areas, bins, alpha=0.5, color='g', label=label)
-        aax.axvline(size['min_area'], c='g', lw=2)
-        aax.set_xlim(0, bins[-1])
-        aax.set_xticks(bins[::1+len(bins)//10])
-        aax.legend(loc='best', fontsize='small')
+            areas = point[:, 5]
+            amin, amax = size['min_area'], size['max_area']
+            s = 1 + (amax-amin) // 40
+            bins = np.arange(amin, amax+s, s)
+            label = "{} area ({} - {})".format(dot, amin, amax)
+            aax.hist(areas, bins, alpha=0.5, color='g', label=label)
+            aax.axvline(size['min_area'], c='g', lw=2)
+            aax.set_xlim(0, bins[-1])
+            aax.set_xticks(bins[::1+len(bins)//10])
+            aax.legend(loc='best', fontsize='small')
         if args.save:
             print savenotice(dot, out, ext)
             np.savetxt(out+ext, point, header=hfmt.format(**size),
@@ -530,8 +538,9 @@ if __name__ == '__main__':
     if args.save:
         from shutil import copy
         copy(first, prefix+'_'+path.basename(first))
-        fig.savefig(prefix+'_SEGMENTSTATS.pdf')
         helpy.save_meta(prefix, meta, path_to_tiffs=path.abspath(filepattern),
                         detect_thresh=args.thresh, detect_removed=args.remove)
-    else:
+        if args.plot:
+            fig.savefig(prefix+'_SEGMENTSTATS.pdf')
+    elif args.plot:
         pl.show()
