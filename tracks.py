@@ -229,7 +229,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
 
     trackids = -np.ones(pdata.shape, dtype=int)
     if n == -1:
-        n = helpy.mode(pdata['f'], count=True)
+        n = -helpy.mode(pdata['f'], count=True)
         print "Found {n} particles, will use {n} longest tracks".format(n=n)
 
     if cut:
@@ -260,18 +260,23 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         assert datalen == len(trackids), "too few/many trackids"
         assert np.all(pdata['id'] == np.arange(datalen)), "gap in particle id"
 
-    if n or stub > 0:
+    if n < 0 or stub > 0:
         track_lens = np.bincount(trackids+1)[1:]
-    if n:
-        stubs = np.argsort(track_lens)[:-n]  # all but the longest n
-    elif stub > 0:
-        stubs = np.where(track_lens < stub)[0]
-        if verbose:
-            print "removing {} stubs".format(len(stubs))
+        if n < 0:
+            stubs = np.argsort(track_lens)[:n]  # all but the longest n
+        elif stub > 0:
+            stubs = np.where(track_lens < stub)[0]
+            if verbose:
+                print "removing {} stubs".format(len(stubs))
+        isstub = np.in1d(trackids, stubs)
+    elif n > 0:
+        stubs = np.array([], int)
+        isstub = False
     if n or stub > 0:
-        stubs = np.in1d(trackids, stubs)
-        trackids[stubs] = -1
-    return trackids
+        if n > 0:
+            isstub |= trackids >= n + np.count_nonzero(stubs < n)
+        trackids[isstub] = -1
+        return trackids
 
 
 def remove_duplicates(trackids=None, data=None, tracksets=None,
