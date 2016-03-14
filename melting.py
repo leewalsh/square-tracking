@@ -126,8 +126,7 @@ def assign_shell(positions, ids=None, N=None, ref_basis=None):
     return shells
 
 
-def plot_against_shell(mdata, field, zero_to=0,
-                       ax=None, side=1, fps=1):
+def plot_against_shell(mdata, field, zero_to=0, ax=None, side=1, fps=1):
     units = side*side if field == 'dens' else 1
     if ax is None:
         fig, ax = plt.subplots()
@@ -152,6 +151,9 @@ if __name__ == '__main__':
         sys.argv.remove('-v')
         verbose = True
     except ValueError:
+        from warnings import filterwarnings
+        filterwarnings('ignore', category=RuntimeWarning,
+                       module='numpy|scipy|matplot')
         verbose = False
 
     helpy.save_log_entry(fname, 'argv')

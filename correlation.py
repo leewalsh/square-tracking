@@ -331,13 +331,17 @@ def bin_average(r, f, bins=10):
         f : function to be averaged
         bins (default 10): can be number of bins or bin edges len(nbins)+1
     """
-    if bins == 1:
+    if np.iterable(bins):
+        pass
+    elif bins == 1:
         if r.dtype.kind not in 'iu':
             assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
             print 'converting to int array'
             r = r.astype(int)
         n = np.bincount(r)
         return np.bincount(r, weights=f)/n
+    elif bins < 1:
+        bins = np.arange(r.min(), r.max()+1/bins, 1/bins)
     n, bins = np.histogram(r, bins)
     return np.histogram(r, bins, weights=f)[0]/n, bins
 

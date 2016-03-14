@@ -138,10 +138,14 @@ def splitter(data, indices='f', method=None,
     if method is None:
         method = 'unique' if ret_dict or noncontiguous else 'diff'
     if method.lower().startswith('d'):
-        di = np.diff(indices).nonzero()[0] + 1
+        di = np.diff(indices)
+        if di.min() < 0:
+            print "Warning: nonincreasing index, switching to method = 'unique'"
+            method = 'unique'
+        di = di.nonzero()[0] + 1
         sects = [np.split(datum, di) for datum in data]
         ret = [dict(enumerate(sect)) for sect in sects] if ret_dict else sects
-    elif method.lower().startswith('u'):
+    if method.lower().startswith('u'):
         u, i = np.unique(indices, return_index=True)
         if noncontiguous:
             # no nicer way to do this:
@@ -1083,7 +1087,10 @@ def parse_slice(desc, shape=0, index_array=False):
         else:
             raise ValueError("too many args for slice")
     if index_array:
-        return np.r_[slice_obj]
+        if shape:
+            return np.arange(*slice_obj.indices(shape))
+        else:
+            return np.r_[slice_obj]
     else:
         return slice_obj
 
