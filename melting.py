@@ -6,6 +6,7 @@ import itertools as it
 
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
+from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
 
 import helpy
@@ -108,20 +109,75 @@ def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     return shells
 
 
-def plot_against_shell(mdata, field, zero_to=0, ax=None, side=1, fps=1):
-    units = side*side if field == 'dens' else 1
+def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
+                  ax=None, side=1, fps=1, smooth=0, zoom=1):
     if ax is None:
         fig, ax = plt.subplots()
-    smax = mdata['sh'].max()
+    else:
+        fig = ax.get_figure()
+
+    labels = ['center', 'inner', 'med', 'outer', 'all']
+    colors = [(0, 0.5, 0.5), (0.5, 0, 0), (0, 0, 0.75), (0, 0.5, 0), 'k']
+    lws = [1]*nshells + [2]
+    xlims = {'dens': 200, 'phi': 80, 'psi': 50}
+    units = side*side if stat == 'dens' else 1
+
     splindex = np.where(mdata['sh'], mdata['sh'], zero_to)
-    for s, shell in helpy.splitter(mdata, splindex, noncontiguous=True):
-        col = plt.cm.jet(s/smax)
-        mean_by_frame = corr.bin_average(shell['f'], shell[field]*units, 1)
-        ax.plot(np.arange(len(mean_by_frame))/fps, mean_by_frame,
-                label='Shell {}'.format(s), c=col)
-    ax.legend()
-    ax.set_title(field)
-    ax.set_xlim(0, 500)
+    shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
+    if do_mean:
+        shells[nshells] = mdata[mdata['sh'] >= 0]
+    for s, shell in shells.iteritems():
+        if s < 0:
+            continue
+        isfin = np.where(np.isfinite(shell[stat]))
+        mean_by_frame = corr.bin_average(shell['f'][isfin],
+                                         shell[stat][isfin]*units, 1)
+        if smooth:
+            mean_by_frame = gaussian_filter1d(mean_by_frame, smooth, cval=1,
+                                              mode='constant', truncate=2)
+        x = (np.arange(len(mean_by_frame)) - start)/fps
+        ax.plot(x, mean_by_frame, label=labels[s], c=colors[s], lw=lws[s])
+    if do_mean and args.save:
+        np.save(args.prefix+'_'+stat+'_mean', mean_by_frame)
+
+    ax.legend(fontsize='small')
+    statlabels = {
+        'dens': r'$\mathrm{density}\ \langle r_{ij}\rangle^{-2}$',
+        'psi': r'$\mathrm{bond\ angle\ order}\ \Psi$',
+        'phi': r'$\mathrm{molecular\ angle\ order}\ \Phi$'}
+    ax.set_ylabel(statlabels[stat])
+    ax.set_xlabel(r'$tf$')
+    ax.set_ylim(0, 1.1)
+    ax.set_xlim(0, xlims[stat]*zoom)
+    return fig, ax
+
+
+def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
+    configs = ['inward', 'aligned', 'random', 'outward']
+    stats = ['phi', 'psi', 'dens']
+    stats = {stat: {config: np.load(prefix_pattern.format(config, stat)+'.npy')
+                    for config in configs}
+             for stat in stats}
+    xlims = {'dens': 300, 'phi': 200, 'psi': 150}
+    plt.rc('text', usetex=True)
+    for stat, v in stats.iteritems():
+        colors = ['orange', 'brown', 'magenta', 'cyan']
+        fig, ax = plt.subplots(figsize=(4, 3))
+        for conf in configs:
+            ax.plot(np.arange(len(v[conf]))/fps,
+                    gaussian_filter1d(v[conf], smooth, mode='constant', cval=1),
+                    lw=2, label=conf, c=colors.pop())
+        ax.set_xscale('log')
+        ax.set_xlabel(r'$tf$')
+        ax.set_xlim(1, xlims[stat])
+        ax.set_ylim(0, 1)
+        statlabels = {
+            'dens': r'$\mathrm{density}\ \langle r_{ij}\rangle^{-2}$',
+            'psi': r'$\mathrm{bond\ angle\ order}\ \Psi$',
+            'phi': r'$\mathrm{molecular\ angle\ order}\ \Phi$'}
+        ax.set_ylabel(statlabels[stat])
+        ax.legend(loc='lower left', fontsize='small')
+        fig.savefig(prefix_pattern.format('ALL', stat) + '.pdf')
 
 
 def melt_analysis(data):
@@ -155,10 +211,18 @@ if __name__ == '__main__':
     arg('-w', '--width', type=int, help='Crystal width')
     arg('-s', '--side', type=float,
         help='Particle size in pixels, for unit normalization')
+    arg('--start', type=float, help='First frame')
+    arg('--smooth', type=float, default=0, help='frames to smooth over')
     arg('-f', '--fps', type=float,
         help="Number of frames per shake (or second) for unit normalization")
+    arg('--noshow', action='store_false', dest='show',
+        help="Don't show figures (just save them)")
     arg('--nosave', action='store_false', dest='save',
         help="Don't save outputs or figures")
+    arg('--noplot', action='store_false', dest='plot',
+        help="Don't generate (fewer, not none at this point) figures")
+    arg('-z', '--zoom', metavar="ZOOM", type=float,
+        help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
 
     args = parser.parse_args()
@@ -172,9 +236,9 @@ if __name__ == '__main__':
 
     helpy.sync_args_meta(
         args, meta,
-        ['side', 'fps', 'width'],
-        ['sidelength', 'fps', 'crystal_width'],
-        [1, 1, None])
+        ['side', 'fps', 'start', 'width', 'zoom'],
+        ['sidelength', 'fps', 'start_frame', 'crystal_width', 'crystal_zoom'],
+        [1, 1, 0, None, 1])
 
     M = 4  # number of neighbors
 
@@ -204,3 +268,20 @@ if __name__ == '__main__':
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
     else:
         mdata = np.load(args.prefix + '_MELT.npz')['data']
+
+    if args.plot:
+        print 'plotting',
+        if args.save:
+            plt.rc('text', usetex=True)
+        for stat in ['dens', 'psi', 'phi']:
+            print stat,
+            f, a = plot_by_shell(mdata, stat, zero_to=1, do_mean=True,
+                                 start=args.start, smooth=args.smooth,
+                                 side=args.side, fps=args.fps, zoom=args.zoom)
+            if args.save:
+                f.set_figwidth(4)
+                f.set_figheight(3)
+                f.savefig('{}_{}.pdf'.format(args.prefix, stat))
+        print
+        if args.show:
+            plt.show()
