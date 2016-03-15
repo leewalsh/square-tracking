@@ -59,6 +59,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 pi = np.pi
+vcol = (1, 0.4, 0)
+pcol = (0.25, 0.5, 0)
+ncol = (0.4, 0.4, 1)
 
 
 def noise_derivatives(tdata, width=(1,), side=1, fps=1, xy=False,
@@ -215,7 +218,7 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     var = 2*D
     g = np.exp(-0.5 * (bins-M)**2 / var)
     g /= sqrt(2*pi*var) / (dx*count)
-    ax.plot(bins, g, c=(0.25, 0.5, 0), lw=3)
+    ax.plot(bins, g, c=pcol, lw=2)
 
 
 def vv_autocorr(prefixes, corrlen=0.5, **compile_args):

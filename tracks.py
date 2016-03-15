@@ -83,7 +83,7 @@ if __name__ == '__main__':
         'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
     arg('--dtheta', type=float, default=0.02,
         help='Angular measurement uncertainty (radians)')
-    arg('-z', '--zoom', metavar="ZOOM", type=float, default=1,
+    arg('-z', '--zoom', metavar="ZOOM", type=float,
         help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
     arg('-q', '--quiet', action='count', help='Be quiet, subtracts from -v')
@@ -129,6 +129,9 @@ sf = helpy.SciFormatter().format
 pi = np.pi
 twopi = 2*pi
 rt2 = np.sqrt(2)
+vcol = (1, 0.4, 0)
+pcol = (0.25, 0.5, 0)
+ncol = (0.4, 0.4, 1)
 
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
@@ -909,7 +912,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
              xscale='log', meancol='', figsize=(8, 6), title=None, xlim=None,
              ylim=None, lw=1, legend=False, errorbars=False, show_tracks=True,
              singletracks=None, sys_size=0, kill_flats=0, kill_jumps=1e9, S=1,
-             fps=1, ang=False, save='', show=True,):
+             fps=1, ang=False, save='', show=True, labels=True):
     """ Plots the MS(A)Ds """
     A = 1 if ang else S**2
     if verbose:
@@ -944,17 +947,17 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         ax.plot(taus, msd/taus**tnormalize, meancol,
                 label="Mean Sq {}Disp/Time{}".format(
                       "Angular " if ang else "",
-                      "^{}".format(tnormalize) if tnormalize != 1 else ''))
+                      "^{}".format(tnormalize) if tnormalize != 1 else '')*labels)
         ax.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
                 'k-', label="ref slope = 1", lw=2)
         ax.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
-                'k--', lw=2, label=r"$(2\pi)^2$" if ang else
-                ("One particle area" if S > 1 else "One Pixel"))
+                'k--', lw=2, label=labels*(r"$(2\pi)^2$" if ang else
+                ("One particle area" if S > 1 else "One Pixel")))
         ax.set_xscale(xscale)
         ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     else:
-        ax.loglog(taus, msd, c=meancol, lw=lw,
-                  label="Mean Squared {}Displacement".format('Angular '*ang))
+        ax.loglog(taus, msd, c=meancol, lw=lw, label=labels*(
+            "Mean Squared {}Displacement".format('Angular '*ang)))
         #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
     if errorbars:
@@ -963,13 +966,17 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
                     c=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
-    ax.set_title(title or "Mean Sq {}Disp".format("Angular " if ang else ""))
+    if title is None:
+        title = "Mean Sq {}Disp".format("Angular " if ang else "")
+    ax.set_title(title)
     xlabel = '$tf$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
-    ax.set_xlabel(xlabel, fontsize='x-large')
-    ylabel = 'Squared {}Displacement ({})'.format(
-        'Angular '*ang,
-        '$rad^2$' if ang else 'particle area' if S > 1 else 'square pixels')
-    ax.set_ylabel(ylabel, fontsize='x-large')
+    ax.set_xlabel(xlabel)#, fontsize='x-large')
+    ylabel = (r"$\left\langle\left[\vec r(t) - "
+              r"\vec r(0)\right]^2\right\rangle / \ell^2$")
+    # ylabel = 'Squared {}Displacement ({})'.format(
+        # 'Angular '*ang,
+        # '$rad^2$' if ang else 'particle area' if S > 1 else 'square pixels')
+    ax.set_ylabel(ylabel)#, fontsize='large', usetex=True)
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -1212,7 +1219,7 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     ax.set_aspect('equal', adjustable='box')
     xlim = ax.set_xlim(lims)
     ylim = ax.set_ylim(lims)
-    ax.plot(xlim, ylim, '--k', alpha=0.7)
+    ax.plot(xlim, ylim, '-k', alpha=0.7)
     ax.legend(loc='upper left')
     if savename:
         fig.savefig('/Users/leewalsh/Physics/Squares/colson/Output/stats/'
@@ -1316,6 +1323,8 @@ if __name__ == '__main__':
 
     if args.rr or args.nn or args.rn:
         fit_source = {}
+        helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
+        labels = not args.quiet
 
     if args.msd or args.nn or args.rn:
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
@@ -1352,7 +1361,8 @@ if __name__ == '__main__':
                  tnormalize=False, prefix=saveprefix, show=args.show,
                  show_tracks=args.showtracks, singletracks=args.singletracks,
                  kill_flats=args.killflat, S=args.side, save=args.save,
-                 kill_jumps=args.killjump*args.side**2, fps=args.fps)
+                 kill_jumps=args.killjump*args.side**2, fps=args.fps,
+                 figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
 
     if args.plottracks:
         if verbose:
@@ -1450,21 +1460,23 @@ if __name__ == '__main__' and args.nn:
     if args.save:
         helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
     fit = fitform(taus, *popt)
     plot_individual = True
     if plot_individual:
         ax.plot(taus, allcorrs.T, 'b', alpha=.2)
-    ax.errorbar(taus, meancorr, errcorr, None, c=(1, 0.4, 0), lw=3,
-                label="Mean Orientation Autocorrelation",
-                capthick=0, elinewidth=0.5, errorevery=3)
+    ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
+                label="Mean Orientation Autocorrelation"*labels,
+                capthick=0, elinewidth=1, errorevery=3)
     fitinfo = sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$", D_R, 1/D_R)
-    ax.plot(taus, fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + '\n' + fitinfo)
+    ax.plot(taus, fit, c=pcol, lw=2,
+            label=labels*(fitstr + '\n') + fitinfo)
     ax.set_xlim(0, tmax)
     ax.set_ylim(fit[fmax], 1)
     ax.set_yscale('log')
 
-    ax.set_title("Orientation Autocorrelation\n"+prefix)
+    if labels:
+        ax.set_title("Orientation Autocorrelation\n"+prefix)
     ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     ax.set_xlabel("$tf$")
     ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
@@ -1558,19 +1570,20 @@ if __name__ == '__main__' and args.rn:
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
         helpy.save_meta(saveprefix, meta_fits)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
     fit = fitform(taus, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
         ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2)
-    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=(1, 0.4, 0), lw=3,
-                label="Mean Position-Orientation Correlation",
+    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
+                label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
     # fitinfo = ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
     fitinfo = sf(', '.join(['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:nfree]),
                  *(abs(v0), D_R)[:nfree])
-    ax.plot(taus, sgn*fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + '\n' + fitinfo)
+    ax.plot(taus, sgn*fit, c=pcol, lw=2,
+            label=labels*(fitstr + '\n') + fitinfo)
 
     ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
@@ -1579,7 +1592,8 @@ if __name__ == '__main__' and args.rn:
         ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
         ax.text(tau_R, 1e-2, ' $1/D_R$')
 
-    ax.set_title("Position - Orientation Correlation")
+    if labels:
+        ax.set_title("Position - Orientation Correlation")
     ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     ax.set_xlabel("$tf$")
     ax.legend(loc='upper left', framealpha=1)
@@ -1595,9 +1609,10 @@ if __name__ == '__main__' and args.rr:
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
         show=False, tnormalize=0, errorbars=3, prefix=saveprefix,
-        show_tracks=True, meancol=(1, 0.4, 0), lw=3, singletracks=args.singletracks,
+        show_tracks=True, meancol=vcol, lw=3, singletracks=args.singletracks,
         fps=args.fps, S=args.side, kill_flats=args.killflat,
-        kill_jumps=args.killjump*args.side**2)
+        kill_jumps=args.killjump*args.side**2, title=('' if args.quiet else None),
+        figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
@@ -1694,10 +1709,11 @@ if __name__ == '__main__' and args.rr:
                             "$v_0={1:.3T}$",
                             "$D_R={2:.3T}$"][:nfree]),
                  *(popt*[1, sgn, 1][:nfree]))
-    ax.plot(taus, fit, c=(0.25, 0.5, 0), lw=2, label=fitstr + "\n" + fitinfo)
+    ax.plot(taus, fit, c=pcol, lw=2,
+            label=(fitstr + "\n")*labels + fitinfo)
 
     guide = limiting_regimes(taus, *popt)
-    ax.plot(taus, guide, '--k', lw=1)
+    ax.plot(taus, guide, '-k', lw=2)
 
     ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
     xlim = ax.set_xlim(taus[0], tmax)
