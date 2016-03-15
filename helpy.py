@@ -617,7 +617,7 @@ def load_data(fullprefix, sets='tracks', verbose=False):
     sets = [s[0].lower() for s in sets.replace(',', ' ').split()]
 
     name = {'t': 'tracks', 'o': 'orientation',
-            'p': 'positions', 'c': 'corner_positions'}
+            'p': 'positions', 'c': 'corner_positions', 'm': 'melt'}
 
     npzs = {}
     data = {}

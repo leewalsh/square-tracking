@@ -3,6 +3,7 @@ from __future__ import division
 
 import math
 import itertools as it
+import glob
 
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
@@ -226,13 +227,32 @@ if __name__ == '__main__':
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
 
     args = parser.parse_args()
-    helpy.save_log_entry(args.prefix, 'argv')
     if not args.verbose:
         from warnings import filterwarnings
         filterwarnings('ignore', category=RuntimeWarning,
                        module='numpy|scipy|matplot')
 
-    meta = helpy.load_meta(args.prefix)
+    if '*' in args.prefix or '?' in args.prefix:
+        prefix_pattern = args.prefix
+        args.prefix = helpy.replace_all(args.prefix, '*?', '') + '_MRG'
+        helpy.save_log_entry(args.prefix, 'argv')
+        prefixes = [p[:-9] for p in glob.iglob(
+            helpy.with_suffix(prefix_pattern, '_MELT.npz'))]
+        metas, mdatas = zip(*[(helpy.load_meta(prefix),
+                               helpy.load_data(prefix, 'm'))
+                              for prefix in prefixes])
+        for meta, mdata in zip(metas, mdatas):
+            mdata['f'] = mdata['f'].astype(int) - int(meta['start_frame'])
+        mdata = np.concatenate(mdatas)
+        meta = helpy.merge_meta(metas, excl={'start_frame'},
+                                excl_start=('center', 'corner'))
+        if args.save:
+            np.savez_compressed(args.prefix+'_MELT', data=mdata)
+            helpy.save_meta(args.prefix, meta, merged=prefixes)
+            print 'merged sets', prefixes, 'saved to', args.prefix
+    else:
+        helpy.save_log_entry(args.prefix, 'argv')
+        meta = helpy.load_meta(args.prefix)
 
     helpy.sync_args_meta(
         args, meta,
