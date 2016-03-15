@@ -40,7 +40,7 @@ def initialize_mdata(data):
     # new fields to hold:
     # shell, radius (from initial c.o.m.), local density, local psi, local phi
     melt_dtype.extend(zip(['sh', 'r', 'dens', 'psi', 'phi'],
-                          ['u4', 'f4', 'f4', 'f4', 'f4']))
+                          ['i4', 'f4', 'f4', 'f4', 'f4']))
 
     mdata = np.empty(data.shape, melt_dtype)
     for keep in keep_fields:
@@ -48,15 +48,14 @@ def initialize_mdata(data):
     return mdata
 
 
-def melting_stats(frame, dens_method, dens_args):
+def melting_stats(frame, dens_method, neigh_args):
     xy = frame['xy']
     orient = frame['o']
 
     vor = Voronoi(xy)
     tess = Delaunay(xy)
     tree = KDTree(xy)
-    # neigh_def = {'size': (1, 4), 'voronoi': True, 'reach': 'min*1.42'}
-    neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **dens_args)
+    neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **neigh_args)
 
     # Density:
     dens = corr.density(xy, dens_method, vor=vor, tess=tess,
@@ -98,7 +97,7 @@ def square_size(num):
     return num, width
 
 
-def assign_shell(positions, ids=None, N=None, ref_basis=None):
+def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     """given (N, 2) positions array, assign shell number to each particle
 
     shell number is assigned as maximum coordinate, written in a basis aligned
@@ -118,9 +117,9 @@ def assign_shell(positions, ids=None, N=None, ref_basis=None):
     positions /= spacing
     shells = np.abs(positions).max(1).round().astype(int)
     if ids is not None:
-        ni, mi = len(ids), ids.max() + 1
-        if ni < mi or np.any(ids != np.arange(ni)):
-            shells_by_id = np.full(mi, -1, 'u4')
+        ni, mi = len(ids), max(ids.max(), maxt, N)
+        if ni <= mi or np.any(ids != np.arange(ni)):
+            shells_by_id = np.full(1+mi, -1, 'i4')
             shells_by_id[ids] = shells
             return shells_by_id
     return shells
@@ -141,6 +140,26 @@ def plot_against_shell(mdata, field, zero_to=0, ax=None, side=1, fps=1):
     ax.set_title(field)
     ax.set_xlim(0, 500)
 
+
+def melt_analysis(data):
+    mdata = initialize_mdata(data)
+
+    frames, mframes = helpy.splitter((data, mdata), 'f')
+    shells = assign_shell(frames[0]['xy'], frames[0]['t'],
+                          maxt=data['t'].max())
+    mdata['sh'] = shells[mdata['t']]
+
+    dens_method = 'dist'
+    # Calculate radial speed (not MSD!) (maybe?)
+    for frame, melt in it.izip(frames, mframes):
+        nn = np.where(melt['sh'] == nshells-1, 3, 4)
+        neigh_args = {'size': (nn,)*2}
+
+        dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
+        melt['dens'] = dens
+        melt['psi'] = psi
+        melt['phi'] = phi
+    return mdata
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -181,22 +200,7 @@ if __name__ == '__main__':
     data = np.concatenate(tsets.values())
     data.sort(order=['f', 't'])
 
-    mdata = initialize_mdata(data)
-
-    frames, mframes = helpy.splitter((data, mdata), 'f')
-    shells = assign_shell(frames[0]['xy'], frames[0]['t'])
-    mdata['sh'] = shells[mdata['t']]
-
-    dens_method = 'dist'
-    # Calculate radial speed (not MSD!) (maybe?)
-    for frame, melt in it.izip(frames, mframes):
-        nn = np.where(melt['sh'] == nshells-1, 3, 4)
-        dens_args = {'size': (nn,)*2}
-
-        dens, psi, phi = melting_stats(frame, 'dist', dens_args)
-        melt['dens'] = dens
-        melt['psi'] = psi
-        melt['phi'] = phi
+    mdata = melt_analysis(data)
 
     helpy.save_meta(fname, meta)
     np.savez_compressed(fname + '_MELT.npz', data=mdata)
