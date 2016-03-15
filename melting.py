@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from __future__ import division
 
-import sys
 import math
 import itertools as it
 
@@ -11,22 +10,6 @@ import matplotlib.pyplot as plt
 
 import helpy
 import correlation as corr
-
-'''
-This program inputs a positions file (probably produced by
-tracks_to_pos.py) and creates a .npz file containing analysis
-of the particle positions with the following quantities:
-* Psi
-* Densities
-* "Radial" psi (organized by shell)
-* Radial densities
-* Radial r (r being the distance from the crystal's center of mass)
-* Radial speed (per frame)
-* Radial MSD (with a fixed tau=5 frames).
-
-Example usage:
-analysis.py 12x12_random
-'''
 
 
 def initialize_mdata(data):
@@ -161,46 +144,63 @@ def melt_analysis(data):
         melt['phi'] = phi
     return mdata
 
+
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print "Please specify a filename."
-        sys.exit(2)
-    fname = sys.argv[1]
-    try:
-        sys.argv.remove('-v')
-        verbose = True
-    except ValueError:
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    arg = parser.add_argument
+    arg('prefix', metavar='PRE', help="Filename prefix with full or relative "
+        "path (<prefix>_POSITIONS.npz, <prefix>_CORNER_POSITIONS.npz, etc)")
+    arg('-m', '--melt', action='store_true', help='Calculate melting stats')
+    arg('-w', '--width', type=int, help='Crystal width')
+    arg('-s', '--side', type=float,
+        help='Particle size in pixels, for unit normalization')
+    arg('-f', '--fps', type=float,
+        help="Number of frames per shake (or second) for unit normalization")
+    arg('--nosave', action='store_false', dest='save',
+        help="Don't save outputs or figures")
+    arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
+
+    args = parser.parse_args()
+    helpy.save_log_entry(args.prefix, 'argv')
+    if not args.verbose:
         from warnings import filterwarnings
         filterwarnings('ignore', category=RuntimeWarning,
                        module='numpy|scipy|matplot')
-        verbose = False
 
-    helpy.save_log_entry(fname, 'argv')
-    meta = helpy.load_meta(fname)
-    fps = meta.get('fps', 1)
-    side = meta.get('sidelength', 1)
+    meta = helpy.load_meta(args.prefix)
+
+    helpy.sync_args_meta(
+        args, meta,
+        ['side', 'fps', 'width'],
+        ['sidelength', 'fps', 'crystal_width'],
+        [1, 1, None])
 
     M = 4  # number of neighbors
-    data = helpy.load_data(fname)
 
-    if len(sys.argv) > 2:
-        W = int(sys.argv[2])
-    else:
-        W = meta.get('crystal_size')
+    W = args.width
     if W is None:
+        data = helpy.load_data(args.prefix)
         N, W = square_size(helpy.mode(data['f'][data['t'] >= 0], count=True))
+        meta['crystal_width'] = W
     N = W*W
-    meta['crystal_size'] = N
     nshells = (W+1)//2
+    print args.prefix
     print "Crystal size {W}x{W} = {N} ({s} shells)".format(W=W, N=N, s=nshells)
 
-    tsets = helpy.load_tracksets(data, min_length=-N, run_fill_gaps='interp',
-                                 run_track_orient=True)
-    # to get the benefits of tracksets (interpolation, stub filtering):
-    data = np.concatenate(tsets.values())
-    data.sort(order=['f', 't'])
+    if args.save:
+        helpy.save_meta(args.prefix, meta)
 
-    mdata = melt_analysis(data)
-
-    helpy.save_meta(fname, meta)
-    np.savez_compressed(fname + '_MELT.npz', data=mdata)
+    if args.melt:
+        print 'calculating'
+        data = helpy.load_data(args.prefix)
+        tsets = helpy.load_tracksets(data, run_fill_gaps='interp',
+                                     run_track_orient=True)
+        # to get the benefits of tracksets (interpolation, stub filtering):
+        data = np.concatenate(tsets.values())
+        data.sort(order=['f', 't'])
+        mdata = melt_analysis(data)
+        if args.save:
+            np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
+    else:
+        mdata = np.load(args.prefix + '_MELT.npz')['data']
