@@ -223,7 +223,8 @@ def avg_hists(gs, rgs):
     assert np.allclose(rgs, rgs[:1])
     rg = rgs[0]
     g_avg = gs.mean(0)
-    dg_avg = gs.std(0)/sqrt(len(gs))
+    # dg_avg = gs.std(0)/sqrt(len(gs))
+    dg_avg = gs.var(0)
     return g_avg, dg_avg, rg
 
 
@@ -240,10 +241,6 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
     """
     frames = np.arange(data['f'].min(), data['f'].max()+1, framestep)
     dr = ss*(.1 if dr is None else dr)
-    #if rmax is None:
-        #rmax = rr - ss*3
-    #elif rmax:
-        #rmax = rr - ss*rmax
     nbins = rmax//dr if rmax and dr else None
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
@@ -261,7 +258,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
             if do_err:
                 egs = np.zeros((frames.size, nbins))
                 ergs = gs.copy()
-        gs[nf, :len(g)]  = g
+        gs[nf, :len(g)] = g
         rgs[nf, :len(g)] = rg
         if do_err:
             egs[nf, :len(eg)] = eg
