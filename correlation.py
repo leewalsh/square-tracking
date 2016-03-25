@@ -26,7 +26,8 @@ pi = np.pi
 tau = 2*pi
 
 
-def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
+def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
+         verbose=False):
     """ Filter marginal particles from bulk particles to reduce boundary effects
             positions:  (N, 2) array of particle positions
             margin:     width of margin, in units of pixels or particle sides
@@ -39,7 +40,6 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss):
             bulk_N:     the number particles in the bulk
             bulk_mask:  a mask the shape of `positions`
     """
-    #raise StandardError, "not yet tested"
     if center is None:
         center = 0.5*(positions.max(0) + positions.min(0))
     if margin < ss:
@@ -98,7 +98,7 @@ def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
     if rmax is None:
         rmax = 2*radius     # this will have terrible statistics at large r
     if nbins is None:
-        nbins = rmax/dr
+        nbins = rmax//dr
     if dmax is None:
         if margin < ss:
             margin *= ss
@@ -220,8 +220,7 @@ def avg_hists(gs, rgs):
             dg_avg: their std dev / sqrt(length)
             rg: r for the avgs (just uses rgs[0] for now)
     """
-    assert np.all([np.allclose(rgs[i], rgs[j])
-                   for i in xrange(len(rgs)) for j in xrange(len(rgs))])
+    assert np.allclose(rgs, rgs[:1])
     rg = rgs[0]
     g_avg = gs.mean(0)
     dg_avg = gs.std(0)/sqrt(len(gs))
@@ -245,7 +244,7 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
         #rmax = rr - ss*3
     #elif rmax:
         #rmax = rr - ss*rmax
-    nbins = rmax/dr if rmax and dr else None
+    nbins = rmax//dr if rmax and dr else None
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
@@ -292,7 +291,8 @@ def orient_op(orientations, m=4, positions=None, margin=0,
            m    N  j=1
     """
     if not (globl or locl):
-        globl = locl = True
+        globl = True
+        locl = orientations.ndim == 2
     np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
     if margin:
         if margin < ss:
@@ -300,7 +300,9 @@ def orient_op(orientations, m=4, positions=None, margin=0,
         center = 0.5*(positions.max(0) + positions.min(0))
         d = helpy.dist(positions, center)   # distances to center
         orientations = orientations[d < d.max() - margin]
-    phis = np.nanmean(np.exp(m*orientations*1j), 1)
+    phis = np.exp(m*orientations*1j)
+    if locl:
+        phis = np.nanmean(phis, 1)
     if do_err:
         err = np.nanstd(phis, ddof=1)/sqrt(np.count_nonzero(~np.isnan(phis)))
     if not globl:
