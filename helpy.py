@@ -621,34 +621,39 @@ def load_data(fullprefix, sets='tracks', verbose=False):
 
     npzs = {}
     data = {}
+    needs_initialize = False
     for s in sets:
         suffix = name[s].upper()
         datapath = fullprefix+'_'+suffix+'.npz'
         try:
             npzs[s] = np.load(datapath)
+            if s == 't' and 'trackids' in npzs['t'].files:
+                needs_initialize = True
+                t = npzs['t']['trackids']
         except IOError as e:
-            print e
-            cmd = '`tracks -{}`'.format(
-                {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[s])
-            print ("Found no {} npz file. Please run ".format(name[s]) +
-                   ("{0} to convert {1}.txt to {1}.npz, " +
-                    "or run `positions` on your tiffs" if s in 'pc' else
-                    "{0} to generate {1}.npz").format(cmd, suffix))
-            raise
+            if s == 't':
+                needs_initialize = True
+                t = -1
+            else:
+                print e
+                cmd = '`tracks -{}`'.format(
+                    {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[s])
+                print ("Found no {} npz file. Please run ".format(name[s]) +
+                    ("{0} to convert {1}.txt to {1}.npz, " +
+                        "or run `positions` on your tiffs" if s in 'pc' else
+                        "{0} to generate {1}.npz").format(cmd, suffix))
+                raise
         else:
             if verbose:
                 print "Loaded {} data from {}".format(name[s], datapath)
             data[s] = npzs[s][s*(s == 'o')+'data']
-    if 't' in sets and 'trackids' in npzs['t'].files:
+    if needs_initialize:
         # separate `trackids` array means this file is an old-style
         # TRACKS.npz which holds positions and trackids but no orient
         if verbose:
             print "Converting to TRACKS array from positions, trackids, orient"
-        if 'o' in sets:
-            orient = data['o']['orient']
-        else:
-            orient = load_data(fullprefix, 'o')['orient']
-        data['t'] = initialize_tdata(data['t'], npzs['t']['trackids'], orient)
+        p, o = load_data(fullprefix, 'p o', verbose)
+        data['t'] = initialize_tdata(p, t, o)
     if 't' in sets:
         fields = data['t'].dtype.fields
         dtype = dict(fields)
@@ -1388,11 +1393,9 @@ R_slr = 2459 / 2
 # don't use S_slr_m, just use R_slr/R_S
 S_slr_m = np.array([3.72, 2.28, 4.34, 3.94, 2.84, 4.23, 4.87, 4.73, 3.77]) + 90
 
-
 # Video (Phantom)
 R_vid = 585.5 / 2
 S_vid_m = 22  # ish
-
 
 # What we'll use:
 R = R_S             # radius in particle units
