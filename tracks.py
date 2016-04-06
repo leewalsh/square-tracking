@@ -6,6 +6,7 @@ from __future__ import division
 import sys
 import itertools as it
 from collections import defaultdict
+from math import sqrt
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -128,7 +129,7 @@ sf = helpy.SciFormatter().format
 
 pi = np.pi
 twopi = 2*pi
-rt2 = np.sqrt(2)
+rt2 = sqrt(2)
 vcol = (1, 0.4, 0)
 pcol = (0.25, 0.5, 0)
 ncol = (0.4, 0.4, 1)
@@ -152,8 +153,9 @@ def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
         return newtrackid
     oldtree = pftrees[frame-n]
     thisdotxy = thisdot[1:3]
-    mindist, mini = oldtree.query(thisdotxy, distance_upper_bound=maxdist)
-    if mindist < maxdist:
+    maxdist_n = sqrt(n) * maxdist
+    mindist, mini = oldtree.query(thisdotxy, distance_upper_bound=maxdist_n)
+    if mindist < maxdist_n:
         # a close one! Is there another dot in the current frame that's closer?
         closest = pfsets[frame-n].item(mini)
         curtree = pftrees[frame]
@@ -405,7 +407,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
 
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
-    drc = meta.get('orient_drcorner') or np.sqrt(rc)
+    drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
