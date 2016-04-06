@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     arg = parser.add_argument
     arg('files', metavar='FILE', nargs='+', help='Images to process')
-    arg('-p', '--plot', action='count',
+    arg('-p', '--plot', action='count', default=1,
         help="Produce plots for each image. Two p's gives lots more")
     arg('-v', '--verbose', action='count', help="Control verbosity")
     arg('-o', '--output', help='Output filename prefix.')
@@ -298,7 +298,8 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     return out
 
 if __name__ == '__main__':
-    args.plot = not args.noplot and (args.plot + 1)
+    if args.noplot:
+        args.plot = 0
     if args.plot:
         if helpy.gethost() == 'foppl':
             import matplotlib
