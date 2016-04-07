@@ -120,7 +120,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         raise ValueError('kernel size `kern` not set')
     kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
     convolved = convolve(im, kernel)
-    if args.plot > 1:
+    if args.plot > 2:
         snapshot('kern', kernel)
         snapshot('convolved', convolved)
 
@@ -131,7 +131,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
         thresh -= 1  # smaller threshold for corners
     threshed = convolved > convolved.mean() + thresh*convolved.std()
     labels = sklabel(threshed, connectivity=1)
-    if args.plot > 1:
+    if args.plot > 2:
         snapshot('threshed', threshed)
         snapshot('labeled', np.where(labels, labels, np.nan), cmap='prism_r')
     return labels, convolved
@@ -172,7 +172,7 @@ def prep_image(imfile):
     if args.verbose:
         print "opening", imfile
     im = imread(imfile).astype(float)
-    if args.plot > 1:
+    if args.plot > 2:
         snapshot('orig', im)
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
@@ -185,7 +185,7 @@ def prep_image(imfile):
     im -= m - s
     im /= 2*s
     np.clip(im, 0, 1, out=im)
-    if args.plot > 1:
+    if args.plot > 2:
         snapshot('clip', im)
     return im
 
@@ -292,7 +292,7 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     if out is None:
         out = orig.copy()
     out[disks] = replace
-    if args.plot > 1:
+    if args.plot > 2:
         snapshot('disks', disks)
         snapshot('removed', out)
     return out
@@ -328,10 +328,10 @@ if __name__ == '__main__':
         if len(filenames) > 10:
             print "Are you sure you want to make plots for all",
             print len(filenames), "frames?"
-            args.plot -= 1 - helpy.bool_input()
+            args.plot -= not helpy.bool_input()
         if args.plot > 2 and (not args.save or len(filenames) > 2):
             print "Do you want to display all the snapshots without saving?"
-            args.plot -= 1 - helpy.bool_input()
+            args.plot -= not helpy.bool_input()
 
     suffix = '_POSITIONS'
     output = args.output
