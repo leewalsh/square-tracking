@@ -84,7 +84,7 @@ def pair_indices(n, asarray=False):
 
 
 def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
-                        margin=0, do_err=False):
+                        margin=0, do_err=False, ss=ss):
     """ radial_distribution(positions):
         the pair correlation function g(r)
         calculated using a histogram of distances between particle pairs
@@ -229,15 +229,21 @@ def avg_hists(gs, rgs):
 
 
 def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
-             do_err=False):
-    """ build_gs(data, framestep=10)
-        calculates and builds g(r) for each (framestep) frames
-        Takes:
-            data: the structued array of data
-            framestep=10: how many frames to skip
-        Returns:
-            gs: an array of g(r) for several frames
-            rgs: their associated r values
+             do_err=False, ss=ss):
+    """Calculate and build g(r) for each frame
+
+    Parameters
+        data: the structured array of data
+        framestep: how many frames to skip
+        dr: bin width in particle size units
+        dmax: passed to radial distribution
+        rmax: passed to radial distribution
+        margin: passed to radial distribution
+
+    Returns
+        gs: an array of g(r) for several frames
+        rgs: right-hand edges (exclusive upper bounds) of bins, so that:
+            g[i] is the count of pairs with r[i-1] <= r < r[i]
     """
     frames = np.arange(data['f'].min(), data['f'].max()+1, framestep)
     dr = ss*(.1 if dr is None else dr)
@@ -246,11 +252,12 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
         g, rg, n = radial_distribution(positions, dr=dr, nbins=nbins, dmax=dmax,
-                                       rmax=rmax, margin=margin, do_err=do_err)
+                                       rmax=rmax, margin=margin, do_err=do_err,
+                                       ss=ss)
         if do_err:
             (g, rg), (eg, erg), n = g, rg, n
             erg = erg[1:]
-        rg = rg[1:]
+        rg = rg[1:]     # rg gives right-hand edges of bins
         if gs is None:
             nbins = g.size
             gs = np.zeros((frames.size, nbins))
