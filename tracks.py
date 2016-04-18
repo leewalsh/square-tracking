@@ -472,6 +472,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
             remove.extend([us, cs])
+            for dot, xy in zip(('center', 'corner'), (xyo, xyc)):
+                ph = helpy.draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
+                                        lw=.5, color='k', fill=False, zorder=.6)
+                remove.extend(ph)
 
         # plot the orientations
         omask = np.isfinite(o)
@@ -1279,6 +1283,8 @@ if __name__ == '__main__':
     if args.orient:
         if args.rcorner is None:
             raise ValueError("argument -r/--rcorner is required")
+        if args.drcorner is None:
+            args.drcorner = meta.get('corner_kern')
         from orientation import get_angles
         cfsets = helpy.splitter(cdata, ret_dict=True)
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
@@ -1717,7 +1723,7 @@ if __name__ == '__main__' and args.rr:
     guide = limiting_regimes(taus, *popt)
     ax.plot(taus, guide, '-k', lw=2)
 
-    ylim = ax.set_ylim(min(fit[0], msd[0]), fit[np.searchsorted(taus, tmax)])
+    ylim = ax.set_ylim(min(fit[0], msd[0]), fitform(tmax, *popt))
     xlim = ax.set_xlim(taus[0], tmax)
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])

@@ -139,7 +139,7 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
 
-def filter_segments(labels, max_ecc, min_area, max_area,
+def filter_segments(labels, max_ecc, min_area, max_area, keep=False,
                     circ=None, intensity=None, **extra_args):
     """filter_segments(labels, max_ecc, min_area, max_area) -> [Segment]
 
@@ -147,6 +147,7 @@ def filter_segments(labels, max_ecc, min_area, max_area,
     particles not meeting acceptance criteria.
     """
     pts = []
+    pts_mask = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
     if skversion < version('0.10'):
         rpropargs = labels, ['Area', 'Eccentricity', centroid], intensity
@@ -154,10 +155,12 @@ def filter_segments(labels, max_ecc, min_area, max_area,
         rpropargs = labels, intensity
     for rprop in regionprops(*rpropargs):
         area = rprop['area']
-        if area < min_area or area > max_area:
+        good = min_area <= area <= max_area
+        if not (good or keep):
             continue
         ecc = rprop['eccentricity']
-        if ecc > max_ecc:
+        good &= ecc <= max_ecc
+        if not (good or keep):
             continue
         x, y = rprop[centroid]
         if circ:
@@ -165,6 +168,10 @@ def filter_segments(labels, max_ecc, min_area, max_area,
             if (x - xo)**2 + (y - yo)**2 > ro**2:
                 continue
         pts.append(Segment(x, y, rprop.label, ecc, area))
+        if keep:
+            pts_mask.append(good)
+    if keep:
+        return pts, np.array(pts_mask)
     return pts
 
 
@@ -209,7 +216,8 @@ def find_particles(im, method, **kwargs):
     else:
         raise RuntimeError('Undefined method "%s"' % method)
 
-    pts = filter_segments(labels, intensity=intensity, **kwargs)
+    keep = args.plot > 1
+    pts = filter_segments(labels, intensity=intensity, keep=keep, **kwargs)
     return pts, labels, convolved
 
 
@@ -327,10 +335,10 @@ if __name__ == '__main__':
     if args.plot > 1:
         if len(filenames) > 10:
             print "Are you sure you want to make plots for all",
-            print len(filenames), "frames?"
+            print len(filenames), "frames?",
             args.plot -= not helpy.bool_input()
         if args.plot > 2 and (not args.save or len(filenames) > 2):
-            print "Do you want to display all the snapshots without saving?"
+            print "Do you want to display all the snapshots without saving?",
             args.plot -= not helpy.bool_input()
 
     suffix = '_POSITIONS'
@@ -390,9 +398,9 @@ if __name__ == '__main__':
         snapshot_num += 1
 
     def plot_points(pts, img, name='', s=10, c='r', cm=None,
-                    vmin=None, vmax=None, interp=None, cbar=False):
+                    vmin=None, vmax=None, cbar=False):
         global snapshot_num, imprefix
-        fig, ax = pl.subplots(figsize=(8+2*cbar, 8))
+        fig, ax = pl.subplots(figsize=(8, 8))
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
         # pixels per inch, and use integer multiples of that for dpi
@@ -400,9 +408,11 @@ if __name__ == '__main__':
         PPI = 84.638  # if figsize (8, 8)
         dpi = 4*PPI
         axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax,
-                         interpolation=interp)
+                         interpolation='nearest')
         if cbar:
-            fig.colorbar(axim)
+            cb_height = 4
+            cax = fig.add_axes(np.array([10, 99-cb_height, 80, cb_height])/100)
+            fig.colorbar(axim, cax=cax, orientation='horizontal')
         xl, yl = ax.get_xlim(), ax.get_ylim()
         s = abs(s)
         helpy.draw_circles(helpy.consecutive_fields_view(pts, 'xy')[:, ::-1], s,
@@ -418,30 +428,33 @@ if __name__ == '__main__':
             snapshot_num += 1
             pl.close(fig)
 
-    def plot_positions(segments, labels, convolved=None, **pltargs):
+    def plot_positions(segments, labels, convolved=None, **kwargs):
         Segment_dtype = np.dtype({'names': Segment._fields,
                                   'formats': [float, float, int, float, float]})
-        pts = np.asarray(segments, dtype=Segment_dtype)
+        pts = np.asarray(segments[0], dtype=Segment_dtype)
         pts_by_label = np.zeros(labels.max()+1, dtype=Segment_dtype)
         pts_by_label[0] = (np.nan, np.nan, 0, np.nan, np.nan)
         pts_by_label[pts['label']] = pts
+        pts = pts[segments[1]]
 
-        plot_points(pts, convolved, c='r', cm='gray',
-                    name='CONVOLVED', **pltargs)
+        plot_points(pts, convolved, name='CONVOLVED',
+                    s=kwargs['kern'], c='r', cm='gray')
 
         labels_mask = np.where(labels, labels, np.nan)
-        plot_points(pts, labels_mask, c='k', cm='prism_r', interp='nearest',
-                    name='SEGMENTS', **pltargs)
+        plot_points(pts, labels_mask, name='SEGMENTS',
+                    s=kwargs['kern'], c='k', cm='prism_r')
 
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
-        plot_points(pts, ecc_map, c='k', vmin=0, vmax=1, interp='nearest',
-                    cbar=True, name='ECCEN', **pltargs)
+        plot_points(pts, ecc_map, name='ECCEN',
+                    s=kwargs['kern'], c='k', cm='Accent',
+                    vmin=0, vmax=1, cbar=True)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
-        plot_points(pts, area_map, c='k', cbar=True, interp='nearest',
-                    name='AREA', **pltargs)
+        plot_points(pts, area_map, name='AREA',
+                    s=kwargs['kern'], c='k', cm='Accent',
+                    vmin=0, vmax=1.2*kwargs['max_area'], cbar=True)
 
     def get_positions((n, filename)):
         global snapshot_num, imprefix
@@ -465,13 +478,15 @@ if __name__ == '__main__':
             out = find_particles(image, method='convolve', circ=args.boundary,
                                  rmv=rmv, thresh=args.thresh, **sizes[dot])
             segments = out[0]
+            if args.plot > 1:
+                plot_positions(*out, **sizes[dot])
+                segments = np.array(segments[0], dtype=object)[segments[1]]
+
             nfound = len(segments)
             if nfound:
                 centers = np.hstack([np.full((nfound, 1), n, 'f8'), segments])
             else:  # empty line of length 6 = id + len(Segment)
                 centers = np.empty((0, 6))
-            if args.plot > 1:
-                plot_positions(*out, s=sizes[dot]['kern'])
             ret.append(centers)
         if not n % print_freq:
             fmt = '{:3d} {}s'.format
