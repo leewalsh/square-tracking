@@ -228,7 +228,7 @@ def avg_hists(gs, rgs):
     return g_avg, dg_avg, rg
 
 
-def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
+def build_gs(data, framestep=1, dr=0.1, dmax=None, rmax=None, margin=0,
              do_err=False, ss=ss):
     """Calculate and build g(r) for each frame
 
@@ -246,8 +246,8 @@ def build_gs(data, framestep=1, dr=None, dmax=None, rmax=None, margin=0,
             g[i] is the count of pairs with r[i-1] <= r < r[i]
     """
     frames = np.arange(data['f'].min(), data['f'].max()+1, framestep)
-    dr = ss*(.1 if dr is None else dr)
-    nbins = rmax//dr if rmax and dr else None
+    dr *= ss
+    nbins = 1 + rmax//dr if rmax and dr else None
     gs = rgs = egs = ergs = None
     for nf, frame in enumerate(frames):
         positions = get_positions(data, frame)
@@ -841,8 +841,8 @@ def pair_angles(xy_or_orient, neighbors, nmask, ang_type='absolute', margin=0):
     if margin:
         if margin < ss:
             margin *= ss
-        center = 0.5*(positions.max(0) + positions.min(0))
-        d = helpy.dist(positions, center)
+        center = 0.5*(xy_or_orient.max(0) + xy_or_orient.min(0))
+        d = helpy.dist(xy_or_orient, center)
         dmask = d < d.max() - margin
         angles = angles[dmask]
         nmask = nmask[dmask]
