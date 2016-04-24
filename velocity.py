@@ -9,6 +9,7 @@ from glob import iglob
 from math import sqrt
 
 import numpy as np
+from scipy.stats import skew, kurtosis, skewtest, kurtosistest
 import matplotlib.pyplot as plt
 
 import helpy
@@ -123,29 +124,38 @@ def get_stats(a):
     """
     a = np.asarray(a)
     n = a.shape[-1]
-    M = np.nanmean(a, -1, keepdims=a.ndim > 1)
+    keepdims = a.ndim > 1
+    M = np.nanmean(a, -1, keepdims=keepdims)
     # c = a - M
     # variance = np.einsum('...j,...j->...', c, c)/n
-    variance = np.nanvar(a, -1, keepdims=a.ndim > 1, ddof=1)
+    variance = np.nanvar(a, -1, keepdims=keepdims, ddof=1)
     D = 0.5*variance
     SE = np.sqrt(variance)/sqrt(n - 1)
-    return M, D, SE
+    SK = skew(a, -1, nan_policy='omit')
+    KU = kurtosis(a, -1, nan_policy='omit')
+    SK_t = skewtest(a, -1, nan_policy='omit')
+    KU_t = kurtosistest(a, -1, nan_policy='omit')
+    print 'skewtest:', SK, SK_t
+    print 'kurtosistest:', KU, KU_t
+    if keepdims:
+        SK = SK[..., None]
+        KU = KU[..., None]
+    elif SK.shape == ():
+        SK = SK[()]
+    return {'mean': M, 'var': D, 'std': SE, 'skew': SK, 'kurt': KU}
 
 
 def compile_widths(prefixes, **compile_args):
-    stats = {v: {s: np.empty_like(compile_args['width'])
-                 for s in 'mean var stderr'.split()}
-             for v in 'o par perp etapar'.split()}
     vs = defaultdict(list)
     compile_noise(prefixes, vs, **compile_args)
-    for v, s in stats.items():
-        s['mean'], s['var'], s['stderr'] = get_stats(vs[v])
+    stats = {v: get_stats(vs[v])
+             for v in 'o par perp etapar'.split()}
     return stats
 
 
 def plot_widths(widths, stats, normalize=False):
     ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
-    cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
+    cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k'}
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
              'etapar': r'$\eta_\parallel$'}
     fig = plt.figure(figsize=(8, 12))
@@ -177,13 +187,15 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         ax = axi[0]
     else:
         ax = plt.subplot(nrows, ncols, (axi - 1)*ncols + 1)
-    label = '\n'.join(['$\\langle {val} \\rangle = {0:.5f}$',
-                       '$\ D_{sub}\  = {1:.5f}$',
-                       '$\\sigma/\\sqrt{{N}} = {2:.5f}$'][:2]).format(
-                           *stats[:2], **label)
+    label.update(stats)
+    label = '\n'.join(['$\\langle {val} \\rangle = {mean:.5f}$',
+                       '$\ D_{sub}\  = {var:.5f}$',
+                       '$\ \gamma_1 = {skew:.5f}$',
+                       '$\ \gamma_2 = {kurt:.5f}$',
+                       '$\\sigma/\\sqrt{{N}} = {std:.5f}$'][:4]).format(**label)
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), log=False,
                               alpha=0.7, label=label)
-    plot_gaussian(stats[0], stats[1], bins, counts.sum(), ax)
+    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
     ax.set_ylabel('Frequency')
     l, r = ax.set_xlim(bins[0], bins[-1])
@@ -203,7 +215,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         ax2 = plt.subplot(nrows, ncols, axi*ncols)
     counts, bins, _ = ax2.hist(a, bins*2, range=(2*bins[0], 2*bins[-1]),
                                log=True, alpha=0.7)
-    plot_gaussian(stats[0], stats[1], bins, counts.sum(), ax2)
+    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax2)
     if orient:
         l, r = ax2.set_xlim(bins[0], bins[-1])
         xticks = np.linspace(l, r, 9)
@@ -264,7 +276,7 @@ if __name__ == '__main__':
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
              'etapar': r'$\eta_\parallel$'}
     ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
-    cs = {'mean': 'r', 'var': 'g', 'stderr': 'b'}
+    cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
     if len(args.width) > 1:
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
@@ -301,8 +313,8 @@ if __name__ == '__main__':
             stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2,
                                     lin=args.lin, log=args.log, label=label,
                                     orient=True, title=title, subtitle=subtitle)
-            # could also save fit_vo_w0=stats[0])
-            meta.update(fit_vo_DR=stats[1])
+            # could also save fit_vo_w0=stats['mean'])
+            meta.update(fit_vo_DR=stats['var'])
             axi += 1
         if args.do_translation:
             title = 'Parallel & Transverse'
@@ -310,11 +322,11 @@ if __name__ == '__main__':
             stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label,
                                     title=title, subtitle=subtitle)
-            meta.update(fit_vt_DT=stats[1])
+            meta.update(fit_vt_DT=stats['var'])
             label = {'val': 'v_\parallel', 'sub': '\parallel'}
             stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label)
-            meta.update(fit_vn_v0=stats[0], fit_vn_DT=stats[1])
+            meta.update(fit_vn_v0=stats['mean'], fit_vn_DT=stats['var'])
             axi += 1
             if args.subtract:
                 label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
