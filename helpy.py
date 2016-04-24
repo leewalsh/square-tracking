@@ -251,7 +251,7 @@ def pad_uneven(lol, fill=0, return_mask=False,
     return (result, mask) if return_mask else result
 
 
-def avg_uneven(arrs, min_added=3, pad=None, ret_all=False):
+def avg_uneven(arrs, min_added=3, weight=False, pad=None, ret_all=False):
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
@@ -263,7 +263,11 @@ def avg_uneven(arrs, min_added=3, pad=None, ret_all=False):
     enough = np.where(added >= min_added)[0]
     arrs = arrs[:, enough]
     added = added[enough]
-    mean = np.nanmean(arrs, 0)
+    if weight:
+        lens = np.sum(isfin, 1, keepdims=True)
+        mean = np.nanmean(arrs*lens, 0)/np.mean(lens, 0)
+    else:
+        mean = np.nanmean(arrs, 0)
     stddev = np.nanstd(arrs, 0, ddof=1)
     stderr = stddev / np.sqrt(added)
     ret = (arrs, mean, stderr)

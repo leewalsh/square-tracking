@@ -44,6 +44,8 @@ if __name__ == '__main__':
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
     arg('--autocorr', action='store_true', help='Plot <vv> autocorrelation?')
+    arg('--frame', choices=['lab', 'self'], default='self',
+        help='Correlations in "lab" or "self" frame?')
     arg('--untrackorient', action='store_false', dest='torient',
         help='Untracked raw orientation (mod 2pi)?')
     arg('-g', '--gaps', choices=['interp', 'nans', 'leave'], default='interp',
@@ -92,7 +94,7 @@ def noise_derivatives(tdata, width=(1,), side=1, fps=1, xy=False,
     return ret
 
 
-def compile_noise(prefixes, vs, width=(1,), side=1, fps=1, cat=True,
+def compile_noise(prefixes, vs, width=(1,), side=1, fps=1, cat=True, xy=False,
                   do_orientation=True, do_translation=True, subtract=True,
                   stub=10, torient=True, gaps='interp', dupes=False, **ignored):
     if np.isscalar(prefixes):
@@ -109,7 +111,7 @@ def compile_noise(prefixes, vs, width=(1,), side=1, fps=1, cat=True,
         for track in tracksets:
             tdata = tracksets[track]
             velocities = noise_derivatives(
-                tdata, width=width, side=side, fps=fps, subtract=subtract,
+                tdata, width=width, side=side, fps=fps, xy=xy, subtract=subtract,
                 do_orientation=do_orientation, do_translation=do_translation)
             for v in velocities:
                 vs[v].append(velocities[v])
@@ -235,21 +237,16 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     ax.plot(bins, g, c=pcol, lw=2)
 
 
-def vv_autocorr(prefixes, corrlen=0.5, **compile_args):
+def vv_autocorr(prefixes, length=0.5, frame='self', normalize=False,
+                **compile_args):
     vs = defaultdict(list)
-    compile_noise(prefixes, vs, cat=False, **compile_args)
+    compile_noise(prefixes, vs, cat=False, xy=(frame == 'lab'), **compile_args)
     vvs = {}
     for v, tvs in vs.iteritems():
-        vcorrlen = int(corrlen*max(map(len, tvs))) if corrlen < 1 else corrlen
-        vv = np.full((len(tvs), vcorrlen), np.nan, float)
-        for i, tv in enumerate(tvs):
-            ac = corr.autocorr(tv, norm=1, cumulant=False)
-            vv[i, :len(ac)] = ac[:corrlen]
-        vvcount = np.isfinite(vv).sum(0)
-        vv = vv[:, vvcount > 0]
-        vv = np.nanmean(vv, 0)
-        dvv = np.nanstd(vv, 0)/np.sqrt(vvcount)
-        vvs[v] = vv, dvv
+        vlen = int(length*max(map(len, tvs)) if length < 1 else length)
+        tacs = [corr.autocorr(tv, norm=normalize and 1, cumulant=False)[:vlen]
+                for tv in tvs]
+        vvs[v] = helpy.avg_uneven(tacs, weight=True, pad=True)
     return vvs
 
 
@@ -274,17 +271,17 @@ if __name__ == '__main__':
     compile_args = dict(args.__dict__)
 
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
-             'etapar': r'$\eta_\parallel$'}
-    ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
+             'etapar': r'$\eta_\parallel$', 'x': '$v_x$', 'y': '$v_y$'}
+    ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--', 'x': '-.', 'y': ':'}
     cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
     if len(args.width) > 1:
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
-        vvs = vv_autocorr(prefixes, corrlen=10*args.fps, **compile_args)
+        vvs = vv_autocorr(prefixes, length=10*args.fps, **compile_args)
         fig, ax = plt.subplots()
         for v in vvs:
-            vv, dvv = vvs[v]
+            tvvs, vv, dvv = vvs[v]
             t = np.arange(len(vv))/args.fps
             ax.errorbar(t, vv, yerr=dvv, label=label[v], ls=ls[v])
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
