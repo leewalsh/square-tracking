@@ -181,7 +181,8 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
                        '$\ D_{sub}\  = {1:.5f}$',
                        '$\\sigma/\\sqrt{{N}} = {2:.5f}$'][:2]).format(
                            *stats[:2], **label)
-    counts, bins, _ = ax.hist(a, bins, log=False, alpha=0.7, label=label)
+    counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), log=False,
+                              alpha=0.7, label=label)
     plot_gaussian(stats[0], stats[1], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
     ax.set_ylabel('Frequency')
@@ -200,7 +201,8 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         ax2 = axi[1]
     else:
         ax2 = plt.subplot(nrows, ncols, axi*ncols)
-    counts, bins, _ = ax2.hist(a, bins*2, log=True, alpha=0.7)
+    counts, bins, _ = ax2.hist(a, bins*2, range=(2*bins[0], 2*bins[-1]),
+                               log=True, alpha=0.7)
     plot_gaussian(stats[0], stats[1], bins, counts.sum(), ax2)
     if orient:
         l, r = ax2.set_xlim(bins[0], bins[-1])
