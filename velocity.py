@@ -270,7 +270,7 @@ if __name__ == '__main__':
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
         vvs = vv_autocorr(prefixes, corrlen=10*args.fps, **compile_args)
-        fig, ax = plt.figure()
+        fig, ax = plt.subplots()
         for v in vvs:
             vv, dvv = vvs[v]
             t = np.arange(len(vv))/args.fps
@@ -286,6 +286,8 @@ if __name__ == '__main__':
         args.width = [args.width]
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
+        if not (args.log or args.lin):
+            args.log = args.lin = True
 
         nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
                args.log + args.lin)
@@ -315,8 +317,9 @@ if __name__ == '__main__':
             meta.update(fit_vn_v0=stats[0], fit_vn_DT=stats[1])
             axi += 1
             if args.subtract:
+                label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
                 plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
-                          lin=args.lin, log=args.log, label=r'\eta_\alpha',
+                          lin=args.lin, log=args.log, label=label,
                           bins=bins, title='$v_0$ subtracted',
                           subtitle=subtitle)
                 axi += 1
