@@ -489,7 +489,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
                                              color='g', fill=False, zorder=.5)
                 remove.extend(patches)
-        if fisets is not None:
+        if fisets is not None and f_num in fisets:
             xyi, oi, tsi = [fisets[f_num][fld] for fld in ['xy', 'o', 't']]
             pim = fisets[f_num]['id'] == 0
             if np.any(pim):
@@ -542,7 +542,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             else:
                 cs.set_label('unused corner')
                 ocs.set_label('used corners')
-            txt[0].set_label('track id')
+            if len(txt):
+                txt[0].set_label('track id')
             ax.legend(fontsize='small')
 
         fig.canvas.draw()

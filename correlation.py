@@ -54,8 +54,9 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
         radius *= ss
     dmax = radius - margin
     if verbose:
-        print 'radius: ', radius/ss
-        print 'margin: ', margin/ss
+        print 'center:', center,
+        print 'radius:', radius/ss,
+        print 'margin:', margin/ss,
         print 'max r: ', dmax/ss
     bulk_mask = d <= dmax   # mask of particles in the bulk
     bulk_N = np.count_nonzero(bulk_mask)

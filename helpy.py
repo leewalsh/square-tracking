@@ -1200,15 +1200,17 @@ def circle_click(im):
     ax.imshow(im)
 
     def circle_click_connector(click):
-        # print 'you clicked', click.xdata, '\b,', click.ydata
-        xs.append(click.xdata)
-        ys.append(click.ydata)
+        # convert to image coordinates from cartesian
+        x, y = click.ydata, click.xdata
+        xs.append(x)
+        ys.append(y)
+        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(xs), x, y)
         if len(xs) == 3:
             # With three points, calculate circle
             print 'got three points'
             global xo, yo, r  # can't access connector function's returned value
             xo, yo, r = circle_three_points(xs, ys)
-            cpatch = matplotlib.patches.Circle([xo, yo], r, linewidth=3,
+            cpatch = matplotlib.patches.Circle([yo, xo], r, linewidth=3,
                                                color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
