@@ -1001,6 +1001,7 @@ def bool_input(question='', default=None):
     answer = raw_input(question).strip().lower()
     if answer == '':
         if default is None:
+            # ask again
             return bool_input(question, default)
         else:
             return default

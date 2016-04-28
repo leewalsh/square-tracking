@@ -1141,6 +1141,9 @@ def powerlaw(t, b=1., a=1., c=0):
     return c + a * np.power(t, -b)
 
 
+decays = {'exp': exp_decay, 'pow': powerlaw}
+
+
 def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
     p1 = powerlaw(t, b1, d1, c1)
     p2 = powerlaw(t, b2, d2, c2)
