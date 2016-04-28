@@ -142,8 +142,9 @@ def get_stats(a):
     if keepdims:
         SK = SK[..., None]
         KU = KU[..., None]
-    elif SK.shape == ():
-        SK = SK[()]
+    else:
+        SK = float(SK)
+        KU = float(KU)
     return {'mean': M, 'var': D, 'std': SE, 'skew': SK, 'kurt': KU}
 
 
