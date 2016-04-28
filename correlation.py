@@ -53,16 +53,35 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
     elif radius < ss:
         radius *= ss
     dmax = radius - margin
+    depth = d - dmax
+    bulk_mask = area_overlap(depth/ss, ss=1, method='aligned_square')
+    bulk_N = bulk_mask.sum()
+    #bulk_mask = bulk_mask >= 0.5   # mask of centers within bulk
+    if full_N:
+        bulk_N *= full_N/len(positions)
     if verbose:
         print 'center:', center,
         print 'radius:', radius/ss,
         print 'margin:', margin/ss,
-        print 'max r: ', dmax/ss
-    bulk_mask = d <= dmax   # mask of particles in the bulk
-    bulk_N = np.count_nonzero(bulk_mask)
-    if full_N:
-        bulk_N *= full_N/len(positions)
-    return bulk_N, bulk_mask
+        print 'max r: ', dmax/ss,
+        print 'bulk_N:', bulk_N,
+        print
+    return bulk_N, bulk_mask, center, radius
+
+
+def area_overlap(sep, ss=1, method='center'):
+    """Overlap between particle and included area
+
+    Aligned square against flat boundary
+    """
+    if method == 'center':
+        overlap = ss*ss*(sep <= 0)
+    elif method == 'aligned_square':
+        overlap = ss * (ss/2 - sep)
+        np.clip(overlap, 0, ss, out=overlap)
+    else:
+        raise ValueError('Unknown method "{}"'.format(method))
+    return overlap
 
 
 def pair_indices(n, asarray=False):
