@@ -618,7 +618,7 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         Given `fullprefix`, returns data arrays from a choice of:
             tracks, orientation, position, corner
     """
-    sets = [s[0].lower() for s in sets.replace(',', ' ').split()]
+    sets = [s[0].lower() for s in sets.replace(',', ' ').strip().split()]
 
     name = {'t': 'tracks', 'o': 'orientation',
             'p': 'positions', 'c': 'corner_positions', 'm': 'melt'}
@@ -631,11 +631,14 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         datapath = fullprefix+'_'+suffix+'.npz'
         try:
             npzs[s] = np.load(datapath)
-            if s == 't' and 'trackids' in npzs['t'].files:
-                needs_initialize = True
-                t = npzs['t']['trackids']
         except IOError as e:
-            if s == 't':
+            if s == 'p':
+                if verbose:
+                    print "No positions file, loading from tracks"
+                data[s] = load_data(fullprefix, 't', verbose)
+            elif s == 't':
+                if verbose:
+                    print "No tracks file, loading from positions"
                 needs_initialize = True
                 t = -1
             else:
@@ -643,11 +646,14 @@ def load_data(fullprefix, sets='tracks', verbose=False):
                 cmd = '`tracks -{}`'.format(
                     {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[s])
                 print ("Found no {} npz file. Please run ".format(name[s]) +
-                    ("{0} to convert {1}.txt to {1}.npz, " +
+                       ("{0} to convert {1}.txt to {1}.npz, " +
                         "or run `positions` on your tiffs" if s in 'pc' else
                         "{0} to generate {1}.npz").format(cmd, suffix))
                 raise
         else:
+            if s == 't' and 'trackids' in npzs['t'].files:
+                needs_initialize = True
+                t = npzs['t']['trackids']
             if verbose:
                 print "Loaded {} data from {}".format(name[s], datapath)
             data[s] = npzs[s][s*(s == 'o')+'data']
@@ -656,8 +662,11 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         # TRACKS.npz which holds positions and trackids but no orient
         if verbose:
             print "Converting to TRACKS array from positions, trackids, orient"
-        p, o = load_data(fullprefix, 'p o', verbose)
-        data['t'] = initialize_tdata(p, t, o)
+        if 'p' not in data:
+            data['p'] = data['t']
+        if 'o' not in data:
+            data['o'] = load_data(fullprefix, 'o', verbose)
+        data['t'] = initialize_tdata(data['p'], t, data['o'])
     if 't' in sets:
         fields = data['t'].dtype.fields
         dtype = dict(fields)
