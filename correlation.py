@@ -19,8 +19,8 @@ from skimage.morphology import disk, binary_dilation
 
 import helpy
 
-ss = 95      # side length of square in pixels, see equilibrium.ipynb
-rr = 1229.5  # radius of disk in pixels, see equilibrium.ipynb
+ss = helpy.S_slr  # side length of square in pixels
+rr = helpy.R_slr  # radius of disk in pixels
 
 pi = np.pi
 tau = 2*pi
