@@ -46,23 +46,22 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
         margin *= ss
     d = helpy.dist(positions, center)   # distances to center
     if radius is None:
-        if len(positions) > 1e5:
-            raise ValueError("too many points to calculate radius")
-        r = cdist(positions, positions)     # distances between all pairs
-        radius = np.maximum(r.max()/2, d.max()) + ss/2
+        n_pts = len(positions)
+        max_sep = 0 if n_pts > 1e4 else cdist(positions, positions).max()
+        radius = max(max_sep/2, d.max()) + ss/2
     elif radius < ss:
         radius *= ss
     dmax = radius - margin
     depth = d - dmax
     bulk_mask = area_overlap(depth/ss, ss=1, method='aligned_square')
     bulk_N = bulk_mask.sum()
-    #bulk_mask = bulk_mask >= 0.5   # mask of centers within bulk
+    # bulk_mask = bulk_mask >= 0.5   # mask of centers within bulk
     if full_N:
         bulk_N *= full_N/len(positions)
     if verbose:
-        print 'center:', center,
-        print 'radius:', radius/ss,
         print 'margin:', margin/ss,
+        print 'center:', center,
+        print 'radius:', radius
         print 'max r: ', dmax/ss,
         print 'bulk_N:', bulk_N,
         print
@@ -1176,3 +1175,16 @@ def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
         return cp, ct
     else:
         return cp
+
+
+def shift_power(t, tc=0, b=1, a=1, c=0):
+    return powerlaw(tc-t, b, a, c)
+
+
+def critical_power(t, f, tc=0, b=None, a=None, c=None):
+    """ Find critical point with powerlaw divergence
+    """
+    lp = sum(i is not None for i in [tc, b, a, c])
+    p0 = [tc, b, a, c][:lp] + [0, 1, 1, 0][lp:]
+    popt, pcov = curve_fit(shift_power, t, f, p0=p0[:lp], sigma=np.log(f))
+    return popt
