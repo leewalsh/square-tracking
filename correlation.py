@@ -522,8 +522,7 @@ def vary_gauss(a, sig=1, verbose=False):
         w = round(2*s)  # kernel half-width, must be integer
         if s == 0:
             s = 1
-        k = np.arange(-w, w+1, dtype=float)
-        k = np.exp(-.5 * k**2 / s**2)
+        k = gauss(np.arange(-w, w+1, dtype=float), sig=s)
 
         # slice the array (min/max prevent going past ends)
         al = max(i - w,     0)
@@ -1098,7 +1097,7 @@ def gpeak_decay(peaks, f, pksonly=False):
     return popt, pcov
 
 
-def gauss_peak(x, c=0., a=1., x0=0., sig=1.):
+def gauss(x, a=1., x0=0., sig=1., c=0.):
     x2 = np.square(x-x0)
     s2 = sig*sig
     return c + a*np.exp(-x2/s2)
@@ -1115,9 +1114,9 @@ def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
         loc = -0.5*c[1]/c[2]
         height = c[0] - 0.25 * c[1]**2 / c[2]
     elif form.startswith('g'):
-        c, _ = curve_fit(gauss_peak, x, y, p0=[0, y0, x0, w])
-        loc = c[2]
-        height = c[0] + c[1]
+        c, _ = curve_fit(gauss, x, y, p0=[y0, x0, w, 0])
+        loc = c[1]
+        height = c[0] + c[3]
     return loc, height, x, y, c
 
 
