@@ -1176,14 +1176,17 @@ def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
         return cp
 
 
-def shift_power(t, tc=0, b=1, a=1, c=0):
-    return powerlaw(tc-t, b, a, c)
+def shift_power(t, tc=0, a=1, b=1, c=0, dt=0):
+    return powerlaw(np.sqrt((tc-t)**2 + dt**2), b, a, c)
 
 
-def critical_power(t, f, tc=0, b=None, a=None, c=None):
+def critical_power(t, f, tc=0, a=None, b=None, c=None,
+                   dt=None, df=None, abs_df=False):
     """ Find critical point with powerlaw divergence
     """
-    lp = sum(i is not None for i in [tc, b, a, c])
-    p0 = [tc, b, a, c][:lp] + [0, 1, 1, 0][lp:]
-    popt, pcov = curve_fit(shift_power, t, f, p0=p0[:lp], sigma=np.log(f))
-    return popt
+    p0 = [i for i in [tc, a, b, c] if i is not None]
+    if dt:
+        func = lambda *args: shift_power(*args, **dict(dt=dt))
+    else:
+        func = shift_power
+    return curve_fit(func, t, f, p0=p0, sigma=df, absolute_sigma=abs_df)
