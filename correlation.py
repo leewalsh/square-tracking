@@ -1177,7 +1177,8 @@ def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
 
 
 def shift_power(t, tc=0, a=1, b=1, c=0, dt=0):
-    return powerlaw(np.sqrt((tc-t)**2 + dt**2), b, a, c)
+    tshift = np.sqrt((tc-t)**2 + dt**2) if dt else tc - t
+    return powerlaw(tshift, b, a, c)
 
 
 def critical_power(t, f, tc=0, a=None, b=None, c=None,
