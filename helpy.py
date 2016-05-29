@@ -562,8 +562,63 @@ def sync_args_meta(args, meta, argnames, metanames, defaults=None):
     return args, meta
 
 
+def change_meta(prefix, old_key, new_key=None, new_val=None, bak_key=None):
+    """change keys and/or values in metadata files
+
+    Given an old_key and optionally new_key or new_val, replace the old_key or
+    old_val with whichever new items are given.
+
+    Inputs may all be single value or lists. length of key/val lists must match.
+
+    parameters:
+        prefix:     prefix or list of prefixes
+        old_key:    key (or list of keys) to meta dict to change
+        new_key:    if not None, replace old_key with new_key
+        new_val:    if not None, replace meta[new_key or old_key] with either
+                    new_val or if a function is provided new_val(old_val)
+        bak_key:    save old_val under bak_key as backup
+    """
+    if isinstance(prefix, basestring):
+        prefix = [prefix]
+    if not isinstance(old_key, list):
+        old_key = [old_key]
+    if not isinstance(old_key[0], basestring):
+        raise TypeError("`old_key` must be string or list of strings, but "
+                        "type(old_key) is {}".format(type(old_key[0])))
+    if not isinstance(new_key, list):
+        new_key = it.repeat(new_key)
+    if not isinstance(new_val, list):
+        new_val = it.repeat(new_val)
+    if not isinstance(bak_key, list):
+        bak_key = it.repeat(bak_key)
+    for pfx in prefix:
+        meta = load_meta(pfx)
+        for ok, nk, nv, bk in it.izip(old_key, new_key, new_val, bak_key):
+            meta = modify_dict(meta, ok, new_key=nk, new_val=nv, bak_key=bk)
+        write_meta(pfx, meta)
+
+
+def modify_dict(d, old_key, new_key=None, new_val=None, bak_key=None):
+    """modify (inplace) a key and/or value in dict"""
+    if new_key is not None:
+        old_val = d.pop(old_key)
+    elif new_val is None:
+        raise ValueError("Provide either new_key or new_value. Both are None.")
+    else:
+        new_key = old_key
+        old_val = d[old_key]
+    if callable(new_val):
+        new_val = new_val(old_val)
+    elif new_val is None:
+        new_val = old_val
+    d[new_key] = new_val
+    if bak_key is not None:
+        d[bak_key] = old_val
+    return d
+
+
 def save_meta(prefix, meta_dict=None, **meta_kw):
-    """write keys and values to meta file '{prefix}_META.txt'
+    """append keys and values to meta file '{prefix}_META.txt'
 
     For keys that exist in more than one place, precedence is:
         keyword args, dict arg, file on disk
@@ -575,11 +630,35 @@ def save_meta(prefix, meta_dict=None, **meta_kw):
     """
     meta = load_meta(prefix)
     meta.update(meta_dict or {}, **meta_kw)
+    write_meta(prefix, meta)
+
+
+def write_meta(prefix, meta):
+    """write keys and values to meta file '{prefix}_META.txt'
+
+    Will overwrite any existing file without reading.
+
+    parameters:
+        prefix:     filename is '{prefix}_META.txt'
+        meta:       dict to write to file
+    """
     fmt = '{0[0]!r:18}: {0[1]!r}\n'.format
     lines = sorted(map(fmt, meta.iteritems()))
     path = with_suffix(prefix, '_META.txt')
     with open(path, 'w') as f:
         f.writelines(lines)
+
+
+def swap_ij(a, i, j):
+    """ad-hoc function for use to fix x-y transposition error"""
+    b = list(a)
+    b[i], b[j] = a[j], a[i]
+    return type(a)(b)
+
+
+def swapper(i, j):
+    """ad-hoc function for use to fix x-y transposition error"""
+    return lambda a: swap_ij(a, i, j)
 
 
 def save_log_entry(prefix, entries, mode='a'):
