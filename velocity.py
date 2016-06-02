@@ -137,8 +137,9 @@ def get_stats(a):
     KU = kurtosis(a, -1, nan_policy='omit')
     SK_t = skewtest(a, -1, nan_policy='omit')
     KU_t = kurtosistest(a, -1, nan_policy='omit')
-    print 'skewtest:', SK, SK_t
-    print 'kurtosistest:', KU, KU_t
+    if args.verbose:
+        print 'skewtest:', SK, SK_t
+        print 'kurtosistest:', KU, KU_t
     if keepdims:
         SK = SK[..., None]
         KU = KU[..., None]
@@ -184,6 +185,8 @@ def plot_widths(widths, stats, normalize=False):
 
 def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
               label='v', title='', subtitle=''):
+    if args.verbose:
+        print title + subtitle + str(label)
     stats = get_stats(a)
     nrows, ncols = nax
     if isinstance(axi, tuple):
