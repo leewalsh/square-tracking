@@ -187,7 +187,7 @@ def plot_widths(widths, stats, normalize=False):
 
 
 def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
-              label='v', title='', subtitle=''):
+              label='v', title='', subtitle='', c=vcol):
     if args.verbose:
         print title + subtitle + str(label)
     stats = get_stats(a)
@@ -203,7 +203,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
                        '$\ \gamma_2 = {kurt:.5f}$',
                        '$\\sigma/\\sqrt{{N}} = {std:.5f}$'][:4]).format(**label)
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), log=False,
-                              alpha=0.7, label=label)
+                              alpha=0.7, label=label, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
     ax.set_ylabel('Frequency')
@@ -223,7 +223,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
     else:
         ax2 = plt.subplot(nrows, ncols, axi*ncols)
     counts, bins, _ = ax2.hist(a, bins*2, range=(2*bins[0], 2*bins[-1]),
-                               log=True, alpha=0.7)
+                               log=True, alpha=0.7, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax2)
     if orient:
         l, r = ax2.set_xlim(bins[0], bins[-1])
@@ -314,7 +314,7 @@ if __name__ == '__main__':
         if args.do_orientation:
             title = 'Orientation'
             label = {'val': r'\xi', 'sub': 'R'}
-            stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2,
+            stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
                                     lin=args.lin, log=args.log, label=label,
                                     orient=True, title=title, subtitle=subtitle)
             # could also save fit_vo_w0=stats['mean'])
@@ -325,7 +325,7 @@ if __name__ == '__main__':
             label = {'val': 'v_\perp', 'sub': '\perp'}
             stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label,
-                                    title=title, subtitle=subtitle)
+                                    title=title, subtitle=subtitle, c=ncol)
             meta.update(fit_vt_DT=stats['var'])
             label = {'val': 'v_\parallel', 'sub': '\parallel'}
             stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
