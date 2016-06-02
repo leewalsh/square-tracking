@@ -37,8 +37,11 @@ if __name__ == '__main__':
     arg('--width', type=float, default=(0.65,), metavar='W', nargs='*',
         help='Smoothing width for derivative, may give several')
     arg('--particle', type=str, default='', help='Particle name')
-    arg('--save', type=str, nargs='?', const='velocity', default='',
-        help='Save figure (optionally provide suffix)?')
+    arg('--noshow', action='store_false', dest='show',
+        help="Don't show figures (just save them)")
+    arg('--nosave', action='store_false', dest='save',
+        help="Don't save outputs or figures")
+    arg('--suffix', type=str, default='', help='Suffix to append to savenames')
     arg('--lin', action='store_true', help='Plot on linear scale?')
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
@@ -340,8 +343,11 @@ if __name__ == '__main__':
     if args.save:
         savename = os.path.abspath(args.prefix.rstrip('/._?*'))
         helpy.save_meta(savename, meta)
-        savename += '_' + helpy.with_prefix(args.save, 'velocity_') + '.pdf'
+        savename += '_velocity'
+        if args.suffix:
+            savename += '_' + args.suffix.strip('_')
+        savename += '.pdf'
         print 'Saving plot to {}'.format(savename)
         plt.savefig(savename)
-    else:
+    if args.show:
         plt.show()
