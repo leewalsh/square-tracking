@@ -1077,7 +1077,10 @@ def merge_data(members, savename=None, dupes=False, do_orient=False):
         save_log_entry(savename, entry)
         save_meta(savename, merged_meta, merged=members)
         savename += '_TRACKS.npz'
-        np.savez_compressed(savename, data=merged)
+        # if the 'xy' view field exists in the dtype, remove it before saving:
+        dt = dict(merged.dtype.fields)
+        dt.pop('xy', None)
+        np.savez_compressed(savename, data=merged.view(dt))
         print "saved merged tracks to", savename
     return merged
 
