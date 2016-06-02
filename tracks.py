@@ -1657,6 +1657,8 @@ if __name__ == '__main__' and args.rr:
         v *= v  # v is squared everywhere
         tau_T = D/v
         tau_R = 1/DR
+        if tau_T > tau_R:
+            return np.full_like(s, np.nan)
         taus = (tau_T, tau_R)
 
         early = 2*D*s       # s < tau_T
@@ -1664,10 +1666,8 @@ if __name__ == '__main__' and args.rr:
         late = 2*(v/DR + D)*s               # tau_R < s
         lines = np.choose(np.searchsorted(taus, s), [early, middle, late])
 
-        tau_f = np.searchsorted(s, taus)
-        if tau_f[-1] >= len(s):
-            tau_f = tau_f[0]
-        lines[tau_f] = np.nan
+        taus_f = np.clip(np.searchsorted(s, taus), 0, len(s)-1)
+        lines[taus_f] = np.nan
         return lines
 
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
