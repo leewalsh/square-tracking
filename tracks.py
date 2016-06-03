@@ -1206,13 +1206,27 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
 def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
                     label_source=False, savename=''):
     ps = params[np.in1d(params['source'], sources)]
-    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy]
-    xys = {'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
-          'v0': [('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$')],
-          'DT': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T$')]}[xy]
-                # ('fit_rr_DT', 'fit_vt_DT', 'b', 'D', None)]
+    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy[:2]]
+    xys = {
+        'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
+        'DRs': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R(nn)$'),
+                ('fit_rn_DR', 'fit_vo_DR', 'g', 'o', '$D_R(rn)$'),
+                ('fit_rr_DR', 'fit_vo_DR', 'b', 'o', '$D_R(rr)$')],
+        'v0': [('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$')],
+        'v0s': [('fit_nn_rn_v0', 'fit_vn_v0', 'r', '^', '$v_0(nn, rn)$'),
+                ('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0(rn)$'),
+                ('fit_nn_rr_v0', 'fit_vn_v0', 'b', '^', '$v_0(nn, rr)$'),
+                ('fit_rr_v0', 'fit_vn_v0', 'c', '^', '$v_0(rr)$')],
+        'DT': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T$')],
+        'DTh': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T(v_\perp)$'),
+                ('fit_rr_DT', 'fit_vn_DT', 'g', 's', '$D_T(v_\parallel)$')],
+        'DTs': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T(rr)$'),
+                ('fit_rn_rn_rr_DT', 'fit_vt_DT', 'r', 's', '$D_T(rn, rn, rr)$'),
+                ('fit_nn_rr_DT', 'fit_vt_DT', 'g', 's', '$D_T(nn, rr)$'),
+                ('fit_nn_rn_rr_DT', 'fit_vt_DT', 'c', 's', '$D_T(nn, rn, rr)$')]
+    }[xy]
 
-    fig, ax = plt.subplots(figsize=(4,4))
+    fig, ax = plt.subplots(figsize=(4, 4))
     for x, y, c, m, l in xys:
         ax.scatter(ps[y], ps[x], marker=m, c=c, label=l)
         if label_source:
@@ -1229,7 +1243,7 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     ax.plot(xlim, ylim, '-k', alpha=0.7)
     ax.legend(loc='upper left')
     if savename:
-        fig.savefig('/Users/leewalsh/Physics/Squares/colson/Output/stats/'
+        fig.savefig('/Users/leewalsh/Squares/colson/Output/stats/parameters/'
                     'parametric_{}.pdf'.format(savename))
     return ax
 
