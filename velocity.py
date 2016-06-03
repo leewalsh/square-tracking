@@ -64,6 +64,9 @@ if __name__ == '__main__':
     arg('-v', '--verbose', action='count', help="Be verbose")
     args = parser.parse_args()
 
+    if args.save or args.show:
+        plt.rc('text', usetex=True)
+
 pi = np.pi
 vcol = (1, 0.4, 0)
 pcol = (0.25, 0.5, 0)
@@ -201,21 +204,22 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
                        '$\ D_{sub}\  = {var:.5f}$',
                        '$\ \gamma_1 = {skew:.5f}$',
                        '$\ \gamma_2 = {kurt:.5f}$',
-                       '$\\sigma/\\sqrt{{N}} = {std:.5f}$'][:4]).format(**label)
+                       '$\\sigma/\\sqrt{{N}} = {std:.5f}$'][:2]).format(**label)
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), log=False,
                               alpha=0.7, label=label, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
-    ax.set_ylabel('Frequency')
+    #ax.set_ylabel('Frequency')
+    xlabel = r'$\Delta r \times f/\ell$'
     l, r = ax.set_xlim(bins[0], bins[-1])
     if orient:
         xticks = np.linspace(l, r, 5)
         ax.set_xticks(xticks)
         xticklabels = map('${:.2f}\pi$'.format, xticks/pi)
         ax.set_xticklabels(xticklabels, fontsize='small')
-    xlabel = 'Velocity ({}/vibration)'.format('rad' if orient else 'particle')
+        xlabel = r'$\Delta\theta \times f$'
     ax.set_xlabel(xlabel)
-    ax.set_title(" ".join([title, subtitle]), fontsize='medium')
+    #ax.set_title(" ".join([title, subtitle]), fontsize='medium')
     if ncols < 2:
         return stats, (ax,)
     if isinstance(axi, tuple):
@@ -307,6 +311,7 @@ if __name__ == '__main__':
 
         nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
                args.log + args.lin)
+        plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
         axi = 1
         subtitle = args.particle
         bins = np.linspace(-1, 1, 51)

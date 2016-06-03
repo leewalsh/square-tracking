@@ -691,14 +691,14 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
     if bgimage is not None:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap=plt.cm.gray, origin='upper')
+        ax.imshow(bgimage, cmap='gray', origin='upper')
     if trackids is None:
         trackids = data['t']
     if mask is None:
         mask = np.where(trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    ax.scatter(data['y'], data['x'], c=trackids%12, marker='o', alpha=.5, lw=0)
+    ax.scatter(data['y'], data['x'], c=trackids%12, marker='o', cmap='Dark2', lw=0)
     ax.set_aspect('equal')
     ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
     ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
