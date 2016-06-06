@@ -1204,7 +1204,7 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
 
 
 def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
-                    label_source=False, savename=''):
+                    label_source=False, savename='', ax=None):
     ps = params[np.in1d(params['source'], sources)]
     lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy[:2]]
     xys = {
@@ -1226,7 +1226,10 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
                 ('fit_nn_rn_rr_DT', 'fit_vt_DT', 'c', 's', '$D_T(nn, rn, rr)$')]
     }[xy]
 
-    fig, ax = plt.subplots(figsize=(4, 4))
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(4, 4))
+    else:
+        fig = ax.figure
     for x, y, c, m, l in xys:
         ax.scatter(ps[y], ps[x], marker=m, c=c, label=l)
         if label_source:
@@ -1238,9 +1241,9 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     ax.set_xscale(scale)
     ax.set_yscale(scale)
     ax.set_aspect('equal', adjustable='box')
-    xlim = ax.set_xlim(lims)
-    ylim = ax.set_ylim(lims)
-    ax.plot(xlim, ylim, '-k', alpha=0.7)
+    ax.set_xlim(lims)
+    ax.set_ylim(lims)
+    ax.plot(lims, lims, '-k', alpha=0.7)
     ax.legend(loc='upper left')
     if savename:
         fig.savefig('/Users/leewalsh/Squares/colson/Output/stats/parameters/'
