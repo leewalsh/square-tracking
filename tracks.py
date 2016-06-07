@@ -67,6 +67,9 @@ if __name__ == '__main__':
         help='Maximum initial jump for a single MSD track at first time step')
     arg('--stub', type=int, default=10, help='Minimum length (in frames) of a '
         'track for it to be included. default = 10')
+    arg('--retire', type=int, default=None, help='Maximum length (in frames) of'
+        ' a track to be kept. default = None keeps all')
+    arg('--reverse', action='store_true', help='Optionally reverse track time.')
     arg('-g', '--gaps', choices=['interp', 'nans', 'leave'], default='interp',
         nargs='?', const='nans', help="Gap handling: choose from %(choices)s. "
         "default is %(default)s, `-g` or `--gaps` alone gives %(const)s")
@@ -1353,9 +1356,11 @@ if __name__ == '__main__':
         labels = not args.quiet
 
     if args.msd or args.nn or args.rn:
-        meta.update(corr_stub=args.stub, corr_gaps=args.gaps)
+        meta.update(corr_stub=args.stub, corr_gaps=args.gaps,
+                    corr_reverse=args.reverse, corr_retire=args.retire)
         tracksets = helpy.load_tracksets(
-            data, min_length=args.stub, run_track_orient=True,
+            data, min_length=args.stub, max_length=args.retire,
+            reverse=args.reverse, run_track_orient=True,
             run_fill_gaps=args.gaps, verbose=args.verbose)
 
     if args.msd:

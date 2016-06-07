@@ -784,8 +784,9 @@ def load_MSD(fullprefix, pos=True, ang=True):
     return ret
 
 
-def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
-                   run_fill_gaps=False, run_track_orient=False, verbose=False):
+def load_tracksets(data, trackids=None, min_length=10, max_length=None,
+                   reverse=False, verbose=False, run_remove_dupes=False,
+                   run_fill_gaps=False, run_track_orient=False):
     """Build a dict of slices into data based on trackid
 
     parameters:
@@ -811,7 +812,11 @@ def load_tracksets(data, trackids=None, min_length=10, run_remove_dupes=False,
         ts = lengths.argsort()[min_length:]
     else:
         ts = np.where(lengths >= min_length)[0]
-    tracksets = {t: data[trackids == t] for t in ts}
+    reverse = int(reverse)
+    step = 1 - 2*reverse
+    start = max_length and reverse and max_length - 1
+    stop = max_length and max_length*(1 - reverse) or None
+    tracksets = {t: data[trackids == t][start:stop:step] for t in ts}
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
