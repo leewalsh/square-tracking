@@ -817,6 +817,9 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
     start = max_length and reverse and max_length - 1
     stop = max_length and max_length*(1 - reverse) or None
     tracksets = {t: data[trackids == t][start:stop:step] for t in ts}
+    if reverse:
+        for t in tracksets:
+            tracksets[t]['f'] = tracksets[t]['f'].max() - tracksets[t]['f']
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
