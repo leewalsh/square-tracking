@@ -469,8 +469,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         # plot the detected dots
         ts = helpy.quick_field_view(fsets[f_num], 't')
         tracked = ts >= 0
-        ps = ax.scatter(y[tracked], x[tracked], c='r', zorder=.8)
-        remove.append(ps)
+        c = ts[tracked] % 12 if args.plottracks else 'r'
+        ps = ax.scatter(y[tracked], x[tracked], c=c, cmap='Dark2', zorder=.8)
+        if not args.plottracks:
+            remove.append(ps)
         if not clean:
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
@@ -485,7 +487,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         xyoo = xyo[omask]
         xo, yo, oo = xyoo.T
         q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=1/side, zorder=.4)
+                      width=side/8, scale_units='xy', scale=10/side, zorder=.4)
         remove.append(q)
         if not clean:
             for dr in [-drc, 0, drc]:
@@ -1395,7 +1397,7 @@ if __name__ == '__main__':
                  kill_jumps=args.killjump*args.side**2, fps=args.fps,
                  figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
 
-    if args.plottracks:
+    if args.plottracks and not args.check:
         if verbose:
             print 'plotting tracks now!'
         if args.slice:
