@@ -916,7 +916,8 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
         erraxr.legend(loc='upper right', fontsize='x-small')
         plt.sca(oldax)
     if show_tracks:
-        plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A, 'b', alpha=.2)
+        plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A,
+                 'b', alpha=.2, lw=0.5)
     return taus, msd_mean, msd_err
 
 
@@ -1497,7 +1498,7 @@ if __name__ == '__main__' and args.nn:
     fit = fitform(taus, *popt)
     plot_individual = True
     if plot_individual:
-        ax.plot(taus, allcorrs.T, 'b', alpha=.2)
+        ax.plot(taus, allcorrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Orientation Autocorrelation"*labels,
                 capthick=0, elinewidth=1, errorevery=3)
@@ -1608,7 +1609,7 @@ if __name__ == '__main__' and args.rn:
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
-        ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2)
+        ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
