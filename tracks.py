@@ -83,6 +83,7 @@ if __name__ == '__main__':
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
+    arg('--colored', action='store_true', help='fit with colored noise')
     arg('--dx', type=float, default=0.25, help='Positional measurement '
         'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
     arg('--dtheta', type=float, default=0.02,
@@ -1475,11 +1476,26 @@ if __name__ == '__main__' and args.nn:
     # Fit to functional form:
     D_R = meta.get('fit_nn_DR', 0.1)
     p0 = [D_R]
+    if args.colored:
+        tau_color = meta.get('fit_nn_TR', 0.1/D_R)
+        p0 += [tau_color]
+        fitstr = (r"$\frac{1}{2}\exp\left["
+                  r"-D_R t + D_R\tau_R \left(1 - e^{-t/\tau_R}\right)"
+                  r"\right]$")
+    else:
+        fitstr = r"$\frac{1}{2}e^{-D_R t}$"
 
-    def fitform(s, DR):
+    min_TR = 1e-3/args.fps
+
+    def fitform(s, DR, TR=0):
+        if TR > min_TR:
+            # only calculate if TR will have significant effect
+            s = s + TR*np.expm1(-s/TR)
+        elif TR < 0:
+            # punish negative TR
+            return (TR - 1)**2
         return 0.5*np.exp(-DR*s)
 
-    fitstr = r"$\frac{1}{2}e^{-D_R t}$"
     try:
         popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
                                p0=p0, sigma=sigma[:fmax])
@@ -1491,6 +1507,10 @@ if __name__ == '__main__' and args.nn:
     print "Fits to <nn>:"
     print '   D_R: {:.4g}'.format(D_R)
     fit_source['DR'] = 'nn'
+    if args.colored:
+        tau_R = float(popt[1])
+        print ' tau_R: {:.4g}'.format(tau_R)
+        fit_source['TR'] = 'nn'
     if args.save:
         helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
@@ -1502,7 +1522,9 @@ if __name__ == '__main__' and args.nn:
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Orientation Autocorrelation"*labels,
                 capthick=0, elinewidth=1, errorevery=3)
-    fitinfo = sf("$D_R={0:.4T}$, $D_R^{{-1}}={1:.3T}$", D_R, 1/D_R)
+    fitinfo = sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
+    if args.colored:
+        fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
     ax.set_xlim(0, tmax)
