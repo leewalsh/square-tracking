@@ -10,6 +10,7 @@ from math import sqrt
 
 import numpy as np
 from scipy.optimize import curve_fit
+import lmfit as fit
 
 import helpy
 import correlation as corr
@@ -1515,7 +1516,7 @@ if __name__ == '__main__' and args.nn:
         helpy.save_meta(saveprefix, fit_nn_DR=D_R)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    fit = fitform(taus, *popt)
+    bestfit = fitform(taus, *popt)
     plot_individual = True
     if plot_individual:
         ax.plot(taus, allcorrs.T, 'b', alpha=.2, lw=0.5)
@@ -1525,10 +1526,10 @@ if __name__ == '__main__' and args.nn:
     fitinfo = sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
     if args.colored:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
-    ax.plot(taus, fit, c=pcol, lw=2,
+    ax.plot(taus, bestfit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
     ax.set_xlim(0, tmax)
-    ax.set_ylim(fit[fmax], 1)
+    ax.set_ylim(bestfit[fmax], 1)
     ax.set_yscale('log')
 
     if labels:
@@ -1627,7 +1628,7 @@ if __name__ == '__main__' and args.rn:
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    fit = fitform(taus, *popt)
+    bestfit = fitform(taus, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
@@ -1638,10 +1639,10 @@ if __name__ == '__main__' and args.rn:
     # fitinfo = ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
     fitinfo = sf(', '.join(['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:nfree]),
                  *(abs(v0), D_R)[:nfree])
-    ax.plot(taus, sgn*fit, c=pcol, lw=2,
+    ax.plot(taus, sgn*bestfit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
 
-    ylim = ax.set_ylim(1.5*fit.min(), 1.5*fit.max())
+    ylim = ax.set_ylim(1.5*bestfit.min(), 1.5*bestfit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
     tau_R = 1/D_R
     if xlim[0] < tau_R < xlim[1]:
@@ -1759,19 +1760,19 @@ if __name__ == '__main__' and args.rr:
                          'fit_rr_v0': v0,
                          'fit_rr_DR': D_R}
         helpy.save_meta(saveprefix, meta_fits)
-    fit = fitform(taus, *popt)
+    bestfit = fitform(taus, *popt)
 
     fitinfo = sf(', '.join(["$D_T={0:.3T}$",
                             "$v_0={1:.3T}$",
                             "$D_R={2:.3T}$"][:nfree]),
                  *(popt*[1, sgn, 1][:nfree]))
-    ax.plot(taus, fit, c=pcol, lw=2,
+    ax.plot(taus, bestfit, c=pcol, lw=2,
             label=(fitstr + "\n")*labels + fitinfo)
 
     guide = limiting_regimes(taus, *popt)
     ax.plot(taus, guide, '-k', lw=2)
 
-    ylim = ax.set_ylim(min(fit[0], msd[0]), fitform(tmax, *popt))
+    ylim = ax.set_ylim(min(bestfit[0], msd[0]), fitform(tmax, *popt))
     xlim = ax.set_xlim(taus[0], tmax)
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])
