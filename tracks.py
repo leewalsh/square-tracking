@@ -9,7 +9,6 @@ from collections import defaultdict
 from math import sqrt
 
 import numpy as np
-from scipy.optimize import curve_fit
 import lmfit as fit
 
 import helpy
@@ -1476,47 +1475,42 @@ if __name__ == '__main__' and args.nn:
 
     # Fit to functional form:
     D_R = meta.get('fit_nn_DR', 0.1)
-    p0 = [D_R]
     if args.colored:
-        tau_color = meta.get('fit_nn_TR', 0.1/D_R)
-        p0 += [tau_color]
+        tau_R = meta.get('fit_nn_TR', 0.1/D_R)
         fitstr = (r"$\frac{1}{2}\exp\left["
                   r"-D_R t + D_R\tau_R \left(1 - e^{-t/\tau_R}\right)"
                   r"\right]$")
     else:
+        tau_R = 0
         fitstr = r"$\frac{1}{2}e^{-D_R t}$"
 
-    min_TR = 1e-3/args.fps
-
-    def fitform(s, DR, TR=0):
+    def nn_form(s, DR=D_R, TR=tau_R, min_TR=1e-3/args.fps):
         if TR > min_TR:
             # only calculate if TR will have significant effect
             s = s + TR*np.expm1(-s/TR)
-        elif TR < 0:
-            # punish negative TR
-            return (TR - 1)**2
         return 0.5*np.exp(-DR*s)
 
-    try:
-        popt, pcov = curve_fit(fitform, taus[:fmax], meancorr[:fmax],
-                               p0=p0, sigma=sigma[:fmax])
-    except RuntimeError as e:
-        print "RuntimeError:", e.message
-        print "Using inital guess", p0
-        popt = p0
-    D_R = float(popt[0])
+    nn_model = fit.Model(nn_form)
+    nn_model.set_param_hint('min_TR', vary=False)
+    nn_model.set_param_hint('tau_R', vary=args.colored)
+
+    nn_result = nn_model.fit(meancorr[:fmax], s=taus[:fmax],
+                             weights=1/sigma[:fmax])
+    nn_best_fit = nn_result.eval(s=taus)
     print "Fits to <nn>:"
+    D_R = nn_result.best_values['DR']
     print '   D_R: {:.4g}'.format(D_R)
     fit_source['DR'] = 'nn'
+    meta_fits = {'fit_nn_DR': D_R}
     if args.colored:
-        tau_R = float(popt[1])
+        tau_R = nn_result.best_values['TR']
         print ' tau_R: {:.4g}'.format(tau_R)
         fit_source['TR'] = 'nn'
+        meta_fits['fit_nn_TR'] = tau_R
     if args.save:
-        helpy.save_meta(saveprefix, fit_nn_DR=D_R)
+        helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    bestfit = fitform(taus, *popt)
     plot_individual = True
     if plot_individual:
         ax.plot(taus, allcorrs.T, 'b', alpha=.2, lw=0.5)
@@ -1526,10 +1520,10 @@ if __name__ == '__main__' and args.nn:
     fitinfo = sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
     if args.colored:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
-    ax.plot(taus, bestfit, c=pcol, lw=2,
+    ax.plot(taus, nn_best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
     ax.set_xlim(0, tmax)
-    ax.set_ylim(bestfit[fmax], 1)
+    ax.set_ylim(nn_best_fit[fmax], 1)
     ax.set_yscale('log')
 
     if labels:
