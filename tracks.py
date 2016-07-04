@@ -6,7 +6,7 @@ from __future__ import division
 import sys
 import itertools as it
 from collections import defaultdict
-from math import sqrt
+from math import sqrt, log, exp
 
 import numpy as np
 import lmfit as fit
@@ -84,6 +84,7 @@ if __name__ == '__main__':
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
     arg('--colored', action='store_true', help='fit with colored noise')
+    arg('--fittr', action='store_true', help='tau_R as free parameter in fits')
     arg('--dx', type=float, default=0.25, help='Positional measurement '
         'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
     arg('--dtheta', type=float, default=0.02,
@@ -1540,12 +1541,15 @@ if __name__ == '__main__' and args.nn:
         fig.savefig(save)
 
 if __name__ == '__main__' and args.rn:
-    print "====== <rn> ======"
     # Calculate the <rn> correlation for all the tracks in a given dataset
-    # TODO: fix this to combine multiple datasets (more than one prefix)
+    print "====== <rn> ======"
 
     if not args.nn:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
+        args.fitdr = True
+        args.fittr = args.colored
+    v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
+    l_p = v0/D_R
 
     corr_args = {'side': 'both', 'ret_dx': True,
                  'cumulant': (True, False), 'norm': 0}
@@ -1576,53 +1580,44 @@ if __name__ == '__main__' and args.rn:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
-    def fitform(s, v_D, D=D_R):
-        return 0.5*np.sign(s)*v_D*(1 - corr.exp_decay(np.abs(s), 1/D))
+    def rn_form(s, lp=l_p, DR=D_R, TR=0):
+        amp = lp*(exp(DR*TR) if TR > 0 else 1)
+        return -0.5*amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
 
-    # p0 = [v_0/D_R, D_R]
-    v0 = meta.get('fit_rn_v0', 0.1)
-    p0 = [v0]
-    if not args.nn or args.fitdr:
-        p0 += [D_R]
-
-    try:
-        popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
-    except RuntimeError as e:
-        try:
-            p0[0] *= -1  # maybe dots are backwards, try starting from  v0 < 0
-            popt, pcov = curve_fit(fitform, taus, meancorr, p0=p0, sigma=sigma)
-        except RuntimeError as e:
-            p0[0] *= -1  # restore original positive value
-            print "RuntimeError:", e.message
-            print "Using inital guess", p0
-            popt = p0
+    rn_model = fit.Model(rn_form)
+    rn_model.set_param_hint('TR', vary=(args.colored and args.fittr))
+    rn_model.set_param_hint('DR', vary=args.fitdr)
+    rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
     print "Fits to <rn>:"
-    nfree = len(popt)
-    if nfree > 1:
-        D_R = popt[1]
-        fit_source['DR'] = 'rn'
-    v0 = D_R*popt[0]
+    l_p = rn_result.best_values['lp']
+    v0 = D_R*l_p
     fit_source['v0'] = 'rn'
-    print '\n'.join([' v0/D_R: {:.4g}',
-                     '    D_R: {:.4g}'][:nfree]).format(*popt)
+    print ' v0/D_R: {:.4g}'.format(l_p)
+    if args.fitdr:
+        D_R = rn_result.best_values['DR']
+        fit_source['DR'] = 'rn'
+        print '    D_R: {:.4g}'.format(D_R)
+    if args.colored and args.fittr:
+        tau_R = rn_result.best_values['TR']
+        fit_source['TR'] = 'rn'
+        print '  tau_R: {:.4g}'.format(tau_R)
     print "Giving:"
-    print '\n'.join(['     v0: {:.4f}',
-                     'D_R(rn): {:.4f}'][:nfree]
-                    ).format(*[v0, D_R][:nfree])
+    print '     v0: {:.4f}'.format(v0)
     if args.save:
-        if nfree == 1:
-            psources = '_nn'
-            meta_fits = {'fit'+psources+'_rn_v0': v0}
-        elif nfree == 2:
+        if args.fitdr:
             psources = ''
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
+        else:
+            psources = '_nn'
+            meta_fits = {'fit'+psources+'_rn_v0': v0}
+        if args.colored and args.fittr:
+            meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    bestfit = fitform(taus, *popt)
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
@@ -1630,13 +1625,15 @@ if __name__ == '__main__' and args.rn:
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
-    # fitinfo = ', '.join(['$v_0$: {:.3f}', '$t_0$: {:.3f}', '$D_R$: {:.3f}'
-    fitinfo = sf(', '.join(['$v_0={0:.3T}$', '$D_R={1:.3T}$'][:nfree]),
-                 *(abs(v0), D_R)[:nfree])
-    ax.plot(taus, sgn*bestfit, c=pcol, lw=2,
+    fitinfo = sf('$v_0={0:.3T}$', abs(v0))
+    if args.fitdr:
+        fitinfo += sf(", $D_R={0:.3T}$", D_R)
+    if args.colored and args.fittr:
+        fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
+    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
 
-    ylim = ax.set_ylim(1.5*bestfit.min(), 1.5*bestfit.max())
+    ylim = ax.set_ylim(1.5*rn_result.best_fit.min(), 1.5*rn_result.best_fit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
     tau_R = 1/D_R
     if xlim[0] < tau_R < xlim[1]:
