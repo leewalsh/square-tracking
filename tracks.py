@@ -1680,29 +1680,28 @@ if __name__ == '__main__' and args.rr:
 
     # Fit to functional form:
     D_T = meta.get('fit_rr_DT', 0.01)
-    p0 = [D_T]
     if args.fitv0 or not args.rn:
         v0 = meta.get('fit_rn_v0', 0.1)
         sgn = np.sign(v0)
-        p0 += [v0]
+        args.fitv0 = True
     if not (args.nn or args.rn):
+        args.fitdr = True
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
-        p0 += [D_R]
 
-    def fitform(s, D, v=v0, DR=D_R):
-        return 2*(v/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*D*s
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R):
+        return 2*(v0/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*DT*s
 
-    def limiting_regimes(s, D, v=v0, DR=D_R):
-        v *= v  # v is squared everywhere
-        tau_T = D/v
+    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R):
+        vv = v0*v0  # v0 is squared everywhere
+        tau_T = DT/vv
         tau_R = 1/DR
         if tau_T > tau_R:
             return np.full_like(s, np.nan)
         taus = (tau_T, tau_R)
 
-        early = 2*D*s       # s < tau_T
-        middle = v*s**2         # tau_T < s < tau_R
-        late = 2*(v/DR + D)*s               # tau_R < s
+        early = 2*DT*s       # s < tau_T
+        middle = vv*s**2         # tau_T < s < tau_R
+        late = 2*(vv/DR + DT)*s               # tau_R < s
         lines = np.choose(np.searchsorted(taus, s), [early, middle, late])
 
         taus_f = np.clip(np.searchsorted(s, taus), 0, len(s)-1)
@@ -1711,59 +1710,52 @@ if __name__ == '__main__' and args.rr:
 
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
 
-    try:
-        popt, pcov = curve_fit(fitform, taus[:fmax], msd[:fmax],
-                               p0=p0, sigma=sigma[:fmax])
-    except RuntimeError as e:
-        print "RuntimeError:", e.message
-        if not args.fitv0:
-            p0 = [0, v0]
-        print "Using inital guess", p0
-        popt = p0
+    rr_model = fit.Model(rr_form)
+    rr_model.set_param_hint('DR', vary=args.fitdr)
+    rr_model.set_param_hint('v0', vary=args.fitv0)
+    rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
     print "Fits to <rr>:"
-    nfree = len(popt)
-    D_T = popt[0]
+    D_T = rr_result.best_values['DT']
     fit_source['DT'] = 'rr'
-    if nfree > 1:
-        v0 = popt[1]
+    print '   D_T: {:.3g}'.format(D_T)
+    fitinfo = sf("$D_T={0:.3T}$", D_T)
+    if args.fitv0:
+        v0 = rr_result.best_values['v0']
         fit_source['v0'] = 'rr'
-        if nfree > 2:
-            D_R = popt[2]
-            fit_source['DR'] = 'rr'
-    print '\n'.join(['   D_T: {:.3g}',
-                     'v0(rr): {:.3g}',
-                     '   D_R: {:.3g}'][:nfree]).format(*popt)
-    if nfree > 1:
+        print 'v0(rr): {:.3g}'.format(v0)
+        fitinfo += sf(", $v_0={0:.3T}$", v0*sgn)
+    if args.fitdr:
+        D_R = rr_result.best_values['DR']
+        fit_source['DR'] = 'rr'
+        print '   D_R: {:.3g}'.format(D_R)
+        fitinfo += sf(", $D_R={0:.3T}$", D_R)
+    if args.fitv0 or args.fitdr:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
-        if nfree == 1:
-            psources = '_{DR}_{v0}'.format(**fit_source)
-            meta_fits = {'fit'+psources+'_rr_DT': D_T}
-        elif nfree == 2:
-            psources = '_{DR}'.format(**fit_source)
-            meta_fits = {'fit'+psources+'_rr_DT': D_T,
-                         'fit'+psources+'_rr_v0': v0}
-        elif nfree == 3:
+        if args.fitdr and args.fitv0:
             psources = ''
             meta_fits = {'fit_rr_DT': D_T,
                          'fit_rr_v0': v0,
                          'fit_rr_DR': D_R}
+        elif args.fitv0:
+            psources = '_{DR}'.format(**fit_source)
+            meta_fits = {'fit'+psources+'_rr_DT': D_T,
+                         'fit'+psources+'_rr_v0': v0}
+        else:
+            psources = '_{DR}_{v0}'.format(**fit_source)
+            meta_fits = {'fit'+psources+'_rr_DT': D_T}
         helpy.save_meta(saveprefix, meta_fits)
-    bestfit = fitform(taus, *popt)
 
-    fitinfo = sf(', '.join(["$D_T={0:.3T}$",
-                            "$v_0={1:.3T}$",
-                            "$D_R={2:.3T}$"][:nfree]),
-                 *(popt*[1, sgn, 1][:nfree]))
-    ax.plot(taus, bestfit, c=pcol, lw=2,
+    rr_best_fit = rr_result.eval(s=taus)
+    ax.plot(taus, rr_best_fit, c=pcol, lw=2,
             label=(fitstr + "\n")*labels + fitinfo)
 
-    guide = limiting_regimes(taus, *popt)
+    guide = limiting_regimes(taus, **rr_result.best_values)
     ax.plot(taus, guide, '-k', lw=2)
 
-    ylim = ax.set_ylim(min(bestfit[0], msd[0]), fitform(tmax, *popt))
+    ylim = ax.set_ylim(min(rr_best_fit[0], msd[0]), rr_best_fit[-1])
     xlim = ax.set_xlim(taus[0], tmax)
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])
