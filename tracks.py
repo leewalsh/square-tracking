@@ -1684,10 +1684,10 @@ if __name__ == '__main__' and args.rr:
     if not (args.nn or args.rn):
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
-    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R):
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=0):
         return 2*exp(DR*TR)*(v0/DR)**2 * (np.exp(-DR*s) - 1 + DR*s) + 2*DT*s
 
-    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R):
+    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0):
         vv = v0*v0  # v0 is squared everywhere
         tau_T = DT/vv
         tau_R = 1/DR
@@ -1729,6 +1729,11 @@ if __name__ == '__main__' and args.rr:
         fit_source['DR'] = 'rr'
         print '   D_R: {:.3g}'.format(D_R)
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
+    if 'TR' in rr_result.var_names:
+        tau_R = rr_result.best_values['TR']
+        fit_source['TR'] = 'rr'
+        print ' tau_R: {:.3g}'.format(tau_R)
+        fitinfo += sf(", $tau_R={0:.3T}$", tau_R)
     if 'v0' in rr_result.var_names or 'DR' in rr_result.var_names:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
