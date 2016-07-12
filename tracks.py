@@ -1493,7 +1493,7 @@ if __name__ == '__main__' and args.nn:
 
     nn_model = fit.Model(nn_form)
     nn_model.set_param_hint('min_TR', vary=False)
-    nn_model.set_param_hint('tau_R', vary=args.colored)
+    nn_model.set_param_hint('TR', vary=args.colored, min=0)
 
     nn_result = nn_model.fit(meancorr[:fmax], s=taus[:fmax],
                              weights=1/sigma[:fmax])
@@ -1546,8 +1546,6 @@ if __name__ == '__main__' and args.rn:
 
     if not args.nn:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
-        args.fitdr = True
-        args.fittr = args.colored
     v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
     l_p = v0/D_R
 
@@ -1587,8 +1585,8 @@ if __name__ == '__main__' and args.rn:
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
 
     rn_model = fit.Model(rn_form)
-    rn_model.set_param_hint('TR', vary=(args.colored and args.fittr))
-    rn_model.set_param_hint('DR', vary=args.fitdr)
+    rn_model.set_param_hint('TR', vary=(args.fittr or args.colored), min=0)
+    rn_model.set_param_hint('DR', vary=(args.fitdr or not args.nn))
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
     print "Fits to <rn>:"
@@ -1596,24 +1594,24 @@ if __name__ == '__main__' and args.rn:
     v0 = D_R*l_p
     fit_source['v0'] = 'rn'
     print ' v0/D_R: {:.4g}'.format(l_p)
-    if args.fitdr:
+    if 'DR' in nn_result.var_names:
         D_R = rn_result.best_values['DR']
         fit_source['DR'] = 'rn'
         print '    D_R: {:.4g}'.format(D_R)
-    if args.colored and args.fittr:
+    if 'TR' in nn_result.var_names:
         tau_R = rn_result.best_values['TR']
         fit_source['TR'] = 'rn'
         print '  tau_R: {:.4g}'.format(tau_R)
     print "Giving:"
     print '     v0: {:.4f}'.format(v0)
     if args.save:
-        if args.fitdr:
+        if 'DR' in nn_result.var_names:
             psources = ''
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
         else:
             psources = '_nn'
             meta_fits = {'fit'+psources+'_rn_v0': v0}
-        if args.colored and args.fittr:
+        if 'TR' in nn_result.var_names:
             meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1626,19 +1624,18 @@ if __name__ == '__main__' and args.rn:
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
     fitinfo = sf('$v_0={0:.3T}$', abs(v0))
-    if args.fitdr:
+    if 'DR' in nn_result.var_names:
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if args.colored and args.fittr:
+    if 'TR' in nn_result.var_names:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
 
     ylim = ax.set_ylim(1.5*rn_result.best_fit.min(), 1.5*rn_result.best_fit.max())
     xlim = ax.set_xlim(taus.min(), taus.max())
-    tau_R = 1/D_R
-    if xlim[0] < tau_R < xlim[1]:
-        ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
-        ax.text(tau_R, 1e-2, ' $1/D_R$')
+    if xlim[0] < 1/D_R < xlim[1]:
+        ax.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+        ax.text(1/D_R, 1e-2, ' $1/D_R$')
 
     if labels:
         ax.set_title("Position - Orientation Correlation")
@@ -1683,15 +1680,13 @@ if __name__ == '__main__' and args.rr:
     if args.fitv0 or not args.rn:
         v0 = meta.get('fit_rn_v0', 0.1)
         sgn = np.sign(v0)
-        args.fitv0 = True
     if not (args.nn or args.rn):
-        args.fitdr = True
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
-    def rr_form(s, DT=D_T, v0=v0, DR=D_R):
-        return 2*(v0/DR)**2 * (DR*s + np.exp(-DR*s) - 1) + 2*DT*s
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R):
+        return 2*exp(DR*TR)*(v0/DR)**2 * (np.exp(-DR*s) - 1 + DR*s) + 2*DT*s
 
-    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R):
+    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R):
         vv = v0*v0  # v0 is squared everywhere
         tau_T = DT/vv
         tau_R = 1/DR
@@ -1711,8 +1706,11 @@ if __name__ == '__main__' and args.rr:
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
 
     rr_model = fit.Model(rr_form)
-    rr_model.set_param_hint('DR', vary=args.fitdr)
-    rr_model.set_param_hint('v0', vary=args.fitv0)
+    rn_model.set_param_hint('TR', min=0,
+        vary=args.fittr or (args.colored and not (args.nn or args.rn)))
+    rr_model.set_param_hint('DR', min=0,
+        vary=args.fitdr or not (args.nn or args.rn))
+    rr_model.set_param_hint('v0', vary=args.fitv0 or not args.rn)
     rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
     print "Fits to <rr>:"
@@ -1720,26 +1718,26 @@ if __name__ == '__main__' and args.rr:
     fit_source['DT'] = 'rr'
     print '   D_T: {:.3g}'.format(D_T)
     fitinfo = sf("$D_T={0:.3T}$", D_T)
-    if args.fitv0:
+    if 'v0' in rr_result.var_names:
         v0 = rr_result.best_values['v0']
         fit_source['v0'] = 'rr'
         print 'v0(rr): {:.3g}'.format(v0)
         fitinfo += sf(", $v_0={0:.3T}$", v0*sgn)
-    if args.fitdr:
+    if 'DR' in rr_result.var_names:
         D_R = rr_result.best_values['DR']
         fit_source['DR'] = 'rr'
         print '   D_R: {:.3g}'.format(D_R)
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if args.fitv0 or args.fitdr:
+    if 'v0' in rr_result.var_names or 'DR' in rr_result.var_names:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
-        if args.fitdr and args.fitv0:
+        if 'v0' in rr_result.var_names and 'DR' in rr_result.var_names:
             psources = ''
             meta_fits = {'fit_rr_DT': D_T,
                          'fit_rr_v0': v0,
                          'fit_rr_DR': D_R}
-        elif args.fitv0:
+        elif 'v0' in rr_result.var_names:
             psources = '_{DR}'.format(**fit_source)
             meta_fits = {'fit'+psources+'_rr_DT': D_T,
                          'fit'+psources+'_rr_v0': v0}
