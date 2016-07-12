@@ -1498,7 +1498,7 @@ if __name__ == '__main__' and args.nn:
     nn_result = nn_model.fit(meancorr[:fmax], s=taus[:fmax],
                              weights=1/sigma[:fmax])
     nn_best_fit = nn_result.eval(s=taus)
-    print "Fits to <nn>:"
+    print "Fits to <nn> (free params:", ', '.join(nn_result.var_names)+'):'
     D_R = nn_result.best_values['DR']
     print '   D_R: {:.4g}'.format(D_R)
     fit_source['DR'] = 'nn'
@@ -1589,7 +1589,7 @@ if __name__ == '__main__' and args.rn:
     rn_model.set_param_hint('DR', vary=(args.fitdr or not args.nn))
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
-    print "Fits to <rn>:"
+    print "Fits to <rn> (free params:", ', '.join(rn_result.var_names)+'):'
     l_p = rn_result.best_values['lp']
     v0 = D_R*l_p
     fit_source['v0'] = 'rn'
@@ -1713,7 +1713,7 @@ if __name__ == '__main__' and args.rr:
     rr_model.set_param_hint('v0', vary=args.fitv0 or not args.rn)
     rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
-    print "Fits to <rr>:"
+    print "Fits to <rr> (free params:", ', '.join(rr_result.var_names)+'):'
     D_T = rr_result.best_values['DT']
     fit_source['DT'] = 'rr'
     print '   D_T: {:.3g}'.format(D_T)
