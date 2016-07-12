@@ -1585,8 +1585,9 @@ if __name__ == '__main__' and args.rn:
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
 
     rn_model = fit.Model(rn_form)
-    rn_model.set_param_hint('TR', vary=(args.fittr or args.colored), min=0)
-    rn_model.set_param_hint('DR', vary=(args.fitdr or not args.nn))
+    rn_model.set_param_hint('TR', min=0,
+        vary=args.fittr or (args.colored and not args.nn))
+    rn_model.set_param_hint('DR', min=0, vary=(args.fitdr or not args.nn))
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
     print "Fits to <rn> (free params:", ', '.join(rn_result.var_names)+'):'
@@ -1594,24 +1595,24 @@ if __name__ == '__main__' and args.rn:
     v0 = D_R*l_p
     fit_source['v0'] = 'rn'
     print ' v0/D_R: {:.4g}'.format(l_p)
-    if 'DR' in nn_result.var_names:
+    if 'DR' in rn_result.var_names:
         D_R = rn_result.best_values['DR']
         fit_source['DR'] = 'rn'
         print '    D_R: {:.4g}'.format(D_R)
-    if 'TR' in nn_result.var_names:
+    if 'TR' in rn_result.var_names:
         tau_R = rn_result.best_values['TR']
         fit_source['TR'] = 'rn'
         print '  tau_R: {:.4g}'.format(tau_R)
     print "Giving:"
     print '     v0: {:.4f}'.format(v0)
     if args.save:
-        if 'DR' in nn_result.var_names:
+        if 'DR' in rn_result.var_names:
             psources = ''
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
         else:
             psources = '_nn'
             meta_fits = {'fit'+psources+'_rn_v0': v0}
-        if 'TR' in nn_result.var_names:
+        if 'TR' in rn_result.var_names:
             meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1624,9 +1625,9 @@ if __name__ == '__main__' and args.rn:
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
     fitinfo = sf('$v_0={0:.3T}$', abs(v0))
-    if 'DR' in nn_result.var_names:
+    if 'DR' in rn_result.var_names:
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if 'TR' in nn_result.var_names:
+    if 'TR' in rn_result.var_names:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
@@ -1706,7 +1707,7 @@ if __name__ == '__main__' and args.rr:
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
 
     rr_model = fit.Model(rr_form)
-    rn_model.set_param_hint('TR', min=0,
+    rr_model.set_param_hint('TR', min=0,
         vary=args.fittr or (args.colored and not (args.nn or args.rn)))
     rr_model.set_param_hint('DR', min=0,
         vary=args.fitdr or not (args.nn or args.rn))
