@@ -236,10 +236,11 @@ def pad_uneven(lol, fill=0, return_mask=False,
         return new 2d array with shorter lists padded with fill value
     """
     if dtype is None:
-        dtype = np.result_type(fill, lol[0][0])
+        dtype = np.result_type(fill, np.array(lol[0][0]))
     lengths = np.array(map(len, lol))
     lengths[lengths < shortest] = 0
-    shape = len(lol), min(longest or np.inf, lengths.max())
+    length = min(longest or np.inf, lengths.max())
+    shape = (len(lol), length) + np.shape(lol[0][0])
     result = np.empty(shape, dtype)
     result[:] = fill  # this allows broadcasting unlike np.full
     if return_mask:
@@ -259,8 +260,8 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, ret_all=False):
         isfin = ~isnan
     else:
         isfin = np.isfinite(arrs)
-    added = np.sum(isfin, 0)
-    enough = np.where(added >= min_added)[0]
+    added = isfin.sum(0)
+    enough = (added >= min_added).all(tuple(range(1, added.ndim))).nonzero()[0]
     arrs = arrs[:, enough]
     added = added[enough]
     if weight:
