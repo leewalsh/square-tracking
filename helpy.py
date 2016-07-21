@@ -1160,6 +1160,30 @@ def dist(a, b):
     return np.hypot(*(a - b).T)
 
 
+def rotate(v, theta, out=None):
+    """rotate a 2-d vector into the basis defined by theta
+
+    parameters
+    ----------
+    v:      vector(s) with shape (2, ...)
+    theta:  angle(s) with shape (...,)
+
+    returns
+    -------
+    vout:   v rotated along theta
+
+    take ihat =  cos(theta), sin(theta)
+    thus jhat = -sin(theta), cos(theta)
+    then vout =  v dot ihat, v dot jhat
+    """
+    if out is None:
+        out = np.empty_like(v)
+    cos, sin = np.cos(theta), np.sin(theta)
+    rot = np.array([[cos, sin],
+                    [-sin, cos]])
+    return np.einsum('ij...,...j', rot, v, out=out)
+
+
 def circle_three_points(*xs):
     """ With three points, calculate circle
         e.g., see paulbourke.net/geometry/circlesphere
