@@ -538,7 +538,7 @@ def vary_gauss(a, sig=1, verbose=False):
     return b
 
 
-def msd(xs, ret_taus=False):
+def msd(xs, ret_taus=False, ret_vector=False):
     """ So far:
           - only accepts the positions in 1 or 2d array (no data structure)
           - can only do dt0 = dtau = 1
@@ -582,7 +582,8 @@ def msd(xs, ret_taus=False):
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
     msd = x2s - 2*xx0
-    msd = msd.sum(1)    # straight sum over dimensions (x2 + y2 + ...)
+    if not ret_vector:
+        msd = msd.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
 
     return np.column_stack([np.arange(T), msd]) if ret_taus else msd
 
