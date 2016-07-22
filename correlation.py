@@ -594,6 +594,39 @@ def msd(xs, ret_taus=False, ret_vector=False):
     return np.column_stack([np.arange(T), msd]) if ret_taus else msd
 
 
+def msd_body(xs, os, ret_taus=False):
+    xs = np.asarray(xs)
+    d = xs.ndim
+    if d == 1:
+        return msd(xs, ret_taus)
+    elif d == 2:
+        T, d = xs.shape
+        assert d == 2
+    else:
+        msg = "can't handle xs.ndims > 2. xs.shape is {}"
+        raise ValueError(msg.format(xs.shape))
+
+    corrarg = {'side': 'right', 'cumulant': False, 'mode': 'full'}
+    nt = np.arange(T, 0, -1)[:, None]  # = T - tau
+    ns = np.column_stack([np.cos(os), np.sin(os)])
+    ps = ns[:, ::-1]
+    ys = xs[:, ::-1]
+    x2 = xs * xs
+    n2 = ns * ns
+    p2 = n2[:, ::-1]
+    pn = ns * ps
+    xy = xs * ys
+    progress = (crosscorr(x2, n2, **corrarg) + np.cumsum(x2*n2, 0)[::-1]/nt -
+                2*crosscorr(xs, xs*n2, **corrarg))
+    diversion = (crosscorr(x2, p2, **corrarg) + np.cumsum(x2*p2, 0)[::-1]/nt -
+                 2*crosscorr(xs, xs*p2, **corrarg))
+    crossterms = (crosscorr(xy, pn, **corrarg) + np.cumsum(xy*pn, 0)[::-1]/nt -
+                  2*crosscorr(xs, ys*pn, **corrarg))
+    progress += crossterms
+    diversion -= crossterms
+    return np.column_stack([progress.sum(1), diversion.sum(1)])
+
+
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     """ Find the decay scale of a function f(x)
         f: a decaying 1d array
