@@ -976,6 +976,9 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         print '   match?:', np.allclose(taus_crop, msd_taus)
     taus = msd_taus / fps
     msd = msd_mean / A
+    msd_vec = msd.ndim > 1
+    if msd_vec:
+        lw /= 2
 
     if tnormalize:
         ax.plot(taus, msd/taus**tnormalize, meancol,
@@ -997,8 +1000,10 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     if errorbars:
         msd_err /= A
         tnorm = taus**tnormalize if tnormalize else 1
-        ax.errorbar(taus, msd/tnorm, msd_err/tnorm, lw=lw,
-                    c=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
+        msd_rows = (msd.T, msd_err.T) if msd_vec else (msd[None], msd_err[None])
+        for msd_row, msd_err_row in it.izip(*msd_rows):
+            ax.errorbar(taus, msd_row/tnorm, msd_err_row/tnorm, c=meancol,
+                        lw=lw, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     if title is None:
@@ -1680,6 +1685,12 @@ if __name__ == '__main__' and args.rr:
         fps=args.fps, S=args.side, kill_flats=args.killflat,
         kill_jumps=args.killjump*args.side**2, title='' if args.quiet else None,
         figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
+
+    if msd.ndim == 2:
+        progression, diversion = msd.T
+        msd = msd.sum(1)
+        errcorr_vec, errcorr = errcorr, np.hypot(*errcorr.T)
+        ax.plot(taus, msd, '-', c=vcol, lw=3)
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
