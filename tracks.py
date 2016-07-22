@@ -61,6 +61,7 @@ if __name__ == '__main__':
         'single track at different time starting points. default = 1')
     arg('--dtau', type=int, default=1, help='Stepsize for values of tau at '
         'which to calculate MSD(tau). default = 1')
+    arg('--msdvec', nargs='?', default=False, const=True, help='msd as vector')
     arg('--killflat', type=int, default=0,
         help='Minimum growth factor for a single MSD track for inclusion')
     arg('--killjump', type=int, default=100000,
@@ -766,7 +767,7 @@ def t0avg(trackset, tracklen, tau):
     return totsqdisp/nt0s if nt0s else None
 
 
-def trackmsd(trackset, dt0, dtau):
+def trackmsd(trackset, dt0, dtau, ret_vector=False):
     """ finds the mean squared displacement as a function of tau,
         averaged over t0, for one track (particle)
 
@@ -791,7 +792,14 @@ def trackmsd(trackset, dt0, dtau):
     """
     if dt0 == dtau == 1:
         xy = helpy.consecutive_fields_view(trackset, 'xy')
-        return corr.msd(xy, ret_taus=True)
+        if ret_vector == 'body':
+            theta = trackset['o']
+            tmsd = corr.msd_body(xy, theta, ret_taus=True)
+        else:
+            tmsd = corr.msd(xy, ret_taus=True, ret_vector=ret_vector)
+        return tmsd
+    elif ret_vector:
+        raise ValueError("Cannot return vector with dt0 or dtau > 0")
 
     trackbegin, trackend = trackset['f'][[0, -1]]
     tracklen = trackend - trackbegin + 1
@@ -865,6 +873,7 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
     taus = taus[:msdshape[1]]
     if verbose:
         print '-->', taus.shape
+        print 'assembling msd tracks'
 
     if msdids is not None:
         allmsds = it.izip(xrange(len(msds)), msds, msdids)
@@ -881,6 +890,8 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
             ti, tmsd = thismsd
         if len(tmsd) < 2:
             continue
+        if verbose:
+            print ti,
         tmsd = np.asarray(tmsd)
         tmsdt = tmsd[:, 0]
         tmsdd = tmsd[:, 1:].squeeze()
