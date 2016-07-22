@@ -812,14 +812,14 @@ def trackmsd(trackset, dt0, dtau):
     return tmsd
 
 
-def find_msds(tracksets, dt0, dtau, min_length=0):
+def find_msds(tracksets, dt0, dtau, ret_vector=False):
     """ Calculates the MSDs for all tracks
 
         parameters
         ----------
         dt0, dtau : see documentation for `trackmsd`
         tracksets : dict of subsets of the data for a given track
-        min_length : a cutoff to exclude tracks shorter than min_length
+        ret_vector : whether to return vector components of msd
 
         returns
         -------
@@ -836,7 +836,7 @@ def find_msds(tracksets, dt0, dtau, min_length=0):
         if verbose:
             print t,
             sys.stdout.flush()
-        tmsd = trackmsd(tracksets[t], dt0, dtau)
+        tmsd = trackmsd(tracksets[t], dt0, dtau, ret_vector)
         if len(tmsd) > 1:
             msds.append(tmsd)
             msdids.append(t)
@@ -852,9 +852,12 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
              show_tracks=False, singletracks=None):
     """ return the mean of several track msds """
 
-    # msd has shape (number of tracks, length of tracks)
-    msdshape = (len(singletracks) if singletracks else len(msds),
-                max(map(len, msds)))
+    # msd has shape (number of tracks, length of tracks, msd vector dimension)
+    msdshape = [len(singletracks or msds),
+                max(map(len, msds))]
+    vdim = len(msds[0][0]) - 1
+    if vdim > 1:
+        msdshape += [vdim]
     msd = np.full(msdshape, np.nan, float)
     if verbose:
         print 'msdshape:', msdshape
@@ -878,7 +881,9 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
             ti, tmsd = thismsd
         if len(tmsd) < 2:
             continue
-        tmsdt, tmsdd = np.asarray(tmsd).T
+        tmsd = np.asarray(tmsd)
+        tmsdt = tmsd[:, 0]
+        tmsdd = tmsd[:, 1:].squeeze()
         if tmsdd[-50:].mean() < kill_flats or tmsdd[:2].mean() > kill_jumps:
             continue
         tau_match = np.searchsorted(taus, tmsdt)
@@ -917,7 +922,7 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
         erraxl.legend(loc='upper left', fontsize='x-small')
         erraxr.legend(loc='upper right', fontsize='x-small')
         plt.sca(oldax)
-    if show_tracks:
+    if show_tracks and vdim == 1:
         plt.plot(taus/fps, (msd/(taus/fps)**tnormalize).T/A,
                  'b', alpha=.2, lw=0.5)
     return taus, msd_mean, msd_err
@@ -977,7 +982,8 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         #          label="slope = 1")
     if errorbars:
         msd_err /= A
-        ax.errorbar(taus, msd/taus**tnormalize, msd_err/taus**tnormalize, lw=lw,
+        tnorm = taus**tnormalize if tnormalize else 1
+        ax.errorbar(taus, msd/tnorm, msd_err/tnorm, lw=lw,
                     c=meancol, capthick=0, elinewidth=1, errorevery=errorbars)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
@@ -1370,7 +1376,7 @@ if __name__ == '__main__':
 
     if args.msd:
         msds, msdids = find_msds(
-            tracksets, args.dt0, args.dtau, min_length=args.stub)
+            tracksets, args.dt0, args.dtau, ret_vector=args.msdvec)
         meta.update(msd_dt0=args.dt0, msd_dtau=args.dtau, msd_stub=args.stub)
         if args.save:
             save = saveprefix+"_MSD.npz"
@@ -1393,6 +1399,7 @@ if __name__ == '__main__':
     if args.plotmsd:
         if verbose:
             print 'plotting msd now!'
+        labels = not args.quiet
         plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1,
                  tnormalize=False, prefix=saveprefix, show=args.show,
                  show_tracks=args.showtracks, singletracks=args.singletracks,
