@@ -624,7 +624,8 @@ def msd_body(xs, os, ret_taus=False):
                   2*crosscorr(xs, ys*pn, **carg))
     progress += crossterms
     diversion -= crossterms
-    return np.column_stack([progress.sum(1), diversion.sum(1)])
+    taus = [np.arange(T)] if ret_taus else []
+    return np.column_stack(taus + [progress.sum(1), diversion.sum(1)])
 
 
 def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
