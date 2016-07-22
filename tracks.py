@@ -647,19 +647,21 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=Fa
         print 'filling gaps with nans'
         if interp:
             print 'and interpolating nans in', ', '.join(interp)
+        print '\ttrack length max_gap num_gaps num_frames'
+        fmt = '\t{:5} {:6} {:7} {:8} {:10}'.format
     for t, tset in tracksets.items():
-        if verbose:
-            print '\t{} ({})'.format(t, len(tset)),
         fs = tset['f']
         gaps = np.diff(fs) - 1
         mx = gaps.max()
         if not mx:
+            if verbose > 1:
+                print fmt(t, len(tset), mx, 0, 0), 'no gaps'
             if 'o' in interp:
                 interp_nans(tset['o'], tset['f'], inplace=True)
             continue
         elif mx > max_gap:
             if verbose:
-                print "dropped gap {}".format(mx),
+                print fmt(t, len(tset), mx, '?', '?'), 'drop track'
             tracksets.pop(t)
             continue
         gapi = gaps.nonzero()[0]
@@ -667,8 +669,7 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=Fa
         gapi = np.repeat(gapi, gaps)
         missing = np.full(len(gapi), np.nan, tset.dtype)
         if verbose:
-            print "filled {:2} gaps ({:3} frames, max {})".format(
-                len(gapi), len(gaps), mx)
+            print fmt(t, len(tset), mx, len(gaps), len(gapi)), 'filled'
         missing['f'] = np.concatenate(map(range, gaps)) + fs[gapi] + 1
         missing['t'] = t
         tset = np.insert(tset, gapi+1, missing)
@@ -677,6 +678,8 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=Fa
                 view = helpy.consecutive_fields_view(tset, field)
                 interp_nans(view, inplace=True)
         tracksets[t] = tset
+    if verbose:
+        print
     return tracksets
 
 
@@ -1675,7 +1678,7 @@ if __name__ == '__main__' and args.rr:
         show=False, tnormalize=0, errorbars=3, prefix=saveprefix,
         show_tracks=True, meancol=vcol, lw=3, singletracks=args.singletracks,
         fps=args.fps, S=args.side, kill_flats=args.killflat,
-        kill_jumps=args.killjump*args.side**2, title=('' if args.quiet else None),
+        kill_jumps=args.killjump*args.side**2, title='' if args.quiet else None,
         figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
 
     tmax = int(200*args.zoom)

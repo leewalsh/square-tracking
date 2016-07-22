@@ -606,7 +606,7 @@ def msd_body(xs, os, ret_taus=False):
         msg = "can't handle xs.ndims > 2. xs.shape is {}"
         raise ValueError(msg.format(xs.shape))
 
-    corrarg = {'side': 'right', 'cumulant': False, 'mode': 'full'}
+    carg = {'side': 'right', 'cumulant': False, 'mode': 'full'}
     nt = np.arange(T, 0, -1)[:, None]  # = T - tau
     ns = np.column_stack([np.cos(os), np.sin(os)])
     ps = ns[:, ::-1]
@@ -616,12 +616,12 @@ def msd_body(xs, os, ret_taus=False):
     p2 = n2[:, ::-1]
     pn = ns * ps
     xy = xs * ys
-    progress = (crosscorr(x2, n2, **corrarg) + np.cumsum(x2*n2, 0)[::-1]/nt -
-                2*crosscorr(xs, xs*n2, **corrarg))
-    diversion = (crosscorr(x2, p2, **corrarg) + np.cumsum(x2*p2, 0)[::-1]/nt -
-                 2*crosscorr(xs, xs*p2, **corrarg))
-    crossterms = (crosscorr(xy, pn, **corrarg) + np.cumsum(xy*pn, 0)[::-1]/nt -
-                  2*crosscorr(xs, ys*pn, **corrarg))
+    progress = (crosscorr(x2, n2, **carg) + np.cumsum(x2*n2, 0)[::-1]/nt -
+                2*crosscorr(xs, xs*n2, **carg))
+    diversion = (crosscorr(x2, p2, **carg) + np.cumsum(x2*p2, 0)[::-1]/nt -
+                 2*crosscorr(xs, xs*p2, **carg))
+    crossterms = (crosscorr(xy, pn, **carg) + np.cumsum(xy*pn, 0)[::-1]/nt -
+                  2*crosscorr(xs, ys*pn, **carg))
     progress += crossterms
     diversion -= crossterms
     return np.column_stack([progress.sum(1), diversion.sum(1)])
