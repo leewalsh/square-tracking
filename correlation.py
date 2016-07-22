@@ -431,14 +431,20 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
 
     if cumulant:
         if cumulant is True:
-            f = f - f.mean()
-            g = g - g.mean()
+            f = f - f.mean(0)
+            g = g - g.mean(0)
         elif cumulant[0]:
-            f = f - f.mean()
+            f = f - f.mean(0)
         elif cumulant[1]:
-            g = g - g.mean()
+            g = g - g.mean(0)
 
-    c = convolve(f, g, mode=mode) if reverse else correlate(f, g, mode=mode)
+    corer = convolve if reverse else correlate
+    if f.ndim == g.ndim == 2:
+        c = np.stack([corer(*fgi, mode=mode) for fgi in zip(f.T, g.T)])
+    elif f.ndim == g.ndim == 1:
+        c = corer(f, g, mode=mode)
+    else:
+        raise ValueError("arrays must have same dimensionality of 1 or 2")
     if verbose and (f is g):
         maxi = c.argmax()
         assert maxi == m, ("autocorrelation not peaked at 0: "
@@ -457,13 +463,14 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         assert np.allclose(n, overlap), msg.format(n, overlap)
         assert n[m] == l, "overlap normalizer not l at m"
     c /= n
+    c = c.T
     if verbose:
         msg = ("normalization calculations don't all match: "
                "c[m]: {}, np.dot(f, g): {}, c.max(): {}")
-        fgs = c[m], np.dot(f, g)/len(f), c[m]  #, c.max()
+        fgs = c[m], np.dot(f, g)/len(f), c[m]  # c.max()
         if verbose > 1 and norm in (0, 1):
             print ("subtracting", "normalizing by")[norm], "scaler:", fgs[0]
-        assert np.allclose(fgs[0], fgs), norm_assert_msg.format(*fgs)
+        assert np.allclose(fgs[0], fgs), msg.format(*fgs)
 
     if norm is 1:
         c /= c[m]
@@ -568,9 +575,8 @@ def msd(xs, ret_taus=False, ret_vector=False):
         raise ValueError(msg.format(xs.shape))
 
     # The last term is an autocorrelation for x(t):
-    xx0 = np.apply_along_axis(autocorr, 0, xs, side='right', cumulant=False,
-                              norm=False, mode='full', verbose=False,
-                              reverse=False, ret_dx=False)
+    xx0 = autocorr(xs, side='right', cumulant=False, norm=False, mode='full',
+                   verbose=False, reverse=False, ret_dx=False)
 
     ntau = np.arange(T, 0, -1)  # = T - tau
     x2 = xs * xs
