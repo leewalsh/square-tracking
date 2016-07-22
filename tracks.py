@@ -1717,7 +1717,7 @@ if __name__ == '__main__' and args.rr:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
     def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=0):
-        return 2*exp(DR*TR)*(v0/DR)**2 * (np.exp(-DR*s) - 1 + DR*s) + 2*DT*s
+        return 2*exp(DR*TR)*(v0/DR)**2 * (np.exp(-DR*s) - 1 + DR*s) + 4*DT*s
 
     def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0):
         vv = v0*v0  # v0 is squared everywhere
@@ -1736,7 +1736,7 @@ if __name__ == '__main__' and args.rr:
         lines[taus_f] = np.nan
         return lines
 
-    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 2D_Tt$"
+    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 4D_Tt$"
 
     rr_model = fit.Model(rr_form)
     rr_model.set_param_hint('TR', min=0,
