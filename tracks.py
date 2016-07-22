@@ -940,7 +940,7 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
 
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
-             xscale='log', meancol='', figsize=(8, 6), title=None, xlim=None,
+             xscale='log', meancol='r', figsize=(8, 6), title=None, xlim=None,
              ylim=None, lw=1, legend=False, errorbars=False, show_tracks=True,
              singletracks=None, sys_size=0, kill_flats=0, kill_jumps=1e9, S=1,
              fps=1, ang=False, save='', show=True, labels=True):
