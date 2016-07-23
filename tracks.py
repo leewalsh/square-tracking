@@ -1505,9 +1505,9 @@ if __name__ == '__main__' and args.nn:
     D_R = meta.get('fit_nn_DR', 0.1)
     if args.colored:
         tau_R = meta.get('fit_nn_TR', 0.1/D_R)
-        fitstr = (r"$\frac{1}{2}\exp\left["
-                  r"-D_R t + D_R\tau_R \left(1 - e^{-t/\tau_R}\right)"
-                  r"\right]$")
+        fitstr = (r"$\frac{1}{2}e^{-D_R\left["
+                  r"t - \tau_R \left(1 - e^{-t/\tau_R}\right)"
+                  r"\right]}$")
     else:
         tau_R = 0
         fitstr = r"$\frac{1}{2}e^{-D_R t}$"
@@ -1611,11 +1611,13 @@ if __name__ == '__main__' and args.rn:
         amp = lp*(exp(DR*TR) if TR > 0 else 1)
         return -0.5*amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
-    fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
     rn_vary = {'TR': args.fittr or (args.colored and not args.nn),
                'DR': args.fitdr or not args.nn,
                'lp': True}
 
+    fitstr = (r'$\frac{v_0}{2D_R}' +
+              (r'e^{D_R\tau_R}' if args.colored else '') +
+              r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
     rn_model = fit.Model(rn_form)
     rn_model.set_param_hint('TR', min=0, vary=rn_vary['TR'])
     rn_model.set_param_hint('DR', min=0, vary=rn_vary['DR'])
@@ -1692,11 +1694,15 @@ if __name__ == '__main__' and args.rr:
         kill_jumps=args.killjump*args.side**2, title='' if args.quiet else None,
         figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
 
+    msdvec = {'displacement': 0, 'progression': 1, 'diversion': -1}[args.msdvec]
     if msd.ndim == 2:
         progression, diversion = msd.T
-        msd = msd.sum(1)
-        errcorr_vec, errcorr = errcorr, np.hypot(*errcorr.T)
-        ax.plot(taus, msd, '-', c=vcol, lw=3)
+        msdisp = msd.sum(1)
+        errcorr_prog, errcorr_div = errcorr.T
+        errcorr_disp = np.hypot(*errcorr.T)
+        ax.plot(taus, msdisp, '-', c=vcol, lw=3)
+        msd = (msdisp, progression, diversion)[msdvec]
+        errcorr = (errcorr_disp, errcorr_prog, errcorr_div)[msdvec]
 
     tmax = int(200*args.zoom)
     fmax = np.searchsorted(taus, tmax)
@@ -1722,10 +1728,23 @@ if __name__ == '__main__' and args.rr:
     if not (args.nn or args.rn):
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
 
-    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=0):
-        return 2*exp(DR*TR)*(v0/DR)**2 * (np.exp(-DR*s) - 1 + DR*s) + 4*DT*s
+    def quartic(a):
+        quadratic = a*a
+        return quadratic * quadratic
 
-    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0):
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=0, msdvec=0):
+        color = exp(DR*TR)
+        persistence = color*(v0/DR)**2
+        decay = np.exp(-DR*s)
+        diffusion = 2*DT*s
+        propulsion = (decay - 1 + DR*s)
+        n = 1 if msdvec else 2
+        anisotropy = msdvec and quartic(color)*(quartic(decay) - 4*decay + 3)/12
+        return n*(persistence*(propulsion + msdvec*anisotropy) + diffusion)
+
+    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0, msdvec=0):
+        if msdvec:
+            return np.full_like(s, np.nan)
         vv = v0*v0  # v0 is squared everywhere
         tau_T = DT/vv
         tau_R = 1/DR
@@ -1742,13 +1761,13 @@ if __name__ == '__main__' and args.rr:
         lines[taus_f] = np.nan
         return lines
 
-    fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 4D_Tt$"
     rr_vary = {'TR': args.fittr or (args.colored and not (args.nn or args.rn)),
                'DR': args.fitdr or not (args.nn or args.rn),
                'v0': args.fitv0 or not args.rn,
                'DT': True}
 
     rr_model = fit.Model(rr_form)
+    rr_model.set_param_hint('msdvec', value=msdvec, vary=False)
     rr_model.set_param_hint('TR', min=0, vary=rr_vary['TR'])
     rr_model.set_param_hint('DR', min=0, vary=rr_vary['DR'])
     rr_model.set_param_hint('v0', min=0, vary=rr_vary['v0'])
@@ -1793,9 +1812,15 @@ if __name__ == '__main__' and args.rr:
             meta_fits = {'fit'+psources+'_rr_DT': D_T}
         helpy.save_meta(saveprefix, meta_fits)
 
+    fitstr = ["$", '2 '[msdvec], r"(v_0/D_R)^2", r"e^{D_R\tau_R}"*rr_vary['TR'],
+              r"\left(D_Rt-1+e^{-D_Rt}", ' +-'[msdvec],
+              ('', r'\frac{1}{12}' + r'e^{4D_R\tau_R}'*rr_vary['TR'] +
+               r'(e^{-4D_Rt}-4e^{-D_Rt}+3)')[msdvec],
+              r"\right) + ", '42'[msdvec], "D_Tt$\n"]
+    label = ''.join(fitstr) if labels else ''
+
     rr_best_fit = rr_result.eval(s=taus)
-    ax.plot(taus, rr_best_fit, c=pcol, lw=2,
-            label=(fitstr + "\n")*labels + fitinfo)
+    ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label+fitinfo)
 
     guide = limiting_regimes(taus, **rr_result.best_values)
     ax.plot(taus, guide, '-k', lw=2)
