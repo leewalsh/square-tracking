@@ -1518,9 +1518,11 @@ if __name__ == '__main__' and args.nn:
             s = s + TR*np.expm1(-s/TR)
         return 0.5*np.exp(-DR*s)
 
+    nn_vary = {'TR': args.colored, 'DR': True}
     nn_model = fit.Model(nn_form)
     nn_model.set_param_hint('min_TR', vary=False)
-    nn_model.set_param_hint('TR', vary=args.colored, min=0)
+    nn_model.set_param_hint('TR', min=0, vary=nn_vary['TR'])
+    nn_model.set_param_hint('DR', min=0, vary=nn_vary['DR'])
 
     nn_result = nn_model.fit(meancorr[:fmax], s=taus[:fmax],
                              weights=1/sigma[:fmax])
@@ -1610,11 +1612,14 @@ if __name__ == '__main__' and args.rn:
         return -0.5*amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
     fitstr = r'$\frac{v_0}{2D_R}(1 - e^{-D_R|s|})\operatorname{sign}(s)$'
+    rn_vary = {'TR': args.fittr or (args.colored and not args.nn),
+               'DR': args.fitdr or not args.nn,
+               'lp': True}
 
     rn_model = fit.Model(rn_form)
-    rn_model.set_param_hint('TR', min=0,
-        vary=args.fittr or (args.colored and not args.nn))
-    rn_model.set_param_hint('DR', min=0, vary=(args.fitdr or not args.nn))
+    rn_model.set_param_hint('TR', min=0, vary=rn_vary['TR'])
+    rn_model.set_param_hint('DR', min=0, vary=rn_vary['DR'])
+    rn_model.set_param_hint('lp', min=0, vary=rn_vary['lp'])
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
     print "Fits to <rn> (free params:", ', '.join(rn_result.var_names)+'):'
@@ -1622,24 +1627,24 @@ if __name__ == '__main__' and args.rn:
     v0 = D_R*l_p
     fit_source['v0'] = 'rn'
     print ' v0/D_R: {:.4g}'.format(l_p)
-    if 'DR' in rn_result.var_names:
+    if rn_vary['DR']:
         D_R = rn_result.best_values['DR']
         fit_source['DR'] = 'rn'
         print '    D_R: {:.4g}'.format(D_R)
-    if 'TR' in rn_result.var_names:
+    if rn_vary['TR']:
         tau_R = rn_result.best_values['TR']
         fit_source['TR'] = 'rn'
         print '  tau_R: {:.4g}'.format(tau_R)
     print "Giving:"
     print '     v0: {:.4f}'.format(v0)
     if args.save:
-        if 'DR' in rn_result.var_names:
+        if rn_vary['DR']:
             psources = ''
             meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
         else:
             psources = '_nn'
             meta_fits = {'fit'+psources+'_rn_v0': v0}
-        if 'TR' in rn_result.var_names:
+        if rn_vary['TR']:
             meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1652,9 +1657,9 @@ if __name__ == '__main__' and args.rn:
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
     fitinfo = sf('$v_0={0:.3T}$', abs(v0))
-    if 'DR' in rn_result.var_names:
+    if rn_vary['DR']:
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if 'TR' in rn_result.var_names:
+    if rn_vary['TR']:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
@@ -1738,13 +1743,16 @@ if __name__ == '__main__' and args.rr:
         return lines
 
     fitstr = r"$2(v_0/D_R)^2 (D_Rt + e^{{-D_Rt}} - 1) + 4D_Tt$"
+    rr_vary = {'TR': args.fittr or (args.colored and not (args.nn or args.rn)),
+               'DR': args.fitdr or not (args.nn or args.rn),
+               'v0': args.fitv0 or not args.rn,
+               'DT': True}
 
     rr_model = fit.Model(rr_form)
-    rr_model.set_param_hint('TR', min=0,
-        vary=args.fittr or (args.colored and not (args.nn or args.rn)))
-    rr_model.set_param_hint('DR', min=0,
-        vary=args.fitdr or not (args.nn or args.rn))
-    rr_model.set_param_hint('v0', vary=args.fitv0 or not args.rn)
+    rr_model.set_param_hint('TR', min=0, vary=rr_vary['TR'])
+    rr_model.set_param_hint('DR', min=0, vary=rr_vary['DR'])
+    rr_model.set_param_hint('v0', min=0, vary=rr_vary['v0'])
+    rr_model.set_param_hint('DT', min=0, vary=rr_vary['DT'])
     rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
     print "Fits to <rr> (free params:", ', '.join(rr_result.var_names)+'):'
@@ -1752,31 +1760,31 @@ if __name__ == '__main__' and args.rr:
     fit_source['DT'] = 'rr'
     print '   D_T: {:.3g}'.format(D_T)
     fitinfo = sf("$D_T={0:.3T}$", D_T)
-    if 'v0' in rr_result.var_names:
+    if rr_vary['v0']:
         v0 = rr_result.best_values['v0']
         fit_source['v0'] = 'rr'
         print 'v0(rr): {:.3g}'.format(v0)
         fitinfo += sf(", $v_0={0:.3T}$", v0*sgn)
-    if 'DR' in rr_result.var_names:
+    if rr_vary['DR']:
         D_R = rr_result.best_values['DR']
         fit_source['DR'] = 'rr'
         print '   D_R: {:.3g}'.format(D_R)
         fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if 'TR' in rr_result.var_names:
+    if rr_vary['TR']:
         tau_R = rr_result.best_values['TR']
         fit_source['TR'] = 'rr'
         print ' tau_R: {:.3g}'.format(tau_R)
-        fitinfo += sf(", $tau_R={0:.3T}$", tau_R)
-    if 'v0' in rr_result.var_names or 'DR' in rr_result.var_names:
+        fitinfo += sf(r", $\tau_R={0:.3T}$", tau_R)
+    if rr_vary['v0'] or rr_vary['DR']:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(v0/D_R)
     if args.save:
-        if 'v0' in rr_result.var_names and 'DR' in rr_result.var_names:
+        if rr_vary['v0'] and rr_vary['DR']:
             psources = ''
             meta_fits = {'fit_rr_DT': D_T,
                          'fit_rr_v0': v0,
                          'fit_rr_DR': D_R}
-        elif 'v0' in rr_result.var_names:
+        elif rr_vary['v0']:
             psources = '_{DR}'.format(**fit_source)
             meta_fits = {'fit'+psources+'_rr_DT': D_T,
                          'fit'+psources+'_rr_v0': v0}
