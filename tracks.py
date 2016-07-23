@@ -993,18 +993,28 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
                 ("One particle area" if S > 1 else "One Pixel")))
         ax.set_xscale(xscale)
         ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
-    else:
+    elif not errorbars:
         ax.loglog(taus, msd, c=meancol, lw=lw, label=labels*(
             "Mean Squared {}Displacement".format('Angular '*ang)))
         #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
         #          label="slope = 1")
+    else:
+        ax.set_xscale(xscale)
+        ax.set_yscale('log')
     if errorbars:
         msd_err /= A
         tnorm = taus**tnormalize if tnormalize else 1
-        msd_rows = (msd.T, msd_err.T) if msd_vec else (msd[None], msd_err[None])
-        for msd_row, msd_err_row in it.izip(*msd_rows):
-            ax.errorbar(taus, msd_row/tnorm, msd_err_row/tnorm, c=meancol,
-                        lw=lw, capthick=0, elinewidth=1, errorevery=errorbars)
+        if msd_vec:
+            msd_rows = (msd.T, msd_err.T, 'rm')
+        else:
+            msd_rows = (msd[None], msd_err[None], [meancol])
+        for msd_row, msd_err_row, c in it.izip(*msd_rows):
+            ax.errorbar(taus, msd_row/tnorm, msd_err_row/tnorm, c=c,
+                        lw=lw, capthick=0, elinewidth=1, errorevery=errorbars,
+                        label=labels*("Mean Squared {} (Exp't)".format(
+                            {'r': "Progression",
+                             'm': "Diversion",
+                             meancol: "Displacement"}[c])))
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     if title is None:
