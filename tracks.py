@@ -61,7 +61,8 @@ if __name__ == '__main__':
         'single track at different time starting points. default = 1')
     arg('--dtau', type=int, default=1, help='Stepsize for values of tau at '
         'which to calculate MSD(tau). default = 1')
-    arg('--msdvec', nargs='?', default=False, const=True, help='msd as vector')
+    arg('--msdvec', choices=['displacement', 'progression', 'diversion'],
+        default='displacement', help='msd vector component')
     arg('--killflat', type=int, default=0,
         help='Minimum growth factor for a single MSD track for inclusion')
     arg('--killjump', type=int, default=100000,
@@ -795,7 +796,7 @@ def trackmsd(trackset, dt0, dtau, ret_vector=False):
     """
     if dt0 == dtau == 1:
         xy = helpy.consecutive_fields_view(trackset, 'xy')
-        if ret_vector == 'body':
+        if ret_vector.startswith(('body', 'prog', 'div')):
             theta = trackset['o']
             tmsd = corr.msd_body(xy, theta, ret_taus=True)
         else:

@@ -588,7 +588,7 @@ def msd(xs, ret_taus=False, ret_vector=False):
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
     msd = x2s - 2*xx0
-    if not ret_vector:
+    if not ret_vector or ret_vector.startswith('disp'):
         msd = msd.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
 
     return np.column_stack([np.arange(T), msd]) if ret_taus else msd
