@@ -1753,8 +1753,6 @@ if __name__ == '__main__' and args.rr:
         return n*(persistence*(propulsion + msdvec*anisotropy) + diffusion)
 
     def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0, msdvec=0):
-        if msdvec:
-            return np.full_like(s, np.nan)
         vv = v0*v0  # v0 is squared everywhere
         tau_T = DT/vv
         tau_R = 1/DR
@@ -1822,9 +1820,11 @@ if __name__ == '__main__' and args.rr:
             meta_fits = {'fit'+psources+'_rr_DT': D_T}
         helpy.save_meta(saveprefix, meta_fits)
 
-    fitstr = ["$", '2 '[msdvec], r"(v_0/D_R)^2", r"e^{D_R\tau_R}"*rr_vary['TR'],
+    fitstr = ["$", '2 '[msdvec],
+              (r"(v_0/D_R)^2", r"\ell_p^2")[args.colored and msdvec],
+              r"e^{D_R\tau_R}"*args.colored,
               r"\left(D_Rt-1+e^{-D_Rt}", ' +-'[msdvec],
-              ('', r'\frac{1}{12}' + r'e^{4D_R\tau_R}'*rr_vary['TR'] +
+              ('', r'\frac{1}{12}' + r'e^{4D_R\tau_R}'*args.colored +
                r'(e^{-4D_Rt}-4e^{-D_Rt}+3)')[msdvec],
               r"\right) + ", '42'[msdvec], "D_Tt$\n"]
     label = ''.join(fitstr) if labels else ''
