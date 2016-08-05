@@ -342,10 +342,7 @@ def dtheta(i, j=None, m=1, sign=False):
         if sign is True, retuns a negative angle for i<j, else abs
     """
     ma = tau/m
-    if j is not None:
-        diff = i - j
-    elif i.shape[1] == 2:
-        diff = np.subtract(*i.T)
+    diff = np.diff(i, axis=1) if j is None else i - j
     diff = (diff + ma/2) % ma - ma/2
     return diff if sign else np.abs(diff)
 
