@@ -398,10 +398,8 @@ def drive_path(path, local=False, both=False):
             if split[1] in ('Volumes', 'media', 'mnt'):
                 drive = split[2]
                 path = '/' + split[3]
-            elif split[1] in ('Users', 'home'):
-                drive = drive or split[1]
             else:
-                raise ValueError(split[1])
+                drive = drive or split[1]
         drive = DRIVES.get(drive, drive)
         if local and drive == getsystem():
             drive = gethost()
