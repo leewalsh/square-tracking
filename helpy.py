@@ -699,8 +699,7 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         Given `fullprefix`, returns data arrays from a choice of:
             tracks, orientation, position, corner
     """
-    sets = {s[0].lower() for s in sets.replace(',', ' ').strip().split()}
-    sets = [s for s in 'tpocm' if s in sets]  # sort for optimal loading order
+    sets = [s[0].lower() for s in sets.replace(',', ' ').strip().split()]
 
     name = {'t': 'tracks', 'o': 'orientation',
             'p': 'positions', 'c': 'corner_positions', 'm': 'melt'}
@@ -708,7 +707,8 @@ def load_data(fullprefix, sets='tracks', verbose=False):
     npzs = {}
     data = {}
     needs_initialize = False
-    for s in sets:
+    # sort for optimal loading order
+    for s in [s for s in 'tpocm' if s in sets]:
         suffix = name[s].upper()
         datapath = fullprefix+'_'+suffix+'.npz'
         try:
