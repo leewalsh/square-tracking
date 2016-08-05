@@ -41,6 +41,29 @@ Analysis/
         v1.2/
             ...
 
+Updating the git repository
+===========================
+
+workflow for doing a "pull" from git and updating your programs after Lee has made changes:
+
+open gitshell
+run the following commands (you can paste with right click, but not ctrl-v)
+
+cd C:\Users\User\Desktop\squares\programs
+
+git pull leewalsh master
+ -> if an error says you might OVERWRITE changes you {Chris} have made,
+    or if there's a CONFLICT error, run "git reset --hard leewalsh/master"
+git push github
+ -> if conflict error, run "git push --force github"
+
+OR (not as good)
+
+open cygwin shell
+type fish
+cd to cygdrive/c/Users/User/Desktop/squares/programs
+<then the same git commands as above>
+
 Detection and Tracking
 ======================
 
