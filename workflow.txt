@@ -1,20 +1,55 @@
 Typical workflow
 
-Example directory structure:
+Example directory structure
+===========================
 
-Tracking/*.py
-Data/example_tifs/prefix.tif
+I use three major directories: for code, raw data, and analysis output. The
+code directory is a git repository and exists on all my computers. The raw data
+directory only exists on the network drive hopper (which does get backed up).
+The output directories exist on hopper but I also keep them synchronised with
+`unison`. I divide each of those directories by project or particle type, then
+by version or iteration, then dataset. For example:
 
-(the Data directory may be in the same directory as Tracking, so if your
-current working directory is Tracking, you can access it with
-`../Data/prefix`..., using backslashes `\` for windows)
+square-tracking/
+    .git/
+    code.py
+    ...
+Data/
+    particle_type_a/
+        readme.md: info about the particle type
+        v1/
+            readme.md: info about this version of the particle
+            run1/
+                readme.md: info about dataset (voltage, framerate, gap, ...)
+                tifs/
+                    0000.tif ... 7727.tif
+                a_v1_run1.cine
+                a_v1_run1.xml
+            run2/
+                ...
+        v1.2/
+            ...
+        v2/
+            ...
+    particle_type_b/
+        ...
+Analysis/
+    particle_type_a/
+        v1/
+            a_v1_run1_POSITIONS.npz, etc.
+            a_v1_run2_...
+        v1.2/
+            ...
 
-First, find the positions from the images
+Detection and Tracking
+======================
 
-    positions.py -b [size parameters, other options] ../Data/example_*.tif -o ../Data/prefix
+First, find the positions from the images:
+
+    positions.py [sizes, other options] ../Data/.../*.tif -o ../Analysis/.../prefix
 
 Second, track (-t) the positions and calculate the orientations (-o)
 
-    tracks.py -to -r <separation> [other options] ../Data/prefix
+    tracks.py -to -r <separation> [other options] ../Analysis/.../prefix
 
 And all the data is now extracted and tracked, and is ready for analysis.
