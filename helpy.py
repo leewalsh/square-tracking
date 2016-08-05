@@ -86,6 +86,9 @@ def getcommit():
             except CalledProcessError:
                 COMMIT = 'unknown'
                 return COMMIT
+        except git.GitCommandNotFound:
+            COMMIT = 'unknown'
+            return COMMIT
         COMMIT = '{}({}{})'.format(commit, branch, '+'*dirty)
     return COMMIT
 
