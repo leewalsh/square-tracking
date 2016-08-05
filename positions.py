@@ -368,16 +368,16 @@ if __name__ == '__main__':
 
     kern_area = np.pi*args.kern**2
     sizes = {'center': {'max_ecc': args.ecc,
-                        'min_area': args.min or kern_area/2,
-                        'max_area': args.max or kern_area*2,
+                        'min_area': args.min or int(kern_area//2),
+                        'max_area': args.max or int(kern_area*2 + 1),
                         'kern': args.kern}}
     if args.ckern:
         args.both = True
     if args.both:
         ckern_area = np.pi*args.ckern**2
         sizes.update({'corner': {'max_ecc': args.cecc,
-                                 'min_area': args.cmin or ckern_area/2,
-                                 'max_area': args.cmax or ckern_area*2,
+                                 'min_area': args.cmin or int(ckern_area//2),
+                                 'max_area': args.cmax or int(ckern_area*2 + 1),
                                  'kern': args.ckern}})
     dots = sorted(sizes)
     meta.update({dot + '_' + k: v
