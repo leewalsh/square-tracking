@@ -548,14 +548,14 @@ def msd(xs, ret_taus=False, ret_vector=False):
           - can only do dt0 = dtau = 1
 
         msd = < [x(t0 + tau) - x(t0)]**2 >
-            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0+tau) x(t0) >
-            = cumsum
+            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0 + tau) x(t0) >
+            = <xx> + <x0x0> - 2*<xx0>
 
         The first two terms are averaged over all values of t0 that are valid
         for the current value of tau. Thus, we have sums of x(t0) and x(t0+tau)
         for all values of t0 in [0, T - tau). For small values of tau, nearly
         all values of t0 are valid, and vice versa. The averages for increasing
-        values of tau is the reverse of cumsum(x) / (T-tau)
+        values of tau is the reverse of cumsum(x)/range(T-tau)
 
         Time must be axis 0, but any number of dimensions is allowed (along axis 1)
     """
@@ -581,7 +581,6 @@ def msd(xs, ret_taus=False, ret_vector=False):
     # xavg = np.cumsum(x2[::-1])[::-1] / ntau
     # we'll only ever combine these, which can be done with one call:
     # x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
-    # assert x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
     msd = x2s - 2*xx0
@@ -589,6 +588,12 @@ def msd(xs, ret_taus=False, ret_vector=False):
         msd = msd.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
 
     return np.column_stack([np.arange(T), msd]) if ret_taus else msd
+
+
+def msd_correlate(x, y, n, corr_args, nt):
+    xy = x * y
+    return (crosscorr(xy, n, **corr_args) - 2*crosscorr(x, y*n, **corr_args) +
+            np.cumsum(xy*n, 0)[::-1]/nt)
 
 
 def msd_body(xs, os, ret_taus=False):
@@ -603,22 +608,14 @@ def msd_body(xs, os, ret_taus=False):
         msg = "can't handle xs.ndims > 2. xs.shape is {}"
         raise ValueError(msg.format(xs.shape))
 
-    carg = {'side': 'right', 'cumulant': False, 'mode': 'full'}
+    corr_args = {'side': 'right', 'cumulant': False, 'mode': 'full'}
     nt = np.arange(T, 0, -1)[:, None]  # = T - tau
     ns = np.column_stack([np.cos(os), np.sin(os)])
     ps = ns[:, ::-1]
     ys = xs[:, ::-1]
-    x2 = xs * xs
-    n2 = ns * ns
-    p2 = n2[:, ::-1]
-    pn = ns * ps
-    xy = xs * ys
-    progress = (crosscorr(x2, n2, **carg) + np.cumsum(x2*n2, 0)[::-1]/nt -
-                2*crosscorr(xs, xs*n2, **carg))
-    diversion = (crosscorr(x2, p2, **carg) + np.cumsum(x2*p2, 0)[::-1]/nt -
-                 2*crosscorr(xs, xs*p2, **carg))
-    crossterms = (crosscorr(xy, pn, **carg) + np.cumsum(xy*pn, 0)[::-1]/nt -
-                  2*crosscorr(xs, ys*pn, **carg))
+    progress = msd_correlate(xs, xs, ns*ns, corr_args, nt)
+    diversion = msd_correlate(xs, xs, ps*ps, corr_args, nt)
+    crossterms = msd_correlate(xs, ys, ns*ps, corr_args, nt)
     progress += crossterms
     diversion -= crossterms
     taus = [np.arange(T)] if ret_taus else []
