@@ -13,6 +13,7 @@ import lmfit as fit
 
 import helpy
 import correlation as corr
+import curve
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -1044,178 +1045,6 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     return fig, ax, taus, msd, msd_err
 
 
-def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
-    if size >= 10:
-        size = np.log10(size)
-    size = int(round(size))
-    print '1e{}'.format(size),
-    size = 10**size
-    if np.isscalar(uncert):
-        uncert = [uncert]*2
-    domain = np.atleast_1d(domain)
-    domains = []
-    for dom in domain:
-        if np.isscalar(dom):
-            domains.append((0, dom))
-        elif len(dom) == 1:
-            domains.append((0, dom[0]))
-        else:
-            domains.append(dom)
-    #x_true = np.row_stack([np.linspace(*dom, num=size) for dom in domains])
-    x_true = np.row_stack([np.random.rand(size)*(dom[1]-dom[0]) + dom[0]
-                           for dom in domains])
-    x_err = np.row_stack([np.random.normal(scale=u, size=size) if u > 0 else
-                          np.zeros(size) for u in uncert])
-    x_meas = x_true + x_err
-    if verbose:
-        print
-        print 'x_true:', x_true.shape, 'min', x_true.min(1), 'max', x_true.max(1)
-        print 'x_meas:', x_meas.shape, 'min', x_meas.min(1), 'max', x_meas.max(1)
-        print 'x_err: ', x_err.shape, 'min', x_err.min(1), 'max', x_err.max(1)
-    xfmt = 'x: [{d[1][0]:5.2g}, {d[1][1]:5.2g}) +/- {dx:<5.4g} '
-    thetafmt = 'theta: [{d[0][0]:.2g}, {d[0][1]:.3g}) +/- {dtheta:<5.4g} '
-    if func == 'nn':
-        dtheta, _ = uncert
-        print thetafmt.format(dtheta=dtheta, d=domains)+'->',
-        f = lambda x: np.cos(x[0])*np.cos(x[1])
-        f_uncert = dtheta/rt2
-    elif func == 'rn':
-        dtheta, dx = uncert
-        print (thetafmt+xfmt+'->').format(dtheta=dtheta, dx=dx, d=domains),
-        f = lambda x: np.cos(x[0])*x[1]
-        f_uncert = np.sqrt(dx**2 + (x_true[1]*dtheta)**2).mean()/rt2
-    elif func == 'rr':
-        dx, _ = uncert
-        print xfmt.format(dx=dx, d=domains)+'->',
-        f = lambda x: x[0]*x[1]  # (x[0]-x[0].mean())*(x[1]-x[1].mean())
-        f_uncert = rt2*dx*np.sqrt((x_true[0]**2).mean())
-    else:
-        f_uncert = None
-    f_true = f(x_true)
-    f_meas = f(x_meas)
-    f_err = f_meas - f_true
-    if False and 'r' in func:
-        #print 'none',
-        #f_err /= np.maximum(np.abs(f_meas), np.abs(f_true))
-        #print 'maxm',
-        #f_err /= np.sqrt(np.abs(f_meas*f_true))
-        #print 'geom',
-        f_err /= np.sqrt(f_meas**2 + f_true**2)/2
-        print 'quad',
-        #f_err /= f_meas
-        #print 'meas',
-        #f_err /= f_true
-        #print 'true',
-    if plot:
-        fig = plt.gcf()
-        fig.clear()
-        ax = plt.gca()
-        if size <= 10000:
-            ax.scatter(f_true, f_err, marker='.', c='k', label='f_err v f_true')
-        else:
-            ax.hexbin(f_true, f_err)
-    nbins = 25 if plot else 7
-    f_bins = np.linspace(f_true.min(), f_true.max()*(1+1e-8), num=1+nbins)
-    f_bini = np.digitize(f_true, f_bins)
-    ubini = np.unique(f_bini)
-    f_stds = [f_err[f_bini == i].std() for i in ubini]
-    if plot:
-        ax.plot((f_bins[1:]+f_bins[:-1])/2, f_stds, 'or')
-    if verbose:
-        print
-        print '[', ', '.join(map('{:.3g}'.format, f_bins)), ']'
-        print np.row_stack([ubini, np.bincount(f_bini)[ubini]])
-        print '[', ', '.join(map('{:.3g}'.format, f_stds)), ']'
-    f_err_std = f_err.std()
-    ratio = f_uncert/f_err_std
-    missed = ratio - 1
-    print '{:< 9.4f}/{:< 9.4f} = {:<.3f} ({: >+7.2%})'.format(
-            f_uncert, f_err_std, ratio, missed),
-    print '='*int(-np.log10(np.abs(missed)))
-    if verbose:
-        print
-    #[tracks.propagate('rr', dx, 5, 2*[i]) for dt, dx, i in it.product(
-    #     [.01, .1], [.1, 1, 10], [(1,100), (10,100),(90,100)])]
-    #[tracks.propagate('rn', (dt, dx), 5, [(0, 2*np.pi), (10**(i-2), 10**i)])
-    # for dt, dx, i in it.product([0, .01, .1], [.1, 1, 10], [2,3,4])]
-    #[tracks.propagate('nn', dt, 5, [(0, 2*np.pi),(10**(i-1), 10**i)])
-    # for dt, dx, i in it.product([.01, .1], [0, .1, 1, 10], [2,3,4])]
-    return f_err_std
-
-
-def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
-                  relative=None, const=None, xnorm=None, ignore=None):
-    if x is None:
-        x = np.arange(len(arr))
-    if ignore is not None:
-        x0 = np.searchsorted(x, 0)
-        ignore = np.array([x0-1, x0, x0+1][x0 < 1:])
-    if plot:
-        ax = plot if isinstance(plot, plt.Axes) else plt.gca()
-        plot = True
-        plotted = []
-        colors = it.cycle('rgbcmyk')
-    try:
-        mods = it.product(const, relative, xnorm)
-    except TypeError:
-        mods = [(const, relative, xnorm)]
-    for const, relative, xnorm in mods:
-        signame = 'std_err'
-        sigma = std_err.copy()
-        sigma[ignore] = np.inf
-        if plot:
-            c = colors.next()
-            if signame not in plotted:
-                ax.plot(x, std_err, '.'+c, label=signame)
-                plotted.append(signame)
-        if relative:
-            sigma /= arr
-            signame += '/arr'
-            if plot and signame not in plotted:
-                ax.plot(x, sigma, ':'+c, label=signame)
-                plotted.append(signame)
-        if const is not None:
-            isconst = np.isscalar(const)
-            offsetname = '({:.3g})'.format(const) if isconst else 'const'
-            sigma = np.hypot(sigma, const)
-            signame = 'sqrt({}^2 + {}^2)'.format(signame, offsetname)
-            if verbose:
-                print 'adding const',
-                print 'sqrt(sigma^2 + {}^2)'.format(offsetname)
-            if plot and signame not in plotted:
-                ax.plot(x, sigma, '-'+c, label=signame)
-                if isconst:
-                    ax.axhline(const, ls='--', c=c, label='const')
-                else:
-                    ax.plot(x, const, '^'+c, label='const')
-        if xnorm:
-            if xnorm == 'log':
-                label = 'log(1 + x)'
-                xnorm = np.log1p(x)
-            elif xnorm == 1:
-                label = 'x'
-                xnorm = x
-            else:
-                label = 'x^{}'.format(xnorm)
-                xnorm = x**xnorm
-            signame += '*' + label
-            sigma *= xnorm
-            if plot and label not in plotted:
-                ax.plot(x, xnorm, '--'+c, label=label)
-                plotted.append(label)
-            if plot and signame not in plotted:
-                ax.plot(x, sigma, '-.'+c, label=signame)
-                plotted.append(signame)
-        if verbose:
-            print 'sigma =', signame
-            print 'nan_info',
-            helpy.nan_info(sigma, True)
-            print 'sigprint', sigprint(sigma)
-    if plot:
-        ax.legend(loc='upper left', fontsize='x-small')
-    return sigma
-
-
 def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
     """plot the fit parameters from correlations and histograms
 
@@ -1293,12 +1122,6 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
         fig.savefig('/Users/leewalsh/Squares/colson/Output/stats/parameters/'
                     'parametric_{}.pdf'.format(savename))
     return ax
-
-
-def sigprint(sigma):
-    sigfmt = ('{:7.4g}, '*5)[:-2].format
-    mn, mx = sigma.min(), sigma.max()
-    return sigfmt(mn, sigma.mean(), mx, sigma.std(ddof=1), mx/mn)
 
 
 if __name__ == '__main__':
@@ -1505,8 +1328,8 @@ if __name__ == '__main__' and args.nn:
     else:
         nnerrax = False
     nnuncert = args.dtheta/rt2
-    sigma = sigma_for_fit(meancorr, errcorr, x=taus,
-                          plot=nnerrax, const=nnuncert, ignore=True)
+    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
+                                const=nnuncert, ignore=True, verbose=verbose)
     if nnerrax:
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
@@ -1611,8 +1434,8 @@ if __name__ == '__main__' and args.rn:
     else:
         rnerrax = False
     rnuncert = np.hypot(args.dtheta, args.dx)/rt2
-    sigma = sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                          const=rnuncert, ignore=True)
+    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
+                                const=rnuncert, ignore=True, verbose=verbose)
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1723,8 +1546,8 @@ if __name__ == '__main__' and args.rr:
     else:
         rrerrax = False
     rruncert = rt2*args.dx
-    sigma = sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax,
-                          const=rruncert, xnorm=1, ignore=True)
+    sigma = curve.sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax, xnorm=1,
+                                const=rruncert, ignore=True, verbose=verbose)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
         if args.save:
