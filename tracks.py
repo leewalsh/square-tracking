@@ -64,6 +64,7 @@ if __name__ == '__main__':
         'which to calculate MSD(tau). default = 1')
     arg('--msdvec', choices=['displacement', 'progression', 'diversion'],
         default='displacement', help='msd vector component')
+    arg('--dot', action='store_true', help='combine components of correlations')
     arg('--killflat', type=int, default=0,
         help='Minimum growth factor for a single MSD track for inclusion')
     arg('--killjump', type=int, default=100000,
@@ -1317,7 +1318,10 @@ if __name__ == '__main__' and args.nn:
                     for trackset in tracksets.values()]
 
     # Gather all the track correlations and average them
-    allcorrs = coscorrs + sincorrs
+    if args.dot:
+        allcorrs = [c + s for (c, s) in it.izip(coscorrs, sincorrs)]
+    else:
+        allcorrs = coscorrs + sincorrs
     allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
     taus = np.arange(len(meancorr))/args.fps
     tmax = int(50*args.zoom)
@@ -1336,24 +1340,24 @@ if __name__ == '__main__' and args.nn:
 
     # Fit to functional form:
     D_R = meta.get('fit_nn_DR', 0.1)
+    fitstr = '$' if args.dot else r"$\frac{1}{2}"
     if args.colored:
         tau_R = meta.get('fit_nn_TR', 0.1/D_R)
-        fitstr = (r"$\frac{1}{2}e^{-D_R\left["
-                  r"t - \tau_R \left(1 - e^{-t/\tau_R}\right)"
-                  r"\right]}$")
+        fitstr += (r"e^{-D_R\left["
+                   r"t - \tau_R \left(1 - e^{-t/\tau_R}\right)"
+                   r"\right]}$")
     else:
         tau_R = 0
-        fitstr = r"$\frac{1}{2}e^{-D_R t}$"
+        fitstr += r"e^{-D_R t}$"
 
-    def nn_form(s, DR=D_R, TR=tau_R, min_TR=1e-3/args.fps):
-        if TR > min_TR:
+    def nn_form(s, DR=D_R, TR=tau_R):
+        if TR > 1e-3/args.fps:
             # only calculate if TR will have significant effect
             s = s + TR*np.expm1(-s/TR)
-        return 0.5*np.exp(-DR*s)
+        return (1 if args.dot else 0.5)*np.exp(-DR*s)
 
     nn_vary = {'TR': args.colored, 'DR': True}
     nn_model = fit.Model(nn_form)
-    nn_model.set_param_hint('min_TR', vary=False)
     nn_model.set_param_hint('TR', min=0, vary=nn_vary['TR'])
     nn_model.set_param_hint('DR', min=0, vary=nn_vary['DR'])
 
@@ -1422,7 +1426,11 @@ if __name__ == '__main__' and args.rn:
     # Align and merge them
     fmax = int(2*args.fps/D_R*args.zoom)
     fmin = -fmax
-    allcorrs = xcoscorrs + ysincorrs
+    if args.dot:
+        allcorrs = [(xc[0], xc[1] + ys[1])
+                    for (xc, ys) in it.izip(xcoscorrs, ysincorrs)]
+    else:
+        allcorrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
     # that is, if f.min() > fmin for a track, then it still aligns at zero
     allcorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
@@ -1441,14 +1449,14 @@ if __name__ == '__main__' and args.rn:
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
     def rn_form(s, lp=l_p, DR=D_R, TR=0):
-        amp = lp*(exp(DR*TR) if TR > 0 else 1)
-        return -0.5*amp*np.sign(s)*np.expm1(-DR*np.abs(s))
+        amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
+        return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
     rn_vary = {'TR': args.fittr or (args.colored and not args.nn),
                'DR': args.fitdr or not args.nn,
                'lp': True}
 
-    fitstr = (r'$\frac{v_0}{2D_R}' +
+    fitstr = (r'$\frac{{v_0}}{{{}D_R}}'.format('2'[args.dot:]) +
               (r'e^{D_R\tau_R}' if args.colored else '') +
               r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
     rn_model = fit.Model(rn_form)
