@@ -233,33 +233,45 @@ def groupby(arr, key, method, min_size=1):
         return
 
 
-def pad_uneven(lol, fill=0, return_mask=False,
-               dtype=None, longest=None, shortest=None):
+def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
+               align=None, longest=None, shortest=None):
     """ take uneven list of lists
         return new 2d array with shorter lists padded with fill value
     """
+    if hasattr(lol, 'shape'):
+        origshape = lol.shape
+        lol = lol.flatten()
+    else:
+        origshape = (len(lol),)
     if dtype is None:
         dtype = np.result_type(fill, np.array(lol[0][0]))
-    lengths = np.array(map(len, lol))
+    lengths = np.array(map(len, lol), int)
     lengths[lengths < shortest] = 0
     length = min(longest or np.inf, lengths.max())
     shape = (len(lol), length) + np.shape(lol[0][0])
+    if align is None:
+        align = it.repeat(0)
+    else:
+        align = np.asarray(align, int).flatten()
+        align = align.max() - align
     result = np.empty(shape, dtype)
     result[:] = fill  # this allows broadcasting unlike np.full
     if return_mask:
-        mask = np.zeros(shape, bool)
-    for i, (lst, j) in enumerate(it.izip(lol, lengths)):
-        result[i, :j] = lst[:j and longest]
+        mask = np.ones(shape, bool)
+    for i, (lst, l, k) in enumerate(it.izip(lol, lengths, align)):
+        result[i, k:k+l] = lst[:l and longest]
         if return_mask:
-            mask[i, j:] = True
+            mask[i, k:k+l] = False
+    result = result.reshape(origshape + shape[1:])
     return (result, mask) if return_mask else result
 
 
-def avg_uneven(arrs, min_added=3, weight=False, pad=None, ret_all=False):
+def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
+               ret_all=False):
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
-        arrs, isnan = pad_uneven(arrs, np.nan, return_mask=True)
+        arrs, isnan = pad_uneven(arrs, np.nan, return_mask=True, align=align)
         isfin = ~isnan
     else:
         isfin = np.isfinite(arrs)
