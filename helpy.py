@@ -832,9 +832,7 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         ts = np.where(lengths >= min_length)[0]
     reverse = int(reverse)
     step = 1 - 2*reverse
-    start = max_length and reverse and max_length - 1
-    stop = max_length and max_length*(1 - reverse) or None
-    tracksets = {t: data[trackids == t][start:stop:step] for t in ts}
+    tracksets = {t: data[trackids == t][::step] for t in ts}
     if reverse:
         for t in tracksets:
             tracksets[t]['f'] = tracksets[t]['f'].max() - tracksets[t]['f']
@@ -849,6 +847,10 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         from tracks import fill_gaps
         fs = () if run_fill_gaps == 'nans' else ('xy', 'o')
         fill_gaps(tracksets, interp=fs, inplace=True, verbose=verbose)
+    start = max_length and reverse and -max_length
+    stop = max_length and max_length*(1 - reverse) or None
+    if start or stop:
+        tracksets = {t: tracksets[t][start:stop] for t in ts}
     return tracksets
 
 
