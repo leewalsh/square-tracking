@@ -4,7 +4,7 @@
 from __future__ import division
 
 import itertools as it
-from math import log
+from math import log, sqrt
 import sys
 import os
 import ntpath
@@ -281,10 +281,12 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
     added = added[enough]
     if weight:
         lens = np.sum(isfin, 1, keepdims=True)
-        mean = np.nanmean(arrs*lens, 0)/np.mean(lens, 0)
+        weights = np.where(lens, np.sqrt(lens), np.nan)  # replace 0 with np.nan
+        mean = np.nanmean(arrs*weights, 0)/np.nanmean(weights)
+        stddev = np.nanstd(arrs*weights, 0, ddof=1)/sqrt(np.nanmean(weights**2))
     else:
         mean = np.nanmean(arrs, 0)
-    stddev = np.nanstd(arrs, 0, ddof=1)
+        stddev = np.nanstd(arrs, 0, ddof=1)
     stderr = stddev / np.sqrt(added)
     ret = (arrs, mean, stderr)
     if ret_all:
