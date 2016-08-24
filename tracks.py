@@ -1401,25 +1401,23 @@ if __name__ == '__main__' and args.rn:
     correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
                            cumulant=(True, False), norm=0)
 
-    xcoscorrs = [correlate_rn(ts['x']/args.side, np.cos(ts['o']))
-                 for ts in tracksets.itervalues()]
-    ysincorrs = [correlate_rn(ts['y']/args.side, np.sin(ts['o']))
-                 for ts in tracksets.itervalues()]
-
+    # shape (track, x_or_y, time_or_correlation, time)
+    rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
+                          correlate_rn(ts['y']/args.side, np.sin(ts['o']))]
+                         for ts in tracksets.itervalues()])
     # Align and merge them
-    fmax = int(2*args.fps/D_R*args.zoom)
-    fmin = -fmax
-    taus = np.arange(fmin, fmax)/args.fps
+    taus = rn_corrs[:, :, 0]/args.fps
+    tau0 = np.array(map(partial(np.searchsorted, v=0), taus.flat))
+    taus = taus.flat[tau0.argmax()]
+    rn_corrs = helpy.pad_uneven(rn_corrs[:, :, 1], np.nan, align=tau0)
+    print rn_corrs.shape
     if args.dot:
-        rn_corrs = [(xc[0], xc[1] + ys[1])
-                    for (xc, ys) in it.izip(xcoscorrs, ysincorrs)]
+        rn_corrs = rn_corrs.sum(1)  # sum over x and y components
     else:
-        rn_corrs = xcoscorrs + ysincorrs
-    # TODO: align these so that even if a track doesn't reach the fmin edge,
-    # that is, if f.min() > fmin for a track, then it still aligns at zero
-    rn_corrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
-                for f, rn in rn_corrs if f.min() <= fmin]
-    rn_corrs, meancorr, errcorr = helpy.avg_uneven(rn_corrs, pad=True)
+        rn_corrs = rn_corrs.reshape(-1, len(taus))
+    rn_corrs, meancorr, errcorr, stddev, added, enough = helpy.avg_uneven(
+        rn_corrs, pad=False, ret_all=True, weight=False)
+    taus = taus[enough]
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
