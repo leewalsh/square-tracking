@@ -113,8 +113,17 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
     if x is None:
         x = np.arange(len(arr))
     if ignore is not None:
-        x0 = np.searchsorted(x, 0)
-        ignore = np.array([x0-1, x0, x0+1][x0 < 1:])
+        ignore.sort()
+        xignore = list(np.searchsorted(x, ignore))
+        try:
+            x0 = xignore.pop(ignore.index(0))
+            ignore_inds = [x0-1, x0, x0+1][x0 < 1:]
+        except ValueError:
+            ignore_inds = []
+        if len(xignore):
+            ignore_inds.extend(range(xignore.pop(-1)+1, len(arr)))
+        if len(xignore):
+            ignore_inds.extend(range(xignore[0]))
     if plot:
         ax = plot if isinstance(plot, plt.Axes) else plt.gca()
         plot = True
@@ -127,7 +136,7 @@ def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
     for const, relative, xnorm in mods:
         signame = 'std_err'
         sigma = std_err.copy()
-        sigma[ignore] = np.inf
+        sigma[ignore_inds] = np.inf
         if plot:
             c = colors.next()
             if signame not in plotted:
