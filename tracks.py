@@ -49,7 +49,7 @@ if __name__ == '__main__':
         help="Don't save outputs or figures")
     arg('--noplot', action='store_false', dest='plot',
         help="Don't generate (fewer, not none at this point) figures")
-    arg('--maxdist', type=int, help="maximum single-frame travel distance in "
+    arg('--maxdist', type=float, help="maximum single-frame travel distance in "
         "pixels for track. default = side/fps if defined")
     arg('--giveup', type=int, default=10,
         help="maximum number of frames in track gap. default = 10")
