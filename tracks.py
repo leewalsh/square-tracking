@@ -1407,10 +1407,17 @@ if __name__ == '__main__' and args.rn:
                          for ts in tracksets.itervalues()])
     # Align and merge them
     taus = rn_corrs[:, :, 0]/args.fps
-    tau0 = np.array(map(partial(np.searchsorted, v=0), taus.flat))
-    taus = taus.flat[tau0.argmax()]
-    rn_corrs = helpy.pad_uneven(rn_corrs[:, :, 1], np.nan, align=tau0)
-    print rn_corrs.shape
+    if rn_corrs.ndim == 4:
+        if verbose:
+            print "Already aligned: all tracks have same length"
+        taus = taus[0, 0]
+        rn_corrs = rn_corrs[:, :, 1]
+    else:
+        if verbose:
+            print "Aligning tracks around tau=0"
+        tau0 = np.array(map(partial(np.searchsorted, v=0), taus.flat))
+        taus = taus.flat[tau0.argmax()]
+        rn_corrs = helpy.pad_uneven(rn_corrs[:, :, 1], np.nan, align=tau0)
     if args.dot:
         rn_corrs = rn_corrs.sum(1)  # sum over x and y components
     else:
