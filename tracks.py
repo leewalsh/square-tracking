@@ -5,6 +5,7 @@ from __future__ import division
 
 import sys
 import itertools as it
+from functools import partial
 from collections import defaultdict
 from math import sqrt, log, exp
 
@@ -1294,35 +1295,17 @@ if __name__ == '__main__' and args.nn:
     print "====== <nn> ======"
     # Calculate the <nn> correlation for all the tracks in a given dataset
 
-    corr_args = {'cumulant': False, 'norm': False}
+    corr_nn = partial(corr.autocorr, cumulant=False, norm=False)
     if args.verbose:
-        print 'calculating <nn> correlations for track'
-        coscorrs = []
-        sincorrs = []
-        for t, trackset in tracksets.iteritems():
-            print t,
-            o = trackset['o']
-            if args.verbose > 1:
-                print o.shape,
-            sys.stdout.flush()
-            cos = np.cos(o)
-            sin = np.sin(o)
-            coscorr = corr.autocorr(cos, **corr_args)
-            sincorr = corr.autocorr(sin, **corr_args)
-            coscorrs.append(coscorr)
-            sincorrs.append(sincorr)
-    else:
-        coscorrs = [corr.autocorr(np.cos(trackset['o']), **corr_args)
-                    for trackset in tracksets.values()]
-        sincorrs = [corr.autocorr(np.sin(trackset['o']), **corr_args)
-                    for trackset in tracksets.values()]
-
-    # Gather all the track correlations and average them
+        print 'calculating <nn> correlations'
     if args.dot:
-        allcorrs = [c + s for (c, s) in it.izip(coscorrs, sincorrs)]
+        nn_corrs = [corr_nn(np.cos(ts['o'])) + corr_nn(np.sin(ts['o']))
+                    for ts in tracksets.itervalues()]
     else:
-        allcorrs = coscorrs + sincorrs
-    allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
+        nn_corrs = [c for ts in tracksets.itervalues() for c in
+                    [corr_nn(np.cos(ts['o'])), corr_nn(np.sin(ts['o']))]]
+
+    nn_corrs, meancorr, errcorr = helpy.avg_uneven(nn_corrs, pad=True)
     taus = np.arange(len(meancorr))/args.fps
     tmax = int(50*args.zoom)
     fmax = np.searchsorted(taus, tmax)
@@ -1380,7 +1363,7 @@ if __name__ == '__main__' and args.nn:
     fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
     plot_individual = True
     if plot_individual:
-        ax.plot(taus, allcorrs.T, 'b', alpha=.2, lw=0.5)
+        ax.plot(taus, nn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Orientation Autocorrelation"*labels,
                 capthick=0, elinewidth=1, errorevery=3)
@@ -1415,28 +1398,28 @@ if __name__ == '__main__' and args.rn:
     v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
     l_p = v0/D_R
 
-    corr_args = {'side': 'both', 'ret_dx': True,
-                 'cumulant': (True, False), 'norm': 0}
+    correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
+                           cumulant=(True, False), norm=0)
 
-    xcoscorrs = [corr.crosscorr(trackset['x']/args.side, np.cos(trackset['o']),
-                 **corr_args) for trackset in tracksets.values()]
-    ysincorrs = [corr.crosscorr(trackset['y']/args.side, np.sin(trackset['o']),
-                 **corr_args) for trackset in tracksets.values()]
+    xcoscorrs = [correlate_rn(ts['x']/args.side, np.cos(ts['o']))
+                 for ts in tracksets.itervalues()]
+    ysincorrs = [correlate_rn(ts['y']/args.side, np.sin(ts['o']))
+                 for ts in tracksets.itervalues()]
 
     # Align and merge them
     fmax = int(2*args.fps/D_R*args.zoom)
     fmin = -fmax
+    taus = np.arange(fmin, fmax)/args.fps
     if args.dot:
-        allcorrs = [(xc[0], xc[1] + ys[1])
+        rn_corrs = [(xc[0], xc[1] + ys[1])
                     for (xc, ys) in it.izip(xcoscorrs, ysincorrs)]
     else:
-        allcorrs = xcoscorrs + ysincorrs
+        rn_corrs = xcoscorrs + ysincorrs
     # TODO: align these so that even if a track doesn't reach the fmin edge,
     # that is, if f.min() > fmin for a track, then it still aligns at zero
-    allcorrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
-                for f, rn in allcorrs if f.min() <= fmin]
-    allcorrs, meancorr, errcorr = helpy.avg_uneven(allcorrs, pad=True)
-    taus = np.arange(fmin, fmax)/args.fps
+    rn_corrs = [rn[np.searchsorted(f, fmin):np.searchsorted(f, fmax)]
+                for f, rn in rn_corrs if f.min() <= fmin]
+    rn_corrs, meancorr, errcorr = helpy.avg_uneven(rn_corrs, pad=True)
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
@@ -1495,7 +1478,7 @@ if __name__ == '__main__' and args.rn:
     plot_individual = True
     sgn = np.sign(v0)
     if plot_individual:
-        ax.plot(taus, sgn*allcorrs.T, 'b', alpha=.2, lw=0.5)
+        ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
