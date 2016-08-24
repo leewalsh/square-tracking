@@ -600,7 +600,7 @@ def gapsize_distro(tracksetses, fields='fo', title=''):
     ax.set_title(title)
 
 
-def interp_nans(f, x=None, max_gap=10, inplace=False):
+def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
     """ Replace nans in function f(x) with their linear interpolation"""
     n = len(f)
     if n < 3:
@@ -613,12 +613,13 @@ def interp_nans(f, x=None, max_gap=10, inplace=False):
         raise ValueError("Only 1d or 2d")
     if np.count_nonzero(nans) in (0, n):
         return f
-    if not inplace:
-        f = f.copy()
     ifin = (~nans).nonzero()[0]
     nf = len(ifin)
     if nf < 2:
         return f
+    if not inplace:
+        f = f.copy()
+    # to detect nans at either endpoint, pad before and after
     bef, aft = int(nans[0]), int(nans[-1])
     if bef or aft:
         bfin = np.empty(nf+bef+aft, int)
@@ -630,6 +631,10 @@ def interp_nans(f, x=None, max_gap=10, inplace=False):
     else:
         bfin = ifin
     gaps = np.diff(bfin) - 1
+    if verbose:
+        fmt = '\t      interp {:7} {:8} {:10}'.format
+        print fmt('{}@{}'.format(gaps.max(), gaps.argmax()),
+                  np.count_nonzero(gaps), gaps.sum())
     inan = ((gaps > 0) & (gaps <= max_gap)).nonzero()[0]
     if len(inan) < 1:
         return f
@@ -644,7 +649,8 @@ def interp_nans(f, x=None, max_gap=10, inplace=False):
     return f
 
 
-def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=False):
+def fill_gaps(tracksets, max_gap=10, interp=['xy','o'],
+              inplace=True, verbose=False):
     if not inplace:
         tracksets = {t: s.copy() for t, s in tracksets.iteritems()}
     if verbose:
@@ -661,7 +667,8 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=Fa
             if verbose > 1:
                 print fmt(t, len(tset), mx, 0, 0), 'no gaps'
             if 'o' in interp:
-                interp_nans(tset['o'], tset['f'], inplace=True)
+                interp_nans(tset['o'], tset['f'], max_gap=max_gap,
+                            inplace=True, verbose=verbose and verbose - 1)
             continue
         elif mx > max_gap:
             if verbose:
@@ -680,7 +687,8 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'], inplace=True, verbose=Fa
         if interp:
             for field in interp:
                 view = helpy.consecutive_fields_view(tset, field)
-                interp_nans(view, inplace=True)
+                interp_nans(view, tset['f'], max_gap=max_gap,
+                            inplace=True, verbose=verbose and verbose - 1)
         tracksets[t] = tset
     if verbose:
         print
