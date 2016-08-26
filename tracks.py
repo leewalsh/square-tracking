@@ -1316,8 +1316,7 @@ if __name__ == '__main__' and args.nn:
 
     nn_corrs, meancorr, errcorr = helpy.avg_uneven(nn_corrs, pad=True)
     taus = np.arange(len(meancorr))/args.fps
-    tmax = int(50*args.zoom)
-    fmax = np.searchsorted(taus, tmax)
+    tmax = 50*args.zoom
     if verbose > 1:
         nnerrfig, nnerrax = plt.subplots()
         nnerrax.set_yscale('log')
@@ -1325,7 +1324,7 @@ if __name__ == '__main__' and args.nn:
         nnerrax = False
     nnuncert = args.dtheta/rt2
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
-                                const=nnuncert, ignore=True, verbose=verbose)
+                                const=nnuncert, ignore=[0, tmax], verbose=verbose)
     if nnerrax:
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
@@ -1353,8 +1352,7 @@ if __name__ == '__main__' and args.nn:
     nn_model.set_param_hint('TR', min=0, vary=nn_vary['TR'])
     nn_model.set_param_hint('DR', min=0, vary=nn_vary['DR'])
 
-    nn_result = nn_model.fit(meancorr[:fmax], s=taus[:fmax],
-                             weights=1/sigma[:fmax])
+    nn_result = nn_model.fit(meancorr, s=taus, weights=1/sigma)
     nn_best_fit = nn_result.eval(s=taus)
     print "Fits to <nn> (free params:", ', '.join(nn_result.var_names)+'):'
     D_R = nn_result.best_values['DR']
@@ -1381,8 +1379,9 @@ if __name__ == '__main__' and args.nn:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, nn_best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
+    tmax = 3*args.zoom/D_R + tau_R
     ax.set_xlim(0, tmax)
-    ax.set_ylim(nn_best_fit[fmax], 1)
+    ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
 
     if labels:
@@ -1434,13 +1433,15 @@ if __name__ == '__main__' and args.rn:
     rn_corrs, meancorr, errcorr, stddev, added, enough = helpy.avg_uneven(
         rn_corrs, pad=False, ret_all=True, weight=False)
     taus = taus[enough]
+    tmax = 3/D_R*args.zoom
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
         rnerrax = False
     rnuncert = np.hypot(args.dtheta, args.dx)/rt2
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                                const=rnuncert, ignore=True, verbose=verbose)
+                                const=rnuncert, ignore=[0, -tmax, tmax],
+                                verbose=verbose)
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1552,7 +1553,7 @@ if __name__ == '__main__' and args.rr:
         rrerrax = False
     rruncert = rt2*args.dx
     sigma = curve.sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax, xnorm=1,
-                                const=rruncert, ignore=True, verbose=verbose)
+                                const=rruncert, ignore=[0], verbose=verbose)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
         if args.save:
