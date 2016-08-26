@@ -96,6 +96,7 @@ if __name__ == '__main__':
         help='Angular measurement uncertainty (radians)')
     arg('-z', '--zoom', metavar="ZOOM", type=float,
         help="Factor by which to zoom out (in if ZOOM < 1)")
+    arg('--clean', action='store_true', help='Make clean plot for presentation')
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
     arg('-q', '--quiet', action='count', help='Be quiet, subtracts from -v')
     arg('--suffix', type=str, default='', help='Suffix to append to savenames')
@@ -1218,7 +1219,7 @@ if __name__ == '__main__':
         ftsets, fosets = helpy.splitter((tdata, odata), 'f')
         fcsets = helpy.splitter(cdata)
         animate_detection(imstack, ftsets, fcsets, fosets, fisets, meta=meta,
-                          f_nums=frames, verbose=args.verbose, clean=args.quiet)
+                          f_nums=frames, verbose=args.verbose, clean=args.clean)
 
     if args.side > 1 and args.dx > 0.1:
         # args.dx is in units of pixels
@@ -1227,7 +1228,7 @@ if __name__ == '__main__':
     if args.rr or args.nn or args.rn:
         fit_source = {}
         helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
-        labels = not args.quiet
+        labels = not args.clean
 
     if args.msd or args.nn or args.rn:
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps,
@@ -1262,13 +1263,13 @@ if __name__ == '__main__':
     if args.plotmsd:
         if verbose:
             print 'plotting msd now!'
-        labels = not args.quiet
+        labels = not args.clean
         plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1,
                  tnormalize=False, prefix=saveprefix, show=args.show,
                  show_tracks=args.showtracks, singletracks=args.singletracks,
                  kill_flats=args.killflat, S=args.side, save=args.save,
                  kill_jumps=args.killjump*args.side**2, fps=args.fps,
-                 figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
+                 figsize=(5, 4) if args.clean else (8, 6), labels=labels)
 
     if args.plottracks and not args.check:
         if verbose:
@@ -1368,8 +1369,8 @@ if __name__ == '__main__' and args.nn:
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
 
-    fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    plot_individual = True
+    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    plot_individual = args.showtracks or not args.clean
     if plot_individual:
         ax.plot(taus, nn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
@@ -1487,9 +1488,9 @@ if __name__ == '__main__' and args.rn:
             meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
-    fig, ax = plt.subplots(figsize=(5, 4) if args.quiet else (8, 6))
-    plot_individual = True
+    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     sgn = np.sign(v0)
+    plot_individual = args.showtracks or not args.clean
     if plot_individual:
         ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
@@ -1528,8 +1529,8 @@ if __name__ == '__main__' and args.rr:
         show=False, tnormalize=0, errorbars=3, prefix=saveprefix,
         show_tracks=True, meancol=vcol, lw=3, singletracks=args.singletracks,
         fps=args.fps, S=args.side, kill_flats=args.killflat,
-        kill_jumps=args.killjump*args.side**2, title='' if args.quiet else None,
-        figsize=(5, 4) if args.quiet else (8, 6), labels=labels)
+        kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
+        figsize=(5, 4) if args.clean else (8, 6), labels=labels)
 
     msdvec = {'displacement': 0, 'progression': 1, 'diversion': -1}[args.msdvec]
     if msd.ndim == 2:
