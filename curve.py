@@ -6,6 +6,9 @@ from __future__ import division
 import itertools as it
 
 import numpy as np
+from numpy.polynomial import polynomial as poly
+from scipy.optimize import curve_fit
+from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 
 import helpy
@@ -13,6 +16,184 @@ import helpy
 pi = np.pi
 twopi = 2*pi
 rt2 = np.sqrt(2)
+
+
+def poly_exp(x, gamma, a, *coeffs):  # return_poly=False):
+    """ exponential decay with a polynomial decay scale
+
+                 - x
+           ------------------
+           a + b x + c x² ...
+        e
+    """
+    return_poly = False
+    d = poly.polyval(x, coeffs or (1,))
+    f = a*np.exp(-x**gamma/d)
+    return (f, d) if return_poly else f
+
+
+def vary_gauss(a, sig=1, verbose=False):
+    n = len(a)
+    b = np.empty_like(a)
+
+    if np.isscalar(sig):
+        sig *= np.arange(n)
+    elif isinstance(sig, tuple):
+        sig = poly.polyval(np.arange(n), sig)
+    elif callable(sig):
+        sig = sig(np.arange(n))
+    elif hasattr(sig, '__getitem__'):
+        assert len(a) == len(sig)
+    else:
+        raise TypeError('`sig` is neither callable nor arraylike')
+    for i, s in enumerate(sig):
+        # build the kernel:
+        w = round(2*s)  # kernel half-width, must be integer
+        if s == 0:
+            s = 1
+        k = gauss(np.arange(-w, w+1, dtype=float), sig=s)
+
+        # slice the array (min/max prevent going past ends)
+        al = max(i - w,     0)
+        ar = min(i + w + 1, n)
+        ao = a[al:ar]
+
+        # and the kernel
+        kl = max(w - i,     0)
+        kr = min(w - i + n, 2*w+1)
+        ko = k[kl:kr]
+        b[i] = np.dot(ao, ko)/ko.sum()
+
+    return b
+
+
+def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
+    l = np.searchsorted(xdata, x0-w/2)
+    r = np.searchsorted(xdata, x0+w/2)
+    x = xdata[l:r+1]
+    y = ydata[l:r+1]
+    form = form.lower()
+    if form.startswith('p'):
+        c = poly.polyfit(x, y, 2)
+        loc = -0.5*c[1]/c[2]
+        height = c[0] - 0.25 * c[1]**2 / c[2]
+    elif form.startswith('g'):
+        c, _ = curve_fit(gauss, x, y, p0=[y0, x0, w, 0])
+        loc = c[1]
+        height = c[0] + c[3]
+    return loc, height, x, y, c
+
+
+def exp_decay(t, sig=1., a=1., c=0):
+    """ exp_decay(t, sig, a, c)
+        exponential decay function for fitting
+
+        Args:
+            t,  independent variable
+        Params:
+          sig,  decay constant
+            a,  prefactor
+            c,  constant offset
+
+        Returns:
+            value at t
+    """
+    return c + a*np.exp(-t/sig)
+
+
+def log_decay(t, a=1, l=1., c=0.):
+    return c - a*np.log(t/l)
+
+
+def powerlaw(t, b=1., a=1., c=0):
+    """ powerlaw(t, b, a, c)
+        power law function for fitting
+                                      -b
+        powerlaw(t, b, a, c) = c + a t
+
+        Args:
+            t,  independent variable
+        Params:
+            b,  exponent (power)
+            a,  prefactor
+            c,  constant offset
+        Returns:
+            power law value at t
+    """
+    return c + a * np.power(t, -b)
+
+
+decays = {'exp': exp_decay, 'pow': powerlaw}
+
+
+def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
+    p1 = powerlaw(t, b1, d1, c1)
+    p2 = powerlaw(t, b2, d2, c2)
+    cp = np.maximum(p1, p2)
+    if ret_crossover:
+        ct = t[np.abs(p1-p2).argmin()]
+        print ct
+        ct = np.power(d1/d2, -np.reciprocal(b2-b1))
+        print ct
+        return cp, ct
+    else:
+        return cp
+
+
+def shift_power(t, tc=0, a=1, b=1, c=0, dt=0):
+    tshift = np.sqrt((tc-t)**2 + dt**2) if dt else tc - t
+    return powerlaw(tshift, b, a, c)
+
+
+def critical_power(t, f, tc=0, a=None, b=None, c=None,
+                   dt=None, df=None, abs_df=False):
+    """ Find critical point with powerlaw divergence
+    """
+    p0 = [i for i in [tc, a, b, c] if i is not None]
+    if dt:
+        func = lambda *args: shift_power(*args, **dict(dt=dt))
+    else:
+        func = shift_power
+    return curve_fit(func, t, f, p0=p0, sigma=df, absolute_sigma=abs_df)
+
+
+def gauss(x, a=1., x0=0., sig=1., c=0.):
+    x2 = np.square(x-x0)
+    s2 = sig*sig
+    return c + a*np.exp(-x2/s2)
+
+
+def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
+    """ Find the decay scale of a function f(x)
+        f: a decaying 1d array
+        x: independent variable, default is range(len(f))
+        method: how to calculate
+            'integrate': integral of f(t) assuming exp'l form
+            'mean': mean lifetime < t > = integral of t*f(t)
+        smooth: smooth data first using poly_exp
+    """
+    l = len(f)
+    if x is None:
+        x = np.arange(l)
+
+    if smooth == 'fit':
+        p, _ = curve_fit(poly_exp, x, f, [1, 1, 1])
+        f = poly_exp(x, *p)
+    elif smooth.startswith('gauss'):
+        g = [gaussian_filter(f, sig, mode='constant', cval=f[sig])
+             for sig in (1, 10, 100, 1000)]
+        f = np.choose(np.repeat([0, 1, 2, 3], [10, 90, 900, len(f)-1000]), g)
+
+    if rectify:
+        np.maximum(f, 0, f)
+
+    method = method.lower()
+    if method.startswith('mean'):
+        return np.dot(x, f) / f.sum()
+    elif method.startswith('int'):
+        return f.sum()
+    elif method.startswith('inv'):
+        return f.sum() / np.dot(1/(x+1), f)
 
 
 def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):

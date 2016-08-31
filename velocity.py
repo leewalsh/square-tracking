@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import helpy
 import tracks
 import correlation as corr
+import curve
 
 description = """This script plots a histogram of the velocity noise for one or
 several data sets. Includes option to subtract v_0 from translational noise.
@@ -78,11 +79,11 @@ def noise_derivatives(tdata, width=(1,), side=1, fps=1, xy=False,
     x = tdata['f']/fps
     ret = {}
     if do_orientation:
-        ret['o'] = np.array([helpy.der(tdata['o'], x=x, iwidth=w)
+        ret['o'] = np.array([curve.der(tdata['o'], x=x, iwidth=w)
                              for w in width]).squeeze()
     if do_translation:
         cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
-        vx, vy = [np.array([helpy.der(tdata[i]/side, x=x, iwidth=w)
+        vx, vy = [np.array([curve.der(tdata[i]/side, x=x, iwidth=w)
                             for w in width]).squeeze() for i in 'xy']
         if xy:
             ret['x'], ret['y'] = vx, vy
