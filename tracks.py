@@ -601,80 +601,6 @@ def gapsize_distro(tracksetses, fields='fo', title=''):
     ax.set_title(title)
 
 
-def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
-    """ Replace nans in function f(x) with their linear interpolation"""
-    n = len(f)
-    if n < 3:
-        return f
-    if f.ndim == 1:
-        nans = np.isnan(f)
-    elif f.ndim == 2:
-        nans = np.isnan(f[:, 0])
-    else:
-        raise ValueError("Only 1d or 2d")
-    if np.count_nonzero(nans) in (0, n):
-        return f
-    ifin = (~nans).nonzero()[0]
-    nf = len(ifin)
-    if nf < 2:
-        return f
-    if not inplace:
-        f = f.copy()
-    # to detect nans at either endpoint, pad before and after
-    bef, aft = int(nans[0]), int(nans[-1])
-    if bef or aft:
-        bfin = np.empty(nf+bef+aft, int)
-        if bef:
-            bfin[0] = -1
-        if aft:
-            bfin[-1] = len(f)
-        bfin[bef:-aft or None] = ifin
-    else:
-        bfin = ifin
-    gaps = np.diff(bfin) - 1
-    if verbose:
-        fmt = '\t      interp {:7} {:8} {:10}'.format
-        print fmt('{}@{}'.format(gaps.max(), gaps.argmax()),
-                  np.count_nonzero(gaps), gaps.sum())
-    inan = ((gaps > 0) & (gaps <= max_gap)).nonzero()[0]
-    if len(inan) < 1:
-        return f
-    gaps = gaps[inan]
-    inan = np.repeat(inan, gaps)
-    inan = np.concatenate(map(range, gaps)) + bfin[inan] + 1
-    xnan, xfin = (inan, ifin) if x is None else (x[inan], x[ifin])
-    if not inplace:
-        f = f.copy()
-    for c in f.T if f.ndim > 1 else [f]:
-        c[inan] = np.interp(xnan, xfin, c[ifin])
-    return f
-
-
-def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
-    gaps = np.diff(x) - 1
-    ret_gaps = (gaps,) if ret_gaps else ()
-    mx = gaps.max()
-    if not mx:
-        if verbose > 1:
-            print 'no gaps'
-        return (f, x) + ret_gaps
-    elif mx > max_gap:
-        if verbose:
-            print 'too large'
-        if ret_gaps:
-            return (None, x) + ret_gaps
-    if verbose:
-        print 'filled'
-    gapi = gaps.nonzero()[0]
-    gaps = gaps[gapi]
-    gapi = np.repeat(gapi, gaps)
-    filler = np.full(1, np.nan, f.dtype)
-    missing = np.concatenate(map(range, gaps)) + x[gapi] + 1
-    f = np.insert(f, gapi+1, filler)
-    x = np.insert(x, gapi+1, missing)
-    return (f, x) + ret_gaps
-
-
 def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
                   inplace=True, verbose=False):
     if not inplace:
@@ -687,8 +613,8 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
         fmt = '\t{:5} {:6} {:7} {:8} {:10}'.format
     for t, tset in tracksets.items():
         fs = tset['f']
-        filled = fill_gaps(tset, fs, max_gap=max_gap,
-                           ret_gaps=verbose, verbose=verbose)
+        filled = curve.fill_gaps(tset, fs, max_gap=max_gap,
+                                 ret_gaps=verbose, verbose=verbose)
         if verbose:
             gaps = filled[2]
             print fmt(t, len(tset), gaps.max(), len(gaps), gaps.sum())
@@ -700,8 +626,8 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
             tset['t'] = t
             tracksets[t] = tset
             for field in interp or []:
-                interp_nans(tset[field], fs, max_gap=max_gap, inplace=True,
-                            verbose=verbose and verbose - 1)
+                curve.interp_nans(tset[field], fs, max_gap=max_gap,
+                                  inplace=True, verbose=verbose and verbose - 1)
     if verbose:
         print
     return tracksets

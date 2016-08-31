@@ -15,6 +15,150 @@ twopi = 2*pi
 rt2 = np.sqrt(2)
 
 
+def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
+    """ Replace nans in function f(x) with their linear interpolation"""
+    n = len(f)
+    if n < 3:
+        return f
+    if f.ndim == 1:
+        nans = np.isnan(f)
+    elif f.ndim == 2:
+        nans = np.isnan(f[:, 0])
+    else:
+        raise ValueError("Only 1d or 2d")
+    if np.count_nonzero(nans) in (0, n):
+        return f
+    ifin = (~nans).nonzero()[0]
+    nf = len(ifin)
+    if nf < 2:
+        return f
+    if not inplace:
+        f = f.copy()
+    # to detect nans at either endpoint, pad before and after
+    bef, aft = int(nans[0]), int(nans[-1])
+    if bef or aft:
+        bfin = np.empty(nf+bef+aft, int)
+        if bef:
+            bfin[0] = -1
+        if aft:
+            bfin[-1] = len(f)
+        bfin[bef:-aft or None] = ifin
+    else:
+        bfin = ifin
+    gaps = np.diff(bfin) - 1
+    if verbose:
+        fmt = '\t      interp {:7} {:8} {:10}'.format
+        print fmt('{}@{}'.format(gaps.max(), gaps.argmax()),
+                  np.count_nonzero(gaps), gaps.sum())
+    inan = ((gaps > 0) & (gaps <= max_gap)).nonzero()[0]
+    if len(inan) < 1:
+        return f
+    gaps = gaps[inan]
+    inan = np.repeat(inan, gaps)
+    inan = np.concatenate(map(range, gaps)) + bfin[inan] + 1
+    xnan, xfin = (inan, ifin) if x is None else (x[inan], x[ifin])
+    if not inplace:
+        f = f.copy()
+    for c in f.T if f.ndim > 1 else [f]:
+        c[inan] = np.interp(xnan, xfin, c[ifin])
+    return f
+
+
+def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
+    gaps = np.diff(x) - 1
+    ret_gaps = (gaps,) if ret_gaps else ()
+    mx = gaps.max()
+    if not mx:
+        if verbose > 1:
+            print 'no gaps'
+        return (f, x) + ret_gaps
+    elif mx > max_gap:
+        if verbose:
+            print 'too large'
+        if ret_gaps:
+            return (None, x) + ret_gaps
+    if verbose:
+        print 'filled'
+    gapi = gaps.nonzero()[0]
+    gaps = gaps[gapi]
+    gapi = np.repeat(gapi, gaps)
+    filler = np.full(1, np.nan, f.dtype)
+    missing = np.concatenate(map(range, gaps)) + x[gapi] + 1
+    f = np.insert(f, gapi+1, filler)
+    x = np.insert(x, gapi+1, missing)
+    return (f, x) + ret_gaps
+
+
+def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
+    """ Take a finite derivative of f(x) using convolution with gaussian
+
+    A function convolved with the derivative of a gaussian kernel gives the
+    derivative of the function convolved with the integral of the kernel of a
+    gaussian kernel.  For any convolution:
+        (f * g)' = f * g' = g * f'
+    so we start with f and g', and return g and f', a smoothed derivative.
+
+    Optionally can not smooth by giving width 0.
+
+    parameters
+    ----------
+    f : an array to differentiate
+    xwidth or iwidth : smoothing width (sigma) for gaussian.
+        use iwidth for index units, (simple array index width)
+        use xwidth for the physical units of x (x array is required)
+        use 0 for no smoothing. Gives an array shorter by 1.
+    x or dx : required for normalization
+        if x is provided, dx = np.diff(x)
+        otherwise, a scalar dx is presumed
+        if dx=1, use a simple finite difference with np.diff
+        if dx>1, convolves with the derivative of a gaussian, sigma=dx
+    order : how many derivatives to take
+    min_scale : the smallest physical scale involved in index units. e.g., fps.
+
+    returns
+    -------
+    df_dx : the `order`th derivative of f with respect to x
+    """
+    if dx is None and x is None:
+        dx = 1
+    elif dx is None:
+        dx = x.copy()
+        dx[:-1] = dx[1:] - dx[:-1]
+        assert dx[:-1].min() > 1e-6, ("Non-increasing independent variable "
+                                      "(min step {})".format(dx[:-1].min()))
+        dx[-1] = dx[-2]
+
+    if xwidth is None and iwidth is None:
+        if x is None:
+            iwidth = 1
+        else:
+            xwidth = 1
+    if iwidth is None:
+        iwidth = xwidth / dx
+
+    if iwidth == 0:
+        if order == 1:
+            df = f.copy()
+            df[:-1] = df[1:] - df[:-1]
+            df[-1] = df[-2]
+        else:
+            df = np.diff(f, n=order)
+            beg, end = order//2, (order+1)//2
+            df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
+    else:
+        min_iwidth = 0.5
+        if iwidth < min_iwidth:
+            msg = "Width of {} too small for reliable results using {}"
+            raise UserWarning(msg.format(iwidth, min_iwidth))
+            iwidth = min_iwidth
+        from scipy.ndimage import gaussian_filter1d
+        # kernel truncated at truncate*iwidth; it is 4 by default
+        truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
+        df = gaussian_filter1d(f, iwidth, order=order, truncate=truncate)
+
+    return df/dx**order
+
+
 def print_stats(**kwargs):
     for k, v in kwargs.iteritems():
         print k + ':', v.shape, 'min', v.min(1), 'max', v.max(1)
