@@ -650,8 +650,33 @@ def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
     return f
 
 
-def fill_gaps(tracksets, max_gap=10, interp=['xy','o'],
-              inplace=True, verbose=False):
+def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
+    gaps = np.diff(x) - 1
+    ret_gaps = (gaps,) if ret_gaps else ()
+    mx = gaps.max()
+    if not mx:
+        if verbose > 1:
+            print 'no gaps'
+        return (f, x) + ret_gaps
+    elif mx > max_gap:
+        if verbose:
+            print 'too large'
+        if ret_gaps:
+            return (None, x) + ret_gaps
+    if verbose:
+        print 'filled'
+    gapi = gaps.nonzero()[0]
+    gaps = gaps[gapi]
+    gapi = np.repeat(gapi, gaps)
+    filler = np.full(1, np.nan, f.dtype)
+    missing = np.concatenate(map(range, gaps)) + x[gapi] + 1
+    f = np.insert(f, gapi+1, filler)
+    x = np.insert(x, gapi+1, missing)
+    return (f, x) + ret_gaps
+
+
+def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
+                  inplace=True, verbose=False):
     if not inplace:
         tracksets = {t: s.copy() for t, s in tracksets.iteritems()}
     if verbose:
@@ -662,35 +687,21 @@ def fill_gaps(tracksets, max_gap=10, interp=['xy','o'],
         fmt = '\t{:5} {:6} {:7} {:8} {:10}'.format
     for t, tset in tracksets.items():
         fs = tset['f']
-        gaps = np.diff(fs) - 1
-        mx = gaps.max()
-        if not mx:
-            if verbose > 1:
-                print fmt(t, len(tset), mx, 0, 0), 'no gaps'
-            if 'o' in interp:
-                interp_nans(tset['o'], tset['f'], max_gap=max_gap,
-                            inplace=True, verbose=verbose and verbose - 1)
-            continue
-        elif mx > max_gap:
-            if verbose:
-                print fmt(t, len(tset), mx, '?', '?'), 'drop track'
-            tracksets.pop(t)
-            continue
-        gapi = gaps.nonzero()[0]
-        gaps = gaps[gapi]
-        gapi = np.repeat(gapi, gaps)
-        missing = np.full(len(gapi), np.nan, tset.dtype)
+        filled = fill_gaps(tset, fs, max_gap=max_gap,
+                           ret_gaps=verbose, verbose=verbose)
         if verbose:
-            print fmt(t, len(tset), mx, len(gaps), len(gapi)), 'filled'
-        missing['f'] = np.concatenate(map(range, gaps)) + fs[gapi] + 1
-        missing['t'] = t
-        tset = np.insert(tset, gapi+1, missing)
-        if interp:
-            for field in interp:
-                view = helpy.consecutive_fields_view(tset, field)
-                interp_nans(view, tset['f'], max_gap=max_gap,
-                            inplace=True, verbose=verbose and verbose - 1)
-        tracksets[t] = tset
+            gaps = filled[2]
+            print fmt(t, len(tset), gaps.max(), len(gaps), gaps.sum())
+        tset, fs = filled[:2]
+        if tset is None:
+            tracksets.pop(t)
+        else:
+            tset['f'] = fs
+            tset['t'] = t
+            tracksets[t] = tset
+            for field in interp or []:
+                interp_nans(tset[field], fs, max_gap=max_gap, inplace=True,
+                            verbose=verbose and verbose - 1)
     if verbose:
         print
     return tracksets
