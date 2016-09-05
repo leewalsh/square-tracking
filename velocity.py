@@ -304,6 +304,7 @@ if __name__ == '__main__':
                              ['vel_stub', 'vel_gaps', 'vel_dx_width'],
                              [10, 'interp', 0.65])
         args.width = [args.width]
+        compile_args.update(args.__dict__)
         vs = defaultdict(list)
         trackcount = compile_noise(prefixes, vs, **compile_args)
         if not (args.log or args.lin):
