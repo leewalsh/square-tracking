@@ -278,7 +278,7 @@ if __name__ == '__main__':
     if args.melt:
         print 'calculating'
         data = helpy.load_data(args.prefix)
-        tsets = helpy.load_tracksets(data, run_fill_gaps='interp',
+        tsets = helpy.load_tracksets(data, run_repair='interp',
                                      run_track_orient=True)
         # to get the benefits of tracksets (interpolation, stub filtering):
         data = np.concatenate(tsets.values())

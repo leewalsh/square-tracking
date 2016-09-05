@@ -806,7 +806,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
 
 def load_tracksets(data, trackids=None, min_length=10, max_length=None,
                    reverse=False, verbose=False, run_remove_dupes=False,
-                   run_fill_gaps=False, run_track_orient=False):
+                   run_repair=False, run_track_orient=False):
     """Build a dict of slices into data based on trackid
 
     parameters:
@@ -815,7 +815,7 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         min_length:         only include tracks with at least this many members
                         or, include the longest N tracks with min_length = -N
         run_remove_dupes:   whether to run tracks.remove_dupes on the data
-        run_fill_gaps:      whether to fill gaps (see tracks -h (--gaps))
+        run_repair:         whether to fill/interp gaps (see tracks -h (--gaps))
         run_track_orient:   whether to track orients so angles are not mod 2pi
 
     returns:
@@ -845,10 +845,10 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         from orientation import track_orient
         for track in tracksets:
             tracksets[track]['o'] = track_orient(tracksets[track]['o'])
-    if run_fill_gaps and run_fill_gaps != 'leave':
-        from tracks import fill_gaps
-        fs = () if run_fill_gaps == 'nans' else ('xy', 'o')
-        fill_gaps(tracksets, interp=fs, inplace=True, verbose=verbose)
+    if run_repair and run_repair != 'leave':
+        from tracks import repair_tracks
+        fs = () if run_repair == 'nans' else ('xy', 'o')
+        repair_tracks(tracksets, interp=fs, inplace=True, verbose=verbose)
     start = max_length and reverse and -max_length
     stop = max_length and max_length*(1 - reverse) or None
     if start or stop:

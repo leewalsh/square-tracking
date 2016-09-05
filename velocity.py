@@ -112,9 +112,8 @@ def compile_noise(prefixes, vs, width=(1,), side=1, fps=1, cat=True, xy=False,
         data = helpy.load_data(prefix, 'tracks')
         if dupes:
             data['t'] = tracks.remove_duplicates(data['t'], data)
-        tracksets = helpy.load_tracksets(data, min_length=stub,
-                                         run_track_orient=torient,
-                                         run_fill_gaps=gaps)
+        tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
+                                         run_track_orient=torient)
         for track in tracksets:
             tdata = tracksets[track]
             velocities = noise_derivatives(

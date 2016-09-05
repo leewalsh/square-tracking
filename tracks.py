@@ -1150,7 +1150,7 @@ if __name__ == '__main__':
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
-        idata = helpy.load_tracksets(tdata, run_fill_gaps='interp')
+        idata = helpy.load_tracksets(tdata, run_repair='interp')
         idata = np.concatenate(idata.values())
         fisets = helpy.splitter(idata, 'f', noncontiguous=True, ret_dict=True)
         ftsets, fosets = helpy.splitter((tdata, odata), 'f')
@@ -1173,7 +1173,7 @@ if __name__ == '__main__':
         tracksets = helpy.load_tracksets(
             data, min_length=args.stub, max_length=args.retire,
             reverse=args.reverse, run_track_orient=True,
-            run_fill_gaps=args.gaps, verbose=args.verbose)
+            run_repair=args.gaps, verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(
@@ -1224,7 +1224,7 @@ if __name__ == '__main__':
                                    single=True, load=True)[1]
         if not args.singletracks:
             tracksets = helpy.load_tracksets(data, min_length=args.stub,
-                                             run_fill_gaps=args.gaps,
+                                             run_repair=args.gaps,
                                              verbose=args.verbose)
             args.singletracks = tracksets.keys()
         if trackids is None:
