@@ -311,7 +311,7 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         dup_fs = np.where(count > 1)[0]
         if not len(dup_fs):
             continue
-        ftsets = helpy.splitter(tset, fs, ret_dict=True)
+        ftsets = helpy.load_framesets(tset, fs)
         for f in dup_fs:
             prv = fs[np.searchsorted(fs, f, 'left') - 1] if f > fs[0] else None
             nxt = fs[np.searchsorted(fs, f, 'right')] if f < fs[-1] else None
@@ -697,7 +697,7 @@ def t0avg(trackset, tracklen, tau):
     """
     totsqdisp = 0.0
     nt0s = 0.0
-    tfsets = helpy.splitter(trackset, trackset['f'], ret_dict=True)
+    tfsets = helpy.load_framesets(trackset)
     # for t0 in (T - tau - 1), by dt0 stepsize
     for t0 in np.arange(1, (tracklen-tau-1), dt0):
         olddot = tfsets[t0]
@@ -1097,7 +1097,7 @@ if __name__ == '__main__':
             pdata, cdata = helpy.load_data(readprefix, 'position corner')
         else:
             pdata = helpy.load_data(readprefix, 'position')
-        pfsets = helpy.splitter(pdata, ret_dict=True)
+        pfsets = helpy.load_framesets(pdata)
         pftrees = {f: KDTree(helpy.consecutive_fields_view(pfset, 'xy'),
                              leafsize=50) for f, pfset in pfsets.iteritems()}
     if args.track:
@@ -1119,7 +1119,7 @@ if __name__ == '__main__':
         if args.drcorner is None:
             args.drcorner = meta.get('corner_kern')
         from orientation import get_angles
-        cfsets = helpy.splitter(cdata, ret_dict=True)
+        cfsets = helpy.load_framesets(cdata)
         cftrees = {f: KDTree(helpy.consecutive_fields_view(cfset, 'xy'),
                              leafsize=50) for f, cfset in cfsets.iteritems()}
         odata, omask = get_angles(pdata, cdata, pfsets, cfsets, cftrees,
@@ -1150,11 +1150,9 @@ if __name__ == '__main__':
                 load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
-        idata = helpy.load_tracksets(tdata, run_repair='interp')
-        idata = np.concatenate(idata.values())
-        fisets = helpy.splitter(idata, 'f', noncontiguous=True, ret_dict=True)
-        ftsets, fosets = helpy.splitter((tdata, odata), 'f')
-        fcsets = helpy.splitter(cdata)
+        fisets = helpy.load_framesets(tdata, run_repair='interp')
+        ftsets, fosets = helpy.load_framesets((tdata, odata))
+        fcsets = helpy.load_framesets(cdata)
         animate_detection(imstack, ftsets, fcsets, fosets, fisets, meta=meta,
                           f_nums=frames, verbose=args.verbose, clean=args.clean)
 

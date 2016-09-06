@@ -93,7 +93,7 @@ def getcommit():
     return COMMIT
 
 
-def splitter(data, indices='f', method=None,
+def splitter(data, indices, method=None,
              ret_dict=False, noncontiguous=False):
     """Splits a dataset into subarrays with unique index value
 
@@ -120,17 +120,16 @@ def splitter(data, indices='f', method=None,
 
     examples:
 
-        for f, fdata in splitter(data, method='unique'):
-            do stuff
+        for f, fdata in splitter(data, 'f', method='unique')
 
-        for fdata in splitter(data):
-            do stuff
+        for fdata in splitter(data, 'f')
 
-        fsets = splitter(data, method='unique', ret_dict=True)
+        fsets = splitter(data, 'f', method='unique', ret_dict=True)
         fset = fsets[f]
 
-        for trackid, trackset in splitter(data, data['t'], noncontiguous=True)
-        tracksets = splitter(data, data['t'], noncontiguous=True, ret_dict=True)
+        for trackid, trackset in splitter(data, 't', noncontiguous=True)
+
+        tracksets = splitter(data, 't', noncontiguous=True, ret_dict=True)
         trackset = tracksets[trackid]
     """
     multi = isinstance(data, tuple)
@@ -854,6 +853,16 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
     if start or stop:
         tracksets = {t: tracksets[t][start:stop] for t in ts}
     return tracksets
+
+
+def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **trackset_args):
+    if trackset_args:
+        data_or_tracksets = load_tracksets(data_or_tracksets, **trackset_args)
+    if hasattr(data_or_tracksets, 'values'):
+        data = np.concatenate(data_or_tracksets.values())
+        return splitter(data, indices, noncontiguous=True, ret_dict=ret_dict)
+    else:
+        return splitter(data_or_tracksets, indices, ret_dict=ret_dict)
 
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
