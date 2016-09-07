@@ -826,11 +826,16 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
     elif not trackids.flags.owndata:
         # copy in case called as ...(data, data['t'])
         trackids = trackids.copy()
-    lengths = np.bincount(trackids+1)[1:]
-    if min_length < 0:
-        ts = lengths.argsort()[min_length:]
+    if min_length:
+        lengths = np.bincount(trackids+1)[1:]
+        if min_length < 0:
+            ts = lengths.argsort()[min_length:]
+        else:
+            ts = np.where(lengths >= min_length)[0]
     else:
-        ts = np.where(lengths >= min_length)[0]
+        ts = np.unique(trackids)
+        if ts[0] == -1:
+            ts = ts[1:]
     reverse = int(reverse)
     step = 1 - 2*reverse
     tracksets = {t: data[trackids == t][::step] for t in ts}
