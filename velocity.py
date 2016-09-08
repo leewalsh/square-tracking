@@ -4,7 +4,6 @@
 from __future__ import division
 
 import os
-from collections import defaultdict
 from glob import iglob
 from math import sqrt
 
@@ -13,7 +12,6 @@ from scipy.stats import skew, kurtosis, skewtest, kurtosistest
 import matplotlib.pyplot as plt
 
 import helpy
-import tracks
 import correlation as corr
 import curve
 
@@ -101,30 +99,29 @@ def noise_derivatives(tdata, width=(1,), side=1, fps=1, xy=False,
     return ret
 
 
-def compile_noise(prefixes, vs, width=(1,), side=1, fps=1, cat=True, xy=False,
+def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, xy=False,
                   do_orientation=True, do_translation=True, subtract=True,
                   stub=10, torient=True, gaps='interp', dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
+    vs = {}
     for prefix in prefixes:
         if args.verbose:
             print "Loading data for", prefix
         data = helpy.load_data(prefix, 'tracks')
-        if dupes:
-            data['t'] = tracks.remove_duplicates(data['t'], data)
         tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
+                                         verbose=args.verbose, run_remove_dupes=dupes,
                                          run_track_orient=torient)
-        for track in tracksets:
-            tdata = tracksets[track]
-            velocities = noise_derivatives(
-                tdata, width=width, side=side, fps=fps, xy=xy, subtract=subtract,
-                do_orientation=do_orientation, do_translation=do_translation)
-            for v in velocities:
-                vs[v].append(velocities[v])
-    if cat:
-        for v in vs:
-            vs[v] = np.concatenate(vs[v], -1)
-    return len(tracksets)
+        tvs = {t: noise_derivatives(tset, width=width, side=side,
+                                    fps=fps, xy=xy, subtract=subtract,
+                                    do_orientation=do_orientation,
+                                    do_translation=do_translation)
+               for t, tset in tracksets.iteritems()}
+        if cat:
+            vs[prefix] = {v: [tv[v] for tv in tvs.values()] for v in tvs[t]}
+        else:
+            vs[prefix] = tvs
+    return vs
 
 
 def get_stats(a):
@@ -156,10 +153,9 @@ def get_stats(a):
 
 
 def compile_widths(prefixes, **compile_args):
-    vs = defaultdict(list)
-    compile_noise(prefixes, vs, **compile_args)
-    stats = {v: get_stats(vs[v])
-             for v in 'o par perp etapar'.split()}
+    vs = compile_noise(prefixes, **compile_args)
+    stats = {v: get_stats(np.concatenate(pvs.values()))
+             for v, pvs in helpy.transpose_dict(vs).items()}
     return stats
 
 
@@ -248,15 +244,12 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     ax.plot(bins, g, c=pcol, lw=2)
 
 
-def vv_autocorr(prefixes, length=0.5, frame='self', normalize=False,
-                **compile_args):
-    vs = defaultdict(list)
-    compile_noise(prefixes, vs, cat=False, xy=(frame == 'lab'), **compile_args)
+def vv_autocorr(vs, length=0.5, normalize=False):
     vvs = {}
-    for v, tvs in vs.iteritems():
-        vlen = int(length*max(map(len, tvs)) if length < 1 else length)
+    for v, tvs in helpy.transpose_dict(vs).iteritems():
+        vlen = int(length*max(map(len, tvs.itervalues())) if length < 1 else length)
         tacs = [corr.autocorr(tv, norm=normalize and 1, cumulant=False)[:vlen]
-                for tv in tvs]
+                for tv in tvs.itervalues()]
         vvs[v] = helpy.avg_uneven(tacs, weight=True, pad=True)
     return vvs
 
@@ -289,7 +282,8 @@ if __name__ == '__main__':
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
-        vvs = vv_autocorr(prefixes, length=10*args.fps, **compile_args)
+        vs = compile_noise(prefixes, components, cat=False, **compile_args)
+        vvs = vv_autocorr(vs, length=10*args.fps, normalize=args.normalize)
         fig, ax = plt.subplots()
         for v in vvs:
             tvvs, vv, dvv = vvs[v]
@@ -305,8 +299,7 @@ if __name__ == '__main__':
                              [10, 'interp', 0.65])
         args.width = [args.width]
         compile_args.update(args.__dict__)
-        vs = defaultdict(list)
-        trackcount = compile_noise(prefixes, vs, **compile_args)
+        vs = compile_noise(prefixes, **compile_args)
         if not (args.log or args.lin):
             args.log = args.lin = True
 
