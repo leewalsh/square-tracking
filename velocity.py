@@ -72,36 +72,38 @@ pcol = (0.25, 0.5, 0)
 ncol = (0.4, 0.4, 1)
 
 
-def noise_derivatives(tdata, width=(1,), side=1, fps=1, xy=False,
-                      do_orientation=True, do_translation=True, subtract=True):
+def noise_derivatives(tdata, width=(1,), side=1, fps=1):
+    """calculate angular and positional derivatives in lab & particle frames.
+
+    Returns the derivatives in structured array with dtype having fields
+        'o', 'x', 'y', 'par', 'perp'
+    for the velocity in
+        orientation, x, y, parallel, and perpendicular directions
+    and noise fields
+        'etax', 'etay', 'etapar'
+    for velocity with average forward motion subtracted
+
+    the arrays dtype is defined by helpy.vel_dtype
+    """
+    shape = ((len(width),) if len(width) > 1 else ()) + tdata.shape
+    v = np.empty(shape, helpy.vel_dtype)
     x = tdata['f']/fps
-    ret = {}
-    if do_orientation:
-        ret['o'] = np.array([curve.der(tdata['o'], x=x, iwidth=w)
-                             for w in width]).squeeze()
-    if do_translation:
-        cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
-        vx, vy = [np.array([curve.der(tdata[i]/side, x=x, iwidth=w)
-                            for w in width]).squeeze() for i in 'xy']
-        if xy:
-            ret['x'], ret['y'] = vx, vy
-        else:
-            vI = vx*cos + vy*sin
-            vT = vx*sin - vy*cos
-            ret['par'], ret['perp'] = vI, vT
-        if subtract:
-            v0 = vI.mean(-1, keepdims=vI.ndim > 1)
-            if xy:
-                ret['etax'] = vx - v0*cos
-                ret['etay'] = vy - v0*sin
-            else:
-                ret['etapar'] = vI - v0
-    return ret
+    cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
+    unit = {'x': side, 'y': side, 'o': 1}
+    for oxy in 'oxy':
+        v[oxy] = np.array([curve.der(tdata[oxy]/unit[oxy], x=x, iwidth=w)
+                           for w in width]).squeeze()
+    v['par'] = v['x']*cos + v['y']*sin
+    v['perp'] = v['x']*sin - v['y']*cos
+    v0 = v['par'].mean(-1, keepdims=len(shape) > 1)
+    v['etax'] = v['x'] - v0*cos
+    v['etay'] = v['y'] - v0*sin
+    v['etapar'] = v['par'] - v0
+    return v
 
 
-def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, xy=False,
-                  do_orientation=True, do_translation=True, subtract=True,
-                  stub=10, torient=True, gaps='interp', dupes=False, **ignored):
+def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, stub=10,
+                  torient=True, gaps='interp', dupes=False, **ignored):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     vs = {}
@@ -112,10 +114,7 @@ def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, xy=False,
         tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
                                          verbose=args.verbose, run_remove_dupes=dupes,
                                          run_track_orient=torient)
-        tvs = {t: noise_derivatives(tset, width=width, side=side,
-                                    fps=fps, xy=xy, subtract=subtract,
-                                    do_orientation=do_orientation,
-                                    do_translation=do_translation)
+        tvs = {t: noise_derivatives(tset, width=width, side=side, fps=fps)
                for t, tset in tracksets.iteritems()}
         if cat:
             vs[prefix] = {v: [tv[v] for tv in tvs.values()] for v in tvs[t]}
@@ -282,7 +281,7 @@ if __name__ == '__main__':
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
-        vs = compile_noise(prefixes, components, cat=False, **compile_args)
+        vs = compile_noise(prefixes, cat=False, **compile_args)
         vvs = vv_autocorr(vs, length=10*args.fps, normalize=args.normalize)
         fig, ax = plt.subplots()
         for v in vvs:
