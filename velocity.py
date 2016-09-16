@@ -115,12 +115,10 @@ def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, stub=10,
                                          verbose=args.verbose,
                                          run_remove_dupes=dupes,
                                          run_track_orient=torient)
-        tvs = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
-               for t, ts in tracksets.iteritems()}
-        if cat:
-            vs[prefix] = {v: [tv[v] for tv in tvs.values()] for v in tvs[t]}
-        else:
-            vs[prefix] = tvs
+        vs[prefix] = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
+                      for t, ts in tracksets.iteritems()}
+    if cat:
+        vs = np.concatenate([t for v in vs.values() for t in v.values()])
     return vs
 
 
@@ -245,12 +243,13 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
 
 
 def vv_autocorr(vs, normalize=False):
-    vvs = {}
-    for v, tvs in helpy.transpose_dict(vs).iteritems():
-        tacs = [corr.autocorr(tv, norm=normalize and 1, cumulant=False)
-                for tv in tvs.itervalues()]
-        vvs[v] = helpy.avg_uneven(tacs, weight=True, pad=True)
-    return vvs
+    normalize = normalize and 1
+    flat_dt = 'f4'
+    vvs = [corr.autocorr(tv.view((flat_dt, 8)), norm=normalize, cumulant=False)
+           for pvs in vs.itervalues() for tv in pvs.itervalues()]
+    vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
+    return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
+            for a in vvs, vv, dvv]
 
 
 if __name__ == '__main__':
@@ -283,12 +282,11 @@ if __name__ == '__main__':
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
         vs = compile_noise(prefixes, cat=False, **compile_args)
-        vvs = vv_autocorr(vs, normalize=args.normalize)
+        vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
         fig, ax = plt.subplots()
-        for v in vvs:
-            tvvs, vv, dvv = vvs[v]
-            t = np.arange(len(vv))/args.fps
-            ax.errorbar(t, vv, yerr=dvv, label=label[v], ls=ls[v])
+        t = np.arange(len(vv))/args.fps
+        for v in ['o', 'par', 'perp', 'etapar']:
+            ax.errorbar(t, vv[v], yerr=dvv[v], label=label[v], ls=ls[v])
         ax.set_xlim(0, 10*args.fps)
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         ax.legend(loc='best')
