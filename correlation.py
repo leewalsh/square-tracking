@@ -369,8 +369,8 @@ def bin_average(r, f, bins=10):
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
              verbose=False, reverse=False, ret_dx=False):
-    """ autocorr(f, side='right', cumulant=True, norm=True, mode='same',
-                 verbose=False, reverse=False, ret_dx=False):
+    """ autocorr(f, side='right', cumulant=True, norm=1, mode='same',
+                 verbose=False, reverse=False, ret_dx=False)
 
         The auto-correlation of function f
         returns the auto-correlation function
@@ -393,7 +393,7 @@ def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
 def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
               verbose=False, reverse=False, ret_dx=False):
     """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
-                  verbose=False, reverse=False, ret_dx=False):
+                  verbose=False, reverse=False, ret_dx=False)
 
         The cross-correlation of f and g
         returns the cross-correlation function
@@ -434,11 +434,12 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         elif cumulant[1]:
             g = g - g.mean(0)
 
-    corer = convolve if reverse else correlate
+    correlator = convolve if reverse else correlate
     if f.ndim == g.ndim == 2:
-        c = np.stack([corer(*fgi, mode=mode) for fgi in zip(f.T, g.T)])
+        # apply the correlator function to each pair of columns in f, g
+        c = np.stack([correlator(*fgi, mode=mode) for fgi in zip(f.T, g.T)])
     elif f.ndim == g.ndim == 1:
-        c = corer(f, g, mode=mode)
+        c = correlator(f, g, mode=mode)
     else:
         raise ValueError("arrays must have same dimensionality of 1 or 2")
     if verbose and (f is g):

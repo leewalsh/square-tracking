@@ -112,10 +112,11 @@ def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, stub=10,
             print "Loading data for", prefix
         data = helpy.load_data(prefix, 'tracks')
         tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
-                                         verbose=args.verbose, run_remove_dupes=dupes,
+                                         verbose=args.verbose,
+                                         run_remove_dupes=dupes,
                                          run_track_orient=torient)
-        tvs = {t: noise_derivatives(tset, width=width, side=side, fps=fps)
-               for t, tset in tracksets.iteritems()}
+        tvs = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
+               for t, ts in tracksets.iteritems()}
         if cat:
             vs[prefix] = {v: [tv[v] for tv in tvs.values()] for v in tvs[t]}
         else:
@@ -204,7 +205,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
                               alpha=0.7, label=label, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
-    #ax.set_ylabel('Frequency')
+    # ax.set_ylabel('Frequency')
     xlabel = r'$\Delta r \times f/\ell$'
     l, r = ax.set_xlim(bins[0], bins[-1])
     if orient:
@@ -214,7 +215,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \times f$'
     ax.set_xlabel(xlabel)
-    #ax.set_title(" ".join([title, subtitle]), fontsize='medium')
+    # ax.set_title(" ".join([title, subtitle]), fontsize='medium')
     if ncols < 2:
         return stats, (ax,)
     if isinstance(axi, tuple):
@@ -243,11 +244,10 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     ax.plot(bins, g, c=pcol, lw=2)
 
 
-def vv_autocorr(vs, length=0.5, normalize=False):
+def vv_autocorr(vs, normalize=False):
     vvs = {}
     for v, tvs in helpy.transpose_dict(vs).iteritems():
-        vlen = int(length*max(map(len, tvs.itervalues())) if length < 1 else length)
-        tacs = [corr.autocorr(tv, norm=normalize and 1, cumulant=False)[:vlen]
+        tacs = [corr.autocorr(tv, norm=normalize and 1, cumulant=False)
                 for tv in tvs.itervalues()]
         vvs[v] = helpy.avg_uneven(tacs, weight=True, pad=True)
     return vvs
@@ -275,19 +275,21 @@ if __name__ == '__main__':
 
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
              'etapar': r'$\eta_\parallel$', 'x': '$v_x$', 'y': '$v_y$'}
-    ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--', 'x': '-.', 'y': ':'}
+    ls = {'o': '-', 'x': '-.', 'y': ':',
+          'par': '-.', 'perp': ':', 'etapar': '--'}
     cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
     if len(args.width) > 1:
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
         vs = compile_noise(prefixes, cat=False, **compile_args)
-        vvs = vv_autocorr(vs, length=10*args.fps, normalize=args.normalize)
+        vvs = vv_autocorr(vs, normalize=args.normalize)
         fig, ax = plt.subplots()
         for v in vvs:
             tvvs, vv, dvv = vvs[v]
             t = np.arange(len(vv))/args.fps
             ax.errorbar(t, vv, yerr=dvv, label=label[v], ls=ls[v])
+        ax.set_xlim(0, 10*args.fps)
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         ax.legend(loc='best')
     else:
