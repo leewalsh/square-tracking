@@ -152,7 +152,7 @@ def get_stats(a):
 
 
 def compile_widths(prefixes, **compile_args):
-    vs = compile_noise(prefixes, **compile_args)
+    vs = compile_noise(prefixes, cat=True, **compile_args)
     stats = {v: get_stats(np.concatenate(pvs.values()))
              for v, pvs in helpy.transpose_dict(vs).items()}
     return stats
@@ -298,7 +298,7 @@ if __name__ == '__main__':
                              [10, 'interp', 0.65])
         args.width = [args.width]
         compile_args.update(args.__dict__)
-        vs = compile_noise(prefixes, **compile_args)
+        vs = compile_noise(prefixes, cat=True, **compile_args)
         if not (args.log or args.lin):
             args.log = args.lin = True
 
