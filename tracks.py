@@ -1303,8 +1303,7 @@ if __name__ == '__main__' and args.nn:
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
-    plot_individual = args.showtracks or not args.clean
-    if plot_individual:
+    if args.showtracks:
         ax.plot(taus, nn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Orientation Autocorrelation"*labels,
@@ -1426,8 +1425,7 @@ if __name__ == '__main__' and args.rn:
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     sgn = np.sign(v0)
-    plot_individual = args.showtracks or not args.clean
-    if plot_individual:
+    if args.showtracks:
         ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
@@ -1462,11 +1460,11 @@ if __name__ == '__main__' and args.rr:
     print "====== <rr> ======"
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
-        show=False, tnormalize=0, errorbars=3, prefix=saveprefix,
-        show_tracks=True, meancol=vcol, lw=3, singletracks=args.singletracks,
-        fps=args.fps, S=args.side, kill_flats=args.killflat,
+        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, meancol=vcol,
+        show_tracks=args.showtracks, lw=3, labels=labels, S=args.side,
+        singletracks=args.singletracks, fps=args.fps, kill_flats=args.killflat,
         kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
-        figsize=(5, 4) if args.clean else (8, 6), labels=labels)
+        figsize=(5, 4) if args.clean else (8, 6))
 
     msdvec = {'displacement': 0, 'progression': 1, 'diversion': -1}[args.msdvec]
     if msd.ndim == 2:
