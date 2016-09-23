@@ -1438,8 +1438,10 @@ if __name__ == '__main__' and args.rn:
     ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
             label=labels*(fitstr + '\n') + fitinfo)
 
-    ylim = ax.set_ylim(1.5*rn_result.best_fit.min(), 1.5*rn_result.best_fit.max())
-    xlim = ax.set_xlim(taus.min(), taus.max())
+    ylim_buffer = 1.5
+    ylim = ax.set_ylim(ylim_buffer*rn_result.best_fit.min(),
+                       ylim_buffer*rn_result.best_fit.max())
+    xlim = ax.set_xlim(-tmax, tmax)
     if xlim[0] < 1/D_R < xlim[1]:
         ax.axvline(1/D_R, 0, 2/3, ls='--', c='k')
         ax.text(1/D_R, 1e-2, ' $1/D_R$')
