@@ -1284,8 +1284,8 @@ if __name__ == '__main__' and args.nn:
 
     nn_vary = {'TR': args.colored, 'DR': True}
     nn_model = fit.Model(nn_form)
-    nn_model.set_param_hint('TR', min=0, vary=nn_vary['TR'])
-    nn_model.set_param_hint('DR', min=0, vary=nn_vary['DR'])
+    for param in ('TR', 'DR'):
+        nn_model.set_param_hint(param, min=0, vary=nn_vary[param])
 
     nn_result = nn_model.fit(meancorr, s=taus, weights=1/sigma)
     nn_best_fit = nn_result.eval(s=taus)
@@ -1392,9 +1392,8 @@ if __name__ == '__main__' and args.rn:
               (r'e^{D_R\tau_R}' if args.colored else '') +
               r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
     rn_model = fit.Model(rn_form)
-    rn_model.set_param_hint('TR', min=0, vary=rn_vary['TR'])
-    rn_model.set_param_hint('DR', min=0, vary=rn_vary['DR'])
-    rn_model.set_param_hint('lp', min=0, vary=rn_vary['lp'])
+    for param in ('TR', 'DR', 'lp'):
+        rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
     print "Fits to <rn> (free params:", ', '.join(rn_result.var_names)+'):'
@@ -1540,10 +1539,8 @@ if __name__ == '__main__' and args.rr:
 
     rr_model = fit.Model(rr_form)
     rr_model.set_param_hint('msdvec', value=msdvec, vary=False)
-    rr_model.set_param_hint('TR', min=0, vary=rr_vary['TR'])
-    rr_model.set_param_hint('DR', min=0, vary=rr_vary['DR'])
-    rr_model.set_param_hint('v0', min=0, vary=rr_vary['v0'])
-    rr_model.set_param_hint('DT', min=0, vary=rr_vary['DT'])
+    for param in ('TR', 'DR', 'v0', 'DT'):
+        rr_model.set_param_hint(param, min=0, vary=rr_vary[param])
     rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
     print "Fits to <rr> (free params:", ', '.join(rr_result.var_names)+'):'
