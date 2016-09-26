@@ -347,10 +347,16 @@ def dtheta(i, j=None, m=1, sign=False):
 
 
 def bin_average(r, f, bins=10):
-    """ Binned average of function f(r)
-        r : independent variable to be binned over
-        f : function to be averaged
-        bins (default 10): can be number of bins or bin edges len(nbins)+1
+    """Binned average of function f(r)
+
+    Parameters:
+        r:      independent variable to be binned over
+        f:      function to be averaged
+        bins:   (default 10): number of bins or bin edges `len(nbins)+1`
+
+    Returns:
+        avgs:   the mean value per bin
+        bins:   bin edges
     """
     if np.iterable(bins):
         pass
@@ -854,11 +860,30 @@ def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
     return mag, ang
 
 
+def conjmul(a, b):
+    return np.conj(a) * b
+
+
 def pair_angle_corr(positions, psims, rbins=10):
-    assert len(positions) == len(psims), "positions does not match psi_m(r)"
-    i, j = pair_indices(len(positions))
-    psi2 = psims[i].conj() * psims[j]
-    return bin_average(pdist(positions), psi2, rbins)
+    return radial_correlation(positions, psims, rbins, correland=conjmul)
+
+
+def radial_correlation(positions, values, rbins=10, correland='*'):
+    """radial_correlation(positions, values, rbins=10, correland='*')
+
+    return the correlation between pairs in values as a function of their radial
+    separation distance, based on positions.
+    """
+    n = len(positions)
+    assert n == len(values), "positions do not match values"
+
+    i, j = pair_indices(n)
+    rij = pdist(positions)
+    if correland == '*':
+        vij = values[i] * values[j]
+    else:
+        vij = correland(values[i], values[j])
+    return bin_average(rij, vij, rbins)
 
 
 class vonmises_m(rv_continuous):
@@ -1048,13 +1073,3 @@ def gpeak_decay(peaks, f, pksonly=False):
         else:
             print "maximak empty:", maximak
     return popt, pcov
-
-
-def radial_correlation(fpsets, fvsets):
-    for f in frames:
-        pos, vel = fpsets[f], fvsets[f]
-        ij = pair_indices(len(pos))
-        rij = pdist(pos)
-        vij = vel[ij] # or (vel[ij[0]], vel[ij[1]]) or something
-    bin_average(rij, vij)
-    return
