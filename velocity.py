@@ -72,7 +72,7 @@ pcol = (0.25, 0.5, 0)
 ncol = (0.4, 0.4, 1)
 
 
-def noise_derivatives(tdata, width=(1,), side=1, fps=1):
+def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     """calculate angular and positional derivatives in lab & particle frames.
 
     Returns the derivatives in structured array with dtype having fields
@@ -102,17 +102,17 @@ def noise_derivatives(tdata, width=(1,), side=1, fps=1):
     return v
 
 
-def compile_noise(prefixes, width=(1,), side=1, fps=1, cat=True, stub=10,
-                  torient=True, gaps='interp', dupes=False, **ignored):
+def compile_noise(prefixes, width=(0.65,), side=1, fps=1, cat=True, stub=10,
+                  torient=True, gaps='interp', dupes=False, verbose=False, **_):
     if np.isscalar(prefixes):
         prefixes = [prefixes]
     vs = {}
     for prefix in prefixes:
-        if args.verbose:
+        if verbose:
             print "Loading data for", prefix
         data = helpy.load_data(prefix, 'tracks')
         tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
-                                         verbose=args.verbose,
+                                         verbose=verbose,
                                          run_remove_dupes=dupes,
                                          run_track_orient=torient)
         vs[prefix] = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
@@ -277,6 +277,8 @@ if __name__ == '__main__':
     ls = {'o': '-', 'x': '-.', 'y': ':',
           'par': '-.', 'perp': ':', 'etapar': '--'}
     cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
+
+if __name__ == '__main__':
     if len(args.width) > 1:
         stats = compile_widths(prefixes, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
@@ -338,14 +340,15 @@ if __name__ == '__main__':
                           subtitle=subtitle)
                 axi += 1
 
-    if args.save:
-        savename = os.path.abspath(args.prefix.rstrip('/._?*'))
-        helpy.save_meta(savename, meta)
-        savename += '_velocity'
-        if args.suffix:
-            savename += '_' + args.suffix.strip('_')
-        savename += '.pdf'
-        print 'Saving plot to {}'.format(savename)
-        plt.savefig(savename)
-    if args.show:
-        plt.show()
+if __name__ == '__main__' and args.save:
+    savename = os.path.abspath(args.prefix.rstrip('/._?*'))
+    helpy.save_meta(savename, meta)
+    savename += '_velocity'
+    if args.suffix:
+        savename += '_' + args.suffix.strip('_')
+    savename += '.pdf'
+    print 'Saving plot to {}'.format(savename)
+    plt.savefig(savename)
+
+if __name__ == '__main__' and args.show:
+    plt.show()
