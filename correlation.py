@@ -1050,3 +1050,11 @@ def gpeak_decay(peaks, f, pksonly=False):
     return popt, pcov
 
 
+def radial_correlation(fpsets, fvsets):
+    for f in frames:
+        pos, vel = fpsets[f], fvsets[f]
+        ij = pair_indices(len(pos))
+        rij = pdist(pos)
+        vij = vel[ij] # or (vel[ij[0]], vel[ij[1]]) or something
+    bin_average(rij, vij)
+    return
