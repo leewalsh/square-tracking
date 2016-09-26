@@ -859,14 +859,19 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
     return tracksets
 
 
-def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **trackset_args):
-    if trackset_args:
-        data_or_tracksets = load_tracksets(data_or_tracksets, **trackset_args)
-    if hasattr(data_or_tracksets, 'values'):
-        data = np.concatenate(data_or_tracksets.values())
-        return splitter(data, indices, noncontiguous=True, ret_dict=ret_dict)
-    else:
-        return splitter(data_or_tracksets, indices, ret_dict=ret_dict)
+def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **tset_args):
+    if tset_args:
+        data_or_tracksets = load_tracksets(data_or_tracksets, **tset_args)
+    if not isinstance(data_or_tracksets, tuple):
+        data_or_tracksets = (data_or_tracksets,)
+    data = []
+    splitargs = {'ret_dict': ret_dict}
+    for datum in data_or_tracksets:
+        if hasattr(datum, 'values'):
+            splitargs['noncontiguous'] = True
+            datum = np.concatenate([datum[k] for k in sorted(datum)])
+        data.append(datum)
+    return splitter(tuple(data), indices, **splitargs)
 
 
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
