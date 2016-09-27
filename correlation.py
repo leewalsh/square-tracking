@@ -91,14 +91,15 @@ def pair_indices(n, asarray=False):
         Otherwise, use `i` and `j` separately to index the first then second of
         the pair
     """
+    assert n >= 2, "Cannot have pairs inside list of 1"
     if n < 7:
         ind = combinations(xrange(n), 2)
-        return np.array(tuple(ind)) if asarray else zip(*ind)
+        return np.array(tuple(ind)).T if asarray else map(list, zip(*ind))
     rng = np.arange(1, n)
     i = np.repeat(rng - 1, rng[::-1])
     j = np.arange(n*(n-1)//2) + np.repeat(n - np.cumsum(rng[::-1]), rng[::-1])
     ind = i, j
-    return np.array(ind).T if asarray else ind
+    return np.array(ind) if asarray else ind
 
 
 def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
