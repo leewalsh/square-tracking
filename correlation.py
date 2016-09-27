@@ -859,6 +859,8 @@ def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
 
 
 def conjmul(a, b):
+    """conjugate multiplication a* times b
+    """
     return np.conj(a) * b
 
 
@@ -866,13 +868,23 @@ def pair_angle_corr(positions, psims, rbins=10):
     return radial_correlation(positions, psims, rbins, correland=conjmul)
 
 
-def radial_correlation(positions, values, rbins=10, correland='*'):
-    """radial_correlation(positions, values, rbins=10, correland='*')
+def radial_correlation(positions, values, bins=10, correland='*'):
+    """radial_correlation(positions, values, bins=10, correland='*')
 
-    return the correlation between pairs in values as a function of their radial
-    separation distance, based on positions.
+    Correlate between all pairs of values, binned by radial separation distance.
+
+    Parameters
+    positions:  position of each value (N, d)
+    values:     values to correlate (N, ...)
+    bins:       ultimately passed to np.histogram
+    correland:  function of two values to give the integrand of the correlation
+
+    Returns
+    correlation:    the correlated values per bin
+    bins:       as returned by np.histogram
     """
     n = len(positions)
+    assert n >= 2, "must have at least two items"
     assert n == len(values), "positions do not match values"
 
     i, j = pair_indices(n)
@@ -881,7 +893,7 @@ def radial_correlation(positions, values, rbins=10, correland='*'):
         vij = values[i] * values[j]
     else:
         vij = correland(values[i], values[j])
-    return bin_average(rij, vij, rbins)
+    return bin_average(rij, vij, bins)
 
 
 class vonmises_m(rv_continuous):
