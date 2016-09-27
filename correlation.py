@@ -359,19 +359,16 @@ def bin_average(r, f, bins=10):
         avgs:   the mean value per bin
         bins:   bin edges
     """
-    if np.iterable(bins):
-        pass
-    elif bins == 1:
+    if bins is 1:
         if r.dtype.kind not in 'iu':
             assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
             print 'converting to int array'
             r = r.astype(int)
         n = np.bincount(r)
         return np.bincount(r, weights=f)/n
-    elif bins < 1:
-        bins = np.arange(r.min(), r.max()+1/bins, 1/bins)
-    n, bins = np.histogram(r, bins)
-    return np.histogram(r, bins, weights=f)[0]/n, bins
+    n, bins = np.histogramdd(r, bins)
+    mean = np.histogramdd(r, bins, weights=f)[0]/n
+    return mean, bins if len(bins) > 1 else bins[0]
 
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
