@@ -713,15 +713,16 @@ def load_data(fullprefix, sets='tracks', verbose=False):
     """
     sets = [s[0].lower() for s in sets.replace(',', ' ').strip().split()]
 
-    name = {'t': 'tracks', 'o': 'orientation',
-            'p': 'positions', 'c': 'corner_positions', 'm': 'melt'}
+    # sort for optimal loading order
+    allsets = [('t', 'tracks'), ('p', 'positions'), ('o', 'orientation'),
+               ('c', 'corner_positions'), ('m', 'melt')]
+    allsets = [(s, setname) for (s, setname) in allsets if s in sets]
 
     npzs = {}
     data = {}
     needs_initialize = False
-    # sort for optimal loading order
-    for s in [s for s in 'tpocm' if s in sets]:
-        suffix = name[s].upper()
+    for s, setname in allsets:
+        suffix = setname.upper()
         datapath = fullprefix+'_'+suffix+'.npz'
         try:
             npzs[s] = np.load(datapath)
@@ -742,14 +743,14 @@ def load_data(fullprefix, sets='tracks', verbose=False):
                 print e
                 cmd = '`tracks -{}`'.format(
                     {'t': 't', 'o': 'o', 'p': 'l', 'c': 'lc'}[s])
-                print ("Found no {} npz file. Please run ".format(name[s]) +
+                print ("Found no {} npz file. Please run ".format(setname) +
                        ("{0} to convert {1}.txt to {1}.npz, " +
                         "or run `positions` on your tiffs" if s in 'pc' else
                         "{0} to generate {1}.npz").format(cmd, suffix))
                 raise
         else:
             if verbose:
-                print "Loaded {} data from {}".format(name[s], datapath)
+                print "Loaded {} data from {}".format(setname, datapath)
             data[s] = npzs[s][s*(s == 'o') + 'data']
             if s == 't' and 'trackids' in npzs['t'].files:
                 needs_initialize = True
