@@ -896,6 +896,29 @@ def radial_correlation(positions, values, bins=10, correland='*'):
     return bin_average(rij, vij, bins)
 
 
+def site_mean(positions, values, bins=10, coord='xy'):
+    """site_mean(positions, values, bins=10, coord='xy')
+
+    Bin and average the values as a function of their locations.
+
+    Parameters
+    positions:  position of each value (N, d)
+    values:     values to average (N, ...)
+    bins:       ultimately passed to np.histogram
+    coord:      choice of 'xy' == 'cartesian', 'polar', 'radial'
+    """
+    if coord.startswith(('p', 'r')):
+        if np.all(positions.min(0) > 0):
+            positions = positions - positions.mean(0)
+        x, y = positions.T
+        positions = np.hypot(y, x)  # radial coordinate r
+        if coord.startswith('p'):
+            positions = np.stack([positions, np.arctan2(y, x)], 1)
+    elif not coord.startswith(('x', 'c')):
+        raise ValueError("Unknown coordinate system `coord={}`".format(coord))
+    return bin_average(positions, values, bins)
+
+
 class vonmises_m(rv_continuous):
     def __init__(self, m):
         self.shapes = ''
