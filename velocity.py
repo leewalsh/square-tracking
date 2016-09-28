@@ -93,11 +93,13 @@ def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     for oxy in 'oxy':
         v[oxy] = np.array([curve.der(tdata[oxy]/unit[oxy], x=x, iwidth=w)
                            for w in width]).squeeze()
+    v['v'] = np.hypot(v['x'], v['y'])
     v['par'] = v['x']*cos + v['y']*sin
     v['perp'] = v['x']*sin - v['y']*cos
     v0 = v['par'].mean(-1, keepdims=len(shape) > 1)
     v['etax'] = v['x'] - v0*cos
     v['etay'] = v['y'] - v0*sin
+    v['eta'] = np.hypot(v['etax'], v['etay'])
     v['etapar'] = v['par'] - v0
     return v
 

@@ -959,8 +959,8 @@ track_dtype = np.dtype({'names': '  id f  t  x  y  o'.split(),
                         'formats': 'u4 u2 i4 f4 f4 f4'.split()})
 pos_dtype = np.dtype({'names': '    f  x  y  lab ecc area id'.split(),
                       'formats': '  i4 f8 f8 i4  f8  i4   i4'.split()})
-vel_dtype = np.dtype({'names': '    o  x  y  par perp etax etay etapar'.split(),
-                      'formats': '  f4 f4 f4 f4  f4   f4   f4   f4'.split()})
+vel_dtype = np.dtype({'names': 'o v x y par perp eta etax etay etapar'.split(),
+                      'formats': ['f4']*10})
 
 
 def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
