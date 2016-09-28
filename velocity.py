@@ -111,14 +111,19 @@ def compile_noise(prefixes, width=(0.65,), side=1, fps=1, cat=True, stub=10,
         if verbose:
             print "Loading data for", prefix
         data = helpy.load_data(prefix, 'tracks')
-        tracksets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
-                                         verbose=verbose,
-                                         run_remove_dupes=dupes,
-                                         run_track_orient=torient)
-        vs[prefix] = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
-                      for t, ts in tracksets.iteritems()}
-    if cat:
-        vs = np.concatenate([t for v in vs.values() for t in v.values()])
+        tsets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
+                                     verbose=verbose, run_remove_dupes=dupes,
+                                     run_track_orient=torient)
+        vsets = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
+                 for t, ts in tsets.iteritems()}
+        if cat:
+            fsets, fvsets = helpy.load_framesets((tsets, vsets))
+            fs = sorted(fsets)
+            # tdata = np.concatenate([fsets[f] for f in fs])
+            vdata = np.concatenate([fvsets[f] for f in fs])
+            vs[prefix] = vdata
+        else:
+            vs[prefix] = vsets
     return vs
 
 
