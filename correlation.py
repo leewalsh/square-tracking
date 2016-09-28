@@ -347,6 +347,34 @@ def dtheta(i, j=None, m=1, sign=False):
     return diff if sign else np.abs(diff)
 
 
+def bin_sum(r, f, bins=10):
+    """Binned sum of function f(r)
+
+    Parameters:
+        r:      independent variable to be binned over
+        f:      function to be summed
+        bins:   (default 10): number of bins or bin edges `len(nbins)+1`
+
+    Returns:
+        total:  the total value per bin
+        count:  number of values summed per bin (histogram)
+        bins:   bin edges
+    """
+    if bins is 1:
+        if r.dtype.kind not in 'iu':
+            assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
+            print 'converting to int array'
+            r = r.astype(int)
+        count = np.bincount(r)
+        total = np.bincount(r, weights=f)
+        bins = np.arange(len(count)+1)
+    count, bins = np.histogramdd(r, bins)
+    total = np.histogramdd(r, bins, weights=f)[0]
+    if len(bins) == 1:
+        bins = bins[0]
+    return total, count, bins
+
+
 def bin_average(r, f, bins=10):
     """Binned average of function f(r)
 
@@ -359,16 +387,8 @@ def bin_average(r, f, bins=10):
         avgs:   the mean value per bin
         bins:   bin edges
     """
-    if bins is 1:
-        if r.dtype.kind not in 'iu':
-            assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
-            print 'converting to int array'
-            r = r.astype(int)
-        n = np.bincount(r)
-        return np.bincount(r, weights=f)/n
-    n, bins = np.histogramdd(r, bins)
-    mean = np.histogramdd(r, bins, weights=f)[0]/n
-    return mean, bins if len(bins) > 1 else bins[0]
+    total, count, bins = bin_sum(r, f, bins)
+    return total/count, bins
 
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
