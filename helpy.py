@@ -766,12 +766,7 @@ def load_data(fullprefix, sets='tracks', verbose=False):
             data['o'] = load_data(fullprefix, 'o', verbose)
         data['t'] = initialize_tdata(data['p'], t, data['o']['orient'])
     if 't' in sets:
-        fields = data['t'].dtype.fields
-        dtype = dict(fields)
-        xdt, xoff = dtype['x']
-        dtype['xy'] = np.dtype((xdt, (2,))), xoff
-        data['t'] = np.ndarray(data['t'].shape, dtype=dtype, buffer=data['t'],
-                               offset=0, strides=data['t'].strides)
+        data['t'] = add_self_view(data['t'], ('x', 'y'), 'xy')
     ret = [data[s] for s in sets]
     return ret if len(ret) > 1 else ret[0]
 
@@ -954,6 +949,14 @@ def consecutive_fields_view(arr, fields, careful=False):
                     for a, o in it.izip(l, r)]), \
             "last row mismatch\narr: {}\nout: {}".format(l, r)
     return out
+
+
+def add_self_view(arr, fields, name):
+    dtype = dict(arr.dtype.fields)
+    dt, off = dtype[fields[0]]
+    dtype[name] = np.dtype((dt, (len(fields),))), off
+    return np.ndarray(arr.shape, dtype, arr, 0, arr.strides)
+
 
 track_dtype = np.dtype({'names': '  id f  t  x  y  o'.split(),
                         'formats': 'u4 u2 i4 f4 f4 f4'.split()})

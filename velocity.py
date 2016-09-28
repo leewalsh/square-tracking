@@ -101,6 +101,8 @@ def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     v['etay'] = v['y'] - v0*sin
     v['eta'] = np.hypot(v['etax'], v['etay'])
     v['etapar'] = v['par'] - v0
+    v = helpy.add_self_view(v, ('x', 'y'), 'xy')
+    v = helpy.add_self_view(v, ('par', 'perp'), 'nt')
     return v
 
 
