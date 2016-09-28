@@ -107,18 +107,9 @@ def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     return v
 
 
-def compile_noise(prefixes, width=(0.65,), side=1, fps=1, cat=True, stub=10,
-                  torient=True, gaps='interp', dupes=False, verbose=False, **_):
-    if np.isscalar(prefixes):
-        prefixes = [prefixes]
+def compile_noise(tracksets, width=(0.65,), cat=True, side=1, fps=1):
     vs = {}
-    for prefix in prefixes:
-        if verbose:
-            print "Loading data for", prefix
-        data = helpy.load_data(prefix, 'tracks')
-        tsets = helpy.load_tracksets(data, min_length=stub, run_repair=gaps,
-                                     verbose=verbose, run_remove_dupes=dupes,
-                                     run_track_orient=torient)
+    for prefix, tsets in tracksets.iteritems():
         vsets = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
                  for t, ts in tsets.iteritems()}
         if cat:
@@ -129,7 +120,7 @@ def compile_noise(prefixes, width=(0.65,), side=1, fps=1, cat=True, stub=10,
             vs[prefix] = vdata
         else:
             vs[prefix] = vsets
-    return vs
+    return np.concatenate(vs.values()) if cat else vs
 
 
 def get_stats(a):
@@ -160,8 +151,8 @@ def get_stats(a):
     return {'mean': M, 'var': D, 'std': SE, 'skew': SK, 'kurt': KU}
 
 
-def compile_widths(prefixes, **compile_args):
-    vs = compile_noise(prefixes, cat=True, **compile_args)
+def compile_widths(tracksets, widths, side=1, fps=1):
+    vs = compile_noise(tracksets, widths, cat=True, side=side, fps=fps)
     stats = {v: get_stats(np.concatenate(pvs.values()))
              for v, pvs in helpy.transpose_dict(vs).items()}
     return stats
@@ -254,8 +245,9 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
 
 def vv_autocorr(vs, normalize=False):
     normalize = normalize and 1
-    flat_dt = 'f4'
-    vvs = [corr.autocorr(tv.view((flat_dt, 8)), norm=normalize, cumulant=False)
+    fields = helpy.vel_dtype.names
+    vvs = [corr.autocorr(helpy.consecutive_fields_view(tv, fields),
+                         norm=normalize, cumulant=False)
            for pvs in vs.itervalues() for tv in pvs.itervalues()]
     vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
     return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
@@ -300,16 +292,23 @@ if __name__ == '__main__':
         dirm = (dirname or '*') + (prefix + '*/')
         basm = prefix.strip('/._')
         fs = iglob(dirm + basm + '*' + suf)
-    prefixes = [s[:-len(suf)] for s in fs] or args.prefix
+    prefixes = [s[:-len(suf)] for s in fs] or [args.prefix]
 
     helpy.save_log_entry(args.prefix, 'argv')
     meta = helpy.load_meta(args.prefix)
     if args.verbose:
         print 'prefixes:',
-        print '\n          '.join(np.atleast_1d(prefixes))
+        print '\n          '.join(prefixes)
     helpy.sync_args_meta(args, meta,
                          ['side', 'fps'], ['sidelength', 'fps'], [1, 1])
     compile_args = dict(args.__dict__)
+
+    data = {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
+    tsets = {prefix: helpy.load_tracksets(
+                data[prefix], min_length=args.stub, verbose=args.verbose,
+                run_remove_dupes=args.dupes, run_repair=args.gaps,
+                run_track_orient=args.torient)
+             for prefix in prefixes}
 
     label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
              'etapar': r'$\eta_\parallel$', 'x': '$v_x$', 'y': '$v_y$'}
@@ -319,10 +318,11 @@ if __name__ == '__main__':
 
 if __name__ == '__main__':
     if len(args.width) > 1:
-        stats = compile_widths(prefixes, **compile_args)
+        stats = compile_widths(tsets, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
     elif args.autocorr:
-        vs = compile_noise(prefixes, cat=False, **compile_args)
+        vs = compile_noise(tsets, args.width, cat=False,
+                           side=args.side, fps=args.fps)
         vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
         fig, ax = plt.subplots()
         t = np.arange(len(vv))/args.fps
@@ -339,7 +339,8 @@ if __name__ == '__main__':
                              [10, 'interp', 0.65])
         args.width = [args.width]
         compile_args.update(args.__dict__)
-        vs = compile_noise(prefixes, cat=True, **compile_args)
+        vs = compile_noise(tsets, args.width, cat=True,
+                           side=args.side, fps=args.fps)
         if not (args.log or args.lin):
             args.log = args.lin = True
 
