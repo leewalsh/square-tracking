@@ -360,16 +360,23 @@ def bin_sum(r, f, bins=10):
         count:  number of values summed per bin (histogram)
         bins:   bin edges
     """
+    multi = isinstance(f, tuple)
     if bins is 1:
         if r.dtype.kind not in 'iu':
             assert np.allclose(r, np.around(r)), 'need integer array for bins=1'
             print 'converting to int array'
             r = r.astype(int)
         count = np.bincount(r)
-        total = np.bincount(r, weights=f)
+        if multi:
+            total = [np.bincount(r, weights=fi) for fi in f]
+        else:
+            total = np.bincount(r, weights=f)
         bins = np.arange(len(count)+1)
     count, bins = np.histogramdd(r, bins)
-    total = np.histogramdd(r, bins, weights=f)[0]
+    if multi:
+        total = [np.histogramdd(r, bins, weights=fi)[0] for fi in f]
+    else:
+        total = np.histogramdd(r, bins, weights=f)[0]
     if len(bins) == 1:
         bins = bins[0]
     return total, count, bins
@@ -387,8 +394,10 @@ def bin_average(r, f, bins=10):
         avgs:   the mean value per bin
         bins:   bin edges
     """
+    multi = isinstance(f, tuple)
     total, count, bins = bin_sum(r, f, bins)
-    return total/count, bins
+    average = [t/count for t in total] if multi else total/count
+    return average, bins
 
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
