@@ -5,6 +5,7 @@ from __future__ import division
 
 import os
 from glob import iglob
+from functools import partial
 from math import sqrt
 
 import numpy as np
@@ -259,6 +260,35 @@ def vv_autocorr(vs, normalize=False):
     vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
     return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
             for a in vvs, vv, dvv]
+
+
+def dot_or_multiply(a, b):
+    out = a * b
+    if out.ndim > 1:
+        return np.sqrt(out.sum(-1))
+    else:
+        return out
+
+
+def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
+    components = 'o', 'v', 'eta', 'xy'  # 'nt'
+    try:
+        nbins = len(bins) - 1
+    except TypeError:
+        nbins = bins
+    vv_radial = np.zeros((len(components), nbins), dtype=float)
+    vv_counts = np.zeros(nbins, dtype=int)
+    correlator = partial(corr.radial_correlation,
+                         bins=bins, corrland=dot_or_multiply, do_avg=False)
+    for f in fpsets:
+        pos = fpsets[f]['xy']/side
+        vels = tuple([fvsets[f][k] for k in components])
+        if len(pos) < 2:
+            continue
+        total, counts, bins = correlator(pos, vels)
+        vv_radial += total
+        vv_counts += counts
+    return vv_radial / vv_counts, bins
 
 
 if __name__ == '__main__':
