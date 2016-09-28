@@ -897,7 +897,7 @@ def pair_angle_corr(positions, psims, rbins=10):
     return radial_correlation(positions, psims, rbins, correland=conjmul)
 
 
-def radial_correlation(positions, values, bins=10, correland='*'):
+def radial_correlation(positions, values, bins=10, correland='*', do_avg=True):
     """radial_correlation(positions, values, bins=10, correland='*')
 
     Correlate between all pairs of values, binned by radial separation distance.
@@ -914,15 +914,19 @@ def radial_correlation(positions, values, bins=10, correland='*'):
     """
     n = len(positions)
     assert n >= 2, "must have at least two items"
-    assert n == len(values), "positions do not match values"
+    multi = isinstance(values, tuple)
+    assert n == len(values[0] if multi else values), "positions do not match values"
 
     i, j = pair_indices(n)
     rij = pdist(positions)
     if correland == '*':
-        vij = values[i] * values[j]
+        correland = np.multiply
+    if multi:
+        vij = tuple([correland(v[i], v[j]) for v in values])
     else:
         vij = correland(values[i], values[j])
-    return bin_average(rij, vij, bins)
+    bin_func = bin_average if do_avg else bin_sum
+    return bin_func(rij, vij, bins)
 
 
 def site_mean(positions, values, bins=10, coord='xy'):
