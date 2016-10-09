@@ -329,6 +329,15 @@ def transpose_dict(outerdict={}, **innerdicts):
 
 
 def dmap(f, d):
+    """map function f to d returning a dict
+
+    if d is a dict:
+        apply f to values in d
+        returns {k: f(v)}
+    else:
+        return new dict values mapped to functions output
+        returns {d: f(d)}
+    """
     try:
         target = d.iteritems()
         return {k: f(v) for k, v in target}
@@ -342,6 +351,22 @@ def dfilter(d, f=None, by='k'):
     elif by.startswith('v'):
         f = f or bool
         return dict(it.izip(it.ifilter(lambda i: f(i[1]), d.iteritems())))
+
+
+def arr_to_dict(a):
+    """convert array with named fields to dict of simple arrays"""
+    return {field: a[field] for field in a.dtype.names}
+
+
+def dict_to_arr(d, fields=None):
+    """convert dict of arrays to structured array with named fields"""
+    fields = fields or d.keys()
+    dtype = np.dtype([(f, d[f].dtype) for f in fields])
+    arrs = np.broadcast_arrays(*(d[f] for f in fields))
+    a = np.empty(arrs.shape, dtype)
+    for f, arr in it.izip(fields, arrs):
+        a[f] = arr
+    return a
 
 
 def str_union(a, b=None):
