@@ -89,6 +89,8 @@ if __name__ == '__main__':
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
     arg('--colored', action='store_true', help='fit with colored noise')
+    arg('--fixdt', action='store_false', dest='fitdt',
+        help='D_T as fixed value in MSD fit')
     arg('--fittr', action='store_true', help='tau_R as free parameter in fits')
     arg('--dx', type=float, default=0.25, help='Positional measurement '
         'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
@@ -1235,7 +1237,7 @@ if __name__ == '__main__':
         helpy.save_meta(saveprefix, meta)
 
 
-if __name__ == '__main__' and args.nn:
+if __name__ == '__main__' and (args.nn or args.colored):
     print "====== <nn> ======"
     # Calculate the <nn> correlation for all the tracks in a given dataset
 
@@ -1282,7 +1284,7 @@ if __name__ == '__main__' and args.nn:
             s = s + TR*np.expm1(-s/TR)
         return (1 if args.dot else 0.5)*np.exp(-DR*s)
 
-    nn_vary = {'TR': args.colored, 'DR': True}
+    nn_vary = {'TR': args.colored, 'DR': args.nn}
     nn_model = fit.Model(nn_form)
     for param in ('TR', 'DR'):
         nn_model.set_param_hint(param, min=0, vary=nn_vary[param])
@@ -1325,7 +1327,7 @@ if __name__ == '__main__' and args.nn:
     ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
               framealpha=1)
 
-    if args.save:
+    if args.save and args.nn:
         save = saveprefix+'_nn-corr.pdf'
         print 'saving <nn> correlation plot to',
         print save if verbose else os.path.basename(save)
@@ -1494,7 +1496,10 @@ if __name__ == '__main__' and args.rr:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
     # Fit to functional form:
-    D_T = meta.get('fit_rr_DT', 0.01)
+    if args.fitdt:
+        D_T = meta.get('fit_rr_DT', 0.01)
+    else:
+        D_T = 1.0
     if args.fitv0 or not args.rn:
         v0 = meta.get('fit_rn_v0', 0.1)
         sgn = np.sign(v0)
@@ -1533,9 +1538,9 @@ if __name__ == '__main__' and args.rr:
         return lines
 
     rr_vary = {'TR': args.fittr or (args.colored and not (args.nn or args.rn)),
-               'DR': args.fitdr or not (args.nn or args.rn),
+               'DR': not (args.nn or args.rn),
                'v0': args.fitv0 or not args.rn,
-               'DT': True}
+               'DT': args.fitdt}
 
     rr_model = fit.Model(rr_form)
     rr_model.set_param_hint('msdvec', value=msdvec, vary=False)
