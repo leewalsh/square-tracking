@@ -1382,7 +1382,7 @@ if __name__ == '__main__' and args.rn:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
-    def rn_form(s, lp=l_p, DR=D_R, TR=0):
+    def rn_form(s, lp=l_p, DR=D_R, TR=tau_R):
         amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
         return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
@@ -1505,12 +1505,14 @@ if __name__ == '__main__' and args.rr:
         sgn = np.sign(v0)
     if not (args.nn or args.rn):
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
+    if not args.colored:
+        tau_R = 0
 
     def quartic(a):
         quadratic = a*a
         return quadratic * quadratic
 
-    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=0, msdvec=0):
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R, msdvec=0):
         color = exp(DR*TR)
         persistence = color*(v0/DR)**2
         decay = np.exp(-DR*s)
