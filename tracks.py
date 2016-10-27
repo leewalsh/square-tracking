@@ -1387,7 +1387,7 @@ if __name__ == '__main__' and args.rn:
         amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
         return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
 
-    rn_vary = {'TR': args.fittr or (args.colored and not args.nn),
+    rn_vary = {'TR': args.fittr or not (args.colored or args.nn),
                'DR': args.fitdr or not args.nn,
                'lp': True}
 
@@ -1404,10 +1404,9 @@ if __name__ == '__main__' and args.rn:
         if not p.vary:
             print '{:>8s}: {:.4g} (fixed)'.format(p.name, p.value)
     print "Free params:", ', '.join(rn_result.var_names)
-    l_p = rn_result.best_values['lp']
-    v0 = D_R*l_p
+    v0 = rn_result.best_values['lp']*rn_result.best_values['DR']
     fit_source['v0'] = 'rn'
-    print ' v0/D_R: {:.4g}'.format(l_p)
+    print ' v0/D_R: {:.4g}'.format(rn_result.best_values['lp'])
     if rn_vary['DR']:
         D_R = rn_result.best_values['DR']
         fit_source['DR'] = 'rn'
