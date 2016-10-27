@@ -89,8 +89,8 @@ if __name__ == '__main__':
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
     arg('--colored', action='store_true', help='fit with colored noise')
-    arg('--fixdt', action='store_false', dest='fitdt',
-        help='D_T as fixed value in MSD fit')
+    arg('--fixdt', default=True, const=False, nargs='?', type=float,
+        dest='fitdt', help='D_T as fixed value in MSD fit')
     arg('--fittr', action='store_true', help='tau_R as free parameter in fits')
     arg('--dx', type=float, default=0.25, help='Positional measurement '
         'uncertainty (units are pixels unless SIDE is given and DX < 0.1)')
@@ -1502,10 +1502,6 @@ if __name__ == '__main__' and args.rr:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
     # Fit to functional form:
-    if args.fitdt:
-        D_T = meta.get('fit_rr_DT', 0.01)
-    else:
-        D_T = 1.0
     if args.fitv0 or not args.rn:
         v0 = meta.get('fit_rn_v0', 0.1)
         sgn = np.sign(v0)
@@ -1513,6 +1509,13 @@ if __name__ == '__main__' and args.rr:
         D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
     if not args.colored:
         tau_R = 0
+    print 'args.fitdt:', args.fitdt
+    if args.fitdt is True:
+        D_T = meta.get('fit_rr_DT', 0.01)
+    elif args.fitdt is False:
+        D_T = v0**2
+    else:
+        D_T = args.fitdt
 
     def quartic(a):
         quadratic = a*a
@@ -1548,7 +1551,7 @@ if __name__ == '__main__' and args.rr:
     rr_vary = {'TR': args.fittr or (args.colored and not (args.nn or args.rn)),
                'DR': not (args.nn or args.rn),
                'v0': args.fitv0 or not args.rn,
-               'DT': args.fitdt}
+               'DT': args.fitdt is True}
     mathname = {'TR': r'\tau_R', 'DR': 'D_R',
                 'v0': 'v_0', 'DT': 'D_T'}
 
