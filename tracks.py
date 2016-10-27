@@ -1485,7 +1485,6 @@ if __name__ == '__main__' and args.rr:
         errcorr = (errcorr_disp, errcorr_prog, errcorr_div)[msdvec]
 
     tmax = int(200*args.zoom)
-    fmax = np.searchsorted(taus, tmax)
     if verbose > 1:
         rrerrax = rrerrfig.axes[0]
         rrerrax.set_yscale('log')
@@ -1494,7 +1493,8 @@ if __name__ == '__main__' and args.rr:
         rrerrax = False
     rruncert = rt2*args.dx
     sigma = curve.sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax, xnorm=1,
-                                const=rruncert, ignore=[0], verbose=verbose)
+                                const=rruncert, ignore=[0, tmax],
+                                verbose=verbose)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
         if args.save:
@@ -1557,7 +1557,7 @@ if __name__ == '__main__' and args.rr:
     rr_model = fit.Model(rr_form)
     for param in ('TR', 'DR', 'v0', 'DT'):
         rr_model.set_param_hint(param, min=0, vary=rr_vary[param])
-    rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
+    rr_result = rr_model.fit(msd, s=taus, weights=1/sigma)
 
     print "Fixed params:", ', '.join([n for n in rr_vary if not rr_vary[n]])
     print "Free params:", ', '.join(rr_result.var_names)
