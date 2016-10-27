@@ -1291,7 +1291,8 @@ if __name__ == '__main__' and (args.nn or args.colored):
 
     nn_result = nn_model.fit(meancorr, s=taus, weights=1/sigma)
     nn_best_fit = nn_result.eval(s=taus)
-    print "Fits to <nn> (free params:", ', '.join(nn_result.var_names)+'):'
+
+    print "Free params:", ', '.join(nn_result.var_names)
     D_R = nn_result.best_values['DR']
     print '   D_R: {:.4g}'.format(D_R)
     fit_source['DR'] = 'nn'
@@ -1310,7 +1311,7 @@ if __name__ == '__main__' and (args.nn or args.colored):
     ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Orientation Autocorrelation"*labels,
                 capthick=0, elinewidth=1, errorevery=3)
-    fitinfo = sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
+    fitinfo = 'free: ' + sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
     if args.colored:
         fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
     ax.plot(taus, nn_best_fit, c=pcol, lw=2,
@@ -1398,7 +1399,11 @@ if __name__ == '__main__' and args.rn:
         rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
 
-    print "Fits to <rn> (free params:", ', '.join(rn_result.var_names)+'):'
+    print "Fixed params:"
+    for p in rn_result.params.values():
+        if not p.vary:
+            print '{:>8s}: {:.4g} (fixed)'.format(p.name, p.value)
+    print "Free params:", ', '.join(rn_result.var_names)
     l_p = rn_result.best_values['lp']
     v0 = D_R*l_p
     fit_source['v0'] = 'rn'
@@ -1411,6 +1416,10 @@ if __name__ == '__main__' and args.rn:
         tau_R = rn_result.best_values['TR']
         fit_source['TR'] = 'rn'
         print '  tau_R: {:.4g}'.format(tau_R)
+    fitinfo = {True: [sf('$v_0={0:.3T}$', abs(v0))],
+               False: []}
+    fitinfo[rn_vary['DR']].append(sf("$D_R={0:.3T}$", D_R))
+    fitinfo[rn_vary['TR']].append(sf("$\\tau_R={0:.4T}$", tau_R))
     print "Giving:"
     print '     v0: {:.4f}'.format(v0)
     if args.save:
@@ -1431,13 +1440,10 @@ if __name__ == '__main__' and args.rn:
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
-    fitinfo = sf('$v_0={0:.3T}$', abs(v0))
-    if rn_vary['DR']:
-        fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if rn_vary['TR']:
-        fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
-    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2,
-            label=labels*(fitstr + '\n') + fitinfo)
+    label = labels*(fitstr + '\n')
+    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
+    label += 'fixed: ' + ', '.join(fitinfo[False])
+    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2, label=label)
 
     ylim_buffer = 1.5
     ylim = ax.set_ylim(ylim_buffer*rn_result.best_fit.min(),
@@ -1512,7 +1518,7 @@ if __name__ == '__main__' and args.rr:
         quadratic = a*a
         return quadratic * quadratic
 
-    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R, msdvec=0):
+    def rr_form(s, DT=D_T, v0=v0, DR=D_R, TR=tau_R):
         color = exp(DR*TR)
         persistence = color*(v0/DR)**2
         decay = np.exp(-DR*s)
@@ -1522,7 +1528,7 @@ if __name__ == '__main__' and args.rr:
         anisotropy = msdvec and quartic(color)*(quartic(decay) - 4*decay + 3)/12
         return n*(persistence*(propulsion + msdvec*anisotropy) + diffusion)
 
-    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0, msdvec=0):
+    def limiting_regimes(s, DT=D_T, v0=v0, DR=D_R, TR=0):
         vv = v0*v0  # v0 is squared everywhere
         tau_T = DT/vv
         tau_R = 1/DR
@@ -1543,42 +1549,31 @@ if __name__ == '__main__' and args.rr:
                'DR': not (args.nn or args.rn),
                'v0': args.fitv0 or not args.rn,
                'DT': args.fitdt}
+    mathname = {'TR': r'\tau_R', 'DR': 'D_R',
+                'v0': 'v_0', 'DT': 'D_T'}
 
     rr_model = fit.Model(rr_form)
-    rr_model.set_param_hint('msdvec', value=msdvec, vary=False)
     for param in ('TR', 'DR', 'v0', 'DT'):
         rr_model.set_param_hint(param, min=0, vary=rr_vary[param])
     rr_result = rr_model.fit(msd[:fmax], s=taus[:fmax], weights=1/sigma[:fmax])
 
-    print "Fits to <rr> (free params:", ', '.join(rr_result.var_names)+'):'
-    D_T = rr_result.best_values['DT']
-    fit_source['DT'] = 'rr'
-    print '   D_T: {:.3g}'.format(D_T)
-    fitinfo = sf("$D_T={0:.3T}$", D_T)
-    if rr_vary['v0']:
-        v0 = rr_result.best_values['v0']
-        fit_source['v0'] = 'rr'
-        print 'v0(rr): {:.3g}'.format(v0)
-        fitinfo += sf(", $v_0={0:.3T}$", v0*sgn)
-    if rr_vary['DR']:
-        D_R = rr_result.best_values['DR']
-        fit_source['DR'] = 'rr'
-        print '   D_R: {:.3g}'.format(D_R)
-        fitinfo += sf(", $D_R={0:.3T}$", D_R)
-    if rr_vary['TR']:
-        tau_R = rr_result.best_values['TR']
-        fit_source['TR'] = 'rr'
-        print ' tau_R: {:.3g}'.format(tau_R)
-        fitinfo += sf(r", $\tau_R={0:.3T}$", tau_R)
+    print "Fixed params:", ', '.join([n for n in rr_vary if not rr_vary[n]])
+    print "Free params:", ', '.join(rr_result.var_names)
+    fitinfo = {True: [], False: []}
+    for p in rr_result.params.values():
+        fit_source[p] = 'rr'
+        print '{:>8s}: {:.3g}'.format(p.name, p.value)
+        fitinfo[p.vary].append(sf("${0}={1:.3T}$", mathname[p.name], p.value))
     if rr_vary['v0'] or rr_vary['DR']:
         print "Giving:"
-        print "v0/D_R: {:.3g}".format(v0/D_R)
+        print "v0/D_R: {:.3g}".format(
+            rr_result.best_values['v0']/rr_result.best_values['DR'])
     if args.save:
         if rr_vary['v0'] and rr_vary['DR']:
             psources = ''
-            meta_fits = {'fit_rr_DT': D_T,
-                         'fit_rr_v0': v0,
-                         'fit_rr_DR': D_R}
+            meta_fits = {'fit_rr_DT': rr_result.best_values['DT'],
+                         'fit_rr_v0': rr_result.best_values['v0'],
+                         'fit_rr_DR': rr_result.best_values['DR']}
         elif rr_vary['v0']:
             psources = '_{DR}'.format(**fit_source)
             meta_fits = {'fit'+psources+'_rr_DT': D_T,
@@ -1596,9 +1591,11 @@ if __name__ == '__main__' and args.rr:
                r'(e^{-4D_Rt}-4e^{-D_Rt}+3)')[msdvec],
               r"\right) + ", '42'[msdvec], "D_Tt$\n"]
     label = ''.join(fitstr) if labels else ''
+    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
+    label += 'fixed: ' + ', '.join(fitinfo[False])
 
     rr_best_fit = rr_result.eval(s=taus)
-    ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label+fitinfo)
+    ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label)
 
     guide = limiting_regimes(taus, **rr_result.best_values)
     ax.plot(taus, guide, '-k', lw=2)
