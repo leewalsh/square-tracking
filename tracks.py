@@ -1379,6 +1379,12 @@ if __name__ == '__main__' and args.rn:
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
                                 const=rnuncert, ignore=[0, -tmax, tmax],
                                 verbose=verbose)
+
+    fmin, fmax = np.searchsorted(taus, [-tmax, tmax])
+    asym = curve.asymmetry(meancorr[fmin:fmax], taus[fmin:fmax],
+                           parity=-1, integrate=True)
+    print "asymmetry: {:.3g}".format(asym[-1])
+
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1430,7 +1436,7 @@ if __name__ == '__main__' and args.rn:
             meta_fits = {'fit'+psources+'_rn_v0': v0}
         if rn_vary['TR']:
             meta_fits = {'fit_rn_TR': tau_R}
-        helpy.save_meta(saveprefix, meta_fits)
+        helpy.save_meta(saveprefix, meta_fits, rn_asym=asym[-1])
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     sgn = np.sign(v0)
@@ -1439,6 +1445,8 @@ if __name__ == '__main__' and args.rn:
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
+    ax.plot(asym[0], asym[1], '--r', label="Asymmetry")
+
     label = labels*(fitstr + '\n')
     label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
     label += 'fixed: ' + ', '.join(fitinfo[False])
