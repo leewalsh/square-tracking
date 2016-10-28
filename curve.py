@@ -357,6 +357,7 @@ def asymmetry(f, x=None, parity=None, integrate=False):
             if integrate: returns normalized sum given by
                 sum(df) * sum((f(x) + parity*f(-x))/2)
     """
+    ret = []
     if x is None:
         g = f[::-1]
     else:
@@ -364,18 +365,19 @@ def asymmetry(f, x=None, parity=None, integrate=False):
         mini, maxi = i[-1], i[0] + 1
         g = f[i[mini:maxi]]
         f = f[mini:maxi]
+        ret.append(x[mini:maxi])
     if parity is None:
         parity = 1 if abs(f[0] - g[0]) < abs(f[0] + g[0]) else -1
     g = parity * g
+    df = f - g
+    ret.append(df)
     if integrate:
         mid = len(f)//2
         f = f[mid:]
         g = g[mid:]
-        df = (f - g).sum()
-        norm = (f + g).sum()/2
-        return df / norm
-    else:
-        return f - g
+        total = df[mid:].sum() / (f + g).sum()/2
+        ret.append(total)
+    return ret if len(ret) > 1 else ret[0]
 
 
 def print_stats(**kwargs):
