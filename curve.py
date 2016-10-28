@@ -340,6 +340,44 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     return df/dx**order
 
 
+def asymmetry(f, x=None, parity=None, integrate=False):
+    """Calculate degree of even or odd symmetry of a function
+
+    parameters
+    ----------
+    f:      values of the function
+    x:      points at which function values are given
+            if None, assume uniform and centered at 0
+    parity: type of symmetry, use +1 if even, -1 if odd, None to guess
+    integrate:  if True, return full array otherwise integrate it
+
+    returns
+    -------
+    df:     degree of asymmetry given by df = f(x) - parity*f(-x)
+            if integrate: returns normalized sum given by
+                sum(df) * sum((f(x) + parity*f(-x))/2)
+    """
+    if x is None:
+        g = f[::-1]
+    else:
+        i = np.searchsorted(x, -x)
+        mini, maxi = i[-1], i[0] + 1
+        g = f[i[mini:maxi]]
+        f = f[mini:maxi]
+    if parity is None:
+        parity = 1 if abs(f[0] - g[0]) < abs(f[0] + g[0]) else -1
+    g = parity * g
+    if integrate:
+        mid = len(f)//2
+        f = f[mid:]
+        g = g[mid:]
+        df = (f - g).sum()
+        norm = (f + g).sum()/2
+        return df / norm
+    else:
+        return f - g
+
+
 def print_stats(**kwargs):
     for k, v in kwargs.iteritems():
         print k + ':', v.shape, 'min', v.min(1), 'max', v.max(1)
