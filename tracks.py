@@ -1168,12 +1168,18 @@ if __name__ == '__main__':
         labels = not args.clean
 
     if args.msd or args.nn or args.rn:
+        # for backwards compatability, clean up reverse, retire.
+        if args.reverse or args.retire:
+            if args.slice:
+                raise ValueError('Cannot specify slice and reverse or retire')
+            args.slice = slice(None, args.retire, -args.reverse or None)
+        meta.pop('corr_reverse', None)
+        meta.pop('corr_retire', None)
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps,
-                    corr_reverse=args.reverse, corr_retire=args.retire)
+                    corr_slice=args.slice)
         tracksets = helpy.load_tracksets(
-            data, min_length=args.stub, max_length=args.retire,
-            reverse=args.reverse, run_track_orient=True,
-            run_repair=args.gaps, verbose=args.verbose)
+            data, min_length=args.stub, track_slice=args.slice,
+            run_track_orient=True, run_repair=args.gaps, verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(
