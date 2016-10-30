@@ -1539,8 +1539,8 @@ if __name__ == '__main__' and args.rr:
         taus = (tau_T, tau_R)
 
         early = 2*DT*s       # s < tau_T
-        middle = vv*s**2         # tau_T < s < tau_R
-        late = 2*(vv/DR + DT)*s               # tau_R < s
+        middle = 2*vv*s**2       # tau_T < s < tau_R
+        late = 2*(vv/DR + DT)*s              # tau_R < s
         lines = np.choose(np.searchsorted(taus, s), [early, middle, late])
 
         taus_f = np.clip(np.searchsorted(s, taus), 0, len(s)-1)
@@ -1600,7 +1600,7 @@ if __name__ == '__main__' and args.rr:
     ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label)
 
     guide = limiting_regimes(taus, **rr_result.best_values)
-    ax.plot(taus, guide, '-k', lw=2)
+    ax.plot(taus, guide, '--k', lw=1.5)
 
     ylim = ax.set_ylim(min(rr_best_fit[0], msd[0]), rr_best_fit[-1])
     xlim = ax.set_xlim(taus[0], tmax)
@@ -1615,7 +1615,7 @@ if __name__ == '__main__' and args.rr:
         ax.axvline(tau_T, 0, 1/3, ls='--', c='k')
         ax.text(tau_T, 2e-2, ' $D_T/v_0^2$')
     if xlim[0] < tau_R < xlim[1]:
-        ax.axvline(tau_R, 0, 2/3, ls='--', c='k')
+        ax.axvline(tau_R, 0, 1/2, ls='--', c='k')
         ax.text(tau_R, 2e-1, ' $1/D_R$')
 
     if args.save:
