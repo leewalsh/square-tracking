@@ -240,7 +240,7 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     var = 2*D
     g = np.exp(-0.5 * (bins-M)**2 / var)
     g /= sqrt(2*pi*var) / (dx*count)
-    ax.plot(bins, g, c=pcol, lw=2)
+    ax.plot(bins, g, c=pcol, lw=2, zorder=0.5)
 
 
 def vv_autocorr(vs, normalize=False):
