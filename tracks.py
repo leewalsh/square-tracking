@@ -1074,6 +1074,83 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
+def fit_corr(fit_source, args):
+    taus, meancorr, errcorr = correlator(tracksets, args)
+    return
+
+
+def format_fit(result, math_name, model_name=None):
+    fits = {'free': [], 'fixed': []}
+    for p in result.params.values():
+        fits['free' if p.vary else 'fixed'].append(p)
+
+    print_fmt = '{:>8s}: {:.4g}'.format
+    for vary, pset in fits.iteritems():
+        print vary, "params:"
+        for p in pset:
+            print print_fmt(p.name, p.value)
+
+    math_fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
+    for_math = '\n'.join([vary + ', '.join([math_fmt(math_name[p.name], p.value)
+                                            for p in fits[vary]])
+                          for vary in ('free', 'fixed')])
+
+    model_name = model_name or result.model.name
+    for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value
+                for p in fits['free']}
+
+    return for_math, for_meta
+
+
+def nn_corr(tracksets, args):
+    """Calculate the <nn> correlation for all the tracks in a given dataset
+    """
+    corr_nn = partial(corr.autocorr, cumulant=False, norm=False)
+    if args.verbose:
+        print 'calculating <nn> correlations'
+    if args.dot:
+        all_corrs = [corr_nn(np.cos(ts['o'])) + corr_nn(np.sin(ts['o']))
+                     for ts in tracksets.itervalues()]
+    else:
+        all_corrs = [c for ts in tracksets.itervalues() for c in
+                     [corr_nn(np.cos(ts['o'])), corr_nn(np.sin(ts['o']))]]
+
+    all_corrs, meancorr, errcorr = helpy.avg_uneven(all_corrs, pad=True)
+    taus = np.arange(len(meancorr))/args.fps
+    return taus, meancorr, errcorr
+
+
+def nn_form_dot_white(s, DR):
+    r"""$e^{-D_R t}$
+    """
+    return np.exp(-DR*s)
+
+
+def nn_form_dot_color(s, DR, TR):
+    r"""$e^{-D_R\left[t - \tau_R \left(1 - e^{-t/\tau_R}\right)\right]}$
+    """
+    if TR > 1e-3/args.fps:
+        # only calculate if TR will have significant effect
+        s = s + TR*np.expm1(-s/TR)
+    return np.exp(-DR*s)
+
+
+def nn_form_components_white(s, DR):
+    r"""$\frac{1}{2}e^{-D_R t}$
+    """
+    return 0.5*np.exp(-DR*s)
+
+
+def nn_form_components_color(s, DR, TR):
+    r"""$\frac{1}{2}e^{-D_R
+        \left[t - \tau_R \left(1 - e^{-t/\tau_R}\right)\right]}$
+    """
+    if TR > 1e-3/args.fps:
+        # only calculate if TR will have significant effect
+        s = s + TR*np.expm1(-s/TR)
+    return 0.5*np.exp(-DR*s)
+
+
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
     meta = helpy.load_meta(readprefix)
@@ -1239,69 +1316,35 @@ if __name__ == '__main__':
 
 if __name__ == '__main__' and (args.nn or args.colored):
     print "====== <nn> ======"
-    # Calculate the <nn> correlation for all the tracks in a given dataset
 
-    corr_nn = partial(corr.autocorr, cumulant=False, norm=False)
-    if args.verbose:
-        print 'calculating <nn> correlations'
-    if args.dot:
-        nn_corrs = [corr_nn(np.cos(ts['o'])) + corr_nn(np.sin(ts['o']))
-                    for ts in tracksets.itervalues()]
-    else:
-        nn_corrs = [c for ts in tracksets.itervalues() for c in
-                    [corr_nn(np.cos(ts['o'])), corr_nn(np.sin(ts['o']))]]
+    taus, meancorr, errcorr = nn_corr(tracksets, args)
 
-    nn_corrs, meancorr, errcorr = helpy.avg_uneven(nn_corrs, pad=True)
-    taus = np.arange(len(meancorr))/args.fps
     tmax = 50*args.zoom
     if verbose > 1:
         nnerrfig, nnerrax = plt.subplots()
         nnerrax.set_yscale('log')
     else:
         nnerrax = False
-    nnuncert = args.dtheta/rt2
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
-                                const=nnuncert, ignore=[0, tmax], verbose=verbose)
+                                const=args.dtheta/rt2, ignore=[0, tmax],
+                                verbose=verbose)
     if nnerrax:
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
-    # Fit to functional form:
-    D_R = meta.get('fit_nn_DR', 0.1)
-    fitstr = '$' if args.dot else r"$\frac{1}{2}"
+    form = {(True, False): nn_form_dot_white,
+            (True, True): nn_form_dot_color,
+            (False, False): nn_form_components_white,
+            (False, True): nn_form_components_color
+            }[(args.dot, args.colored)]
+
+    params = fit.Parameters()
+    params.add('DR', meta.get('fit_nn_DR', 0.1), min=0)
     if args.colored:
-        tau_R = meta.get('fit_nn_TR', 0.1/D_R)
-        fitstr += (r"e^{-D_R\left["
-                   r"t - \tau_R \left(1 - e^{-t/\tau_R}\right)"
-                   r"\right]}$")
-    else:
-        tau_R = 0
-        fitstr += r"e^{-D_R t}$"
+        params.add('TR', meta.get('fit_nn_TR', 0.1/params['DR'].value), min=0)
 
-    def nn_form(s, DR=D_R, TR=tau_R):
-        if TR > 1e-3/args.fps:
-            # only calculate if TR will have significant effect
-            s = s + TR*np.expm1(-s/TR)
-        return (1 if args.dot else 0.5)*np.exp(-DR*s)
+    result = curve.fit_model(form, meancorr, taus, params, 1/sigma)
 
-    nn_vary = {'TR': args.colored, 'DR': args.nn}
-    nn_model = Model(nn_form)
-    for param in ('TR', 'DR'):
-        nn_model.set_param_hint(param, min=0, vary=nn_vary[param])
-
-    nn_result = nn_model.fit(meancorr, s=taus, weights=1/sigma)
-    nn_best_fit = nn_result.eval(s=taus)
-
-    print "Free params:", ', '.join(nn_result.var_names)
-    D_R = nn_result.best_values['DR']
-    print '   D_R: {:.4g}'.format(D_R)
-    fit_source['DR'] = 'nn'
-    meta_fits = {'fit_nn_DR': D_R}
-    if args.colored:
-        tau_R = nn_result.best_values['TR']
-        print ' tau_R: {:.4g}'.format(tau_R)
-        fit_source['TR'] = 'nn'
-        meta_fits['fit_nn_TR'] = tau_R
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1588,7 +1631,7 @@ if __name__ == '__main__' and args.rr:
     fitstr = ["$", '2 '[msdvec],
               (r"(v_0/D_R)^2", r"\ell_p^2")[args.colored and msdvec],
               r"e^{D_R\tau_R}"*args.colored,
-              r"\left(D_Rt-1+e^{-D_Rt}", ' +-'[msdvec],
+              r"\left(D_Rt-1+e^{-D_Rt}", (' ', r'\pm')[msdvec],
               ('', r'\frac{1}{12}' + r'e^{4D_R\tau_R}'*args.colored +
                r'(e^{-4D_Rt}-4e^{-D_Rt}+3)')[msdvec],
               r"\right) + ", '42'[msdvec], "D_Tt$\n"]
