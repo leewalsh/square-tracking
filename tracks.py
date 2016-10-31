@@ -1079,7 +1079,7 @@ def fit_corr(fit_source, args):
     return
 
 
-def format_fit(result, math_name, model_name=None):
+def format_fit(result, tex_name, model_name=None):
     fits = {'free': [], 'fixed': []}
     for p in result.params.values():
         fits['free' if p.vary else 'fixed'].append(p)
@@ -1090,16 +1090,33 @@ def format_fit(result, math_name, model_name=None):
         for p in pset:
             print print_fmt(p.name, p.value)
 
-    math_fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
-    for_math = '\n'.join([vary + ', '.join([math_fmt(math_name[p.name], p.value)
-                                            for p in fits[vary]])
-                          for vary in ('free', 'fixed')])
+    tex_fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
+    tex_eqn = [result.model.func.func_doc.replace('\n', '')]
+    tex_fit = [vary + ': ' + ', '.join([tex_fmt(tex_name[p.name], p.value)
+                                        for p in fits[vary]])
+               for vary in ('free', 'fixed')]
+    for_tex = '\n'.join(tex_eqn + tex_fit)
 
     model_name = model_name or result.model.name
     for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value
                 for p in fits['free']}
 
-    return for_math, for_meta
+    return for_tex, for_meta
+
+
+def plot_fit(result, tex_fits, args, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    else:
+        fig = ax.figure
+    t = result.userkws[result.model.independent_vars[0]]    # x-value from fit
+    if args.showtracks:
+        raise NotImplementedError('cannot show tracks here')
+        ax.plot(t, nn_corrs.T, 'b', alpha=.2, lw=0.5)
+    ax.errorbar(t, result.data, 1/result.weights, None, c=vcol, lw=3,
+                capthick=0, elinewidth=1, errorevery=3)
+    ax.plot(t, result.best_fit, c=pcol, lw=2, label=labels*tex_fits)
+    return fig, ax
 
 
 def nn_corr(tracksets, args):
@@ -1150,6 +1167,61 @@ def nn_form_components_color(s, DR, TR):
         s = s + TR*np.expm1(-s/TR)
     return 0.5*np.exp(-DR*s)
 
+
+def nn_plot(tracksets, args):
+    taus, meancorr, errcorr = nn_corr(tracksets, args)
+
+    tmax = 50*args.zoom
+    if verbose > 1:
+        nnerrfig, nnerrax = plt.subplots()
+        nnerrax.set_yscale('log')
+    else:
+        nnerrax = False
+    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
+                                const=args.dtheta/rt2, ignore=[0, tmax],
+                                verbose=verbose)
+    if nnerrax:
+        nnerrax.legend(loc='lower left', fontsize='x-small')
+        nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
+
+    form = {(True, False): nn_form_dot_white,
+            (True, True): nn_form_dot_color,
+            (False, False): nn_form_components_white,
+            (False, True): nn_form_components_color
+            }[(args.dot, args.colored)]
+    model = fit.Model(form)
+
+    params = model.make_params()
+    params['DR'].set(meta.get('fit_nn_DR', 0.1), min=0)
+    if args.colored:
+        params['TR'].set(meta.get('fit_nn_TR', 0.1/params['DR'].value), min=0)
+    tex_name = {'TR': r'\tau_R', 'DR': r'D_R'}
+
+    result = model.fit(meancorr, params, 1/sigma, s=taus)
+
+    tex_fits, meta_fits = format_fit(result, tex_name, model_name='nn')
+
+    if args.save:
+        helpy.save_meta(saveprefix, meta_fits)
+
+    fig, ax = plot_fit(result, tex_fits, args)
+    ax.set_xlim(0, 3*args.zoom/result.values['DR'] + result.values['TR'])
+    ax.set_ylim(exp(-3*args.zoom), 1)
+    ax.set_yscale('log')
+    if labels:
+        ax.set_title("Orientation Autocorrelation\n"+prefix)
+    ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
+    ax.set_xlabel("$tf$")
+    ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
+              framealpha=1)
+
+    if args.save and args.nn:
+        save = saveprefix+'_nn-corr.pdf'
+        print 'saving <nn> correlation plot to',
+        print save if verbose else os.path.basename(save)
+        fig.savefig(save)
+
+    return result, ax
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1316,66 +1388,7 @@ if __name__ == '__main__':
 
 if __name__ == '__main__' and (args.nn or args.colored):
     print "====== <nn> ======"
-
-    taus, meancorr, errcorr = nn_corr(tracksets, args)
-
-    tmax = 50*args.zoom
-    if verbose > 1:
-        nnerrfig, nnerrax = plt.subplots()
-        nnerrax.set_yscale('log')
-    else:
-        nnerrax = False
-    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=nnerrax,
-                                const=args.dtheta/rt2, ignore=[0, tmax],
-                                verbose=verbose)
-    if nnerrax:
-        nnerrax.legend(loc='lower left', fontsize='x-small')
-        nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
-
-    form = {(True, False): nn_form_dot_white,
-            (True, True): nn_form_dot_color,
-            (False, False): nn_form_components_white,
-            (False, True): nn_form_components_color
-            }[(args.dot, args.colored)]
-
-    params = fit.Parameters()
-    params.add('DR', meta.get('fit_nn_DR', 0.1), min=0)
-    if args.colored:
-        params.add('TR', meta.get('fit_nn_TR', 0.1/params['DR'].value), min=0)
-
-    result = curve.fit_model(form, meancorr, taus, params, 1/sigma)
-
-    if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
-
-    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
-    if args.showtracks:
-        ax.plot(taus, nn_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(taus, meancorr, errcorr, None, c=vcol, lw=3,
-                label="Mean Orientation Autocorrelation"*labels,
-                capthick=0, elinewidth=1, errorevery=3)
-    fitinfo = 'free: ' + sf("$D_R={0:.4T}=1/{1:.3T}$", D_R, 1/D_R)
-    if args.colored:
-        fitinfo += sf(", $\\tau_R={0:.4T}$", tau_R)
-    ax.plot(taus, nn_best_fit, c=pcol, lw=2,
-            label=labels*(fitstr + '\n') + fitinfo)
-    tmax = 3*args.zoom/D_R + tau_R
-    ax.set_xlim(0, tmax)
-    ax.set_ylim(exp(-3*args.zoom), 1)
-    ax.set_yscale('log')
-
-    if labels:
-        ax.set_title("Orientation Autocorrelation\n"+prefix)
-    ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
-    ax.set_xlabel("$tf$")
-    ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
-              framealpha=1)
-
-    if args.save and args.nn:
-        save = saveprefix+'_nn-corr.pdf'
-        print 'saving <nn> correlation plot to',
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+    nn_result, nn_ax = nn_plot(tracksets, args)
 
 if __name__ == '__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
