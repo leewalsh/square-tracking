@@ -1137,6 +1137,39 @@ def nn_corr(tracksets, args):
     return taus, meancorr, errcorr
 
 
+def rn_corr(tracksets, args):
+    """Calculate the <rn> correlation for all the tracks in a given dataset
+    """
+    correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
+                           cumulant=(True, False), norm=0)
+
+    # shape (track, x_or_y, time_or_correlation, time)
+    rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
+                          correlate_rn(ts['y']/args.side, np.sin(ts['o']))]
+                         for ts in tracksets.itervalues()])
+    # Align and merge them
+    taus = rn_corrs[:, :, 0]/args.fps
+    if rn_corrs.ndim == 4:
+        if verbose:
+            print "Already aligned: all tracks have same length"
+        taus = taus[0, 0]
+        rn_corrs = rn_corrs[:, :, 1]
+    else:
+        if verbose:
+            print "Aligning tracks around tau=0"
+        tau0 = np.array(map(partial(np.searchsorted, v=0), taus.flat))
+        taus = taus.flat[tau0.argmax()]
+        rn_corrs = helpy.pad_uneven(rn_corrs[:, :, 1], np.nan, align=tau0)
+    if args.dot:
+        rn_corrs = rn_corrs.sum(1)  # sum over x and y components
+    else:
+        rn_corrs = rn_corrs.reshape(-1, len(taus))
+    rn_corrs, meancorr, errcorr, stddev, added, enough = helpy.avg_uneven(
+        rn_corrs, pad=False, ret_all=True, weight=False)
+    taus = taus[enough]
+    return taus, meancorr, errcorr
+
+
 def nn_form_dot_white(s, DR):
     r"""$e^{-D_R t}$
     """
@@ -1168,6 +1201,11 @@ def nn_form_components_color(s, DR, TR):
     return 0.5*np.exp(-DR*s)
 
 
+def rn_form(s, lp=l_p, DR=D_R, TR=tau_R):
+    amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
+    return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
+
+
 def nn_plot(tracksets, args):
     taus, meancorr, errcorr = nn_corr(tracksets, args)
 
@@ -1189,7 +1227,7 @@ def nn_plot(tracksets, args):
             (False, False): nn_form_components_white,
             (False, True): nn_form_components_color
             }[(args.dot, args.colored)]
-    model = fit.Model(form)
+    model = Model(form)
 
     params = model.make_params()
     params['DR'].set(meta.get('fit_nn_DR', 0.1), min=0)
@@ -1222,6 +1260,107 @@ def nn_plot(tracksets, args):
         fig.savefig(save)
 
     return result, ax
+
+
+def rn_plot(tracksets, args):
+    taus, meancorr, errcorr = rn_corr(tracksets, args)
+    if not args.nn:
+        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
+    v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
+    l_p = v0/D_R
+
+    tmax = 3/D_R*args.zoom
+    if verbose > 1:
+        rnerrfig, rnerrax = plt.subplots()
+    else:
+        rnerrax = False
+    rnuncert = np.hypot(args.dtheta, args.dx)/rt2
+    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
+                                const=rnuncert, ignore=[0, -tmax, tmax],
+                                verbose=verbose)
+    if rnerrax:
+        rnerrax.legend(loc='upper center', fontsize='x-small')
+        rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
+
+
+    rn_vary = {'TR': args.fittr or not (args.colored or args.nn),
+               'DR': args.fitdr or not args.nn,
+               'lp': True}
+
+    fitstr = (r'$\frac{{v_0}}{{{}D_R}}'.format('2'[args.dot:]) +
+              (r'e^{D_R\tau_R}' if args.colored else '') +
+              r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
+    rn_model = Model(rn_form)
+    for param in ('TR', 'DR', 'lp'):
+        rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
+    rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
+
+    print "Fixed params:"
+    for p in rn_result.params.values():
+        if not p.vary:
+            print '{:>8s}: {:.4g} (fixed)'.format(p.name, p.value)
+    print "Free params:", ', '.join(rn_result.var_names)
+    v0 = rn_result.best_values['lp']*rn_result.best_values['DR']
+    fit_source['v0'] = 'rn'
+    print ' v0/D_R: {:.4g}'.format(rn_result.best_values['lp'])
+    if rn_vary['DR']:
+        D_R = rn_result.best_values['DR']
+        fit_source['DR'] = 'rn'
+        print '    D_R: {:.4g}'.format(D_R)
+    if rn_vary['TR']:
+        tau_R = rn_result.best_values['TR']
+        fit_source['TR'] = 'rn'
+        print '  tau_R: {:.4g}'.format(tau_R)
+    fitinfo = {True: [sf('$v_0={0:.3T}$', abs(v0))],
+               False: []}
+    fitinfo[rn_vary['DR']].append(sf("$D_R={0:.3T}$", D_R))
+    fitinfo[rn_vary['TR']].append(sf("$\\tau_R={0:.4T}$", tau_R))
+    print "Giving:"
+    print '     v0: {:.4f}'.format(v0)
+    if args.save:
+        if rn_vary['DR']:
+            psources = ''
+            meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
+        else:
+            psources = '_nn'
+            meta_fits = {'fit'+psources+'_rn_v0': v0}
+        if rn_vary['TR']:
+            meta_fits = {'fit_rn_TR': tau_R}
+        helpy.save_meta(saveprefix, meta_fits)
+
+    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    sgn = np.sign(v0)
+    if args.showtracks:
+        ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
+    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
+                label="Mean Position-Orientation Correlation"*labels,
+                capthick=0, elinewidth=0.5, errorevery=3)
+    label = labels*(fitstr + '\n')
+    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
+    label += 'fixed: ' + ', '.join(fitinfo[False])
+    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2, label=label)
+
+    ylim_buffer = 1.5
+    ylim = ax.set_ylim(ylim_buffer*rn_result.best_fit.min(),
+                       ylim_buffer*rn_result.best_fit.max())
+    xlim = ax.set_xlim(-tmax, tmax)
+    if xlim[0] < 1/D_R < xlim[1]:
+        ax.axvline(1/D_R, 0, 2/3, ls='--', c='k')
+        ax.text(1/D_R, 1e-2, ' $1/D_R$')
+
+    if labels:
+        ax.set_title("Position - Orientation Correlation")
+    ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
+    ax.set_xlabel("$tf$")
+    ax.legend(loc='upper left', framealpha=1)
+
+    if args.save:
+        save = saveprefix + psources + '_rn-corr.pdf'
+        print 'saving <rn> correlation plot to',
+        print save if verbose else os.path.basename(save)
+        fig.savefig(save)
+
+    return rn_result, ax
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1394,131 +1533,7 @@ if __name__ == '__main__' and args.rn:
     # Calculate the <rn> correlation for all the tracks in a given dataset
     print "====== <rn> ======"
 
-    if not args.nn:
-        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
-    v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
-    l_p = v0/D_R
-
-    correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
-                           cumulant=(True, False), norm=0)
-
-    # shape (track, x_or_y, time_or_correlation, time)
-    rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
-                          correlate_rn(ts['y']/args.side, np.sin(ts['o']))]
-                         for ts in tracksets.itervalues()])
-    # Align and merge them
-    taus = rn_corrs[:, :, 0]/args.fps
-    if rn_corrs.ndim == 4:
-        if verbose:
-            print "Already aligned: all tracks have same length"
-        taus = taus[0, 0]
-        rn_corrs = rn_corrs[:, :, 1]
-    else:
-        if verbose:
-            print "Aligning tracks around tau=0"
-        tau0 = np.array(map(partial(np.searchsorted, v=0), taus.flat))
-        taus = taus.flat[tau0.argmax()]
-        rn_corrs = helpy.pad_uneven(rn_corrs[:, :, 1], np.nan, align=tau0)
-    if args.dot:
-        rn_corrs = rn_corrs.sum(1)  # sum over x and y components
-    else:
-        rn_corrs = rn_corrs.reshape(-1, len(taus))
-    rn_corrs, meancorr, errcorr, stddev, added, enough = helpy.avg_uneven(
-        rn_corrs, pad=False, ret_all=True, weight=False)
-    taus = taus[enough]
-    tmax = 3/D_R*args.zoom
-    if verbose > 1:
-        rnerrfig, rnerrax = plt.subplots()
-    else:
-        rnerrax = False
-    rnuncert = np.hypot(args.dtheta, args.dx)/rt2
-    sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                                const=rnuncert, ignore=[0, -tmax, tmax],
-                                verbose=verbose)
-    if rnerrax:
-        rnerrax.legend(loc='upper center', fontsize='x-small')
-        rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
-
-    def rn_form(s, lp=l_p, DR=D_R, TR=tau_R):
-        amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
-        return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
-
-    rn_vary = {'TR': args.fittr or not (args.colored or args.nn),
-               'DR': args.fitdr or not args.nn,
-               'lp': True}
-
-    fitstr = (r'$\frac{{v_0}}{{{}D_R}}'.format('2'[args.dot:]) +
-              (r'e^{D_R\tau_R}' if args.colored else '') +
-              r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
-    rn_model = Model(rn_form)
-    for param in ('TR', 'DR', 'lp'):
-        rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
-    rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
-
-    print "Fixed params:"
-    for p in rn_result.params.values():
-        if not p.vary:
-            print '{:>8s}: {:.4g} (fixed)'.format(p.name, p.value)
-    print "Free params:", ', '.join(rn_result.var_names)
-    v0 = rn_result.best_values['lp']*rn_result.best_values['DR']
-    fit_source['v0'] = 'rn'
-    print ' v0/D_R: {:.4g}'.format(rn_result.best_values['lp'])
-    if rn_vary['DR']:
-        D_R = rn_result.best_values['DR']
-        fit_source['DR'] = 'rn'
-        print '    D_R: {:.4g}'.format(D_R)
-    if rn_vary['TR']:
-        tau_R = rn_result.best_values['TR']
-        fit_source['TR'] = 'rn'
-        print '  tau_R: {:.4g}'.format(tau_R)
-    fitinfo = {True: [sf('$v_0={0:.3T}$', abs(v0))],
-               False: []}
-    fitinfo[rn_vary['DR']].append(sf("$D_R={0:.3T}$", D_R))
-    fitinfo[rn_vary['TR']].append(sf("$\\tau_R={0:.4T}$", tau_R))
-    print "Giving:"
-    print '     v0: {:.4f}'.format(v0)
-    if args.save:
-        if rn_vary['DR']:
-            psources = ''
-            meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
-        else:
-            psources = '_nn'
-            meta_fits = {'fit'+psources+'_rn_v0': v0}
-        if rn_vary['TR']:
-            meta_fits = {'fit_rn_TR': tau_R}
-        helpy.save_meta(saveprefix, meta_fits)
-
-    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
-    sgn = np.sign(v0)
-    if args.showtracks:
-        ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
-                label="Mean Position-Orientation Correlation"*labels,
-                capthick=0, elinewidth=0.5, errorevery=3)
-    label = labels*(fitstr + '\n')
-    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
-    label += 'fixed: ' + ', '.join(fitinfo[False])
-    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2, label=label)
-
-    ylim_buffer = 1.5
-    ylim = ax.set_ylim(ylim_buffer*rn_result.best_fit.min(),
-                       ylim_buffer*rn_result.best_fit.max())
-    xlim = ax.set_xlim(-tmax, tmax)
-    if xlim[0] < 1/D_R < xlim[1]:
-        ax.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-        ax.text(1/D_R, 1e-2, ' $1/D_R$')
-
-    if labels:
-        ax.set_title("Position - Orientation Correlation")
-    ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
-    ax.set_xlabel("$tf$")
-    ax.legend(loc='upper left', framealpha=1)
-
-    if args.save:
-        save = saveprefix + psources + '_rn-corr.pdf'
-        print 'saving <rn> correlation plot to',
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+    rn_result, rn_ax = rn_plot(tracksets, args)
 
 if __name__ == '__main__' and args.rr:
     print "====== <rr> ======"
