@@ -1201,9 +1201,28 @@ def nn_form_components_color(s, DR, TR):
     return 0.5*np.exp(-DR*s)
 
 
-def rn_form(s, lp=l_p, DR=D_R, TR=tau_R):
-    amp = lp*(exp(DR*TR) if TR > 0 else 1)*(1 if args.dot else 0.5)
-    return -amp*np.sign(s)*np.expm1(-DR*np.abs(s))
+def rn_form_dot_white(s, lp, DR):
+    r"""$\frac{v_0}{D_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    """
+    return -lp*np.sign(s)*np.expm1(-DR*np.abs(s))
+
+
+def rn_form_dot_color(s, lp, DR, TR):
+    r"""$\frac{v_0}{D_R}e^{D_R\tau_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    """
+    return -lp*exp(DR*TR)*np.sign(s)*np.expm1(-DR*np.abs(s))
+
+
+def rn_form_components_white(s, lp, DR):
+    r"""$\frac{v_0}{2D_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    """
+    return -0.5*lp*np.sign(s)*np.expm1(-DR*np.abs(s))
+
+
+def rn_form_components_color(s, lp, DR, TR):
+    r"""$\frac{v_0}{2D_R}e^{D_R\tau_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    """
+    return -0.5*lp*exp(DR*TR)*np.sign(s)*np.expm1(-DR*np.abs(s))
 
 
 def nn_plot(tracksets, args):
@@ -1262,14 +1281,26 @@ def nn_plot(tracksets, args):
     return result, ax
 
 
-def rn_plot(tracksets, args):
+def rn_plot(tracksets, args, inputs={}):
     taus, meancorr, errcorr = rn_corr(tracksets, args)
-    if not args.nn:
-        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
-    v0 = meta.get('fit_rn_v0', 0.1)  # if dots on back, use v0 < 0
-    l_p = v0/D_R
 
-    tmax = 3/D_R*args.zoom
+    form = {(True, False): rn_form_dot_white,
+            (True, True): rn_form_dot_color,
+            (False, False): rn_form_components_white,
+            (False, True): rn_form_components_color
+            }[(args.dot, args.colored)]
+    model = Model(form)
+
+    params = model.make_params()
+    params['DR'].set(
+        inputs.get('DR', meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))),
+        min=0, vary=args.fitdr or not args.nn)
+    params['lp'].set(meta.get('fit_rn_v0', 0.1)/params['DR'].value, min=0)
+    if args.colored:
+        params['TR'].set(inputs.get('TR', 0), min=0, vary=args.fittr)
+    tex_name = {'TR': r'\tau_R', 'DR': r'D_R', 'lp': r'\ell_p'}
+
+    tmax = 3*args.zoom/params['DR'].value
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
@@ -1282,50 +1313,13 @@ def rn_plot(tracksets, args):
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
+    result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    rn_vary = {'TR': args.fittr or not (args.colored or args.nn),
-               'DR': args.fitdr or not args.nn,
-               'lp': True}
+    tex_fits, meta_fits = format_fit(result, tex_name, model_name='rn')
 
-    fitstr = (r'$\frac{{v_0}}{{{}D_R}}'.format('2'[args.dot:]) +
-              (r'e^{D_R\tau_R}' if args.colored else '') +
-              r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
-    rn_model = Model(rn_form)
-    for param in ('TR', 'DR', 'lp'):
-        rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
-    rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
-
-    print "Fixed params:"
-    for p in rn_result.params.values():
-        if not p.vary:
-            print '{:>8s}: {:.4g} (fixed)'.format(p.name, p.value)
-    print "Free params:", ', '.join(rn_result.var_names)
-    v0 = rn_result.best_values['lp']*rn_result.best_values['DR']
-    fit_source['v0'] = 'rn'
-    print ' v0/D_R: {:.4g}'.format(rn_result.best_values['lp'])
-    if rn_vary['DR']:
-        D_R = rn_result.best_values['DR']
-        fit_source['DR'] = 'rn'
-        print '    D_R: {:.4g}'.format(D_R)
-    if rn_vary['TR']:
-        tau_R = rn_result.best_values['TR']
-        fit_source['TR'] = 'rn'
-        print '  tau_R: {:.4g}'.format(tau_R)
-    fitinfo = {True: [sf('$v_0={0:.3T}$', abs(v0))],
-               False: []}
-    fitinfo[rn_vary['DR']].append(sf("$D_R={0:.3T}$", D_R))
-    fitinfo[rn_vary['TR']].append(sf("$\\tau_R={0:.4T}$", tau_R))
-    print "Giving:"
-    print '     v0: {:.4f}'.format(v0)
+    v0 = result.best_values['lp']*result.best_values['DR']
+    print ' ==>  v0: {:.3f}'.format(v0)
     if args.save:
-        if rn_vary['DR']:
-            psources = ''
-            meta_fits = {'fit_rn_v0': v0, 'fit_rn_DR': D_R}
-        else:
-            psources = '_nn'
-            meta_fits = {'fit'+psources+'_rn_v0': v0}
-        if rn_vary['TR']:
-            meta_fits = {'fit_rn_TR': tau_R}
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
@@ -1335,18 +1329,16 @@ def rn_plot(tracksets, args):
     ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
                 label="Mean Position-Orientation Correlation"*labels,
                 capthick=0, elinewidth=0.5, errorevery=3)
-    label = labels*(fitstr + '\n')
-    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
-    label += 'fixed: ' + ', '.join(fitinfo[False])
-    ax.plot(taus, sgn*rn_result.best_fit, c=pcol, lw=2, label=label)
+    ax.plot(taus, sgn*result.best_fit, c=pcol, lw=2, label=tex_fits)
 
     ylim_buffer = 1.5
-    ylim = ax.set_ylim(ylim_buffer*rn_result.best_fit.min(),
-                       ylim_buffer*rn_result.best_fit.max())
+    ax.set_ylim(ylim_buffer*result.best_fit.min(),
+                ylim_buffer*result.best_fit.max())
     xlim = ax.set_xlim(-tmax, tmax)
-    if xlim[0] < 1/D_R < xlim[1]:
-        ax.axvline(1/D_R, 0, 2/3, ls='--', c='k')
-        ax.text(1/D_R, 1e-2, ' $1/D_R$')
+    DR_time = 1/result.values['DR']
+    if xlim[0] < DR_time < xlim[1]:
+        ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
+        ax.text(DR_time, 1e-2, ' $1/{DR}$'.format(**tex_name))
 
     if labels:
         ax.set_title("Position - Orientation Correlation")
@@ -1360,7 +1352,7 @@ def rn_plot(tracksets, args):
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-    return rn_result, ax
+    return result, ax
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1530,10 +1522,8 @@ if __name__ == '__main__' and (args.nn or args.colored):
     nn_result, nn_ax = nn_plot(tracksets, args)
 
 if __name__ == '__main__' and args.rn:
-    # Calculate the <rn> correlation for all the tracks in a given dataset
     print "====== <rn> ======"
-
-    rn_result, rn_ax = rn_plot(tracksets, args)
+    rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.values)
 
 if __name__ == '__main__' and args.rr:
     print "====== <rr> ======"
