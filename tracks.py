@@ -1224,9 +1224,11 @@ def rn_form_components_color(s, lp, DR, TR):
     """
     return -0.5*lp*exp(DR*TR)*np.sign(s)*np.expm1(-DR*np.abs(s))
 
+
 def quartic(a):
     quadratic = a*a
     return quadratic * quadratic
+
 
 def rr_form(s, DT, v0, DR, TR):
     color = exp(DR*TR)
@@ -1237,6 +1239,7 @@ def rr_form(s, DT, v0, DR, TR):
     n = 1 if msdvec else 2
     anisotropy = msdvec and quartic(color)*(quartic(decay) - 4*decay + 3)/12
     return n*(persistence*(propulsion + msdvec*anisotropy) + diffusion)
+
 
 def limiting_regimes(s, DT, v0, DR, TR):
     vv = v0*v0  # v0 is squared everywhere
@@ -1254,6 +1257,7 @@ def limiting_regimes(s, DT, v0, DR, TR):
     taus_f = np.clip(np.searchsorted(s, taus), 0, len(s)-1)
     lines[taus_f] = np.nan
     return lines
+
 
 def nn_plot(tracksets, args):
     taus, meancorr, errcorr = nn_corr(tracksets, args)
@@ -1677,21 +1681,20 @@ if __name__ == '__main__':
     if args.save:
         helpy.save_meta(saveprefix, meta)
 
+    if args.nn or args.colored:
+        print "====== <nn> ======"
+        nn_result, nn_ax = nn_plot(tracksets, args)
 
-if __name__ == '__main__' and (args.nn or args.colored):
-    print "====== <nn> ======"
-    nn_result, nn_ax = nn_plot(tracksets, args)
+    if args.rn:
+        print "====== <rn> ======"
+        rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.values)
 
-if __name__ == '__main__' and args.rn:
-    print "====== <rn> ======"
-    rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.values)
+    if args.rr:
+        print "====== <rr> ======"
+        rr_result, rr_ax = rr_plot(msds, msdids, data, args, inputs=rn_result.values)
 
-if __name__ == '__main__' and args.rr:
-    print "====== <rr> ======"
-    rr_result, rr_ax = rr_plot(msds, msdids, data, args, inputs=rn_result.values)
-
-if __name__ == '__main__' and need_plt:
-    if args.show:
-        plt.show()
-    else:
-        plt.close('all')
+    if need_plt:
+        if args.show:
+            plt.show()
+        else:
+            plt.close('all')
