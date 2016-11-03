@@ -1230,15 +1230,31 @@ def quartic(a):
     return quadratic * quadratic
 
 
-def rr_form(s, DT, v0, DR, TR):
+def rr_form_total(s, DT, v0, DR, TR):
+    r"""$2(v_0/D_R)^2 e^{D_R\tau_R} \left(D_Rt - 1 + e^{-D_Rt}\right) + 4 D_Tt$
+    """
     color = exp(DR*TR)
     persistence = color*(v0/DR)**2
     decay = np.exp(-DR*s)
     diffusion = 2*DT*s
-    propulsion = (decay - 1 + DR*s)
-    n = 1 if msdvec else 2
-    anisotropy = msdvec and quartic(color)*(quartic(decay) - 4*decay + 3)/12
-    return n*(persistence*(propulsion + msdvec*anisotropy) + diffusion)
+    propulsion = decay - 1 + DR*s
+    return 2*(persistence*propulsion + diffusion)
+
+
+def rr_form_components(s, DT, v0, DR, TR, component=None):
+    r"""$\ell_p^2 e^{D_R \tau_R}
+    \left(
+        D_R t - 1 + e^{-D_Rt}
+        \pm \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
+    \right) + 2 D_Tt$
+    """
+    color = exp(DR*TR)
+    persistence = color*(v0/DR)**2
+    decay = np.exp(-DR*s)
+    diffusion = 2*DT*s
+    propulsion = decay - 1 + DR*s
+    anisotropy = quartic(color)*(quartic(decay) - 4*decay + 3)/12
+    return persistence*(propulsion + anisotropy) + diffusion
 
 
 def limiting_regimes(s, DT, v0, DR, TR):
@@ -1275,11 +1291,8 @@ def nn_plot(tracksets, args):
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
-    form = {(True, False): nn_form_dot_white,
-            (True, True): nn_form_dot_color,
-            (False, False): nn_form_components_white,
-            (False, True): nn_form_components_color
-            }[(args.dot, args.colored)]
+    form = [[nn_form_components_white, nn_form_components_color],
+            [nn_form_dot_white, nn_form_dot_color]][args.dot][args.colored]
     model = Model(form)
 
     params = model.make_params()
@@ -1318,11 +1331,8 @@ def nn_plot(tracksets, args):
 def rn_plot(tracksets, args, inputs={}):
     taus, meancorr, errcorr = rn_corr(tracksets, args)
 
-    form = {(True, False): rn_form_dot_white,
-            (True, True): rn_form_dot_color,
-            (False, False): rn_form_components_white,
-            (False, True): rn_form_components_color
-            }[(args.dot, args.colored)]
+    form = [[rn_form_components_white, rn_form_components_color],
+            [rn_form_dot_white, rn_form_dot_color]][args.dot][args.colored]
     model = Model(form)
 
     params = model.make_params()
@@ -1397,15 +1407,21 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
         figsize=(5, 4) if args.clean else (8, 6))
 
-    msdvec = {'displacement': 0, 'progression': 1, 'diversion': -1}[args.msdvec]
     if msd.ndim == 2:
         progression, diversion = msd.T
         msdisp = msd.sum(1)
         errcorr_prog, errcorr_div = errcorr.T
         errcorr_disp = np.hypot(*errcorr.T)
         ax.plot(taus, msdisp, '-', c=vcol, lw=3)
-        msd = (msdisp, progression, diversion)[msdvec]
-        errcorr = (errcorr_disp, errcorr_prog, errcorr_div)[msdvec]
+        msdvec, msd, errcorr = {'displacement': (0, msdisp, errcorr_disp),
+                                'progression': (1, progression, errcorr_prog),
+                                'diversion': (-1, diversion, errcorr_div)
+                                }[args.msdvec]
+    elif args.msdvec.startswith('disp'):
+        msdvec = 0
+    else:
+        msg = 'You need to rerun `tracks.py {} --msd --msdvec`'
+        raise ValueError(msg.format(args.prefix))
 
     tmax = int(200*args.zoom)
     if verbose > 1:
@@ -1423,52 +1439,41 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         if args.save:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
-    # Fit to functional form:
-    if args.fitv0 or not args.rn:
-        v0 = meta.get('fit_rn_v0', 0.1)
-        sgn = np.sign(v0)
-    if not (args.nn or args.rn):
-        D_R = meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))
-    if not args.colored:
-        tau_R = 0
-    print 'args.fitdt:', args.fitdt
+    form = [rr_form_total, rr_form_components][msdvec]
+    model = Model(form)
+    params = model.make_params()
+    params['TR'].set(inputs.get('TR', meta.get('fit_nn_TR', 0)), min=0,
+                     vary=args.fittr or (args.colored and not (args.nn or args.rn)))
+    params['DR'].set(inputs.get('DR', meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))),
+                     min=0, vary=not (args.nn or args.rn))
+    params['v0'].set(inputs.get('v0', meta.get('fit_rn_v0', 0.1)),
+                     min=0, vary=args.fitv0 or not args.rn)
     if args.fitdt is True:
-        D_T = meta.get('fit_rr_DT', 0.01)
-    elif args.fitdt is False:
-        D_T = v0**2
+        params['DT'].set(inputs.get('DT', meta.get('fit_rr_DT', 0.01)), min=0)
     else:
-        D_T = args.fitdt
+        params['DT'].set(args.fitdt or params['v0'].value**2, vary=False)
+    mathname = {'TR': r'\tau_R', 'DR': 'D_R', 'v0': 'v_0', 'DT': 'D_T'}
 
-
-    rr_vary = {'TR': args.fittr or (args.colored and not (args.nn or args.rn)),
-               'DR': not (args.nn or args.rn),
-               'v0': args.fitv0 or not args.rn,
-               'DT': args.fitdt is True}
-    mathname = {'TR': r'\tau_R', 'DR': 'D_R',
-                'v0': 'v_0', 'DT': 'D_T'}
-
-    rr_model = Model(rr_form)
-    for param in ('TR', 'DR', 'v0', 'DT'):
-        rr_model.set_param_hint(param, min=0, vary=rr_vary[param])
-    rr_result = rr_model.fit(msd, s=taus, weights=1/sigma)
+    result = model.fit(msd, s=taus, weights=1/sigma)
+    tex_fits, meta_fits = format_fit(result, tex_name, model_name='rr')
 
     print "Fixed params:", ', '.join([n for n in rr_vary if not rr_vary[n]])
-    print "Free params:", ', '.join(rr_result.var_names)
+    print "Free params:", ', '.join(result.var_names)
     fitinfo = {True: [], False: []}
-    for p in rr_result.params.values():
+    for p in result.params.values():
         fit_source[p] = 'rr'
         print '{:>8s}: {:.3g}'.format(p.name, p.value)
         fitinfo[p.vary].append(sf("${0}={1:.3T}$", mathname[p.name], p.value))
     if rr_vary['v0'] or rr_vary['DR']:
         print "Giving:"
         print "v0/D_R: {:.3g}".format(
-            rr_result.best_values['v0']/rr_result.best_values['DR'])
+            result.best_values['v0']/result.best_values['DR'])
     if args.save:
         if rr_vary['v0'] and rr_vary['DR']:
             psources = ''
-            meta_fits = {'fit_rr_DT': rr_result.best_values['DT'],
-                         'fit_rr_v0': rr_result.best_values['v0'],
-                         'fit_rr_DR': rr_result.best_values['DR']}
+            meta_fits = {'fit_rr_DT': result.best_values['DT'],
+                         'fit_rr_v0': result.best_values['v0'],
+                         'fit_rr_DR': result.best_values['DR']}
         elif rr_vary['v0']:
             psources = '_{DR}'.format(**fit_source)
             meta_fits = {'fit'+psources+'_rr_DT': D_T,
@@ -1489,10 +1494,10 @@ def rr_plot(msds, msdids, data, args, inputs={}):
     label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
     label += 'fixed: ' + ', '.join(fitinfo[False])
 
-    rr_best_fit = rr_result.eval(s=taus)
+    rr_best_fit = result.eval(s=taus)
     ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label)
 
-    guide = limiting_regimes(taus, **rr_result.best_values)
+    guide = limiting_regimes(taus, **result.best_values)
     ax.plot(taus, guide, '--k', lw=1.5)
 
     ylim = ax.set_ylim(min(rr_best_fit[0], msd[0]), rr_best_fit[-1])
@@ -1517,7 +1522,7 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-    return rr_result, ax
+    return result, ax
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
