@@ -1074,11 +1074,6 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
-def fit_corr(fit_source, args):
-    taus, meancorr, errcorr = correlator(tracksets, args)
-    return
-
-
 def format_fit(result, tex_name, model_name=None):
     fits = {'free': [], 'fixed': []}
     for p in result.params.values():
@@ -1259,19 +1254,18 @@ def rr_form_components(s, DT, v0, DR, TR, component=None):
 
 def limiting_regimes(s, DT, v0, DR, TR):
     vv = v0*v0  # v0 is squared everywhere
-    tau_T = DT/vv
-    tau_R = 1/DR
-    if tau_T > tau_R:
+    DT_time = DT/vv
+    DR_time = 1/DR
+    if DT_time > DR_time:
         return np.full_like(s, np.nan)
-    taus = (tau_T, tau_R)
+    timescales = (DT_time, DR_time)
 
-    early = 2*DT*s       # s < tau_T
-    middle = 2*vv*s**2       # tau_T < s < tau_R
-    late = 2*(vv/DR + DT)*s              # tau_R < s
-    lines = np.choose(np.searchsorted(taus, s), [early, middle, late])
+    early = 2*DT*s       # s < DT_time
+    middle = 2*vv*s**2       # DT_time < s < DR_time
+    late = 2*(vv/DR + DT)*s                # DR_time < s
+    lines = np.choose(np.searchsorted(timescales, s), [early, middle, late])
 
-    taus_f = np.clip(np.searchsorted(s, taus), 0, len(s)-1)
-    lines[taus_f] = np.nan
+    lines[np.clip(np.searchsorted(s, timescales), 0, len(s)-1)] = np.nan
     return lines
 
 
@@ -1309,7 +1303,7 @@ def nn_plot(tracksets, args):
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plot_fit(result, tex_fits, args)
-    ax.set_xlim(0, 3*args.zoom/result.values['DR'] + result.values['TR'])
+    ax.set_xlim(0, 3*args.zoom/result.best_values['DR'] + result.best_values['TR'])
     ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
     if labels:
@@ -1379,7 +1373,7 @@ def rn_plot(tracksets, args, inputs={}):
     ax.set_ylim(ylim_buffer*result.best_fit.min(),
                 ylim_buffer*result.best_fit.max())
     xlim = ax.set_xlim(-tmax, tmax)
-    DR_time = 1/result.values['DR']
+    DR_time = 1/result.best_values['DR']
     if xlim[0] < DR_time < xlim[1]:
         ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
         ax.text(DR_time, 1e-2, ' $1/{DR}$'.format(**tex_name))
@@ -1452,30 +1446,19 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         params['DT'].set(inputs.get('DT', meta.get('fit_rr_DT', 0.01)), min=0)
     else:
         params['DT'].set(args.fitdt or params['v0'].value**2, vary=False)
-    mathname = {'TR': r'\tau_R', 'DR': 'D_R', 'v0': 'v_0', 'DT': 'D_T'}
+    tex_name = {'TR': r'\tau_R', 'DR': 'D_R', 'v0': 'v_0', 'DT': 'D_T'}
 
-    result = model.fit(msd, s=taus, weights=1/sigma)
+    result = model.fit(msd, params, 1/sigma, s=taus)
     tex_fits, meta_fits = format_fit(result, tex_name, model_name='rr')
 
-    print "Fixed params:", ', '.join([n for n in rr_vary if not rr_vary[n]])
-    print "Free params:", ', '.join(result.var_names)
-    fitinfo = {True: [], False: []}
-    for p in result.params.values():
-        fit_source[p] = 'rr'
-        print '{:>8s}: {:.3g}'.format(p.name, p.value)
-        fitinfo[p.vary].append(sf("${0}={1:.3T}$", mathname[p.name], p.value))
-    if rr_vary['v0'] or rr_vary['DR']:
-        print "Giving:"
-        print "v0/D_R: {:.3g}".format(
-            result.best_values['v0']/result.best_values['DR'])
     if args.save:
-        if rr_vary['v0'] and rr_vary['DR']:
+        if result.params['v0'].vary and result.params['DR'].vary:
             psources = ''
             meta_fits = {'fit_rr_DT': result.best_values['DT'],
                          'fit_rr_v0': result.best_values['v0'],
                          'fit_rr_DR': result.best_values['DR']}
-        elif rr_vary['v0']:
-            psources = '_{DR}'.format(**fit_source)
+        elif result.params['v0'].vary:
+            psources = '_{DR}'.format(**fit_values)
             meta_fits = {'fit'+psources+'_rr_DT': D_T,
                          'fit'+psources+'_rr_v0': v0}
         else:
@@ -1483,38 +1466,26 @@ def rr_plot(msds, msdids, data, args, inputs={}):
             meta_fits = {'fit'+psources+'_rr_DT': D_T}
         helpy.save_meta(saveprefix, meta_fits)
 
-    fitstr = ["$", '2 '[msdvec],
-              (r"(v_0/D_R)^2", r"\ell_p^2")[args.colored and msdvec],
-              r"e^{D_R\tau_R}"*args.colored,
-              r"\left(D_Rt-1+e^{-D_Rt}", (' ', r'\pm')[msdvec],
-              ('', r'\frac{1}{12}' + r'e^{4D_R\tau_R}'*args.colored +
-               r'(e^{-4D_Rt}-4e^{-D_Rt}+3)')[msdvec],
-              r"\right) + ", '42'[msdvec], "D_Tt$\n"]
-    label = ''.join(fitstr) if labels else ''
-    label += 'free: ' + ', '.join(fitinfo[True]) + '\n'
-    label += 'fixed: ' + ', '.join(fitinfo[False])
-
-    rr_best_fit = result.eval(s=taus)
-    ax.plot(taus, rr_best_fit, c=pcol, lw=2, label=label)
+    ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
     guide = limiting_regimes(taus, **result.best_values)
     ax.plot(taus, guide, '--k', lw=1.5)
 
-    ylim = ax.set_ylim(min(rr_best_fit[0], msd[0]), rr_best_fit[-1])
+    ax.set_ylim(min(result.best_fit[0], msd[0]), result.best_fit[-1])
     xlim = ax.set_xlim(taus[0], tmax)
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
 
-    tau_T = D_T/v0**2
-    tau_R = 1/D_R
-    if xlim[0] < tau_T < xlim[1]:
-        ax.axvline(tau_T, 0, 1/3, ls='--', c='k')
-        ax.text(tau_T, 2e-2, ' $D_T/v_0^2$')
-    if xlim[0] < tau_R < xlim[1]:
-        ax.axvline(tau_R, 0, 1/2, ls='--', c='k')
-        ax.text(tau_R, 2e-1, ' $1/D_R$')
+    DT_time = result.best_values['DT']/result.best_values['v0']**2
+    DR_time = 1/result.best_values['DR']
+    if xlim[0] < DT_time < xlim[1]:
+        ax.axvline(DT_time, 0, 1/3, ls='--', c='k')
+        ax.text(DT_time, 2e-2, ' $D_T/v_0^2$')
+    if xlim[0] < DR_time < xlim[1]:
+        ax.axvline(DR_time, 0, 1/2, ls='--', c='k')
+        ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
         save = saveprefix + psources + '_rr-corr.pdf'
@@ -1692,11 +1663,11 @@ if __name__ == '__main__':
 
     if args.rn:
         print "====== <rn> ======"
-        rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.values)
+        rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.best_values)
 
     if args.rr:
         print "====== <rr> ======"
-        rr_result, rr_ax = rr_plot(msds, msdids, data, args, inputs=rn_result.values)
+        rr_result, rr_ax = rr_plot(msds, msdids, data, args, inputs=rn_result.best_values)
 
     if need_plt:
         if args.show:
