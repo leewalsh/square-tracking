@@ -10,7 +10,7 @@ from collections import defaultdict
 from math import sqrt, log, exp
 
 import numpy as np
-import lmfit as fit
+from lmfit import Model
 
 import helpy
 import correlation as corr
@@ -1285,7 +1285,7 @@ if __name__ == '__main__' and (args.nn or args.colored):
         return (1 if args.dot else 0.5)*np.exp(-DR*s)
 
     nn_vary = {'TR': args.colored, 'DR': args.nn}
-    nn_model = fit.Model(nn_form)
+    nn_model = Model(nn_form)
     for param in ('TR', 'DR'):
         nn_model.set_param_hint(param, min=0, vary=nn_vary[param])
 
@@ -1394,7 +1394,7 @@ if __name__ == '__main__' and args.rn:
     fitstr = (r'$\frac{{v_0}}{{{}D_R}}'.format('2'[args.dot:]) +
               (r'e^{D_R\tau_R}' if args.colored else '') +
               r'(1 - e^{-D_R|t|})\operatorname{sign}(t)$')
-    rn_model = fit.Model(rn_form)
+    rn_model = Model(rn_form)
     for param in ('TR', 'DR', 'lp'):
         rn_model.set_param_hint(param, min=0, vary=rn_vary[param])
     rn_result = rn_model.fit(meancorr, s=taus, weights=1/sigma)
@@ -1554,7 +1554,7 @@ if __name__ == '__main__' and args.rr:
     mathname = {'TR': r'\tau_R', 'DR': 'D_R',
                 'v0': 'v_0', 'DT': 'D_T'}
 
-    rr_model = fit.Model(rr_form)
+    rr_model = Model(rr_form)
     for param in ('TR', 'DR', 'v0', 'DT'):
         rr_model.set_param_hint(param, min=0, vary=rr_vary[param])
     rr_result = rr_model.fit(msd, s=taus, weights=1/sigma)
