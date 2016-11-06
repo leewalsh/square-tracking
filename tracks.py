@@ -1360,18 +1360,9 @@ def rn_plot(tracksets, args, inputs={}):
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
 
-    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
-    sgn = np.sign(v0)
-    if args.showtracks:
-        ax.plot(taus, sgn*rn_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(taus, sgn*meancorr, errcorr, None, c=vcol, lw=3,
-                label="Mean Position-Orientation Correlation"*labels,
-                capthick=0, elinewidth=0.5, errorevery=3)
-    ax.plot(taus, sgn*result.best_fit, c=pcol, lw=2, label=tex_fits)
-
-    ylim_buffer = 1.5
-    ax.set_ylim(ylim_buffer*result.best_fit.min(),
-                ylim_buffer*result.best_fit.max())
+    fig, ax = plot_fit(result, tex_fits, args)
+    ylim_pad = 1.5
+    ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
     xlim = ax.set_xlim(-tmax, tmax)
     DR_time = 1/result.best_values['DR']
     if xlim[0] < DR_time < xlim[1]:
@@ -1391,6 +1382,7 @@ def rn_plot(tracksets, args, inputs={}):
         fig.savefig(save)
 
     return result, ax
+
 
 def rr_plot(msds, msdids, data, args, inputs={}):
     fig, ax, taus, msd, errcorr = plot_msd(
