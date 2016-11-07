@@ -1225,18 +1225,18 @@ def quartic(a):
     return quadratic * quadratic
 
 
-def rr_form_total(s, DT, v0, DR, TR):
+def rr_form_total(s, DT, lp, DR, TR):
     r"""$2(v_0/D_R)^2 e^{D_R\tau_R} \left(D_Rt - 1 + e^{-D_Rt}\right) + 4 D_Tt$
     """
     color = exp(DR*TR)
-    persistence = color*(v0/DR)**2
+    persistence = color*lp**2
     decay = np.exp(-DR*s)
     diffusion = 2*DT*s
     propulsion = decay - 1 + DR*s
     return 2*(persistence*propulsion + diffusion)
 
 
-def rr_form_components(s, DT, v0, DR, TR, component=None):
+def rr_form_components(s, DT, lp, DR, TR, component=None):
     r"""$\ell_p^2 e^{D_R \tau_R}
     \left(
         D_R t - 1 + e^{-D_Rt}
@@ -1244,7 +1244,7 @@ def rr_form_components(s, DT, v0, DR, TR, component=None):
     \right) + 2 D_Tt$
     """
     color = exp(DR*TR)
-    persistence = color*(v0/DR)**2
+    persistence = color*lp**2
     decay = np.exp(-DR*s)
     diffusion = 2*DT*s
     propulsion = decay - 1 + DR*s
@@ -1252,17 +1252,17 @@ def rr_form_components(s, DT, v0, DR, TR, component=None):
     return persistence*(propulsion + anisotropy) + diffusion
 
 
-def limiting_regimes(s, DT, v0, DR, TR):
-    vv = v0*v0  # v0 is squared everywhere
-    DT_time = DT/vv
+def limiting_regimes(s, DT, lp, DR, TR):
+    ll = lp*lp  # lp is squared everywhere
     DR_time = 1/DR
+    DT_time = DT/ll*DR_time**2
     if DT_time > DR_time:
         return np.full_like(s, np.nan)
     timescales = (DT_time, DR_time)
 
-    early = 2*DT*s       # s < DT_time
-    middle = 2*vv*s**2       # DT_time < s < DR_time
-    late = 2*(vv/DR + DT)*s                # DR_time < s
+    early = 2*DT*s          # s < DT_time
+    middle = 2*ll*(DR*s)**2     # DT_time < s < DR_time
+    late = 2*(ll*DR + DT)*s                   # DR_time < s
     lines = np.choose(np.searchsorted(timescales, s), [early, middle, late])
 
     lines[np.clip(np.searchsorted(s, timescales), 0, len(s)-1)] = np.nan
@@ -1432,12 +1432,12 @@ def rr_plot(msds, msdids, data, args, inputs={}):
                      vary=args.fittr or (args.colored and not (args.nn or args.rn)))
     params['DR'].set(inputs.get('DR', meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))),
                      min=0, vary=not (args.nn or args.rn))
-    params['v0'].set(inputs.get('v0', meta.get('fit_rn_v0', 0.1)),
+    params['lp'].set(inputs.get('lp', meta.get('fit_rn_lp', 1.0)),
                      min=0, vary=args.fitv0 or not args.rn)
     if args.fitdt is True:
         params['DT'].set(inputs.get('DT', meta.get('fit_rr_DT', 0.01)), min=0)
     else:
-        params['DT'].set(args.fitdt or params['v0'].value**2, vary=False)
+        params['DT'].set(args.fitdt or (params['lp'].value*params['DR'].value)**2, vary=False)
     tex_name = {'TR': r'\tau_R', 'DR': 'D_R', 'v0': 'v_0', 'DT': 'D_T'}
 
     result = model.fit(msd, params, 1/sigma, s=taus)
@@ -1470,7 +1470,7 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
 
-    DT_time = result.best_values['DT']/result.best_values['v0']**2
+    DT_time = result.best_values['DT']/(result.best_values['lp']*result.best_values['DR'])**2
     DR_time = 1/result.best_values['DR']
     if xlim[0] < DT_time < xlim[1]:
         ax.axvline(DT_time, 0, 1/3, ls='--', c='k')
