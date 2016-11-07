@@ -1074,7 +1074,9 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
-def format_fit(result, tex_name, model_name=None):
+def format_fit(result, model_name=None):
+    tex_name = {'DT': 'D_T', 'DR': 'D_R', 'v0': 'v_0',
+                'lp': '\\ell_p', 'TR': '\\tau_R'}
     fits = {'free': [], 'fixed': []}
     for p in result.params.values():
         fits['free' if p.vary else 'fixed'].append(p)
@@ -1293,11 +1295,10 @@ def nn_plot(tracksets, args):
     params['DR'].set(meta.get('fit_nn_DR', 0.1), min=0)
     if args.colored:
         params['TR'].set(meta.get('fit_nn_TR', 0.1/params['DR'].value), min=0)
-    tex_name = {'TR': r'\tau_R', 'DR': r'D_R'}
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    tex_fits, meta_fits = format_fit(result, tex_name, model_name='nn')
+    tex_fits, meta_fits = format_fit(result, model_name='nn')
 
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
@@ -1336,7 +1337,6 @@ def rn_plot(tracksets, args, inputs={}):
     params['lp'].set(meta.get('fit_rn_v0', 0.1)/params['DR'].value, min=0)
     if args.colored:
         params['TR'].set(inputs.get('TR', 0), min=0, vary=args.fittr)
-    tex_name = {'TR': r'\tau_R', 'DR': r'D_R', 'lp': r'\ell_p'}
 
     tmax = 3*args.zoom/params['DR'].value
     if verbose > 1:
@@ -1353,10 +1353,10 @@ def rn_plot(tracksets, args, inputs={}):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    tex_fits, meta_fits = format_fit(result, tex_name, model_name='rn')
+    tex_fits, meta_fits = format_fit(result, model_name='rn')
 
-    v0 = result.best_values['lp']*result.best_values['DR']
-    print ' ==>  v0: {:.3f}'.format(v0)
+    print ' ==>  v0: {:.3f}'.format(
+        result.best_values['lp']*result.best_values['DR'])
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1367,7 +1367,7 @@ def rn_plot(tracksets, args, inputs={}):
     DR_time = 1/result.best_values['DR']
     if xlim[0] < DR_time < xlim[1]:
         ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
-        ax.text(DR_time, 1e-2, ' $1/{DR}$'.format(**tex_name))
+        ax.text(DR_time, 1e-2, ' $1/D_R$')
 
     if labels:
         ax.set_title("Position - Orientation Correlation")
@@ -1438,24 +1438,22 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         params['DT'].set(inputs.get('DT', meta.get('fit_rr_DT', 0.01)), min=0)
     else:
         params['DT'].set(args.fitdt or (params['lp'].value*params['DR'].value)**2, vary=False)
-    tex_name = {'TR': r'\tau_R', 'DR': 'D_R', 'v0': 'v_0', 'DT': 'D_T'}
 
     result = model.fit(msd, params, 1/sigma, s=taus)
-    tex_fits, meta_fits = format_fit(result, tex_name, model_name='rr')
+    tex_fits, meta_fits = format_fit(result, model_name='rr')
 
     if args.save:
         if result.params['v0'].vary and result.params['DR'].vary:
             psources = ''
-            meta_fits = {'fit_rr_DT': result.best_values['DT'],
-                         'fit_rr_v0': result.best_values['v0'],
-                         'fit_rr_DR': result.best_values['DR']}
+            meta_fits = {'fit_rr_' + p: result.best_values[p]
+                         for p in ('DT', 'v0', 'DR')}
         elif result.params['v0'].vary:
-            psources = '_{DR}'.format(**fit_values)
-            meta_fits = {'fit'+psources+'_rr_DT': D_T,
-                         'fit'+psources+'_rr_v0': v0}
+            psources = '_{DR}'.format(**fit_source)
+            meta_fits = {'fit'+psources+'_rr_'+p: result.best_values[p]
+                         for p in ('DT', 'v0')}
         else:
             psources = '_{DR}_{v0}'.format(**fit_source)
-            meta_fits = {'fit'+psources+'_rr_DT': D_T}
+            meta_fits = {'fit'+psources+'_rr_DT': result.best_values['DT']}
         helpy.save_meta(saveprefix, meta_fits)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
