@@ -1074,6 +1074,15 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
+def get_param_value(name, model_name='', meta={}, fits={}):
+    if hasattr(name, '__iter__'):
+        return {n: get_param_value(n) for n in name}
+    for source in sorted(fits, reverse=True):
+        return fits[source][1][name].value
+    guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
+    return meta.get('fit_{}_{}'.format(model_name, name), guesses[name])
+
+
 def format_fit(result, model_name=None):
     tex_name = {'DT': 'D_T', 'DR': 'D_R', 'v0': 'v_0',
                 'lp': '\\ell_p', 'TR': '\\tau_R'}
@@ -1271,9 +1280,9 @@ def limiting_regimes(s, DT, lp, DR, TR):
     return lines
 
 
-def nn_plot(tracksets, args):
+def nn_plot(tracksets, fits, args):
+    model_name = 'nn'
     taus, meancorr, errcorr = nn_corr(tracksets, args)
-
     tmax = 50*args.zoom
     if verbose > 1:
         nnerrfig, nnerrax = plt.subplots()
@@ -1292,13 +1301,15 @@ def nn_plot(tracksets, args):
     model = Model(form)
 
     params = model.make_params()
-    params['DR'].set(meta.get('fit_nn_DR', 0.1), min=0)
+    vals = get_param_value(['DR', 'TR'], model_name, meta)
+    params['DR'].set(vals['DR'], min=0)
     if args.colored:
-        params['TR'].set(meta.get('fit_nn_TR', 0.1/params['DR'].value), min=0)
+        params['TR'].set(vals['TR'], min=0)
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    tex_fits, meta_fits = format_fit(result, model_name='nn')
+    fits[model_name] = frozenset(params.values()), result.params
+    tex_fits, meta_fits = format_fit(result, model_name=model_name)
 
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
@@ -1320,10 +1331,11 @@ def nn_plot(tracksets, args):
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-    return result, ax
+    return result, fits, ax
 
 
-def rn_plot(tracksets, args, inputs={}):
+def rn_plot(tracksets, fits, args):
+    model_name = 'rn'
     taus, meancorr, errcorr = rn_corr(tracksets, args)
 
     form = [[rn_form_components_white, rn_form_components_color],
@@ -1331,14 +1343,13 @@ def rn_plot(tracksets, args, inputs={}):
     model = Model(form)
 
     params = model.make_params()
-    params['DR'].set(
-        inputs.get('DR', meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))),
-        min=0, vary=args.fitdr or not args.nn)
-    params['lp'].set(meta.get('fit_rn_v0', 0.1)/params['DR'].value, min=0)
+    vals = get_param_value(['DR', 'TR', 'lp'], model_name, meta, fits)
+    params['DR'].set(vals['DR'], min=0, vary=args.fitdr or not args.nn)
+    params['lp'].set(vals['lp'], min=0)
     if args.colored:
-        params['TR'].set(inputs.get('TR', 0), min=0, vary=args.fittr)
+        params['TR'].set(vals['TR'], min=0, vary=args.fittr)
 
-    tmax = 3*args.zoom/params['DR'].value
+    tmax = 3*args.zoom/params['DR']
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
@@ -1353,6 +1364,7 @@ def rn_plot(tracksets, args, inputs={}):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
+    fits[model_name] = frozenset(params.values()), result.params
     tex_fits, meta_fits = format_fit(result, model_name='rn')
 
     print ' ==>  v0: {:.3f}'.format(
@@ -1381,10 +1393,11 @@ def rn_plot(tracksets, args, inputs={}):
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-    return result, ax
+    return result, fits, ax
 
 
-def rr_plot(msds, msdids, data, args, inputs={}):
+def rr_plot(msds, msdids, data, fits, args):
+    model_name = 'rr'
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
         show=False, tnormalize=0, errorbars=3, prefix=saveprefix, meancol=vcol,
@@ -1428,32 +1441,22 @@ def rr_plot(msds, msdids, data, args, inputs={}):
     form = [rr_form_total, rr_form_components][msdvec]
     model = Model(form)
     params = model.make_params()
-    params['TR'].set(inputs.get('TR', meta.get('fit_nn_TR', 0)), min=0,
-                     vary=args.fittr or (args.colored and not (args.nn or args.rn)))
-    params['DR'].set(inputs.get('DR', meta.get('fit_nn_DR', meta.get('fit_rn_DR', 1/16))),
-                     min=0, vary=not (args.nn or args.rn))
-    params['lp'].set(inputs.get('lp', meta.get('fit_rn_lp', 1.0)),
-                     min=0, vary=args.fitv0 or not args.rn)
+    vals = get_param_value(['DR', 'TR', 'lp'], model_name, meta, fits)
+    frr = not (args.nn or args.rn)
+    params['TR'].set(vals['TR'], min=0, vary=args.colored and frr or args.fittr)
+    params['DR'].set(vals['DR'], min=0, vary=frr)
+    params['lp'].set(vals['lp'], min=0, vary=args.fitv0 or not args.rn)
     if args.fitdt is True:
-        params['DT'].set(inputs.get('DT', meta.get('fit_rr_DT', 0.01)), min=0)
+        params['DT'].set(vals['DT'], min=0)
     else:
-        params['DT'].set(args.fitdt or (params['lp'].value*params['DR'].value)**2, vary=False)
+        params['DT'].set(args.fitdt or (params['lp']*params['DR'])**2, vary=0)
 
     result = model.fit(msd, params, 1/sigma, s=taus)
-    tex_fits, meta_fits = format_fit(result, model_name='rr')
+
+    fits[model_name] = frozenset(params.values()), result.params
+    tex_fits, meta_fits = format_fit(result, model_name=model_name)
 
     if args.save:
-        if result.params['v0'].vary and result.params['DR'].vary:
-            psources = ''
-            meta_fits = {'fit_rr_' + p: result.best_values[p]
-                         for p in ('DT', 'v0', 'DR')}
-        elif result.params['v0'].vary:
-            psources = '_{DR}'.format(**fit_source)
-            meta_fits = {'fit'+psources+'_rr_'+p: result.best_values[p]
-                         for p in ('DT', 'v0')}
-        else:
-            psources = '_{DR}_{v0}'.format(**fit_source)
-            meta_fits = {'fit'+psources+'_rr_DT': result.best_values['DT']}
         helpy.save_meta(saveprefix, meta_fits)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
@@ -1483,7 +1486,7 @@ def rr_plot(msds, msdids, data, args, inputs={}):
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
 
-    return result, ax
+    return result, fits, ax
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1573,8 +1576,8 @@ if __name__ == '__main__':
         # args.dx is in units of pixels
         args.dx /= args.side
 
-    if args.rr or args.nn or args.rn:
-        fit_source = {}
+    if args.nn or args.rn or args.rr:
+        fits = {}
         helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
         labels = not args.clean
 
@@ -1649,15 +1652,15 @@ if __name__ == '__main__':
 
     if args.nn or args.colored:
         print "====== <nn> ======"
-        nn_result, nn_ax = nn_plot(tracksets, args)
+        nn_result, fits, nn_ax = nn_plot(tracksets, fits, args)
 
     if args.rn:
         print "====== <rn> ======"
-        rn_result, rn_ax = rn_plot(tracksets, args, inputs=nn_result.best_values)
+        rn_result, fits, rn_ax = rn_plot(tracksets, fits, args)
 
     if args.rr:
         print "====== <rr> ======"
-        rr_result, rr_ax = rr_plot(msds, msdids, data, args, inputs=rn_result.best_values)
+        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
 
     if need_plt:
         if args.show:
