@@ -1315,7 +1315,7 @@ def nn_plot(tracksets, fits, args):
         helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plot_fit(result, tex_fits, args)
-    ax.set_xlim(0, 3*args.zoom/result.best_values['DR'] + result.best_values['TR'])
+    ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params['TR'])
     ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
     if labels:
@@ -1367,8 +1367,7 @@ def rn_plot(tracksets, fits, args):
     fits[model_name] = frozenset(params.values()), result.params
     tex_fits, meta_fits = format_fit(result, model_name='rn')
 
-    print ' ==>  v0: {:.3f}'.format(
-        result.best_values['lp']*result.best_values['DR'])
+    print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
     if args.save:
         helpy.save_meta(saveprefix, meta_fits)
 
@@ -1376,7 +1375,7 @@ def rn_plot(tracksets, fits, args):
     ylim_pad = 1.5
     ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
     xlim = ax.set_xlim(-tmax, tmax)
-    DR_time = 1/result.best_values['DR']
+    DR_time = 1/result.params['DR']
     if xlim[0] < DR_time < xlim[1]:
         ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
         ax.text(DR_time, 1e-2, ' $1/D_R$')
@@ -1471,8 +1470,8 @@ def rr_plot(msds, msdids, data, fits, args):
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
 
-    DT_time = result.best_values['DT']/(result.best_values['lp']*result.best_values['DR'])**2
-    DR_time = 1/result.best_values['DR']
+    DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
+    DR_time = 1/result.params['DR']
     if xlim[0] < DT_time < xlim[1]:
         ax.axvline(DT_time, 0, 1/3, ls='--', c='k')
         ax.text(DT_time, 2e-2, ' $D_T/v_0^2$')
