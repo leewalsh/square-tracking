@@ -1,0 +1,37 @@
+import helpy
+metas = {(start, stop): helpy.load_meta('100mV_50Hz_MRG_ASYM_SLICE{:d}:{:d}'.format(start, stop)) for start in range(0, 130, 10) for stop in range(0, -130, -10)}
+metas[(0,0)]
+metas = {(start, stop): helpy.load_meta('100mV_50Hz_MRG_ASYM_SLICE{:d}:{:d}'.format(start, stop)) for start in range(10, 130, 10) for stop in range(-10, -130, -10)}
+metas[(10,-10)]
+metas = helpy.transpose_dict(metas)
+metas['rn_asym']
+starts, stops, asyms = zip(*[k + (metas['rn_asym'][k],) for k in metas['rn_asym']])
+plt.scatter(starts, stops, s=100, c=asyms, cmap='viridis')
+plt.colorbar()
+plt.scatter(starts, -np.array(stops), s=100, c=asyms, cmap='viridis')
+plt.colorbar()
+plt.scatter(starts, -np.array(stops), s=1000, c=asyms, cmap='viridis')
+plt.aspect?
+ax = plt.gca()
+ax.set_aspect(1)
+from scipy.interpolate import griddata
+griddata?
+plt.scatter(starts, -np.array(stops), s=1000, c=asyms, cmap='coolwarm')
+plt.colorbar()
+plt.scatter?
+asyms.min()
+np.min(asyms)
+np.max(asyms)
+plt.scatter(starts, -np.array(stops), s=1000, c=asyms, cmap='coolwarm', vmin=-.1, vmax=.1)
+plt.scatter(starts, -np.array(stops), s=1000, c=asyms, cmap='coolwarm', vmin=-.01, vmax=.01)
+plt.scatter(starts, -np.array(stops), s=1000, c=asyms, cmap='coolwarm', vmin=-.03, vmax=.03)
+plt.colorbar()
+asyms.argmin()
+np.argmin(asyms)
+asyms
+np.argmin(np.abs(asyms))
+starts[44]
+stops[44]
+plt.xlabel('first frame')
+plt.ylabel('last frame')
+%history
