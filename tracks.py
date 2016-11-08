@@ -1076,9 +1076,10 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
 
 def get_param_value(name, model_name='', meta={}, fits={}):
     if hasattr(name, '__iter__'):
-        return {n: get_param_value(n) for n in name}
+        return {n: get_param_value(n, model_name, meta, fits) for n in name}
     for source in sorted(fits, reverse=True):
-        return fits[source][1][name].value
+        if name in fits[source][1]:
+            return fits[source][1][name].value
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
     return meta.get('fit_{}_{}'.format(model_name, name), guesses[name])
 
