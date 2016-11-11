@@ -1090,26 +1090,30 @@ def get_param_value(name, model_name='', meta={}, fits={}):
 def format_fit(result, model_name=None):
     tex_name = {'DT': 'D_T', 'DR': 'D_R', 'v0': 'v_0',
                 'lp': '\\ell_p', 'TR': '\\tau_R'}
-    fits = {'free': [], 'fixed': []}
+
+    def print_fmt(params, sep='\n'):
+        fmt = '{:>8s}: {:.4g}'.format
+        return sep.join(fmt(p.name, p.value) for p in params)
+
+    def tex_fmt(params, sep=', '):
+        fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
+        return sep.join(fmt(tex_name[p.name], p.value) for p in params)
+
+    fixed, free = [], []
     for p in result.params.values():
-        fits['free' if p.vary else 'fixed'].append(p)
+        (free if p.vary else fixed).append(p)
 
-    print_fmt = '{:>8s}: {:.4g}'.format
-    for vary, pset in fits.iteritems():
-        print vary, "params:"
-        for p in pset:
-            print print_fmt(p.name, p.value)
+    print "fixed params:"
+    print print_fmt(fixed)
+    print "free params:"
+    print print_fmt(free)
 
-    tex_fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
-    tex_eqn = [result.model.func.func_doc.replace('\n', '')]
-    tex_fit = [vary + ': ' + ', '.join([tex_fmt(tex_name[p.name], p.value)
-                                        for p in fits[vary]])
-               for vary in ('free', 'fixed')]
-    for_tex = '\n'.join(tex_eqn + tex_fit)
+    tex_eqn = result.model.func.func_doc.replace('\n', '')
+    for_tex = '\n'.join([tex_eqn, 'fixed: ' + tex_fmt(fixed),
+                         'free: ' + tex_fmt(free)])
 
     model_name = model_name or result.model.name
-    for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value
-                for p in fits['free']}
+    for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value for p in free}
 
     return for_tex, for_meta
 
