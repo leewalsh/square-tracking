@@ -1391,7 +1391,7 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save = saveprefix + psources + '_rn-corr.pdf'
+        save = saveprefix + '_rn-corr.pdf'
         print 'saving <rn> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
@@ -1484,7 +1484,7 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save = saveprefix + psources + '_rr-corr.pdf'
+        save = saveprefix + '_rr-corr.pdf'
         print 'saving <rr> correlation plot to',
         print save if verbose else os.path.basename(save)
         fig.savefig(save)
