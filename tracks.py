@@ -1076,12 +1076,15 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
 
 def get_param_value(name, model_name='', meta={}, fits={}):
     if hasattr(name, '__iter__'):
-        return {n: get_param_value(n, model_name, meta, fits) for n in name}
+        # if multiple names are given, return two dicts of {name: value}
+        return [dict(zip(name, v))
+                for v in zip(*(get_param_value(n, model_name, meta, fits)
+                               for n in name))]
     for source in sorted(fits, reverse=True):
         if name in fits[source][1]:
-            return fits[source][1][name].value
+            return fits[source][1][name].value, source
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
-    return meta.get('fit_{}_{}'.format(model_name, name), guesses[name])
+    return meta.get('fit_{}_{}'.format(model_name, name), guesses[name]), None
 
 
 def format_fit(result, model_name=None):
@@ -1302,7 +1305,7 @@ def nn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals = get_param_value(['DR', 'TR'], model_name, meta)
+    vals, sources = get_param_value(params.keys(), model_name, meta)
     params['DR'].set(vals['DR'], min=0)
     if args.colored:
         params['TR'].set(vals['TR'], min=0)
@@ -1344,7 +1347,7 @@ def rn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals = get_param_value(['DR', 'TR', 'lp'], model_name, meta, fits)
+    vals, sources = get_param_value(params.keys(), model_name, meta, fits)
     params['DR'].set(vals['DR'], min=0, vary=args.fitdr or not args.nn)
     params['lp'].set(vals['lp'], min=0)
     if args.colored:
@@ -1441,7 +1444,7 @@ def rr_plot(msds, msdids, data, fits, args):
     form = [rr_form_total, rr_form_components][msdvec]
     model = Model(form)
     params = model.make_params()
-    vals = get_param_value(['DR', 'TR', 'lp'], model_name, meta, fits)
+    vals, sources = get_param_value(params.keys(), model_name, meta, fits)
     frr = not (args.nn or args.rn)
     params['TR'].set(vals['TR'], min=0, vary=args.colored and frr or args.fittr)
     params['DR'].set(vals['DR'], min=0, vary=frr)
