@@ -1081,6 +1081,7 @@ def get_param_value(name, model_name='', meta={}, fits={}):
                 for v in zip(*(get_param_value(n, model_name, meta, fits)
                                for n in name))]
     for source in sorted(fits, reverse=True):
+        # relies on the fact that 'nn', 'rn', 'rr' are alphabetical
         if name in fits[source][1]:
             return fits[source][1][name].value, source
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
@@ -1116,6 +1117,14 @@ def format_fit(result, model_name=None):
     for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value for p in free}
 
     return for_tex, for_meta
+
+
+def save_corr_plot(fig, model_name):
+    save = '{}_{}-corr.pdf'.format(saveprefix, model_name)
+    print 'saving <{}> correlation plot to {}'.format(model_name),
+    print save if verbose else os.path.basename(save)
+    fig.savefig(save)
+    return save
 
 
 def plot_fit(result, tex_fits, args, ax=None):
@@ -1317,10 +1326,7 @@ def nn_plot(tracksets, fits, args):
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
     fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name=model_name)
-
-    if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
+    tex_fits, meta_fits = format_fit(result, model_name)
 
     fig, ax = plot_fit(result, tex_fits, args)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params['TR'])
@@ -1333,11 +1339,10 @@ def nn_plot(tracksets, fits, args):
     ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
               framealpha=1)
 
-    if args.save and args.nn:
-        save = saveprefix+'_nn-corr.pdf'
-        print 'saving <nn> correlation plot to',
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+    if args.save:
+        helpy.save_meta(saveprefix, meta_fits)
+        if args.nn:
+            save_corr_plot(fig, model_name)
 
     return result, fits, ax
 
@@ -1373,11 +1378,9 @@ def rn_plot(tracksets, fits, args):
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
     fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name='rn')
+    tex_fits, meta_fits = format_fit(result, model_name)
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
-    if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
 
     fig, ax = plot_fit(result, tex_fits, args)
     ylim_pad = 1.5
@@ -1395,10 +1398,8 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save = saveprefix + '_rn-corr.pdf'
-        print 'saving <rn> correlation plot to',
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+        helpy.save_meta(saveprefix, meta_fits)
+        save_corr_plot(fig, model_name)
 
     return result, fits, ax
 
@@ -1461,10 +1462,7 @@ def rr_plot(msds, msdids, data, fits, args):
     result = model.fit(msd, params, 1/sigma, s=taus)
 
     fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name=model_name)
-
-    if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
+    tex_fits, meta_fits = format_fit(result, model_name)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
@@ -1488,10 +1486,8 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save = saveprefix + '_rr-corr.pdf'
-        print 'saving <rr> correlation plot to',
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save)
+        helpy.save_meta(saveprefix, meta_fits)
+        save_corr_plot(fig, model_name)
 
     return result, fits, ax
 
