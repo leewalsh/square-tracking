@@ -1074,22 +1074,26 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
-def get_param_value(name, model_name='', meta={}, fits={}):
+def get_param_value(name, model_name='', fits=None):
+    """get the appropriate value and source for a parameter."""
+    if fits is None:
+        fits = {}
     if hasattr(name, '__iter__'):
         # if multiple names are given, return two dicts of {name: value}
         return [dict(zip(name, v))
-                for v in zip(*(get_param_value(n, model_name, meta, fits)
+                for v in zip(*(get_param_value(n, model_name, fits)
                                for n in name))]
     for source in sorted(fits, reverse=True):
         # relies on the fact that 'nn', 'rn', 'rr' are alphabetical
         fit = fits[source]
         if name in fit['result']:
-            return fit['result'][name], fit
+            return fit['result'][name], fit['fit']
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
-    return meta.get('fit_{}_{}'.format(model_name, name), guesses[name]), None
+    return guesses[name], None
 
 
 def format_fit(result, model_name=None, sources=None):
+    """format the results for printing, labeling plots, and saving."""
     tex_name = {'DT': 'D_T', 'DR': 'D_R', 'v0': 'v_0',
                 'lp': '\\ell_p', 'TR': '\\tau_R'}
 
@@ -1104,7 +1108,7 @@ def format_fit(result, model_name=None, sources=None):
     fixed, free = [], []
     for p in result.params.values():
         (free if p.vary else fixed).append(p)
-    fit = {'fit': {'func': model_name}}
+    fit = {'fit': {'func': model_name or result.model.name}}
     fit['fit'].update({p.name: 'free' for p in free})
     fit['fit'].update({p.name: sources[p.name] for p in fixed})
     fit['result'] = {p.name: float(p) for p in free}
@@ -1118,10 +1122,7 @@ def format_fit(result, model_name=None, sources=None):
     for_tex = '\n'.join([tex_eqn, 'fixed: ' + tex_fmt(fixed),
                          'free: ' + tex_fmt(free)])
 
-    model_name = model_name or result.model.name
-    for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value for p in free}
-
-    return fit, for_tex, for_meta
+    return fit, for_tex
 
 
 def save_corr_plot(fig, model_name):
@@ -1323,14 +1324,14 @@ def nn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name, meta)
+    vals, sources = get_param_value(params.keys(), model_name)
     params['DR'].set(vals['DR'], min=0)
     if args.colored:
         params['TR'].set(vals['TR'], min=0)
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
+    fits[model_name], tex_fits = format_fit(result, model_name, sources)
 
     fig, ax = plot_fit(result, tex_fits, args)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
@@ -1344,7 +1345,6 @@ def nn_plot(tracksets, fits, args):
               framealpha=1)
 
     if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
         if args.nn:
             save_corr_plot(fig, model_name)
 
@@ -1360,7 +1360,7 @@ def rn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name, meta, fits)
+    vals, sources = get_param_value(params.keys(), model_name, fits)
     params['DR'].set(vals['DR'], min=0, vary=args.fitdr or not args.nn)
     params['lp'].set(vals['lp'], min=0)
     if args.colored:
@@ -1381,7 +1381,7 @@ def rn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
+    fits[model_name], tex_fits = format_fit(result, model_name, sources)
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1401,7 +1401,6 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
         save_corr_plot(fig, model_name)
 
     return result, fits, ax
@@ -1452,7 +1451,7 @@ def rr_plot(msds, msdids, data, fits, args):
     form = [rr_form_total, rr_form_components][msdvec]
     model = Model(form)
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name, meta, fits)
+    vals, sources = get_param_value(params.keys(), model_name, fits)
     frr = not (args.nn or args.rn)
     params['TR'].set(vals['TR'], min=0, vary=args.colored and frr or args.fittr)
     params['DR'].set(vals['DR'], min=0, vary=frr)
@@ -1464,7 +1463,7 @@ def rr_plot(msds, msdids, data, fits, args):
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
+    fits[model_name], tex_fits = format_fit(result, model_name, sources)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
@@ -1488,7 +1487,6 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        helpy.save_meta(saveprefix, meta_fits)
         save_corr_plot(fig, model_name)
 
     return result, fits, ax
@@ -1666,6 +1664,9 @@ if __name__ == '__main__':
     if args.rr:
         print "====== <rr> ======"
         rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
+
+    if args.save:
+        helpy.save_fits(saveprefix, fits)
 
     if need_plt:
         if args.show:
