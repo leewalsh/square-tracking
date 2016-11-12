@@ -1126,7 +1126,7 @@ def format_fit(result, model_name=None, sources=None):
 
 def save_corr_plot(fig, model_name):
     save = '{}_{}-corr.pdf'.format(saveprefix, model_name)
-    print 'saving <{}> correlation plot to {}'.format(model_name),
+    print 'saving <{}> correlation plot to'.format(model_name),
     print save if verbose else os.path.basename(save)
     fig.savefig(save)
     return save
