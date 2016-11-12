@@ -1082,13 +1082,14 @@ def get_param_value(name, model_name='', meta={}, fits={}):
                                for n in name))]
     for source in sorted(fits, reverse=True):
         # relies on the fact that 'nn', 'rn', 'rr' are alphabetical
-        if name in fits[source][1]:
-            return fits[source][1][name].value, source
+        fit = fits[source]
+        if name in fit['result']:
+            return fit['result'][name], fit
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
     return meta.get('fit_{}_{}'.format(model_name, name), guesses[name]), None
 
 
-def format_fit(result, model_name=None):
+def format_fit(result, model_name=None, sources=None):
     tex_name = {'DT': 'D_T', 'DR': 'D_R', 'v0': 'v_0',
                 'lp': '\\ell_p', 'TR': '\\tau_R'}
 
@@ -1103,6 +1104,10 @@ def format_fit(result, model_name=None):
     fixed, free = [], []
     for p in result.params.values():
         (free if p.vary else fixed).append(p)
+    fit = {'fit': {'func': model_name}}
+    fit['fit'].update({p.name: 'free' for p in free})
+    fit['fit'].update({p.name: sources[p.name] for p in fixed})
+    fit['result'] = {p.name: float(p) for p in free}
 
     print "fixed params:"
     print print_fmt(fixed)
@@ -1116,7 +1121,7 @@ def format_fit(result, model_name=None):
     model_name = model_name or result.model.name
     for_meta = {'fit_{}_{}'.format(model_name, p.name): p.value for p in free}
 
-    return for_tex, for_meta
+    return fit, for_tex, for_meta
 
 
 def save_corr_plot(fig, model_name):
@@ -1325,11 +1330,10 @@ def nn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name)
+    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
 
     fig, ax = plot_fit(result, tex_fits, args)
-    ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params['TR'])
+    ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
     ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
     if labels:
@@ -1377,8 +1381,7 @@ def rn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name)
+    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1461,8 +1464,7 @@ def rr_plot(msds, msdids, data, fits, args):
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
-    fits[model_name] = frozenset(params.values()), result.params
-    tex_fits, meta_fits = format_fit(result, model_name)
+    fits[model_name], tex_fits, meta_fits = format_fit(result, model_name, sources)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
