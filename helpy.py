@@ -484,6 +484,81 @@ def load_meta(prefix):
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
 
+def load_fits(prefix, new_fits=None):
+    """load existing fits file, and update with new fits if given."""
+    try:
+        from ruamel import yaml     # prefer ruamel.yaml (updated PyYAML fork)
+    except ImportError:
+        import yaml                 # fall-back to PyYAML if unavailable
+
+    try:
+        path = with_suffix(prefix, '_FITS.yaml')
+        with open(path, 'r') as f:
+            all_fits = yaml.load(f)
+    except IOError as ioe:
+        if new_fits is None:
+            raise ioe
+        else:
+            all_fits = {}
+
+    return merge_fits(all_fits, new_fits)
+
+
+def merge_fits(all_fits, new_fits):
+    """merge new fits dict into existing dict of many fits."""
+    if new_fits is None:
+        return all_fits
+
+    ks = ('fit', 'result')
+    for m in new_fits:
+        try:
+            i = all_fits[m]['fit'].index(new_fits[m]['fit'])
+            # update the result:
+            all_fits[m]['result'][i] = new_fits[m]['result']
+        except ValueError as ve:
+            # otherwise, append new fit and result:
+            if 'is not in list' not in ve[0]:
+                raise ve
+            for k in ks:
+                all_fits[m][k].append(new_fits[m][k])
+        except AttributeError as ae:
+            # fit may not be in a list
+            for k in ks:
+                if isinstance(all_fits[m][k], dict):
+                    all_fits[m][k] = [all_fits[m][k]]
+                else:
+                    raise ae
+        except KeyError as ke:
+            if m in ke.args:
+                all_fits[m] = new_fits[m]
+            elif ke.args[0] in 'fitresult':
+                all_fits[m].update(new_fits[m])
+            else:
+                raise ke
+        except TypeError as te:
+            if all_fits is None:
+                return merge_fits({}, new_fits)
+            else:
+                raise te
+
+    return all_fits
+
+
+def save_fits(prefix, new_fits):
+    """save dict of fits to yaml file.
+
+    If file exists, load and merge them first
+    """
+    try:
+        from ruamel import yaml     # prefer ruamel.yaml (updated PyYAML fork)
+    except ImportError:
+        import yaml                 # fall-back to PyYAML if unavailable
+    path = with_suffix(prefix, '_FITS.yaml')
+    fits = load_fits(path, new_fits)
+    with open(path, 'w') as f:
+        yaml.dump(fits, f)
+
+
 def merge_meta(metas, conflicts={}, incl=set(), excl=set(), excl_start=()):
     """Merges several meta dicts into single dict without loss of data.
 
