@@ -1026,9 +1026,10 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
     return ax
 
 
-def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
+def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
                     label_source=False, savename='', ax=None):
-    ps = params[np.in1d(params['source'], sources)]
+    if sources is not None:
+        params = params[np.in1d(params['source'], sources)]
     lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy[:2]]
     xys = {
         'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
@@ -1054,10 +1055,9 @@ def plot_parametric(params, sources, xy=None, scale='log', lims=(1e-3, 1),
     else:
         fig = ax.figure
     for x, y, c, m, l in xys:
-        ax.scatter(ps[y], ps[x], marker=m, c=c, label=l)
+        ax.scatter(params[y], params[x], marker=m, c=c, label=l)
         if label_source:
-            [plt.text(p[y], p[x], p['source']) for p in ps]
-        # ax = plot_parametric(params, x, y, sources, 'source', ax=ax,
+            [plt.text(p[y], p[x], p['source']) for p in params]
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
