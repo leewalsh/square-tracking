@@ -88,7 +88,8 @@ if __name__ == '__main__':
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
-    arg('--colored', action='store_true', help='fit with colored noise')
+    arg('--colored', default=False, const=True, nargs='?', type=float,
+        help='fit with colored noise')
     arg('--fixdt', default=True, const=False, nargs='?', type=float,
         dest='fitdt', help='D_T as fixed value in MSD fit')
     arg('--fittr', action='store_true', help='tau_R as free parameter in fits')
@@ -1061,7 +1062,8 @@ def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
     for x, y, c, m, l in xys:
         ax.scatter(params[y], params[x], marker=m, c=c, label=l)
         if label_source:
-            [plt.text(p[y], p[x], p['source']) for p in params]
+            for p in params:
+                plt.text(p[y], p[x], p['source'])
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
@@ -1326,6 +1328,7 @@ def nn_plot(tracksets, fits, args):
         nnerrax.legend(loc='lower left', fontsize='x-small')
         nnerrfig.savefig(saveprefix+'_nn-corr_sigma.pdf')
 
+    color_val, args.colored = args.colored, bool(args.colored)
     form = [[nn_form_components_white, nn_form_components_color],
             [nn_form_dot_white, nn_form_dot_color]][args.dot][args.colored]
     model = Model(form)
@@ -1333,8 +1336,12 @@ def nn_plot(tracksets, fits, args):
     params = model.make_params()
     vals, sources = get_param_value(params.keys())
     params['DR'].set(vals['DR'], min=0)
-    if args.colored:
-        params['TR'].set(vals['TR'], min=0)
+    if color_val:
+        if color_val is True:
+            params['TR'].set(vals['TR'], min=0)
+        else:
+            params['TR'].set(color_val, vary=False)
+            sources['TR'] = color_val
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
