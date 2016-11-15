@@ -392,6 +392,21 @@ def str_union(a, b=None):
         return '*'.join((l, r))
 
 
+def str_tree(strs, n=1):
+    t = {}
+    for s in strs:
+        t.setdefault(s[:n], []).append(s)
+    for p in sorted(t):
+        if len(t[p]) == 1:
+            t[p] = t[p].pop()
+        else:
+            tn = str_tree(t.pop(p), n+1)
+            if len(tn) == 1:
+                p, tn = tn.popitem()
+            t[p] = tn
+    return t
+
+
 def eval_string(s, hashable=False):
     s = s.strip()
     try:
