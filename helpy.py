@@ -591,6 +591,25 @@ def save_fits(prefix, new_fits):
         yaml.dump(fits, f)
 
 
+def gather_fits(prefixes):
+    all_fits = {prefix: load_fits(prefix) for prefix in prefixes}
+    all_fits = [{'fit': [[all_fits[p][m]['fit'][i]
+                          for p in prefixes]
+                         for i in xrange(len(all_fits[prefixes[0]][m]['fit']))],
+                 'result': [[all_fits[p][m]['result'][i]
+                             for p in prefixes]
+                         for i in xrange(len(all_fits[prefixes[0]][m]['fit']))]}
+                for m in all_fits[prefixes[0]]]
+    all_fits = [(f['fit'][c][0],
+                 {k: [v[i] for i in sorted(v)]
+                  for k, v in transpose_dict(enumerate(f['result'][c])).items()})
+                for f in all_fits
+                for c in xrange(len(f['fit']))]
+    fits_for_param = {p: [fits for fits in all_fits if p in fits[1]]
+                      for f in all_fits for p in f[1]}
+    return all_fits, fits_for_param
+
+
 def merge_meta(metas, conflicts={}, incl=set(), excl=set(), excl_start=()):
     """Merges several meta dicts into single dict without loss of data.
 
