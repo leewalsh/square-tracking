@@ -451,11 +451,17 @@ def drive_path(path, local=False, both=False):
 
 
 def with_suffix(prefix, suffix):
-    return prefix if prefix.endswith(suffix) else prefix+suffix
+    if isinstance(prefix, basestring):
+        return prefix if prefix.endswith(suffix) else prefix+suffix
+    else:
+        return [with_suffix(p, suffix) for p in prefix]
 
 
 def with_prefix(suffix, prefix):
-    return suffix if suffix.startswith(prefix) else prefix+suffix
+    if isinstance(suffix, basestring):
+        return suffix if suffix.startswith(prefix) else prefix+suffix
+    else:
+        return [with_prefix(s, prefix) for s in suffix]
 
 
 def fio(path, content='', mode='w'):
@@ -473,6 +479,13 @@ def timestamp():
     if len(timezone) > 3:
         timezone = ''.join(s[0] for s in timezone.split())
     return timestamp+' '+timezone
+
+
+def find_prefix(*patterns):
+    """find all the prefixes, optionally only those matching patterns."""
+    patterns = with_prefix(with_suffix(patterns or [''], '*_LOG.txt'), '*')
+    filenames = it.chain(*it.imap(glob.iglob, patterns))
+    return [f.partition('_LOG')[0] for f in filenames]
 
 
 def load_meta(prefix):
