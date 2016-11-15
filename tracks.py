@@ -1027,11 +1027,11 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
 
 
 def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
-                    label_source=False, savename='', ax=None):
+                    label_source=False, savename='', ax=None, p=None):
     if sources is not None:
         params = params[np.in1d(params['source'], sources)]
-    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[xy[:2]]
-    xys = {
+    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[p or xy[:2]]
+    xy_choices = {
         'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
         'DRs': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R(nn)$'),
                 ('fit_rn_DR', 'fit_vo_DR', 'g', 'o', '$D_R(rn)$'),
@@ -1048,7 +1048,11 @@ def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
                 ('fit_rn_rn_rr_DT', 'fit_vt_DT', 'r', 's', '$D_T(rn, rn, rr)$'),
                 ('fit_nn_rr_DT', 'fit_vt_DT', 'g', 's', '$D_T(nn, rr)$'),
                 ('fit_nn_rn_rr_DT', 'fit_vt_DT', 'c', 's', '$D_T(nn, rn, rr)$')]
-    }[xy]
+    }
+    if isinstance(xy, basestring):
+        xys = xy_choices.get(xy)
+    else:
+        xys = xy
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(4, 4))
