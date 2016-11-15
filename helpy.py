@@ -310,7 +310,7 @@ def nan_info(arr, verbose=False):
     return isnan, nnan, wnan
 
 
-def transpose_dict(outerdict={}, **innerdicts):
+def transpose_dict(outerdict=None, missing=None, **innerdicts):
     """transpose a dict of dicts.
 
     Input is a dict of dicts and/or several dicts as keyword args.  Keys present
@@ -321,11 +321,13 @@ def transpose_dict(outerdict={}, **innerdicts):
                      for outer_key, inner_dict in outer_dict.items()}
          for inner_key in set(inner_dict.keys for inner_dict in outer_dict)}
     """
-    outerdict = dict(outerdict)
+    outerdict = dict(outerdict or {})
     outerdict.update(innerdicts)
     innerdicts = outerdict.viewvalues()
     innerkeys = {innerkey for innerdict in innerdicts for innerkey in innerdict}
-    return {ki: {ko: di.get(ki) for ko, di in outerdict.iteritems()}
+    return {ki: ({ko: di.get(ki, missing) for ko, di in outerdict.iteritems()}
+                 if missing is not False else
+                 {ko: di[ki] for ko, di in outerdict.iteritems() if ki in di})
             for ki in innerkeys}
 
 
@@ -549,47 +551,7 @@ def merge_fits(all_fits, new_fits):
     """merge new fits dict into existing dict of many fits."""
     if new_fits is None:
         return all_fits
-    elif all(hasattr(f, 'func') for fs in (all_fits, new_fits) for f in fs):
-        # if all the keys are Fit instances
-        all_fits.update(new_fits)
-        return all_fits
-
-    ks = ('fit', 'result')
-    for m in new_fits:
-        new_fit = new_fits[m]
-        if isinstance(new_fit['fit'], dict):
-            new_fit = {k: [new_fit[k]] for k in new_fit}
-        for c in xrange(len(new_fit['fit'])):
-            try:
-                i = all_fits[m]['fit'].index(new_fit['fit'][c])
-                # update the result:
-                all_fits[m]['result'][i] = new_fit['result'][c]
-            except ValueError as ve:
-                # otherwise, append new fit and result:
-                if 'is not in list' not in ve[0]:
-                    raise ve
-                for k in ks:
-                    all_fits[m][k].append(new_fit[k][c])
-            except AttributeError as ae:
-                # fit may not be in a list
-                for k in ks:
-                    if isinstance(all_fits[m][k], dict):
-                        all_fits[m][k] = [all_fits[m][k]]
-                    else:
-                        raise ae
-            except KeyError as ke:
-                if m in ke.args:
-                    all_fits[m] = new_fit
-                elif ke.args[0] in 'fitresult':
-                    all_fits[m].update(new_fit)
-                else:
-                    raise ke
-            except TypeError as te:
-                if all_fits is None:
-                    return merge_fits({}, new_fits)
-                else:
-                    raise te
-
+    all_fits.update(new_fits)
     return all_fits
 
 
@@ -615,6 +577,8 @@ def gather_fits(prefixes):
                        for var in all_fits[prefixes[0]][fit]}
                  for fit in configs}
     all_fits.update(by_config)
+    by_param = transpose_dict(by_config, missing=False)
+    all_fits.update(by_param)
     return all_fits
 
 
