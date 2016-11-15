@@ -4,6 +4,7 @@
 from __future__ import division
 
 import itertools as it
+from collections import namedtuple
 from math import log, sqrt
 import sys
 import os
@@ -512,6 +513,18 @@ def load_meta(prefix):
     return dict(map(eval_string, l.split(':', 1)) for l in lines)
 
 
+Fit = namedtuple('Fit', 'func TR DR lp DT v0 w0'.split())
+
+
+def make_fit(*dicts, **kwargs):
+    """Generate a Fit instance from dicts and kwargs."""
+    f = dict.fromkeys(Fit._fields)
+    for d in dicts:
+        f.update(d)
+    f.update(kwargs)
+    return Fit(**f)
+
+
 def load_fits(prefix, new_fits=None):
     """load existing fits file, and update with new fits if given."""
     try:
@@ -535,6 +548,10 @@ def load_fits(prefix, new_fits=None):
 def merge_fits(all_fits, new_fits):
     """merge new fits dict into existing dict of many fits."""
     if new_fits is None:
+        return all_fits
+    elif all(hasattr(f, 'func') for fs in (all_fits, new_fits) for f in fs):
+        # if all the keys are Fit instances
+        all_fits.update(new_fits)
         return all_fits
 
     ks = ('fit', 'result')
@@ -593,21 +610,12 @@ def save_fits(prefix, new_fits):
 
 def gather_fits(prefixes):
     all_fits = {prefix: load_fits(prefix) for prefix in prefixes}
-    all_fits = [{'fit': [[all_fits[p][m]['fit'][i]
-                          for p in prefixes]
-                         for i in xrange(len(all_fits[prefixes[0]][m]['fit']))],
-                 'result': [[all_fits[p][m]['result'][i]
-                             for p in prefixes]
-                         for i in xrange(len(all_fits[prefixes[0]][m]['fit']))]}
-                for m in all_fits[prefixes[0]]]
-    all_fits = [(f['fit'][c][0],
-                 {k: [v[i] for i in sorted(v)]
-                  for k, v in transpose_dict(enumerate(f['result'][c])).items()})
-                for f in all_fits
-                for c in xrange(len(f['fit']))]
-    fits_for_param = {p: [fits for fits in all_fits if p in fits[1]]
-                      for f in all_fits for p in f[1]}
-    return all_fits, fits_for_param
+    configs = sorted({fit for fits in all_fits.values() for fit in fits})
+    by_config = {fit: {var: [all_fits[p][fit][var] for p in prefixes]
+                       for var in all_fits[prefixes[0]][fit]}
+                 for fit in configs}
+    all_fits.update(by_config)
+    return all_fits
 
 
 def merge_meta(metas, conflicts={}, incl=set(), excl=set(), excl_start=()):

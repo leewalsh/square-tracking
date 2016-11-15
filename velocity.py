@@ -358,9 +358,8 @@ if __name__ == '__main__':
             stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
                                     lin=args.lin, log=args.log, label=label,
                                     orient=True, title=title, subtitle=subtitle)
-            fits['vo'] = {'fit': {'func': 'vo', 'DR': 'var', 'w0': 'mean'},
-                          'result': {'DR': float(stats['var']),
-                                     'w0': float(stats['mean'])}}
+            fit = helpy.make_fit(func='vo', DR='var', w0='mean')
+            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean'])}
             axi += 1
         if args.do_translation:
             title = 'Parallel & Transverse'
@@ -368,14 +367,14 @@ if __name__ == '__main__':
             stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label,
                                     title=title, subtitle=subtitle, c=ncol)
-            fits['vt'] = {'fit': {'func': 'vt', 'DT': 'var'},
-                          'result': {'DT': float(stats['var'])}}
+            fit = helpy.make_fit(func='vt', DT='var')
+            fits[fit] = {'DT': float(stats['var'])}
             label = {'val': 'v_\parallel', 'sub': '\parallel'}
             stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label)
-            fits['vn'] = {'fit': {'func': 'vn', 'v0': 'mean', 'DT': 'var'},
-                          'result': {'v0': float(stats['mean']),
-                                     'DT': float(stats['var'])}}
+            fit = helpy.make_fit(func='vn', v0='mean', DT='var')
+            fits[fit] = {'v0': float(stats['mean']),
+                         'DT': float(stats['var'])}
             axi += 1
             if args.subtract:
                 label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}

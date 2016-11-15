@@ -1078,22 +1078,24 @@ def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
     return ax
 
 
-def get_param_value(name, model_name='', fits=None):
+def get_param_value(name, fits=None):
     """get the appropriate value and source for a parameter."""
-    if fits is None:
-        fits = {}
     if hasattr(name, '__iter__'):
         # if multiple names are given, return two dicts of {name: value}
         return [dict(zip(name, v))
-                for v in zip(*(get_param_value(n, model_name, fits)
+                for v in zip(*(get_param_value(n, fits)
                                for n in name))]
-    for source in sorted(fits, reverse=True):
-        # relies on the fact that 'nn', 'rn', 'rr' are alphabetical
-        fit = fits[source]
-        if name in fit['result']:
-            return fit['result'][name], fit['fit']
+    if fits is not None:
+        for source in ('nn', 'rn', 'rr'):
+            for fit in fits:
+                if fit.func == source:
+                    try:
+                        val = float(fits[fit].get(name, fit._asdict()[name]))
+                        return val, fit
+                    except (ValueError, TypeError):
+                        continue
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
-    return guesses[name], None
+    return guesses[name], helpy.make_fit({name: 'guess'})
 
 
 def format_fit(result, model_name=None, sources=None):
@@ -1112,10 +1114,11 @@ def format_fit(result, model_name=None, sources=None):
     fixed, free = [], []
     for p in result.params.values():
         (free if p.vary else fixed).append(p)
-    fit = {'fit': {'func': model_name or result.model.name}}
-    fit['fit'].update({p.name: 'free' for p in free})
-    fit['fit'].update({p.name: sources[p.name] for p in fixed})
-    fit['result'] = {p.name: float(p) for p in free}
+
+    fit = {helpy.make_fit({p.name: 'free' for p in free},
+                          {p.name: sources[p.name] for p in fixed},
+                          func=model_name or result.model.name):
+           {p.name: float(p) for p in free}}
 
     print "fixed params:"
     print print_fmt(fixed)
@@ -1328,14 +1331,15 @@ def nn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name)
+    vals, sources = get_param_value(params.keys())
     params['DR'].set(vals['DR'], min=0)
     if args.colored:
         params['TR'].set(vals['TR'], min=0)
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits = format_fit(result, model_name, sources)
+    fit, tex_fits = format_fit(result, model_name, sources)
+    fits.update(fit)
 
     fig, ax = plot_fit(result, tex_fits, args)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
@@ -1364,7 +1368,7 @@ def rn_plot(tracksets, fits, args):
     model = Model(form)
 
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name, fits)
+    vals, sources = get_param_value(params.keys(), fits)
     params['DR'].set(vals['DR'], min=0, vary=args.fitdr or not args.nn)
     params['lp'].set(vals['lp'], min=0)
     if args.colored:
@@ -1385,7 +1389,8 @@ def rn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits = format_fit(result, model_name, sources)
+    fit, tex_fits = format_fit(result, model_name, sources)
+    fits.update(fit)
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1455,7 +1460,7 @@ def rr_plot(msds, msdids, data, fits, args):
     form = [rr_form_total, rr_form_components][msdvec]
     model = Model(form)
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), model_name, fits)
+    vals, sources = get_param_value(params.keys(), fits)
     frr = not (args.nn or args.rn)
     params['TR'].set(vals['TR'], min=0, vary=args.colored and frr or args.fittr)
     params['DR'].set(vals['DR'], min=0, vary=frr)
@@ -1467,7 +1472,8 @@ def rr_plot(msds, msdids, data, fits, args):
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
-    fits[model_name], tex_fits = format_fit(result, model_name, sources)
+    fit, tex_fits = format_fit(result, model_name, sources)
+    fits.update(fit)
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
