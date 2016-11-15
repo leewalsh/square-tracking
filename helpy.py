@@ -539,35 +539,39 @@ def merge_fits(all_fits, new_fits):
 
     ks = ('fit', 'result')
     for m in new_fits:
-        try:
-            i = all_fits[m]['fit'].index(new_fits[m]['fit'])
-            # update the result:
-            all_fits[m]['result'][i] = new_fits[m]['result']
-        except ValueError as ve:
-            # otherwise, append new fit and result:
-            if 'is not in list' not in ve[0]:
-                raise ve
-            for k in ks:
-                all_fits[m][k].append(new_fits[m][k])
-        except AttributeError as ae:
-            # fit may not be in a list
-            for k in ks:
-                if isinstance(all_fits[m][k], dict):
-                    all_fits[m][k] = [all_fits[m][k]]
+        new_fit = new_fits[m]
+        if isinstance(new_fit['fit'], dict):
+            new_fit = {k: [new_fit[k]] for k in new_fit}
+        for c in xrange(len(new_fit['fit'])):
+            try:
+                i = all_fits[m]['fit'].index(new_fit['fit'][c])
+                # update the result:
+                all_fits[m]['result'][i] = new_fit['result'][c]
+            except ValueError as ve:
+                # otherwise, append new fit and result:
+                if 'is not in list' not in ve[0]:
+                    raise ve
+                for k in ks:
+                    all_fits[m][k].append(new_fit[k][c])
+            except AttributeError as ae:
+                # fit may not be in a list
+                for k in ks:
+                    if isinstance(all_fits[m][k], dict):
+                        all_fits[m][k] = [all_fits[m][k]]
+                    else:
+                        raise ae
+            except KeyError as ke:
+                if m in ke.args:
+                    all_fits[m] = new_fit
+                elif ke.args[0] in 'fitresult':
+                    all_fits[m].update(new_fit)
                 else:
-                    raise ae
-        except KeyError as ke:
-            if m in ke.args:
-                all_fits[m] = new_fits[m]
-            elif ke.args[0] in 'fitresult':
-                all_fits[m].update(new_fits[m])
-            else:
-                raise ke
-        except TypeError as te:
-            if all_fits is None:
-                return merge_fits({}, new_fits)
-            else:
-                raise te
+                    raise ke
+            except TypeError as te:
+                if all_fits is None:
+                    return merge_fits({}, new_fits)
+                else:
+                    raise te
 
     return all_fits
 
