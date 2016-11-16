@@ -527,6 +527,22 @@ def make_fit(*dicts, **kwargs):
     return Fit(**f)
 
 
+def fit_dict(fit):
+    """Convert a Fit instance to a plain dict."""
+    if not hasattr(fit, '_asdict'):
+        return fit
+    return {k: fit_dict(v)
+            for k, v in fit._asdict().iteritems() if v is not None}
+
+
+def fit_items(fit):
+    """Convert a Fit instance to a list of (k, v) pairs."""
+    if not hasattr(fit, '_asdict'):
+        return fit
+    return [[k, fit_items(v)]
+            for k, v in fit._asdict().iteritems() if v is not None]
+
+
 def load_fits(prefix, new_fits=None):
     """load existing fits file, and update with new fits if given."""
     try:
