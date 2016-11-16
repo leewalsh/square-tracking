@@ -587,15 +587,17 @@ def save_fits(prefix, new_fits):
 
 
 def gather_fits(prefixes):
-    all_fits = {prefix: load_fits(prefix) for prefix in prefixes}
-    configs = sorted({fit for fits in all_fits.values() for fit in fits})
-    by_config = {fit: {var: [all_fits[p][fit][var] for p in prefixes]
-                       for var in all_fits[prefixes[0]][fit]}
-                 for fit in configs}
-    all_fits.update(by_config)
+    fits = dmap(load_fits, prefixes)
+    by_config = {fit: {var: [fits[pre][fit][var] for pre in prefixes]
+                       for var in fits[prefixes[0]][fit]}
+                 for fit in sorted({f for fs in fits.values() for f in fs})}
+    fits.update(by_config)
+
     by_param = transpose_dict(by_config, missing=False)
-    all_fits.update(by_param)
-    return all_fits
+    fits.update(by_param)
+
+    fits['prefixes'] = prefixes
+    return fits
 
 
 def merge_meta(metas, conflicts={}, incl=set(), excl=set(), excl_start=()):
