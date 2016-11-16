@@ -1025,6 +1025,36 @@ def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
     return ax
 
 
+mkf = helpy.make_fit
+cf = {}
+cf.update({
+    'vn': mkf(func='vn', v0='mean', DT='var'),
+    'vt': mkf(func='vt', DT='var'),
+    'vo': mkf(func='vo', DR='var', w0='mean')
+})
+cfa = dict(func='nn', DR='free')
+cf.update({
+    'nn_Tf_Rf': mkf(TR='free', **cfa),
+    'nn_Tm_Rf': mkf(TR=1.8, **cfa),
+    'nn_T0_Rf': mkf(**cfa)
+})
+cfa = dict(func='rn', lp='free')
+cf.update({
+    'rn_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
+    'rn_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
+    'rn_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
+    'rn_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
+})
+cfa = dict(func='rr', DT='free')
+cf.update({
+    'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
+    'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
+    'rr_Tn_Rn_Lr_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
+    'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+})
+del cfa
+
+
 def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
                     label_source=False, savename='', ax=None, p=None):
     if sources is not None:
