@@ -253,7 +253,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
 
     if cut:
         boundary = boundary or meta.get('boundary')
-        if boundary is None or boundary == [0.,]*3:
+        if boundary is None or boundary == [0.]*3:
             bgpath, bgimg, _ = helpy.find_tiffs(
                 prefix=relprefix, frames=1, single=True, load=True)
             boundary = helpy.circle_click(bgimg)
@@ -578,10 +578,9 @@ def gapsize_distro(tracksetses, fields='fo', title=''):
     fig, ax = plt.subplots()
     for field in fields:
         isf = field == 'f'
-        ind = lambda t: t['f'] if isf else np.where(~np.isnan(t[field]))[0]
-        gaps = np.concatenate([np.diff(ind(tset)) - 1
-                               for tsets in tracksetses
-                               for tset in tsets.itervalues()])
+        gaps = [np.diff(t['f'] if isf else np.where(~np.isnan(t[field]))[0]) - 1
+                for tsets in tracksetses for t in tsets.itervalues()]
+        gaps = np.concatenate(gaps)
         gmax = gaps.max()
         if not gmax or gmax > 1e3:
             continue
@@ -662,7 +661,8 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
         mask = np.where(trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    ax.scatter(data['y'], data['x'], c=trackids%12, marker='o', cmap='Dark2', lw=0)
+    ax.scatter(data['y'], data['x'], c=trackids % 12,
+               marker='o', cmap='Dark2', lw=0)
     ax.set_aspect('equal')
     ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
     ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
@@ -717,7 +717,8 @@ def t0avg(trackset, tracklen, tau):
                 print 'flattened once'
             totsqdisp += sqdisp[0]
         else:
-            if verbose: print "fail"
+            if verbose:
+                print "fail"
             continue
         nt0s += 1.0
     return totsqdisp/nt0s if nt0s else None
@@ -917,7 +918,8 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     ax = fig.gca()
 
     # Get the mean of msds
-    msd_taus, msd_mean, msd_err = mean_msd(msds, taus, msdids, fps=fps, A=A,
+    msd_taus, msd_mean, msd_err = mean_msd(
+        msds, taus, msdids, fps=fps, A=A,
         kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
         singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars)
     if verbose:
@@ -934,22 +936,21 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         lw /= 2
 
     if tnormalize:
-        ax.plot(taus, msd/taus**tnormalize, meancol,
-                label="Mean Sq {}Disp/Time{}".format(
-                      "Angular " if ang else "",
-                      "^{}".format(tnormalize) if tnormalize != 1 else '')*labels)
+        label = "Mean Sq {}Disp/Time{}".format(
+            "Angular " if ang else "",
+            "^{}".format(tnormalize)*(tnormalize != 1))
+        ax.plot(taus, msd/taus**tnormalize, meancol, label=label*labels)
         ax.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
                 'k-', label="ref slope = 1", lw=2)
+        label = (r"$(2\pi)^2$" if ang else
+                 ("One particle area" if S > 1 else "One Pixel"))
         ax.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
-                'k--', lw=2, label=labels*(r"$(2\pi)^2$" if ang else
-                ("One particle area" if S > 1 else "One Pixel")))
+                'k--', lw=2, label=labels*label)
         ax.set_xscale(xscale)
         ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
     elif not errorbars:
         ax.loglog(taus, msd, c=meancol, lw=lw, label=labels*(
             "Mean Squared {}Displacement".format('Angular '*ang)))
-        #ax.loglog(taus, msd[0]*taus/dtau/2, meancol+'--', lw=2,
-        #          label="slope = 1")
     else:
         ax.set_xscale(xscale)
         ax.set_yscale('log')
@@ -973,13 +974,10 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         title = "Mean Sq {}Disp".format("Angular " if ang else "")
     ax.set_title(title)
     xlabel = '$tf$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
-    ax.set_xlabel(xlabel)#, fontsize='x-large')
+    ax.set_xlabel(xlabel)
     ylabel = (r"$\left\langle\left[\vec r(t) - "
               r"\vec r(0)\right]^2\right\rangle / \ell^2$")
-    # ylabel = 'Squared {}Displacement ({})'.format(
-        # 'Angular '*ang,
-        # '$rad^2$' if ang else 'particle area' if S > 1 else 'square pixels')
-    ax.set_ylabel(ylabel)#, fontsize='large', usetex=True)
+    ax.set_ylabel(ylabel)
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
