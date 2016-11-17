@@ -543,6 +543,16 @@ def fit_items(fit):
             for k, v in fit._asdict().iteritems() if v is not None]
 
 
+def fit_str(fit):
+    tabs = []
+    q = []
+    for s in str(fit).split(', '):
+        q.append(' '*sum(tabs) + s)
+        p = s.find('(') + 1
+        tabs.append(p) if p else tabs.pop(-1) if s.endswith(')') else None
+    print ',\n'.join(q)
+
+
 def load_fits(prefix, new_fits=None):
     """load existing fits file, and update with new fits if given."""
     try:
