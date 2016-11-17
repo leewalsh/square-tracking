@@ -1055,53 +1055,61 @@ cf.update({
 del cfa
 
 
-def plot_parametric(params, sources=None, xy=None, scale='log', lims=(1e-3, 1),
-                    label_source=False, savename='', ax=None, p=None):
-    if sources is not None:
-        params = params[np.in1d(params['source'], sources)]
-    lims = {'DR': (0, 0.1), 'v0': (0, 0.3), 'DT': (0, 0.01)}[p or xy[:2]]
-    xy_choices = {
-        'DR': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R$')],
-        'DRs': [('fit_nn_DR', 'fit_vo_DR', 'r', 'o', '$D_R(nn)$'),
-                ('fit_rn_DR', 'fit_vo_DR', 'g', 'o', '$D_R(rn)$'),
-                ('fit_rr_DR', 'fit_vo_DR', 'b', 'o', '$D_R(rr)$')],
-        'v0': [('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0$')],
-        'v0s': [('fit_nn_rn_v0', 'fit_vn_v0', 'r', '^', '$v_0(nn, rn)$'),
-                ('fit_rn_v0', 'fit_vn_v0', 'g', '^', '$v_0(rn)$'),
-                ('fit_nn_rr_v0', 'fit_vn_v0', 'b', '^', '$v_0(nn, rr)$'),
-                ('fit_rr_v0', 'fit_vn_v0', 'c', '^', '$v_0(rr)$')],
-        'DT': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T$')],
-        'DTh': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T(v_\perp)$'),
-                ('fit_rr_DT', 'fit_vn_DT', 'g', 's', '$D_T(v_\parallel)$')],
-        'DTs': [('fit_rr_DT', 'fit_vt_DT', 'b', 's', '$D_T(rr)$'),
-                ('fit_rn_rn_rr_DT', 'fit_vt_DT', 'r', 's', '$D_T(rn, rn, rr)$'),
-                ('fit_nn_rr_DT', 'fit_vt_DT', 'g', 's', '$D_T(nn, rr)$'),
-                ('fit_nn_rn_rr_DT', 'fit_vt_DT', 'c', 's', '$D_T(nn, rn, rr)$')]
-    }
-    if isinstance(xy, basestring):
-        xys = xy_choices.get(xy)
-    else:
-        xys = xy
-
+def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
+                    label_source=False, savename='', ax=None):
+    args = [a if isinstance(a, (tuple, list)) else it.repeat(a)
+            for a in (xs, ys, pltargs)]
     if ax is None:
         fig, ax = plt.subplots(figsize=(4, 4))
     else:
         fig = ax.figure
-    for x, y, c, m, l in xys:
-        ax.scatter(params[y], params[x], marker=m, c=c, label=l)
+
+    kws = dict(marker='o')
+    for x, y, kw in it.izip(*args):
+        kws.update(kw)
+        fitx, fity = cf.get(x, x), cf.get(y, y)
+        resx, resy = fits[fitx], fits[fity]
+        if param == 'lp' and not 'lp' in resx:
+            if kws['marker'] == 's':
+                fitDR = fitx if fitx.DR else fity
+            else:
+                fitDR = cf['vo']
+            v0 = resx['v0']
+            DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
+            kws['label'] += ' lp(x)=v0(x)/[DR {func}, {DR}]'.format(**fitDR._asdict())
+            resx = np.array(v0)/DR
+            resy = resy[param]
+        elif param == 'v0' and not 'v0' in resy:
+            if kws['marker'] == 's':
+                fitDR = fitx if fitx.DR else fity
+            else:
+                fitDR = cf['vo']
+            lp = resy['lp']
+            DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
+            kws['label'] += ' v0(y)=lp(y)*[DR {func}, {DR}]'.format(**fitDR._asdict())
+            resy = np.array(lp)*DR
+            resx = resx[param]
+        else:
+            resx, resy = resx[param], resy[param]
+        np.array([resx, resy])
+        ax.scatter(resx, resy, **kws)
         if label_source:
-            for p in params:
-                plt.text(p[y], p[x], p['source'])
+            for p in fits:
+                plt.text(p[fity], p[fitx], p['source'])
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
+
+    lims = lims or [0, {'DR': 0.15, 'v0': 0.3, 'DT': 0.01, 'lp': 4}[param]]
+    if scale == 'log' and lims[0] < 1e-3:
+        lims[0] = 1e-3
     ax.set_xscale(scale)
     ax.set_yscale(scale)
     ax.set_aspect('equal', adjustable='box')
     ax.set_xlim(lims)
     ax.set_ylim(lims)
     ax.plot(lims, lims, '-k', alpha=0.7)
-    ax.legend(loc='upper left')
+    ax.legend(loc='best', fontsize='x-small')
     if savename:
         fig.savefig('/Users/leewalsh/Squares/colson/Output/stats/parameters/'
                     'parametric_{}.pdf'.format(savename))
