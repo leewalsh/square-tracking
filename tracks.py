@@ -1144,20 +1144,19 @@ def format_fit(result, model_name=None, sources=None):
 
     def print_fmt(params, sep='\n'):
         fmt = '{:>8s}: {:.4g}'.format
-        return sep.join(fmt(p.name, p.value) for p in params)
+        return sep.join(fmt(p, params[p]) for p in params)
 
     def tex_fmt(params, sep=', '):
         fmt = partial(helpy.SciFormatter().format, "${0:s}={1:.3T}$")
-        return sep.join(fmt(tex_name[p.name], p.value) for p in params)
+        return sep.join(fmt(tex_name[p], params[p]) for p in params)
 
-    fixed, free = [], []
+    fixed, free = {}, {}
     for p in result.params.values():
-        (free if p.vary else fixed).append(p)
+        (free if p.vary else fixed)[p.name] = float(p)
 
-    fit = {helpy.make_fit({p.name: 'free' for p in free},
-                          {p.name: sources[p.name] for p in fixed},
-                          func=model_name or result.model.name):
-           {p.name: float(p) for p in free}}
+    fit = helpy.make_fit(dict.fromkeys(free, 'free'),
+                         {p: sources[p] for p in fixed},
+                         func=model_name or result.model.name)
 
     print "fixed params:"
     print print_fmt(fixed)
@@ -1168,7 +1167,7 @@ def format_fit(result, model_name=None, sources=None):
     for_tex = '\n'.join([tex_eqn, 'fixed: ' + tex_fmt(fixed),
                          'free: ' + tex_fmt(free)])
 
-    return fit, for_tex
+    return fit, free, for_tex
 
 
 def save_corr_plot(fig, model_name):
@@ -1382,8 +1381,8 @@ def nn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fit, tex_fits = format_fit(result, model_name, sources)
-    fits.update(fit)
+    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fits[fit] = free
 
     fig, ax = plot_fit(result, tex_fits, args)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
@@ -1433,8 +1432,8 @@ def rn_plot(tracksets, fits, args):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fit, tex_fits = format_fit(result, model_name, sources)
-    fits.update(fit)
+    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fits[fit] = free
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1516,8 +1515,8 @@ def rr_plot(msds, msdids, data, fits, args):
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
-    fit, tex_fits = format_fit(result, model_name, sources)
-    fits.update(fit)
+    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fits[fit] = free
 
     ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
 
