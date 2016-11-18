@@ -1049,8 +1049,9 @@ cfa = dict(func='rr', DT='free')
 cf.update({
     'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
     'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
-    'rr_Tn_Rn_Lr_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
-    'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+    'rr_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
+    'rr_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+    'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa)
 })
 del cfa
 
