@@ -1429,6 +1429,12 @@ def rn_plot(tracksets, fits, args):
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
                                 const=rnuncert, ignore=[0, -tmax, tmax],
                                 verbose=verbose)
+
+    fmin, fmax = np.searchsorted(taus, [-tmax, tmax])
+    asym = curve.asymmetry(meancorr[fmin:fmax], taus[fmin:fmax],
+                           parity=-1, integrate=True)
+    print "asymmetry: {:.3g}".format(asym[-1])
+
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
@@ -1437,10 +1443,13 @@ def rn_plot(tracksets, fits, args):
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
+    fits[fit]['asym'] = asym[-1]
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
     fig, ax = plot_fit(result, tex_fits, args)
+    ax.plot(asym[0], asym[1], '--r', label="Asymmetry")
+
     ylim_pad = 1.5
     ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
     xlim = ax.set_xlim(-tmax, tmax)
@@ -1641,12 +1650,18 @@ if __name__ == '__main__':
         labels = not args.clean
 
     if args.msd or args.nn or args.rn:
+        # for backwards compatability, clean up reverse, retire.
+        if args.reverse or args.retire:
+            if args.slice:
+                raise ValueError('Cannot specify slice and reverse or retire')
+            args.slice = slice(None, args.retire, -args.reverse or None)
+        meta.pop('corr_reverse', None)
+        meta.pop('corr_retire', None)
         meta.update(corr_stub=args.stub, corr_gaps=args.gaps,
-                    corr_reverse=args.reverse, corr_retire=args.retire)
+                    corr_slice=args.slice)
         tracksets = helpy.load_tracksets(
-            data, min_length=args.stub, max_length=args.retire,
-            reverse=args.reverse, run_track_orient=True,
-            run_repair=args.gaps, verbose=args.verbose)
+            data, min_length=args.stub, track_slice=args.slice,
+            run_track_orient=True, run_repair=args.gaps, verbose=args.verbose)
 
     if args.msd:
         msds, msdids = find_msds(

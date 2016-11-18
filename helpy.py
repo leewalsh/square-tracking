@@ -949,8 +949,8 @@ def load_MSD(fullprefix, pos=True, ang=True):
     return ret
 
 
-def load_tracksets(data, trackids=None, min_length=10, max_length=None,
-                   reverse=False, verbose=False, run_remove_dupes=False,
+def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
+                   verbose=False, run_remove_dupes=False,
                    run_repair=False, run_track_orient=False):
     """Build a dict of slices into data based on trackid
 
@@ -982,10 +982,9 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         ts = np.unique(trackids)
         if ts[0] == -1:
             ts = ts[1:]
-    reverse = int(reverse)
-    step = 1 - 2*reverse
-    tracksets = {t: data[trackids == t][::step] for t in ts}
-    if reverse:
+    i = parse_slice(track_slice)
+    tracksets = {t: data[trackids == t][::i.step] for t in ts}
+    if i.step == -1:
         for t in tracksets:
             tracksets[t]['f'] = tracksets[t]['f'].max() - tracksets[t]['f']
     if run_remove_dupes:
@@ -999,10 +998,8 @@ def load_tracksets(data, trackids=None, min_length=10, max_length=None,
         from tracks import repair_tracks
         fs = () if run_repair == 'nans' else ('xy', 'o')
         repair_tracks(tracksets, interp=fs, inplace=True, verbose=verbose)
-    start = max_length and reverse and -max_length
-    stop = max_length and max_length*(1 - reverse) or None
-    if start or stop:
-        tracksets = {t: tracksets[t][start:stop] for t in ts}
+    if i.start or i.stop:
+        tracksets = {t: tracksets[t][i.start:i.stop] for t in ts}
     return tracksets
 
 
