@@ -1055,6 +1055,8 @@ cf.update({
 })
 del cfa
 
+fit_desc = {cf[k]: k for k in cf}
+
 
 def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
                     label_source=False, savename='', ax=None):
@@ -1170,9 +1172,9 @@ def format_fit(result, model_name=None, sources=None):
     return fit, free, for_tex
 
 
-def save_corr_plot(fig, model_name):
-    save = '{}_{}-corr.pdf'.format(saveprefix, model_name)
-    print 'saving <{}> correlation plot to'.format(model_name),
+def save_corr_plot(fig, fit_desc):
+    save = '{}_{}-corr.pdf'.format(saveprefix, fit_desc)
+    print 'saving <{}> correlation plot to'.format(fit_desc),
     print save if verbose else os.path.basename(save)
     fig.savefig(save)
     return save
@@ -1397,7 +1399,7 @@ def nn_plot(tracksets, fits, args):
 
     if args.save:
         if args.nn:
-            save_corr_plot(fig, model_name)
+            save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
@@ -1453,7 +1455,7 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, model_name)
+        save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
@@ -1540,7 +1542,7 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save_corr_plot(fig, model_name)
+        save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
