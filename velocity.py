@@ -139,16 +139,17 @@ def get_stats(a):
     KU = kurtosis(a, -1, nan_policy='omit')
     SK_t = skewtest(a, -1, nan_policy='omit')
     KU_t = kurtosistest(a, -1, nan_policy='omit')
-    if args.verbose:
-        print 'skewtest:', SK, SK_t
-        print 'kurtosistest:', KU, KU_t
+    print 'skewness:', SK, SK_t
+    print 'kurtosis:', KU, KU_t
     if keepdims:
         SK = SK[..., None]
         KU = KU[..., None]
     else:
         SK = float(SK)
         KU = float(KU)
-    return {'mean': M, 'var': D, 'std': SE, 'skew': SK, 'kurt': KU}
+    return {'mean': M, 'var': D, 'std': SE,
+            'skew': SK, 'skew_test': float(SK_t.statistic),
+            'kurt': KU, 'kurt_test': float(KU_t.statistic)}
 
 
 def compile_widths(tracksets, widths, side=1, fps=1):
@@ -359,7 +360,9 @@ if __name__ == '__main__':
                                     lin=args.lin, log=args.log, label=label,
                                     orient=True, title=title, subtitle=subtitle)
             fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean'])}
+            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
+                         'KU': stats['kurt'], 'SK': stats['skew'],
+                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             axi += 1
         if args.do_translation:
             title = 'Parallel & Transverse'
@@ -368,13 +371,16 @@ if __name__ == '__main__':
                                     lin=args.lin, log=args.log, label=label,
                                     title=title, subtitle=subtitle, c=ncol)
             fit = helpy.make_fit(func='vt', DT='var')
-            fits[fit] = {'DT': float(stats['var'])}
+            fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
+                         'KU': stats['kurt'], 'SK': stats['skew'],
+                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             label = {'val': 'v_\parallel', 'sub': '\parallel'}
             stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
                                     lin=args.lin, log=args.log, label=label)
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-            fits[fit] = {'v0': float(stats['mean']),
-                         'DT': float(stats['var'])}
+            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
+                         'KU': stats['kurt'], 'SK': stats['skew'],
+                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             axi += 1
             if args.subtract:
                 label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
