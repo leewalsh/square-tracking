@@ -1069,7 +1069,7 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
     else:
         fig = ax.figure
 
-    kws = dict(marker='o')
+    kws = dict(marker='o', s=100)
     for x, y, kw in it.izip(*args):
         kws.update(kw)
         fitx, fity = cf.get(x, x), cf.get(y, y)
@@ -1081,7 +1081,7 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
                 fitDR = cf['vo']
             v0 = resx['v0']
             DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
-            kws['label'] += ' lp(x)=v0(x)/[DR {func}, {DR}]'.format(**fitDR._asdict())
+            kws['label'] += ' lp(x)=v0(x)/DR({func}, {DR})'.format(**fitDR._asdict())
             resx = np.array(v0)/DR
             resy = resy[param]
         elif param == 'v0' and not 'v0' in resy:
@@ -1091,7 +1091,7 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
                 fitDR = cf['vo']
             lp = resy['lp']
             DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
-            kws['label'] += ' v0(y)=lp(y)*[DR {func}, {DR}]'.format(**fitDR._asdict())
+            kws['label'] += ' v0(y)=lp(y)*DR({func}, {DR})'.format(**fitDR._asdict())
             resy = np.array(lp)*DR
             resx = resx[param]
         else:
