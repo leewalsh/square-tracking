@@ -195,13 +195,13 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
     else:
         ax = plt.subplot(nrows, ncols, (axi - 1)*ncols + 1)
     label.update(stats)
-    label = '\n'.join(['$\\langle {val} \\rangle = {mean:.5f}$',
-                       '$\ D_{sub}\  = {var:.5f}$',
-                       '$\ \gamma_1 = {skew:.5f}$',
-                       '$\ \gamma_2 = {kurt:.5f}$',
-                       '$\\sigma/\\sqrt{{N}} = {std:.5f}$'][:2]).format(**label)
-    counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), log=False,
-                              alpha=0.7, label=label, color=c)
+    label = '\n'.join([r'$\langle {val} \rangle = {mean:.5f}$',
+                       r'$\ D_{sub}\  = {var:.5f}$',
+                       r'$\ \gamma_1 = {skew:.5f}$',
+                       r'$\ \gamma_2 = {kurt:.5f}$',
+                       r'$\sigma/\sqrt{{N}} = {std:.5f}$']).format(**label)
+    counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
+                              log=log and not lin, alpha=0.7, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
     # ax.set_ylabel('Frequency')
