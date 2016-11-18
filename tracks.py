@@ -380,6 +380,10 @@ def remove_duplicates(trackids=None, data=None, tracksets=None,
         return None if inplace else trackids
 
 
+def plt_text(*args, **kwargs):
+    return [plt.text(*arg, **kwargs) for arg in zip(*args)]
+
+
 def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                       meta={}, f_nums=None, verbose=False, clean=0):
 
@@ -416,8 +420,6 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 print 'will exit'
             sys.stdout.flush()
 
-    def plt_text(*args, **kwargs):
-        return [plt.text(*arg, **kwargs) for arg in zip(*args)]
 
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
@@ -1097,8 +1099,7 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
         np.array([resx, resy])
         ax.scatter(resx, resy, **kws)
         if label_source:
-            for p in fits:
-                plt.text(p[fity], p[fitx], p['source'])
+            plt_text(resx, resy, label_source, fontsize='small')
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
