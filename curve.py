@@ -4,6 +4,7 @@
 from __future__ import division
 
 import itertools as it
+from collections import namedtuple
 
 import numpy as np
 from numpy.polynomial import polynomial as poly
@@ -340,44 +341,81 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     return df/dx**order
 
 
-def asymmetry(f, x=None, parity=None, integrate=False):
-    """Calculate degree of even or odd symmetry of a function
+def flip(f, x=None):
+    """reverse a function f(x).
+
+    return (f(x), f(-x), x)
+    """
+    if x is None:
+        l = len(f)/2
+        x = np.arange(0.5-l, l)
+        g = f[::-1]
+    else:
+        neg = np.searchsorted(x, -x)
+        pos = slice(neg[-1], neg[0] + 1)
+        x = x[pos]
+        f = f[pos]
+        g = f[neg[pos]]
+    return f, g, x
+
+
+def symmetric(f, g=None, x=None, parity=None):
+    """Separate a function into its symmetric and anti-symmetric parts.
 
     parameters
     ----------
     f:      values of the function
     x:      points at which function values are given
             if None, assume uniform and centered at 0
-    parity: type of symmetry, use +1 if even, -1 if odd, None to guess
+    parity: which part to return, +1 for symmetric, -1 for anti-symmetric,
+            None or 0 for both
+
+    returns
+    -------
+    part:   the (anti-)symmetric part(s) of f, given by (1/2) * (f(x) +/- f(-x))
+    x:      x, or view on x,
+    """
+    if g is None:
+        f, g, x = flip(f, x)
+
+    parity = parity or np.array([[1], [-1]])
+    part = (f + parity*g)/2
+    return part, x
+
+
+def symmetry(f, x=None, parity=None, integrate=False):
+    """Calculate degree of even or odd symmetry of a function.
+
+    parameters
+    ----------
+    f:      values of the function
+    x:      points at which function values are given
+            if None, assume uniform and centered at 0
+    parity: type of symmetry, use +1 if even, -1 if odd, None for both
     integrate:  if True, return full array otherwise integrate it
 
     returns
     -------
-    df:     degree of asymmetry given by df = f(x) - parity*f(-x)
-            if integrate: returns normalized sum given by
-                sum(df) * sum((f(x) + parity*f(-x))/2)
+    x:      as given, or centered range
+    part:   (anti-)symmetric part, given by
+                part = (f(x) + parity*f(-x))/2
+    normed: if not integrate, part normalized to [0, 1], given by
+                abs(part) / (abs(sym) + abs(antisym))
+    total:  if integrate, the normalized sum given by mean(normed)
     """
-    ret = []
-    if x is None:
-        g = f[::-1]
-    else:
-        i = np.searchsorted(x, -x)
-        mini, maxi = i[-1], i[0] + 1
-        g = f[i[mini:maxi]]
-        f = f[mini:maxi]
-        ret.append(x[mini:maxi])
-    if parity is None:
-        parity = 1 if abs(f[0] - g[0]) < abs(f[0] + g[0]) else -1
-    g = parity * g
-    df = f - g
-    ret.append(df)
+    f, g, x = flip(f, x)
+    x0 = np.searchsorted(x, 0)
+
+    parts, x = symmetric(f, g, x)
+    mags = np.abs(parts)
+    normed = mags/mags.sum(0)
+    if parity:
+        p = {1: 0, -1: 1}[parity]
+        normed = normed[p]
     if integrate:
-        mid = len(f)//2
-        f = f[mid:]
-        g = g[mid:]
-        total = df[mid:].sum() / (f + g).sum()/2
-        ret.append(total)
-    return ret if len(ret) > 1 else ret[0]
+        total = np.nanmean(normed[..., x0:], -1)
+    sym = namedtuple('sym', ['x', 'symmetric', 'antisymmetric', 'symmetry'])
+    return sym(x, *parts, symmetry=(total if integrate else normed))
 
 
 def print_stats(**kwargs):
