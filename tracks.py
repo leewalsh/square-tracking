@@ -1431,9 +1431,9 @@ def rn_plot(tracksets, fits, args):
                                 verbose=verbose)
 
     fmin, fmax = np.searchsorted(taus, [-tmax, tmax])
-    asym = curve.asymmetry(meancorr[fmin:fmax], taus[fmin:fmax],
-                           parity=-1, integrate=True)
-    print "asymmetry: {:.3g}".format(asym[-1])
+    sym = curve.symmetry(meancorr[fmin:fmax], taus[fmin:fmax],
+                         parity=1, integrate=True)
+    print "asymmetry: {:.3g}".format(sym.symmetry)
 
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
@@ -1443,12 +1443,13 @@ def rn_plot(tracksets, fits, args):
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
-    fits[fit]['asym'] = asym[-1]
+    fits[fit]['sym'] = sym.symmetry
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
     fig, ax = plot_fit(result, tex_fits, args)
-    ax.plot(asym[0], asym[1], '--r', label="Asymmetry")
+    ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
+    ax.plot(sym.x, sym.antisymmetric, '--g', label="anti-symmetric")
 
     ylim_pad = 1.5
     ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
