@@ -563,7 +563,7 @@ def load_fits(prefix, new_fits=None):
     try:
         path = with_suffix(prefix, '_FITS.yaml')
         with open(path, 'r') as f:
-            all_fits = yaml.load(f)
+            all_fits = yaml.load(f, Loader=yaml.Loader)
     except IOError as ioe:
         if new_fits is None:
             raise ioe
