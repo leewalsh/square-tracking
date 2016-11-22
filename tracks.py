@@ -84,7 +84,8 @@ if __name__ == '__main__':
     arg('--boundary', type=float, nargs=3, default=False,
         metavar=('X0', 'Y0', 'R'), help='Boundary for track cutting')
     arg('--nn', action='store_true', help='Calculate and plot <nn> correlation')
-    arg('--rn', action='store_true', help='Calculate and plot <rn> correlation')
+    arg('--rn', const='full', nargs='?', choices=['full', 'pos', 'sym', 'anti'],
+        default=False, help='Calculate and plot <rn> correlation')
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
@@ -1008,13 +1009,14 @@ def make_fitnames(fit=None):
         'nn_Tm_Rf': mkf(TR=1.8, **cfa),
         'nn_T0_Rf': mkf(**cfa)
     })
-    cfa = dict(func='rn', lp='free')
-    cf.update({
-        'rn_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
-        'rn_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
-        'rn_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
-        'rn_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
-    })
+    for func in ['rn', 'rp', 'rs', 'ra']:
+        cfa = dict(func=func, lp='free')
+        cf.update({
+            func + '_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
+            func + '_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
+            func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
+            func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
+        })
     cfa = dict(func='rr', DT='free')
     cf.update({
         'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
@@ -1378,7 +1380,7 @@ def nn_plot(tracksets, fits, args):
 
 
 def rn_plot(tracksets, fits, args):
-    model_name = 'rn'
+    model_name = {'full': 'rn', 'pos': 'rp', 'sym': 'rs', 'anti': 'ra'}[args.rn]
     taus, meancorr, errcorr = rn_corr(tracksets, args)
 
     form = [[rn_form_components_white, rn_form_components_color],
@@ -1393,15 +1395,17 @@ def rn_plot(tracksets, fits, args):
         params['TR'].set(vals['TR'], min=0, vary=args.fittr)
 
     tmax = 3*args.zoom/params['DR']
+    tmin = 0 if args.rn == 'pos' else -tmax
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
     else:
         rnerrax = False
     rnuncert = np.hypot(args.dtheta, args.dx)/rt2
     sigma = curve.sigma_for_fit(meancorr, errcorr, x=taus, plot=rnerrax,
-                                const=rnuncert, ignore=[0, -tmax, tmax],
+                                const=rnuncert, ignore=[0, tmin, tmax],
                                 verbose=verbose)
 
+    #TODO: instead of slicing, integrate weighted by sigma
     fmin, fmax = np.searchsorted(taus, [-tmax, tmax])
     sym = curve.symmetry(meancorr[fmin:fmax], taus[fmin:fmax],
                          parity=1, integrate=True)
@@ -1411,7 +1415,9 @@ def rn_plot(tracksets, fits, args):
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
-    result = model.fit(meancorr, params, 1/sigma, s=taus)
+    fit_to = {'full': meancorr, 'pos': meancorr,
+              'sym': sym.symmetric, 'anti': sym.antisymmetric}
+    result = model.fit(fit_to[args.rn], params, 1/sigma, s=taus)
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
