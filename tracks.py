@@ -1414,19 +1414,19 @@ def rn_plot(tracksets, fits, args):
                                 const=rnuncert, ignore=[0, tmin, tmax],
                                 verbose=verbose)
 
-    #TODO: instead of slicing, integrate weighted by sigma
-    fmin, fmax = np.searchsorted(taus, [-tmax, tmax])
-    sym = curve.symmetry(meancorr[fmin:fmax], taus[fmin:fmax],
-                         parity=1, integrate=True)
+    #TODO: integrate weighted by sigma
+    sym = curve.symmetry(meancorr, taus, parity=1, integrate=True)
     print "asymmetry: {:.3g}".format(sym.symmetry)
 
     if rnerrax:
         rnerrax.legend(loc='upper center', fontsize='x-small')
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
-    fit_to = {'full': meancorr, 'pos': meancorr,
-              'sym': sym.symmetric, 'anti': sym.antisymmetric}
-    result = model.fit(fit_to[args.rn], params, 1/sigma, s=taus)
+    if args.rn in ('full', 'pos'):
+        result = model.fit(meancorr, params, 1/sigma, s=taus)
+    else:
+        fit_to = sym.symmetric if args.rn == 'sym' else sym.antisymmetric
+        result = model.fit(fit_to, params, 1/sigma[sym.i], s=sym.x)
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free

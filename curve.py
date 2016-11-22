@@ -350,13 +350,14 @@ def flip(f, x=None):
         l = len(f)/2
         x = np.arange(0.5-l, l)
         g = f[::-1]
+        pos = slice(None)
     else:
         neg = np.searchsorted(x, -x)
         pos = slice(neg[-1], neg[0] + 1)
         x = x[pos]
         g = f[neg[pos]]
         f = f[pos]
-    return f, g, x
+    return f, g, x, pos
 
 
 def symmetric(f, g=None, x=None, parity=None):
@@ -376,7 +377,7 @@ def symmetric(f, g=None, x=None, parity=None):
     x:      x, or view on x,
     """
     if g is None:
-        f, g, x = flip(f, x)
+        f, g, x, i = flip(f, x)
 
     parity = parity or np.array([[1], [-1]])
     part = (f + parity*g)/2
@@ -403,7 +404,7 @@ def symmetry(f, x=None, parity=None, integrate=False):
                 abs(part) / (abs(sym) + abs(antisym))
     total:  if integrate, the normalized sum given by mean(normed)
     """
-    f, g, x = flip(f, x)
+    f, g, x, i = flip(f, x)
     x0 = np.searchsorted(x, 0)
 
     parts, x = symmetric(f, g, x)
@@ -414,8 +415,8 @@ def symmetry(f, x=None, parity=None, integrate=False):
         normed = normed[p]
     if integrate:
         total = np.nanmean(normed[..., x0:], -1)
-    sym = namedtuple('sym', ['x', 'symmetric', 'antisymmetric', 'symmetry'])
-    return sym(x, *parts, symmetry=(total if integrate else normed))
+    sym = namedtuple('sym', 'x i symmetric antisymmetric symmetry'.split())
+    return sym(x, i, *parts, symmetry=(total if integrate else normed))
 
 
 def print_stats(**kwargs):
