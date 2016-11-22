@@ -1033,8 +1033,10 @@ def make_fitnames(fit=None):
     fit_desc = {cf[k]: k for k in cf}
     if fit is None:
         return cf, fit_desc
+    elif isinstance(fit, basestring):
+        return cf[fit]
     else:
-        return cf.get(fit) or fit_desc.get(fit) or (cf, fit_desc)
+        return fit_desc[fit]
 
 
 def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
