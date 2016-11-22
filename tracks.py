@@ -101,6 +101,9 @@ if __name__ == '__main__':
     arg('-z', '--zoom', metavar="ZOOM", type=float,
         help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('--clean', action='store_true', help='Make clean plot for presentation')
+    arg('--vcol', help='Color for velocity and displacement')
+    arg('--pcol', help='Color for parameters and fits')
+    arg('--ncol', help='Color for noise and histograms')
     arg('-v', '--verbose', action='count', help='Be verbose, may repeat: -vv')
     arg('-q', '--quiet', action='count', help='Be quiet, subtracts from -v')
     arg('--suffix', type=str, default='', help='Suffix to append to savenames')
@@ -119,6 +122,9 @@ if __name__ == '__main__':
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
+    args.vcol = args.vcol or (1, 0.4, 0)
+    args.pcol = args.pcol or (0.25, 0.5, 0)
+    args.ncol = args.ncol or (0.4, 0.4, 1)
     args.verbose = args.verbose or 0
     args.quiet = args.quiet or 0
     args.verbose = max(0, args.verbose - args.quiet)
@@ -143,9 +149,6 @@ sf = helpy.SciFormatter().format
 pi = np.pi
 twopi = 2*pi
 rt2 = sqrt(2)
-vcol = (1, 0.4, 0)
-pcol = (0.25, 0.5, 0)
-ncol = (0.4, 0.4, 1)
 
 
 def find_closest(thisdot, trackids, n=1, maxdist=20., giveup=10, cut=False):
@@ -1164,9 +1167,9 @@ def plot_fit(result, tex_fits, args, ax=None):
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, nn_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(t, result.data, 1/result.weights, None, c=vcol, lw=3,
+    ax.errorbar(t, result.data, 1/result.weights, None, c=args.vcol, lw=3,
                 capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(t, result.best_fit, c=pcol, lw=2, label=labels*tex_fits)
+    ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
     return fig, ax
 
 
@@ -1455,8 +1458,8 @@ def rr_plot(msds, msdids, data, fits, args):
     model_name = 'rr'
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
-        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, meancol=vcol,
-        show_tracks=args.showtracks, lw=3, labels=labels, S=args.side,
+        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, labels=labels,
+        meancol=args.vcol, show_tracks=args.showtracks, lw=3, S=args.side,
         singletracks=args.singletracks, fps=args.fps, kill_flats=args.killflat,
         kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
         figsize=(5, 4) if args.clean else (8, 6))
@@ -1466,7 +1469,7 @@ def rr_plot(msds, msdids, data, fits, args):
         msdisp = msd.sum(1)
         errcorr_prog, errcorr_div = errcorr.T
         errcorr_disp = np.hypot(*errcorr.T)
-        ax.plot(taus, msdisp, '-', c=vcol, lw=3)
+        ax.plot(taus, msdisp, '-', c=args.vcol, lw=3)
         msdvec, msd, errcorr = {'displacement': (0, msdisp, errcorr_disp),
                                 'progression': (1, progression, errcorr_prog),
                                 'diversion': (-1, diversion, errcorr_div)
@@ -1511,7 +1514,7 @@ def rr_plot(msds, msdids, data, fits, args):
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
 
-    ax.plot(taus, result.best_fit, c=pcol, lw=2, label=tex_fits)
+    ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=tex_fits)
 
     guide = limiting_regimes(taus, **result.best_values)
     ax.plot(taus, guide, '--k', lw=1.5)
