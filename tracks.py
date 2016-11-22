@@ -1161,19 +1161,21 @@ def save_corr_plot(fig, fit_desc):
     return save
 
 
-def plot_fit(result, tex_fits, args, ax=None):
+def plot_fit(result, tex_fits, args, data=None, ax=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     elif isinstance(ax, int):
         fig = plt.figure(ax)
-        ax = fig.axes[0]
+        ax = fig.gca()
     else:
         fig = ax.figure
     t = result.userkws[result.model.independent_vars[0]]    # x-value from fit
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, nn_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(t, result.data, 1/result.weights, None, c=args.vcol, lw=3,
+    if data is None:
+        data = result.data
+    ax.errorbar(t, data, 1/result.weights, None, c=args.vcol, lw=3,
                 capthick=0, elinewidth=1, errorevery=3)
     ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
     return fig, ax
@@ -1426,8 +1428,10 @@ def rn_plot(tracksets, fits, args):
 
     if args.rn in ('full', 'pos'):
         result = model.fit(meancorr, params, 1/sigma, s=taus)
+        plot_data = None
     else:
         fit_to = sym.symmetric if args.rn == 'sym' else sym.antisymmetric
+        plot_data = meancorr[sym.i]
         result = model.fit(fit_to, params, 1/sigma[sym.i], s=sym.x)
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
@@ -1437,9 +1441,9 @@ def rn_plot(tracksets, fits, args):
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
     fig = args.fig and args.fig + 1
-    fig, ax = plot_fit(result, tex_fits, args, ax=fig)
+    fig, ax = plot_fit(result, tex_fits, args, data=plot_data, ax=fig)
     ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
-    ax.plot(sym.x, sym.antisymmetric, '--g', label="anti-symmetric")
+    ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol, label="anti-symmetric")
 
     ylim_pad = 1.5
     ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
