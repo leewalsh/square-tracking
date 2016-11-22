@@ -101,6 +101,7 @@ if __name__ == '__main__':
     arg('-z', '--zoom', metavar="ZOOM", type=float,
         help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('--clean', action='store_true', help='Make clean plot for presentation')
+    arg('--fig', type=int)
     arg('--vcol', help='Color for velocity and displacement')
     arg('--pcol', help='Color for parameters and fits')
     arg('--ncol', help='Color for noise and histograms')
@@ -1161,6 +1162,9 @@ def save_corr_plot(fig, fit_desc):
 def plot_fit(result, tex_fits, args, ax=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    elif isinstance(ax, int):
+        fig = plt.figure(ax)
+        ax = fig.axes[0]
     else:
         fig = ax.figure
     t = result.userkws[result.model.independent_vars[0]]    # x-value from fit
@@ -1367,7 +1371,7 @@ def nn_plot(tracksets, fits, args):
     if not args.nn:
         return result, fits, None
 
-    fig, ax = plot_fit(result, tex_fits, args)
+    fig, ax = plot_fit(result, tex_fits, args, ax=args.fig)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
     ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
@@ -1430,7 +1434,8 @@ def rn_plot(tracksets, fits, args):
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
-    fig, ax = plot_fit(result, tex_fits, args)
+    fig = args.fig and args.fig + 1
+    fig, ax = plot_fit(result, tex_fits, args, ax=fig)
     ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
     ax.plot(sym.x, sym.antisymmetric, '--g', label="anti-symmetric")
 
