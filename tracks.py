@@ -994,37 +994,6 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     return fig, ax, taus, msd, msd_err
 
 
-def plot_params(params, s, ys, xs=None, by='source', ax=None, **pltargs):
-    """plot the fit parameters from correlations and histograms
-
-    plot parameters `y` vs `x` selected by `s`
-
-    parameters
-    params : structured array with keys for parameter name, from meta_meta
-    x, y, s : keys or lists of keys to plot on each axis (`s` will be color?)
-    """
-
-    if ax is None:
-        fig, ax = plt.subplots()
-    if xs is None:
-        xs = (np.arange(len(s)) for y in ys)
-    else:
-        xs = (ps[x] for x in xs)
-
-    ps = params[np.in1d(params[by], s)]
-    for x, y in zip(xs, ys):
-        ax.plot(x, ps[y], label=y, **pltargs)
-    ax.legend()
-
-    if by == 'dict':
-        for k in s:
-            ps = params[k]
-            ax.scatter(ps[x], ps[y], **pltargs)
-            pltargs['label'] = None  # only label once
-
-    return ax
-
-
 mkf = helpy.make_fit
 cf = {}
 cf.update({
