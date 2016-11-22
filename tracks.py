@@ -994,37 +994,41 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     return fig, ax, taus, msd, msd_err
 
 
-mkf = helpy.make_fit
-cf = {}
-cf.update({
-    'vn': mkf(func='vn', v0='mean', DT='var'),
-    'vt': mkf(func='vt', DT='var'),
-    'vo': mkf(func='vo', DR='var', w0='mean')
-})
-cfa = dict(func='nn', DR='free')
-cf.update({
-    'nn_Tf_Rf': mkf(TR='free', **cfa),
-    'nn_Tm_Rf': mkf(TR=1.8, **cfa),
-    'nn_T0_Rf': mkf(**cfa)
-})
-cfa = dict(func='rn', lp='free')
-cf.update({
-    'rn_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
-    'rn_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
-    'rn_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
-    'rn_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
-})
-cfa = dict(func='rr', DT='free')
-cf.update({
-    'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
-    'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
-    'rr_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
-    'rr_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
-    'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa)
-})
-del cfa
+def make_fitnames(fit=None):
+    mkf = helpy.make_fit
+    cf = {}
+    cf.update({
+        'vn': mkf(func='vn', v0='mean', DT='var'),
+        'vt': mkf(func='vt', DT='var'),
+        'vo': mkf(func='vo', DR='var', w0='mean')
+    })
+    cfa = dict(func='nn', DR='free')
+    cf.update({
+        'nn_Tf_Rf': mkf(TR='free', **cfa),
+        'nn_Tm_Rf': mkf(TR=1.8, **cfa),
+        'nn_T0_Rf': mkf(**cfa)
+    })
+    cfa = dict(func='rn', lp='free')
+    cf.update({
+        'rn_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
+        'rn_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
+        'rn_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
+        'rn_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
+    })
+    cfa = dict(func='rr', DT='free')
+    cf.update({
+        'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
+        'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
+        'rr_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
+        'rr_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+        'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa)
+    })
 
-fit_desc = {cf[k]: k for k in cf}
+    fit_desc = {cf[k]: k for k in cf}
+    if fit is None:
+        return cf, fit_desc
+    else:
+        return cf.get(fit) or fit_desc.get(fit) or (cf, fit_desc)
 
 
 def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
@@ -1036,6 +1040,7 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
     else:
         fig = ax.figure
 
+    cf, fit_desc = make_fitnames()
     kws = dict(marker='o', s=100)
     for x, y, kw in it.izip(*args):
         kws.update(kw)
@@ -1367,7 +1372,7 @@ def nn_plot(tracksets, fits, args):
 
     if args.save:
         if args.nn:
-            save_corr_plot(fig, fit_desc[fit])
+            save_corr_plot(fig, make_fitnames(fit))
 
     return result, fits, ax
 
@@ -1433,7 +1438,7 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, fit_desc[fit])
+        save_corr_plot(fig, make_fitnames(fit))
 
     return result, fits, ax
 
@@ -1520,7 +1525,7 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save_corr_plot(fig, fit_desc[fit])
+        save_corr_plot(fig, make_fitnames(fit))
 
     return result, fits, ax
 
