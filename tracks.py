@@ -1361,6 +1361,9 @@ def nn_plot(tracksets, fits, args):
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
 
+    if not args.nn:
+        return result, fits, None
+
     fig, ax = plot_fit(result, tex_fits, args)
     ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
     ax.set_ylim(exp(-3*args.zoom), 1)
@@ -1373,8 +1376,7 @@ def nn_plot(tracksets, fits, args):
               framealpha=1)
 
     if args.save:
-        if args.nn:
-            save_corr_plot(fig, make_fitnames(fit))
+        save_corr_plot(fig, make_fitnames(fit))
 
     return result, fits, ax
 
