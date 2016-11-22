@@ -1430,7 +1430,7 @@ def rn_plot(tracksets, fits, args):
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
-    fits[fit]['sym'] = sym.symmetry
+    fits[fit]['sym'] = float(sym.symmetry)
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
