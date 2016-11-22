@@ -354,8 +354,8 @@ def flip(f, x=None):
         neg = np.searchsorted(x, -x)
         pos = slice(neg[-1], neg[0] + 1)
         x = x[pos]
-        f = f[pos]
         g = f[neg[pos]]
+        f = f[pos]
     return f, g, x
 
 
