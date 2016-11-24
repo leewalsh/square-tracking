@@ -1021,7 +1021,7 @@ def make_fitnames(fit=None):
         'nn_Tf_Rf': mkf(TR='free', **cfa),
         'nn_Tm_Rf': mkf(TR=1.8, **cfa),
     })
-    for func in ['rn', 'rp', 'rs', 'ra']:
+    for func in ['rn', 'rp', 'rs', 'ra', 'rm']:
         cfa = dict(func=func, lp='free')
         cf.update({
             func + '_T0_Rf_Lf': mkf(TR=None,           DR='free', **cfa),
