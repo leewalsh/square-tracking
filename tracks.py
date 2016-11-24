@@ -1005,19 +1005,21 @@ def make_fitnames(fit=None):
     cf.update({
         'vn': mkf(func='vn', v0='mean', DT='var'),
         'vt': mkf(func='vt', DT='var'),
-        'vo': mkf(func='vo', DR='var', w0='mean')
+        'vo': mkf(func='vo', DR='var', w0='mean'),
     })
     cfa = dict(func='nn', DR='free')
     cf.update({
+        'nn_T0_Rf': mkf(TR=None, **cfa),
         'nn_Tf_Rf': mkf(TR='free', **cfa),
         'nn_Tm_Rf': mkf(TR=1.8, **cfa),
-        'nn_T0_Rf': mkf(**cfa)
     })
     for func in ['rn', 'rp', 'rs', 'ra']:
         cfa = dict(func=func, lp='free')
         cf.update({
+            func + '_T0_Rf_Lf': mkf(TR=None,           DR='free', **cfa),
             func + '_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
             func + '_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
+            func + '_T0_Rn_Lf': mkf(TR=None,           DR=cf['nn_T0_Rf'], **cfa),
             func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
             func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
         })
@@ -1027,16 +1029,16 @@ def make_fitnames(fit=None):
         'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
         'rr_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
         'rr_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
-        'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa)
+        'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
     })
 
     fit_desc = {cf[k]: k for k in cf}
     if fit is None:
         return cf, fit_desc
-    elif isinstance(fit, basestring):
-        return cf[fit]
-    else:
-        return fit_desc[fit]
+    elif not isinstance(fit, list):
+        fit = [fit]
+    out = [cf.get(f) or fit_desc.get(f) for f in fit]
+    return out if len(out) > 1 else out.pop()
 
 
 def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
