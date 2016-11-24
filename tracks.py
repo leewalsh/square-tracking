@@ -84,7 +84,7 @@ if __name__ == '__main__':
     arg('--boundary', type=float, nargs=3, default=False,
         metavar=('X0', 'Y0', 'R'), help='Boundary for track cutting')
     arg('--nn', action='store_true', help='Calculate and plot <nn> correlation')
-    arg('--rn', const='full', nargs='?', choices=['full', 'pos', 'sym', 'anti'],
+    arg('--rn', const='full', nargs='?', choices=['full', 'pos', 'max', 'anti'],
         default=False, help='Calculate and plot <rn> correlation')
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
@@ -999,6 +999,14 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     return fig, ax, taus, msd, msd_err
 
 
+def make_fitname(fit):
+    fmt = '{func}_T{TR}_R{DR}_L{lp}_D{DT}'.format
+    fmt(func=fit.func, TR=fit.TR or 0)
+    ('func', 'TR', 'DR', 'lp', 'DT', 'v0', 'w0')
+    fitname = []
+
+
+
 def make_fitnames(fit=None):
     mkf = helpy.make_fit
     cf = {}
@@ -1149,8 +1157,11 @@ def format_fit(result, model_name=None, sources=None):
     print print_fmt(free)
 
     tex_eqn = result.model.func.func_doc.replace('\n', '')
-    for_tex = '\n'.join([tex_eqn, 'fixed: ' + tex_fmt(fixed),
-                         'free: ' + tex_fmt(free)])
+    for_tex = '\n'.join([
+        #tex_eqn,
+        args.prefix,
+        'fixed: ' + tex_fmt(fixed),
+        'free: ' + tex_fmt(free)])
 
     return fit, free, for_tex
 
@@ -1163,7 +1174,7 @@ def save_corr_plot(fig, fit_desc):
     return save
 
 
-def plot_fit(result, tex_fits, args, data=None, ax=None):
+def plot_fit(result, tex_fits, args, t=None, data=None, ax=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     elif isinstance(ax, int):
@@ -1171,12 +1182,13 @@ def plot_fit(result, tex_fits, args, data=None, ax=None):
         ax = fig.gca()
     else:
         fig = ax.figure
-    t = result.userkws[result.model.independent_vars[0]]    # x-value from fit
+    if t is None:
+        t = result.userkws[result.model.independent_vars[0]]  # x-value from fit
+    if data is None:
+        data = result.data
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, nn_corrs.T, 'b', alpha=.2, lw=0.5)
-    if data is None:
-        data = result.data
     ax.errorbar(t, data, 1/result.weights, None, c=args.vcol, lw=3,
                 capthick=0, elinewidth=1, errorevery=3)
     ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
@@ -1395,7 +1407,7 @@ def nn_plot(tracksets, fits, args):
 
 
 def rn_plot(tracksets, fits, args):
-    model_name = {'full': 'rn', 'pos': 'rp', 'sym': 'rs', 'anti': 'ra'}[args.rn]
+    model_name = {'full': 'rn', 'pos': 'rp', 'anti': 'ra', 'max': 'rm'}[args.rn]
     taus, meancorr, errcorr = rn_corr(tracksets, args)
 
     form = [[rn_form_components_white, rn_form_components_color],
@@ -1429,12 +1441,18 @@ def rn_plot(tracksets, fits, args):
         rnerrfig.savefig(saveprefix+'_rn-corr_sigma.pdf')
 
     if args.rn in ('full', 'pos'):
-        result = model.fit(meancorr, params, 1/sigma, s=taus)
         plot_data = None
-    else:
-        fit_to = sym.symmetric if args.rn == 'sym' else sym.antisymmetric
+        result = model.fit(meancorr, params, 1/sigma, s=taus)
+    elif args.rn in ('anti', 'max'):
         plot_data = meancorr[sym.i]
-        result = model.fit(fit_to, params, 1/sigma[sym.i], s=sym.x)
+        if args.rn == 'max':
+            t_max = sym.antisymmetric.argmax()
+            l_max = sym.antisymmetric[t_max] / exp(params['TR']*params['DR'])
+            params['lp'].set(l_max, vary=False)
+            sources['lp'] = 'max'
+        result = model.fit(sym.antisymmetric, params, 1/sigma[sym.i], s=sym.x)
+        if args.rn == 'max':
+            result.params['lp'].set(vary=True)
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
@@ -1444,8 +1462,11 @@ def rn_plot(tracksets, fits, args):
 
     fig = args.fig and args.fig + 1
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data, ax=fig)
-    ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
-    ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol, label="anti-symmetric")
+    #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
+    ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol)#, label="anti-symmetric")
+    if args.rn == 'max':
+        ax.scatter(sym.x[[t_max, -t_max]], sym.antisymmetric[[t_max, -t_max]],
+                   marker='o', c=args.pcol)
 
     ylim_pad = 1.5
     ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
@@ -1456,7 +1477,12 @@ def rn_plot(tracksets, fits, args):
         ax.text(DR_time, 1e-2, ' $1/D_R$')
 
     if labels:
-        ax.set_title("Position - Orientation Correlation")
+        subtitle = {'full': '', 'pos': '\nfit only to positive half $t>0$',
+                    'sym': '\nfit only to symmetric part $f(t) + f(-t)$',
+                    'anti': '\nfit only to anti-symmetric part $f(t) - f(-t)$',
+                    'max': '\n$l_p=$ max of anti-symmetric part $f(t) + f(-t)$',
+                    }[args.rn]
+        ax.set_title("Position - Orientation Correlation" + subtitle)
     ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     ax.set_xlabel("$tf$")
     ax.legend(loc='upper left', framealpha=1)
