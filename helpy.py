@@ -596,17 +596,25 @@ def save_fits(prefix, new_fits):
         yaml.dump(fits, f)
 
 
-def gather_fits(prefixes):
+def gather_fits(prefixes, key_by=('prefix', 'config', 'param')):
     fits = dmap(load_fits, prefixes)
-    by_config = {fit: {var: [fits[pre][fit][var] for pre in prefixes]
-                       for var in fits[prefixes[0]][fit]}
-                 for fit in sorted({f for fs in fits.values() for f in fs})}
-    fits.update(by_config)
-
-    by_param = transpose_dict(by_config, missing=False)
-    fits.update(by_param)
-
-    fits['prefixes'] = prefixes
+    if 'config' in key_by or 'param' in key_by:
+        by_config = dict.fromkeys(f for fs in fits.values() for f in fs)
+        for fit in by_config:
+            by_config[fit] = {}
+            fit_vars = fits[prefixes[0]][fit]
+            for var in fit_vars:
+                by_config[fit][var] = []
+                for pre in prefixes:
+                    by_config[fit][var].append(fits[pre][fit][var])
+        fits['prefixes'] = prefixes
+    if 'config' in key_by:
+        fits.update(by_config)
+    if 'param' in key_by:
+        by_param = transpose_dict(by_config, missing=False)
+        fits.update(by_param)
+    if 'prefix' not in key_by:
+        map(fits.pop, prefixes)
     return fits
 
 
