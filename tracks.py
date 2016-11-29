@@ -1057,47 +1057,38 @@ def make_fitnames(fit=None):
     return out if len(out) > 1 else out.pop()
 
 
-def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
-                    label_source=False, savename='', ax=None):
-    args = [a if isinstance(a, (tuple, list)) else it.repeat(a)
-            for a in (xs, ys, pltargs)]
+def plot_param(fits, param, x, y, convert=None, ax=None, label='',
+               tag=None, s=100, figsize=(4, 4), **kws):
     if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 4))
-    else:
-        fig = ax.figure
+        ax = plt.subplots(figsize=figsize)[1]
+    fitx, fity = make_fitnames(x), make_fitnames(y)
+    resx, resy = fits[fitx], fits[fity]
+    try:
+        valx, valy = resx[param], resy[param]
+    except KeyError as err:
+        fitc = {'x': fitx, 'y': fity, 'v': make_fitnames('vo')}
+        fitc = fitc.get(convert, convert)
+        if fitc is None:
+            raise err
+        label += ' {}DR({}, {})'.format(
+            'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
+            fitc.func, make_fitnames(fitc.DR) or fitc.DR)
+        DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
+        valx = resx.get(param) or resx['v0']/DR
+        valy = resy.get(param) or resy['lp']*DR
+    ax.scatter(valx, valy, s=s, label=label, **kws)
+    if tag:
+        plt_text(valx, valy, tag, fontsize='small')
+    return ax
 
-    cf, fit_desc = make_fitnames()
-    kws = dict(marker='o', s=100)
-    for x, y, kw in it.izip(*args):
-        kws.update(kw)
-        fitx, fity = cf.get(x, x), cf.get(y, y)
-        resx, resy = fits[fitx], fits[fity]
-        if param == 'lp' and not 'lp' in resx:
-            if kws['marker'] == 's':
-                fitDR = fitx if fitx.DR else fity
-            else:
-                fitDR = cf['vo']
-            v0 = resx['v0']
-            DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
-            kws['label'] += ' lp(x)=v0(x)/DR({func}, {DR})'.format(**fitDR._asdict())
-            resx = np.array(v0)/DR
-            resy = resy[param]
-        elif param == 'v0' and not 'v0' in resy:
-            if kws['marker'] == 's':
-                fitDR = fitx if fitx.DR else fity
-            else:
-                fitDR = cf['vo']
-            lp = resy['lp']
-            DR = fits[fitDR].get('DR') or fits[fitDR.DR]['DR']
-            kws['label'] += ' v0(y)=lp(y)*DR({func}, {DR})'.format(**fitDR._asdict())
-            resy = np.array(lp)*DR
-            resx = resx[param]
-        else:
-            resx, resy = resx[param], resy[param]
-        np.array([resx, resy])
-        ax.scatter(resx, resy, **kws)
-        if label_source:
-            plt_text(resx, resy, label_source, fontsize='small')
+
+def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
+                    ax=None, savename='', **kwargs):
+    kwargs.update(xs=xs, ys=ys)
+    kws = helpy.transpose_dict_of_lists(kwargs)
+    for kw in kws:
+        x, y = kw.pop('xs'), kw.pop('ys')
+        ax = plot_param(fits, param, x, y, ax=ax, **kw)
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
@@ -1113,8 +1104,8 @@ def plot_parametric(fits, param, xs, ys, pltargs=None, scale='log', lims=None,
     ax.plot(lims, lims, '-k', alpha=0.7)
     ax.legend(loc='best', fontsize='x-small')
     if savename:
-        fig.savefig('/Users/leewalsh/Squares/colson/Output/stats/parameters/'
-                    'parametric_{}.pdf'.format(savename))
+        ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
+                          'parametric_{}.pdf'.format(savename))
     return ax
 
 
