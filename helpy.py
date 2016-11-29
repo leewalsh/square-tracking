@@ -6,6 +6,7 @@ from __future__ import division
 import itertools as it
 from collections import namedtuple
 from math import log, sqrt
+import re
 import sys
 import os
 import ntpath
@@ -575,14 +576,22 @@ def fit_items(fit):
             for k, v in fit._asdict().iteritems() if v is not None]
 
 
-def fit_str(fit):
+def fit_str(fit, remove_none=False, indent=True):
     tabs = []
     q = []
-    for s in str(fit).split(', '):
+    fit = str(fit)
+    if remove_none:
+        fit = re.sub(', ..=None', '', fit)
+    if not indent:
+        return fit
+    for s in fit.split(', '):
         q.append(' '*sum(tabs) + s)
         p = s.find('(') + 1
-        tabs.append(p) if p else tabs.pop(-1) if s.endswith(')') else None
-    print ',\n'.join(q)
+        if p:
+            tabs.append(p)
+        elif s.endswith(')'):
+            tabs.pop(-1)
+    return ',\n'.join(q)
 
 
 def load_fits(prefix, new_fits=None):
