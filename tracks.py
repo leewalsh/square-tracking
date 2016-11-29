@@ -1080,7 +1080,9 @@ def plot_param(fits, param, x, y, convert=None, ax=None, label='',
         valy = resy.get(param) or resy['lp']*DR
     ax.scatter(valx, valy, s=s, label=label, **kws)
     if tag:
-        plt_text(valx, valy, tag, fontsize='small')
+        tag = [t.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
+               for t in tag]
+        plt_text(valx, valy, tag, fontsize='x-small')
     return ax
 
 
@@ -1095,7 +1097,7 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
 
-    lims = lims or [0, {'DR': 0.15, 'v0': 0.3, 'DT': 0.01, 'lp': 4}[param]]
+    lims = lims or [0, {'DR': 0.15, 'v0': 0.25, 'DT': 0.03, 'lp': 4}[param]]
     if scale == 'log' and lims[0] < 1e-3:
         lims[0] = 1e-3
     ax.set_xscale(scale)
@@ -1104,7 +1106,7 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     ax.set_xlim(lims)
     ax.set_ylim(lims)
     ax.plot(lims, lims, '-k', alpha=0.7)
-    ax.legend(loc='best', fontsize='x-small')
+    ax.legend(loc='best')
     if savename:
         ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
                           'parametric_{}.pdf'.format(savename))

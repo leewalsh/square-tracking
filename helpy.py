@@ -336,10 +336,10 @@ def transpose_dict_of_lists(dol=None, missing=None, **lists):
     dol.update(lists)
 
     ks, ls = zip(*dol.items())
-    if not any(isinstance(l, (tuple, list)) for l in ls):
+    if not any(isinstance(l, list) for l in ls):
         raise TypeError('none of the dict values are lists or tuples')
 
-    ls = (l if isinstance(l, (tuple, list)) else it.repeat(l) for l in ls)
+    ls = (l if isinstance(l, list) else it.repeat(l) for l in ls)
     return [dict(zip(ks, vs)) for vs in zip(*ls)]
 
 
