@@ -89,6 +89,7 @@ if __name__ == '__main__':
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
     arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
+    arg('--fit0', action='store_true', help='include t = 0, 1 in MSD fit?')
     arg('--colored', default=False, const=True, nargs='?', type=float,
         help='fit with colored noise')
     arg('--fixdt', default=True, const=False, nargs='?', type=float,
@@ -1037,14 +1038,15 @@ def make_fitnames(fit=None):
         })
         if isinstance(fit, basestring) and fit in cf:
             return cf[fit]
-    cfa = dict(func='rr', DT='free')
-    cf.update({
-        'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
-        'rr_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
-        'rr_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
-        'rr_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
-        'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
-    })
+    for func in ['rr', 'r0']:
+        cfa = dict(func=func, DT='free')
+        cf.update({
+            func + '_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
+            func + '_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+            func + '_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
+            func + '_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
+            func + '_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
+        })
 
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
@@ -1493,7 +1495,7 @@ def rn_plot(tracksets, fits, args):
 
 
 def rr_plot(msds, msdids, data, fits, args):
-    model_name = 'rr'
+    model_name = 'r0' if args.fit0 else 'rr'
     fig, ax, taus, msd, errcorr = plot_msd(
         msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
         show=False, tnormalize=0, errorbars=3, prefix=saveprefix, labels=labels,
@@ -1527,7 +1529,7 @@ def rr_plot(msds, msdids, data, fits, args):
         rrerrax = False
     rruncert = rt2*args.dx
     sigma = curve.sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax, xnorm=1,
-                                const=rruncert, ignore=[0, tmax],
+                                const=rruncert, ignore=[0]*(1-args.fit0)+[tmax],
                                 verbose=verbose)
     if rrerrax:
         rrerrax.legend(loc='upper left', fontsize='x-small')
