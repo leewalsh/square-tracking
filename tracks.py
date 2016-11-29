@@ -1004,7 +1004,7 @@ def make_fitname(fit):
     fmt(func=fit.func, TR=fit.TR or 0)
     ('func', 'TR', 'DR', 'lp', 'DT', 'v0', 'w0')
     fitname = []
-
+    return
 
 
 def make_fitnames(fit=None):
@@ -1015,12 +1015,16 @@ def make_fitnames(fit=None):
         'vt': mkf(func='vt', DT='var'),
         'vo': mkf(func='vo', DR='var', w0='mean'),
     })
+    if isinstance(fit, basestring) and fit in cf:
+        return cf[fit]
     cfa = dict(func='nn', DR='free')
     cf.update({
         'nn_T0_Rf': mkf(TR=None, **cfa),
         'nn_Tf_Rf': mkf(TR='free', **cfa),
         'nn_Tm_Rf': mkf(TR=1.8, **cfa),
     })
+    if isinstance(fit, basestring) and fit in cf:
+        return cf[fit]
     for func in ['rn', 'rp', 'rs', 'ra', 'rm']:
         cfa = dict(func=func, lp='free')
         cf.update({
@@ -1031,6 +1035,8 @@ def make_fitnames(fit=None):
             func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
             func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
         })
+        if isinstance(fit, basestring) and fit in cf:
+            return cf[fit]
     cfa = dict(func='rr', DT='free')
     cf.update({
         'rr_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
@@ -1040,6 +1046,8 @@ def make_fitnames(fit=None):
         'rr_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
     })
 
+    if isinstance(fit, basestring) and fit in cf:
+        return cf[fit]
     fit_desc = {cf[k]: k for k in cf}
     if fit is None:
         return cf, fit_desc
