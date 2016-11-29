@@ -310,6 +310,38 @@ def nan_info(arr, verbose=False):
     return isnan, nnan, wnan
 
 
+def transpose_list_of_dicts(*lod, **kwargs):
+    """transpose a list of dicts, return dict of lists."""
+    missing = kwargs.pop('missing', None)
+    if kwargs:
+        nkw = len(kwargs)
+        err = ('{}.{} got{} unexpected keyword argument{}' + ' {!r}'*nkw).format
+        raise TypeError(err(__name__, 'transpose_list_of_dicts()',
+                            ' an'*(nkw == 1), 's'*(nkw > 1), *kwargs))
+
+    if len(lod) == 1:
+        lod = lod[0]
+    if not all(isinstance(d, dict) for d in lod):
+        raise TypeError('list contains something other than dicts')
+
+    ks = map(set, lod)
+    ks = (set.intersection if missing is False else set.union)(*ks)
+    return {k: [d.get(k, missing) for d in lod] for k in ks}
+
+
+def transpose_dict_of_lists(dol=None, missing=None, **lists):
+    """transpose a dict of lists, return list of dicts."""
+    dol = dict(dol or {})
+    dol.update(lists)
+
+    ks, ls = zip(*dol.items())
+    if not any(isinstance(l, (tuple, list)) for l in ls):
+        raise TypeError('none of the dict values are lists or tuples')
+
+    ls = (l if isinstance(l, (tuple, list)) else it.repeat(l) for l in ls)
+    return [dict(zip(ks, vs)) for vs in zip(*ls)]
+
+
 def transpose_dict(outerdict=None, missing=None, **innerdicts):
     """transpose a dict of dicts.
 
