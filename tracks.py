@@ -1044,12 +1044,14 @@ def make_fitnames(fit=None):
         })
         if isinstance(fit, basestring) and fit in cf:
             return cf[fit]
-    for func in ['rr', 'r0']:
+    for func in [r + z for z in 'r0' for r in 'rdp']:
         cfa = dict(func=func, DT='free')
         cf.update({
             func + '_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
             func + '_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
+            func + '_Tm_Rn_La_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rn_Lf'], **cfa),
             func + '_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
+            #func + '_Tm_Rn_L?_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rf_Lf'], **cfa),
             func + '_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
             func + '_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
         })
@@ -1061,7 +1063,7 @@ def make_fitnames(fit=None):
         return cf, fit_desc
     elif not isinstance(fit, list):
         fit = [fit]
-    out = [cf.get(f) or fit_desc.get(f) for f in fit]
+    out = [cf.get(f) or fit_desc[f] for f in fit]
     return out if len(out) > 1 else out.pop()
 
 
@@ -1078,9 +1080,9 @@ def plot_param(fits, param, x, y, convert=None, ax=None, label='',
         fitc = fitc.get(convert, convert)
         if fitc is None:
             raise err
-        label += ' {}DR({}, {})'.format(
-            'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
-            fitc.func, make_fitnames(fitc.DR) or fitc.DR)
+        #label += ' {}DR({}, {})'.format(
+            #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
+            #fitc.func, make_fitnames(fitc.DR) or fitc.DR)
         DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
         valx = resx.get(param) or resx['v0']/DR
         valy = resy.get(param) or resy['lp']*DR
@@ -1129,7 +1131,7 @@ def get_param_value(name, fits=None):
                 for v in zip(*(get_param_value(n, fits)
                                for n in name))]
     if fits is not None:
-        for source in ('nn', 'rn', 'rr'):
+        for source in 'nn rn ra rp rr r0 pr p0 dr d0'.split():
             for fit in fits:
                 if fit.func == source:
                     try:
@@ -1328,11 +1330,11 @@ def rr_form_total(s, DT, lp, DR, TR):
     return 2*(persistence*propulsion + diffusion)
 
 
-def rr_form_components(s, DT, lp, DR, TR, component=None):
+def rr_form_prog(s, DT, lp, DR, TR):
     r"""$\ell_p^2 e^{D_R \tau_R}
     \left(
         D_R t - 1 + e^{-D_Rt}
-        \pm \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
+        + \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
     \right) + 2 D_Tt$
     """
     color = exp(DR*TR)
@@ -1342,6 +1344,22 @@ def rr_form_components(s, DT, lp, DR, TR, component=None):
     propulsion = decay - 1 + DR*s
     anisotropy = quartic(color)*(quartic(decay) - 4*decay + 3)/12
     return persistence*(propulsion + anisotropy) + diffusion
+
+
+def rr_form_div(s, DT, lp, DR, TR):
+    r"""$\ell_p^2 e^{D_R \tau_R}
+    \left(
+        D_R t - 1 + e^{-D_Rt}
+        - \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
+    \right) + 2 D_Tt$
+    """
+    color = exp(DR*TR)
+    persistence = color*lp**2
+    decay = np.exp(-DR*s)
+    diffusion = 2*DT*s
+    propulsion = decay - 1 + DR*s
+    anisotropy = quartic(color)*(quartic(decay) - 4*decay + 3)/12
+    return persistence*(propulsion - anisotropy) + diffusion
 
 
 def limiting_regimes(s, DT, lp, DR, TR):
@@ -1512,7 +1530,7 @@ def rr_plot(msds, msdids, data, fits, args):
         meancol=args.vcol, show_tracks=args.showtracks, lw=3, S=args.side,
         singletracks=args.singletracks, fps=args.fps, kill_flats=args.killflat,
         kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
-        figsize=(5, 4) if args.clean else (8, 6))
+        fig=(5, 4) if args.clean else (8, 6))
 
     if msd.ndim == 2:
         progression, diversion = msd.T
@@ -1523,7 +1541,8 @@ def rr_plot(msds, msdids, data, fits, args):
         msdvec, msd, errcorr = {'displacement': (0, msdisp, errcorr_disp),
                                 'progression': (1, progression, errcorr_prog),
                                 'diversion': (-1, diversion, errcorr_div)
-                                }[args.msdvec]
+                               }[args.msdvec]
+        model_name = 'rpd'[msdvec] + model_name[-1]
     elif args.msdvec.startswith('disp'):
         msdvec = 0
     else:
@@ -1546,7 +1565,7 @@ def rr_plot(msds, msdids, data, fits, args):
         if args.save:
             rrerrfig.savefig(saveprefix+'_rr-corr_sigma.pdf')
 
-    form = [rr_form_total, rr_form_components][msdvec]
+    form = [rr_form_total, rr_form_prog, rr_form_div][msdvec]
     model = Model(form)
     params = model.make_params()
     vals, sources = get_param_value(params.keys(), fits)
@@ -1575,6 +1594,7 @@ def rr_plot(msds, msdids, data, fits, args):
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
+    ax.set_title("mean squared {}".format(args.msdvec))
 
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
