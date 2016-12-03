@@ -903,7 +903,7 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
 
 
 def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
-             xscale='log', meancol='r', figsize=(8, 6), title=None, xlim=None,
+             xscale='log', meancol='r', fig=(8, 6), title=None, xlim=None,
              ylim=None, lw=1, legend=False, errorbars=False, show_tracks=True,
              singletracks=None, sys_size=0, kill_flats=0, kill_jumps=1e9, S=1,
              fps=1, ang=False, save='', show=True, labels=True):
@@ -920,8 +920,14 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
         taus = helpy.farange(dt0, nframes+1, dtau)
     elif isinstance(dtau, (int, np.int)):
         taus = np.arange(dtau, nframes+1, dtau, dtype=float)
-    fig = plt.figure(figsize=figsize)
-    ax = fig.gca()
+
+    if isinstance(fig, plt.Figure):
+        ax = fig.gca()
+    elif isinstance(fig, plt.Axes):
+        ax = fig
+        fig = ax.figure
+    elif isinstance(fig, tuple):
+        fig, ax = plt.subplots(figsize=fig)
 
     # Get the mean of msds
     msd_taus, msd_mean, msd_err = mean_msd(
@@ -1087,7 +1093,7 @@ def plot_param(fits, param, x, y, convert=None, ax=None, label='',
 
 
 def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
-                    ax=None, savename='', **kwargs):
+                    ax=None, legend=None, savename='', title='', **kwargs):
     kwargs.update(xs=xs, ys=ys)
     kws = helpy.transpose_dict_of_lists(kwargs)
     for kw in kws:
@@ -1106,7 +1112,9 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     ax.set_xlim(lims)
     ax.set_ylim(lims)
     ax.plot(lims, lims, '-k', alpha=0.7)
-    ax.legend(loc='best')
+    ax.legend(**dict(dict(loc='best', scatterpoints=1), **(legend or {})))
+    if title:
+        ax.set_title(title)
     if savename:
         ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
                           'parametric_{}.pdf'.format(savename))
@@ -1191,7 +1199,7 @@ def plot_fit(result, tex_fits, args, t=None, data=None, ax=None):
         data = result.data
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
-        ax.plot(t, nn_corrs.T, 'b', alpha=.2, lw=0.5)
+        ax.plot(t, all_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(t, data, 1/result.weights, None, c=args.vcol, lw=3,
                 capthick=0, elinewidth=1, errorevery=3)
     ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
@@ -1720,7 +1728,7 @@ if __name__ == '__main__':
                  show_tracks=args.showtracks, singletracks=args.singletracks,
                  kill_flats=args.killflat, S=args.side, save=args.save,
                  kill_jumps=args.killjump*args.side**2, fps=args.fps,
-                 figsize=(5, 4) if args.clean else (8, 6), labels=labels)
+                 fig=(5, 4) if args.clean else (8, 6), labels=labels)
 
     if args.plottracks and not args.check:
         if verbose:
