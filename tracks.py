@@ -818,9 +818,22 @@ def find_msds(tracksets, dt0, dtau, ret_vector=False):
     return msds, msdids
 
 
-def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
-             kill_flats=1, kill_jumps=1e9, errorbars=False,
-             show_tracks=False, singletracks=None):
+def make_taus(dtau, dt0, nframes, maxlength=None):
+    if verbose:
+        print "using dtau = {}, dt0 = {}".format(dtau, dt0)
+    try:
+        dtau = np.asscalar(dtau)
+    except AttributeError:
+        pass
+    if isinstance(dtau, (float, np.float)):
+        taus = helpy.farange(dt0, nframes+1, dtau)
+    elif isinstance(dtau, (int, np.int)):
+        taus = np.arange(dtau, nframes+1, dtau, dtype=float)
+    return taus[:maxlength]
+
+def mean_msd(msds, dtau, dt0, nframes, A=1, fps=1, kill_flats=1, kill_jumps=1e9,
+             msdids=None, show_tracks=False, singletracks=None,
+             tnormalize=False):
     """ return the mean of several track msds """
 
     # msd has shape (number of tracks, length of tracks, msd vector dimension)
@@ -830,12 +843,10 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
     if vdim > 1:
         msdshape += [vdim]
     msd = np.full(msdshape, np.nan, float)
+    taus = make_taus(dtau, dt0, nframes, maxlength=msdshape[1])
     if verbose:
         print 'msdshape:', msdshape
         print 'taushape:', taus.shape,
-    taus = taus[:msdshape[1]]
-    if verbose:
-        print '-->', taus.shape
         print 'assembling msd tracks'
 
     if msdids is not None:
@@ -902,25 +913,14 @@ def mean_msd(msds, taus, msdids=None, tnormalize=False, fps=1, A=1,
     return taus, msd_mean, msd_err
 
 
-def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
-             xscale='log', meancol='r', fig=(8, 6), title=None, xlim=None,
-             ylim=None, lw=1, legend=False, errorbars=False, show_tracks=True,
-             singletracks=None, sys_size=0, kill_flats=0, kill_jumps=1e9, S=1,
-             fps=1, ang=False, save='', show=True, labels=True):
+def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
+             fig=(8, 6), fps=1, labels=True, legend=False, lw=1, meancol='r',
+             prefix='', save='', show=True, sys_size=0, title=None,
+             tnormalize=False, xlim=None, xscale='log', ylim=None):
     """ Plots the MS(A)Ds """
     A = 1 if ang else S**2
     if verbose:
-        print "using dtau = {}, dt0 = {}".format(dtau, dt0)
         print "using S = {} pixels, thus A = {} px^2".format(S, A)
-    try:
-        dtau = np.asscalar(dtau)
-    except AttributeError:
-        pass
-    if isinstance(dtau, (float, np.float)):
-        taus = helpy.farange(dt0, nframes+1, dtau)
-    elif isinstance(dtau, (int, np.int)):
-        taus = np.arange(dtau, nframes+1, dtau, dtype=float)
-
     if isinstance(fig, plt.Figure):
         ax = fig.gca()
     elif isinstance(fig, plt.Axes):
@@ -929,18 +929,6 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
     elif isinstance(fig, tuple):
         fig, ax = plt.subplots(figsize=fig)
 
-    # Get the mean of msds
-    msd_taus, msd_mean, msd_err = mean_msd(
-        msds, taus, msdids, fps=fps, A=A,
-        kill_flats=kill_flats, kill_jumps=kill_jumps, show_tracks=show_tracks,
-        singletracks=singletracks, tnormalize=tnormalize, errorbars=errorbars)
-    if verbose:
-        print '     taus:', taus.shape
-        print ' from msd:', msd_taus.shape
-        print '      msd:', msd_mean.shape
-        taus_crop = taus[:len(msd_mean)]
-        print 'shortened:', taus_crop.shape
-        print '   match?:', np.allclose(taus_crop, msd_taus)
     taus = msd_taus / fps
     msd = msd_mean / A
     msd_vec = msd.ndim > 1
@@ -952,7 +940,7 @@ def plot_msd(msds, msdids, dtau, dt0, nframes, prefix='', tnormalize=False,
             "Angular " if ang else "",
             "^{}".format(tnormalize)*(tnormalize != 1))
         ax.plot(taus, msd/taus**tnormalize, meancol, label=label*labels)
-        ax.plot(taus, msd[0]*taus**(1-tnormalize)/dtau,
+        ax.plot(taus, msd[0]*taus**(1-tnormalize),
                 'k-', label="ref slope = 1", lw=2)
         label = (r"$(2\pi)^2$" if ang else
                  ("One particle area" if S > 1 else "One Pixel"))
@@ -1524,12 +1512,15 @@ def rn_plot(tracksets, fits, args):
 
 def rr_plot(msds, msdids, data, fits, args):
     model_name = 'r0' if args.fit0 else 'rr'
-    fig, ax, taus, msd, errcorr = plot_msd(
-        msds, msdids, args.dtau, args.dt0, data['f'].max()+1, save=False,
-        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, labels=labels,
-        meancol=args.vcol, show_tracks=args.showtracks, lw=3, S=args.side,
+    msd_taus, msd_mean, msd_err = mean_msd(
+        msds, args.dtau, args.dt0, nframes=data['f'].max()+1, A=args.side**2,
         singletracks=args.singletracks, fps=args.fps, kill_flats=args.killflat,
-        kill_jumps=args.killjump*args.side**2, title='' if args.clean else None,
+        kill_jumps=args.killjump*args.side**2, msdids=msdids, tnormalize=0,
+        show_tracks=args.showtracks)
+    fig, ax, taus, msd, errcorr = plot_msd(
+        msd_mean, msd_taus, msd_err, save=False, fps=args.fps,
+        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, labels=labels,
+        meancol=args.vcol, lw=3, S=args.side, title='' if args.clean else None,
         fig=(5, 4) if args.clean else (8, 6))
 
     if msd.ndim == 2:
@@ -1743,11 +1734,13 @@ if __name__ == '__main__':
         if verbose:
             print 'plotting msd now!'
         labels = not args.clean
-        plot_msd(msds, msdids, args.dtau, args.dt0, data['f'].max()+1,
-                 tnormalize=False, prefix=saveprefix, show=args.show,
-                 show_tracks=args.showtracks, singletracks=args.singletracks,
-                 kill_flats=args.killflat, S=args.side, save=args.save,
-                 kill_jumps=args.killjump*args.side**2, fps=args.fps,
+        msd_taus, msd_mean, msd_err = mean_msd(
+            msds, args.dtau, args.dt0, data['f'].max()+1, msdids=msdids,
+            A=args.side**2, fps=args.fps, kill_flats=args.killflat,
+            kill_jumps=args.killjump*args.side**2, show_tracks=args.showtracks,
+            singletracks=args.singletracks)
+        plot_msd(msd_mean, msd_taus, msd_err, prefix=saveprefix,
+                 show=args.show, S=args.side, save=args.save, fps=args.fps,
                  fig=(5, 4) if args.clean else (8, 6), labels=labels)
 
     if args.plottracks and not args.check:
