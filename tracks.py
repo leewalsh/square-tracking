@@ -1012,36 +1012,38 @@ def make_fitnames(fit=None):
     })
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
-    cfa = dict(func='nn', DR='free')
+
+    mkf = partial(helpy.make_fit, func='nn', DR='free')
     cf.update({
-        'nn_T0_Rf': mkf(TR=None, **cfa),
-        'nn_Tf_Rf': mkf(TR='free', **cfa),
-        'nn_Tm_Rf': mkf(TR=1.8, **cfa),
+        'nn_T0_Rf': mkf(TR=None),
+        'nn_Tf_Rf': mkf(TR='free'),
+        'nn_Tm_Rf': mkf(TR=1.8),
     })
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
+
     for func in ['rn', 'rp', 'rs', 'ra', 'rm']:
-        cfa = dict(func=func, lp='free')
+        mkf = partial(helpy.makefit, func=func, lp='free')
         cf.update({
-            func + '_T0_Rf_Lf': mkf(TR=None,           DR='free', **cfa),
-            func + '_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free', **cfa),
-            func + '_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free', **cfa),
-            func + '_T0_Rn_Lf': mkf(TR=None,           DR=cf['nn_T0_Rf'], **cfa),
-            func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], **cfa),
-            func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], **cfa),
+            func + '_T0_Rf_Lf': mkf(TR=None,           DR='free'),
+            func + '_T0_Rn_Lf': mkf(TR=None,           DR=cf['nn_T0_Rf']),
+            func + '_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free'),
+            func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf']),
+            func + '_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free'),
+            func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf']),
         })
         if isinstance(fit, basestring) and fit in cf:
             return cf[fit]
     for func in [r + z for z in 'r0' for r in 'rdp']:
-        cfa = dict(func=func, DT='free')
+        mkf = partial(helpy.makefit, func=func, DT='free')
         cf.update({
-            func + '_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free', **cfa),
-            func + '_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf'], **cfa),
-            func + '_Tm_Rn_La_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rn_Lf'], **cfa),
-            func + '_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf'], **cfa),
-            #func + '_Tm_Rn_L?_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rf_Lf'], **cfa),
-            func + '_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free', **cfa),
-            func + '_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf'], **cfa),
+            func + '_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free'),
+            func + '_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf']),
+            func + '_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free'),
+            func + '_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf']),
+            func + '_Tm_Rn_La_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rn_Lf']),
+            func + '_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf']),
+            func + '_Tm_Rn_L?_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rf_Lf']),
         })
 
     if isinstance(fit, basestring) and fit in cf:
