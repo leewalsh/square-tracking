@@ -1003,7 +1003,7 @@ def make_fitname(fit):
     return
 
 
-def make_fitnames(fit=None):
+def make_fitnames():
     """Build up a mapping to nicknames for most conceivablel fits"""
 
     # from velocities
@@ -1014,8 +1014,6 @@ def make_fitnames(fit=None):
         'vt': mkf(func='vt', DT='var'),
         'vo': mkf(func='vo', DR='var', w0='mean'),
     })
-    if isinstance(fit, basestring) and fit in cf:
-        return cf[fit]
 
     # from orientation autocorrelation: nn
     mkf = partial(helpy.make_fit, func='nn', DR='free')
@@ -1024,8 +1022,6 @@ def make_fitnames(fit=None):
         'nn_Tf_Rf': mkf(TR='free'),
         'nn_Tm_Rf': mkf(TR=1.8),
     })
-    if isinstance(fit, basestring) and fit in cf:
-        return cf[fit]
 
     # from forward displacement: rn rp rs ra rm
     mkf = partial(helpy.make_fit, lp='free')
@@ -1038,8 +1034,6 @@ def make_fitnames(fit=None):
         DRf = {'Rf': 'free',
                'Rn': TRf or 'nn_'+TR+'_Rf'}[DR]
         cf[desc] = mkf(func=func, TR=cf[TRf], DR=cf[DRf])
-        if isinstance(fit, basestring) and fit in cf:
-            return cf[fit]
 
     # from mean squared displacement: rr pr dr r0 p0 d0
     mkf = partial(helpy.make_fit, DT='free')
@@ -1064,34 +1058,27 @@ def make_fitnames(fit=None):
         cf[desc] = mkf(func=func, TR=cf[TRf], DR=cf[DRf],
                        lp=cf[lpf], DT=cf[DTf])
 
-    if isinstance(fit, basestring) and fit in cf:
-        return cf[fit]
+    del cf['free'], cf[None]
     fit_desc = {cf[k]: k for k in cf}
-    if fit is None:
-        del cf['free'], cf[None]
-        return cf, fit_desc
-    elif not isinstance(fit, list):
-        fit = [fit]
-    out = [cf.get(f) or fit_desc[f] for f in fit]
-    return out if len(out) > 1 else out.pop()
+    return cf, fit_desc
 
 
 def plot_param(fits, param, x, y, convert=None, ax=None, label='',
                tag=None, s=100, figsize=(4, 4), **kws):
     if ax is None:
         ax = plt.subplots(figsize=figsize)[1]
-    fitx, fity = make_fitnames(x), make_fitnames(y)
+    fitx, fity = fit_config[x], fit_config[y]
     resx, resy = fits[fitx], fits[fity]
     try:
         valx, valy = resx[param], resy[param]
     except KeyError as err:
-        fitc = {'x': fitx, 'y': fity, 'v': make_fitnames('vo')}
+        fitc = {'x': fitx, 'y': fity, 'v': fit_config['vo']}
         fitc = fitc.get(convert, convert)
         if fitc is None:
             raise err
         #label += ' {}DR({}, {})'.format(
             #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
-            #fitc.func, make_fitnames(fitc.DR) or fitc.DR)
+            #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
         DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
         valx = resx.get(param) or resx['v0']/DR
         valy = resy.get(param) or resy['lp']*DR
@@ -1439,7 +1426,7 @@ def nn_plot(tracksets, fits, args):
               framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, make_fitnames(fit))
+        save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
@@ -1526,7 +1513,7 @@ def rn_plot(tracksets, fits, args):
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, make_fitnames(fit))
+        save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
@@ -1618,7 +1605,7 @@ def rr_plot(msds, msdids, data, fits, args):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save_corr_plot(fig, make_fitnames(fit))
+        save_corr_plot(fig, fit_desc[fit])
 
     return result, fits, ax
 
@@ -1791,6 +1778,9 @@ if __name__ == '__main__':
 
     if args.save:
         helpy.save_meta(saveprefix, meta)
+
+    if args.nn or args.rn or args.rr:
+        fit_config, fit_desc = make_fitnames()
 
     if args.nn or args.colored:
         print "====== <nn> ======"
