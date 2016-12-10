@@ -996,10 +996,25 @@ def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
 
 def make_fitname(fit):
     """Attempt to create a nickname for a fit given a Fit instance"""
+    # ('func', 'TR', 'DR', 'lp', 'DT', 'v0', 'w0')
+    d = {'func':
+         {'vo': 'vo', 'vn': 'vn', 'vt': 'vt',
+          'nn': 'nn',
+          'rn': 'rn', 'rp': 'rp', 'rs': 'rs', 'ra': 'ra', 'rm': 'rm',
+          'rr': 'rr', 'r0': 'r0',
+          'pr': 'pr', 'p0': 'p0', 'dr': 'dr', 'd0': 'd0',
+         },
+         'TR': {None    : '0',
+                'free'  : 'f',
+                1.8     : 'm',
+               },
+         'DR': {'free'  : 'f',
+
+               },
+        }
+
     fmt = '{func}_T{TR}_R{DR}_L{lp}_D{DT}'.format
-    fmt(func=fit.func, TR=fit.TR or 0)
-    ('func', 'TR', 'DR', 'lp', 'DT', 'v0', 'w0')
-    fitname = []
+    fmt(func=fit.func, TR=fit.TR or 0, DR=fit.DR, lp=fit.lp, DT=fit.DT)
     return
 
 
