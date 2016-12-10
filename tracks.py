@@ -995,6 +995,7 @@ def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
 
 
 def make_fitname(fit):
+    """Attempt to create a nickname for a fit given a Fit instance"""
     fmt = '{func}_T{TR}_R{DR}_L{lp}_D{DT}'.format
     fmt(func=fit.func, TR=fit.TR or 0)
     ('func', 'TR', 'DR', 'lp', 'DT', 'v0', 'w0')
@@ -1003,8 +1004,11 @@ def make_fitname(fit):
 
 
 def make_fitnames(fit=None):
+    """Build up a mapping to nicknames for most conceivablel fits"""
+
+    # from velocities
     mkf = helpy.make_fit
-    cf = {}
+    cf = {'free': 'free', None: None}
     cf.update({
         'vn': mkf(func='vn', v0='mean', DT='var'),
         'vt': mkf(func='vt', DT='var'),
@@ -1013,6 +1017,7 @@ def make_fitnames(fit=None):
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
 
+    # from orientation autocorrelation: nn
     mkf = partial(helpy.make_fit, func='nn', DR='free')
     cf.update({
         'nn_T0_Rf': mkf(TR=None),
@@ -1022,34 +1027,48 @@ def make_fitnames(fit=None):
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
 
-    for func in ['rn', 'rp', 'rs', 'ra', 'rm']:
-        mkf = partial(helpy.makefit, func=func, lp='free')
-        cf.update({
-            func + '_T0_Rf_Lf': mkf(TR=None,           DR='free'),
-            func + '_T0_Rn_Lf': mkf(TR=None,           DR=cf['nn_T0_Rf']),
-            func + '_Tn_Rf_Lf': mkf(TR=cf['nn_Tf_Rf'], DR='free'),
-            func + '_Tn_Rn_Lf': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf']),
-            func + '_Tm_Rf_Lf': mkf(TR=cf['nn_Tm_Rf'], DR='free'),
-            func + '_Tm_Rn_Lf': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf']),
-        })
+    # from forward displacement: rn rp rs ra rm
+    mkf = partial(helpy.make_fit, lp='free')
+    for func, TR, DR in [('r'+r, 'T'+T, 'R'+R)
+                         for r in 'npsam' for T in '0nm' for R in 'fn']:
+        desc = '_'.join([func, TR, DR, 'Lf'])
+        TRf = {'T0': None,
+               'Tn': 'nn_Tf_Rf',
+               'Tm': 'nn_Tm_Rf'}[TR]
+        DRf = {'Rf': 'free',
+               'Rn': TRf or 'nn_'+TR+'_Rf'}[DR]
+        cf[desc] = mkf(func=func, TR=cf[TRf], DR=cf[DRf])
         if isinstance(fit, basestring) and fit in cf:
             return cf[fit]
-    for func in [r + z for z in 'r0' for r in 'rdp']:
-        mkf = partial(helpy.makefit, func=func, DT='free')
-        cf.update({
-            func + '_Tn_Rn_Lf_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp='free'),
-            func + '_Tn_Rn_Ln_Df': mkf(TR=cf['nn_Tf_Rf'], DR=cf['nn_Tf_Rf'], lp=cf['rn_Tn_Rn_Lf']),
-            func + '_Tm_Rn_Lf_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp='free'),
-            func + '_Tm_Rn_Ln_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rn_Lf']),
-            func + '_Tm_Rn_La_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rn_Lf']),
-            func + '_Tm_Rn_Lr_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['rn_Tm_Rf_Lf']),
-            func + '_Tm_Rn_L?_Df': mkf(TR=cf['nn_Tm_Rf'], DR=cf['nn_Tm_Rf'], lp=cf['ra_Tm_Rf_Lf']),
-        })
+
+    # from mean squared displacement: rr pr dr r0 p0 d0
+    mkf = partial(helpy.make_fit, DT='free')
+    for func, TR, lp, DT in [(r+z, 'T'+T, 'L'+l, 'D'+D)
+                             for r in 'rpd' for z in 'r0'
+                             for T in '0nm' for l in 'fnard' for D in 'fd']:
+        desc = '_'.join([func, TR, 'Rn', lp, DT])
+        d_desc = 'r' + desc[1:].replace('Ld', 'Lf').replace('Dd', 'Df')
+        if func.startswith('r') and (lp.endswith('d') or DT.endswith('d')):
+            continue  # cannot source lp from self
+        TRf = {'T0': None,
+               'Tn': 'nn_Tf_Rf',
+               'Tm': 'nn_Tm_Rf'}[TR]
+        DRf = TRf or 'nn_T0_Rf'
+        lpf = {'Lf': 'free',
+               'Ln': 'rn_'+TR+'_Rn_Lf',
+               'La': 'ra_'+TR+'_Rn_Lf',
+               'Lr': 'rn_'+TR+'_Rf_Lf',
+               'Ld': d_desc}[lp]
+        DTf = {'Df': 'free',
+               'Dd': d_desc}[DT]
+        cf[desc] = mkf(func=func, TR=cf[TRf], DR=cf[DRf],
+                       lp=cf[lpf], DT=cf[DTf])
 
     if isinstance(fit, basestring) and fit in cf:
         return cf[fit]
     fit_desc = {cf[k]: k for k in cf}
     if fit is None:
+        del cf['free'], cf[None]
         return cf, fit_desc
     elif not isinstance(fit, list):
         fit = [fit]
