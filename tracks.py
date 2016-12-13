@@ -913,7 +913,7 @@ def mean_msd(msds, dtau, dt0, nframes, A=1, fps=1, kill_flats=1, kill_jumps=1e9,
     return taus, msd_mean, msd_err
 
 
-def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
+def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
              fig=(8, 6), fps=1, labels=True, legend=False, lw=1, meancol='r',
              prefix='', save='', show=True, sys_size=0, title=None,
              tnormalize=False, xlim=None, xscale='log', ylim=None):
@@ -929,45 +929,29 @@ def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
     elif isinstance(fig, tuple):
         fig, ax = plt.subplots(figsize=fig)
 
-    taus = msd_taus / fps
-    msd = msd_mean / A
-    msd_vec = msd.ndim > 1
-    if msd_vec:
-        lw /= 2
+    taus = taus / fps
+    msd = msd / A
+    if errorbars:
+        msd_err = msd_err / A
+
+    ax.set_xscale(xscale)
+    ax.set_yscale('log')
+
+    label = "Mean Sq {}Disp".format("Angular "*ang)*labels
 
     if tnormalize:
-        label = "Mean Sq {}Disp/Time{}".format(
-            "Angular " if ang else "",
-            "^{}".format(tnormalize)*(tnormalize != 1))
-        ax.plot(taus, msd/taus**tnormalize, meancol, label=label*labels)
-        ax.plot(taus, msd[0]*taus**(1-tnormalize),
-                'k-', label="ref slope = 1", lw=2)
-        label = (r"$(2\pi)^2$" if ang else
-                 ("One particle area" if S > 1 else "One Pixel"))
-        ax.plot(taus, (twopi**2 if ang else 1)/(taus)**tnormalize,
-                'k--', lw=2, label=labels*label)
-        ax.set_xscale(xscale)
-        ax.set_ylim([0, 1.3*np.max(msd/taus**tnormalize)])
-    elif not errorbars:
-        ax.loglog(taus, msd, c=meancol, lw=lw, label=labels*(
-            "Mean Squared {}Displacement".format('Angular '*ang)))
-    else:
-        ax.set_xscale(xscale)
-        ax.set_yscale('log')
+        tnorm = taus**tnormalize
+        msd = msd/tnorm
+        if errorbars:
+            msd_err = msd_err/tnorm
+        label += "/Time{}".format("^{}".format(tnormalize)*(tnormalize != 1))
+        ax.plot(taus, msd[0]*taus/tnorm, 'k-', label="ref slope = 1", lw=2)
+
     if errorbars:
-        msd_err /= A
-        tnorm = taus**tnormalize if tnormalize else 1
-        if msd_vec:
-            msd_rows = (msd.T, msd_err.T, 'rm')
-        else:
-            msd_rows = (msd[None], msd_err[None], [meancol])
-        for msd_row, msd_err_row, c in it.izip(*msd_rows):
-            ax.errorbar(taus, msd_row/tnorm, msd_err_row/tnorm, c=c,
-                        lw=lw, capthick=0, elinewidth=1, errorevery=errorbars,
-                        label=labels*("Mean Squared {} (Exp't)".format(
-                            {'r': "Progression",
-                             'm': "Diversion",
-                             meancol: "Displacement"}[c])))
+        ax.errorbar(taus, msd, msd_err, c=meancol, lw=lw,
+                    capthick=0, elinewidth=1, errorevery=errorbars, label=label)
+    else:
+        ax.plot(taus, msd, c=meancol, lw=lw, label=label)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     if title is None:
@@ -991,7 +975,7 @@ def plot_msd(msd_mean, msd_taus, msd_err, S=1, ang=False, errorbars=False,
         fig.savefig(save)
     if show:
         plt.show()
-    return fig, ax, taus, msd, msd_err
+    return fig, ax
 
 
 def make_fitname(fit):
@@ -1270,6 +1254,26 @@ def rn_corr(tracksets, args):
     return taus, meancorr, errcorr
 
 
+def rr_corr(msds, msdids, data, args):
+    """Calculate the <rr> (MSD) correlation for all the tracks in the dataset
+    """
+    taus, msd, msd_err = mean_msd(
+        msds, args.dtau, args.dt0, data['f'].max()+1,
+        msdids=msdids, A=args.side**2, fps=args.fps, tnormalize=0,
+        kill_flats=args.killflat, kill_jumps=args.killjump*args.side**2,
+        singletracks=args.singletracks, show_tracks=args.showtracks)
+
+    if msd.ndim == 2:
+        # tuples of (displacement, progression, diversion)
+        msd = np.array((msd.sum(1),) + tuple(msd.T))
+        msd_err = np.array((np.hypot(*msd_err.T),) + tuple(msd_err.T))
+    elif args.msdvec.startswith(('prog', 'div')):
+        msg = 'You need to rerun `tracks.py {} --msd --msdvec`'
+        raise ValueError(msg.format(args.prefix))
+
+    return taus, msd, msd_err
+
+
 def nn_form_dot_white(s, DR):
     r"""$e^{-D_R t}$
     """
@@ -1533,35 +1537,14 @@ def rn_plot(tracksets, fits, args):
     return result, fits, ax
 
 
-def rr_plot(msds, msdids, data, fits, args):
-    model_name = 'r0' if args.fit0 else 'rr'
-    msd_taus, msd_mean, msd_err = mean_msd(
-        msds, args.dtau, args.dt0, nframes=data['f'].max()+1, A=args.side**2,
-        singletracks=args.singletracks, fps=args.fps, kill_flats=args.killflat,
-        kill_jumps=args.killjump*args.side**2, msdids=msdids, tnormalize=0,
-        show_tracks=args.showtracks)
-    fig, ax, taus, msd, errcorr = plot_msd(
-        msd_mean, msd_taus, msd_err, save=False, fps=args.fps,
-        show=False, tnormalize=0, errorbars=3, prefix=saveprefix, labels=labels,
-        meancol=args.vcol, lw=3, S=args.side, title='' if args.clean else None,
-        fig=(5, 4) if args.clean else (8, 6))
+def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
+    model_name = 'rpd'[msdvec] + 'r0'[args.fit0]
 
-    if msd.ndim == 2:
-        progression, diversion = msd.T
-        msdisp = msd.sum(1)
-        errcorr_prog, errcorr_div = errcorr.T
-        errcorr_disp = np.hypot(*errcorr.T)
-        ax.plot(taus, msdisp, '-', c=args.vcol, lw=3)
-        msdvec, msd, errcorr = {'displacement': (0, msdisp, errcorr_disp),
-                                'progression': (1, progression, errcorr_prog),
-                                'diversion': (-1, diversion, errcorr_div)
-                               }[args.msdvec]
-        model_name = 'rpd'[msdvec] + model_name[-1]
-    elif args.msdvec.startswith('disp'):
-        msdvec = 0
-    else:
-        msg = 'You need to rerun `tracks.py {} --msd --msdvec`'
-        raise ValueError(msg.format(args.prefix))
+    fig, ax = plot_msd(
+        taus, msd, msd_err,
+        lw=3, labels=not args.clean, meancol=args.vcol, S=args.side, save=False,
+        show=False, errorbars=3, fps=args.fps, tnormalize=0, prefix=saveprefix,
+        title='' if args.clean else None, fig=(5, 4) if args.clean else (8, 6))
 
     tmax = int(200*args.zoom)
     if verbose > 1:
@@ -1571,7 +1554,7 @@ def rr_plot(msds, msdids, data, fits, args):
     else:
         rrerrax = False
     rruncert = rt2*args.dx
-    sigma = curve.sigma_for_fit(msd, errcorr, x=taus, plot=rrerrax, xnorm=1,
+    sigma = curve.sigma_for_fit(msd, msd_err, x=taus, plot=rrerrax, xnorm=1,
                                 const=rruncert, ignore=[0]*(1-args.fit0)+[tmax],
                                 verbose=verbose)
     if rrerrax:
@@ -1608,7 +1591,7 @@ def rr_plot(msds, msdids, data, fits, args):
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
-    ax.set_title("mean squared {}".format(args.msdvec))
+    ax.set_title("mean squared {}".format(['disp', 'prog', 'diver'][msdvec]))
 
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
@@ -1756,15 +1739,14 @@ if __name__ == '__main__':
     if args.plotmsd:
         if verbose:
             print 'plotting msd now!'
-        labels = not args.clean
         msd_taus, msd_mean, msd_err = mean_msd(
             msds, args.dtau, args.dt0, data['f'].max()+1, msdids=msdids,
             A=args.side**2, fps=args.fps, kill_flats=args.killflat,
             kill_jumps=args.killjump*args.side**2, show_tracks=args.showtracks,
             singletracks=args.singletracks)
-        plot_msd(msd_mean, msd_taus, msd_err, prefix=saveprefix,
+        plot_msd(msd_taus, msd_mean, msd_err, prefix=saveprefix,
                  show=args.show, S=args.side, save=args.save, fps=args.fps,
-                 fig=(5, 4) if args.clean else (8, 6), labels=labels)
+                 fig=(5, 4) if args.clean else (8, 6), labels=not args.clean)
 
     if args.plottracks and not args.check:
         if verbose:
@@ -1807,7 +1789,10 @@ if __name__ == '__main__':
 
     if args.rr:
         print "====== <rr> ======"
-        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
+        taus, msd, msd_err = rr_corr(msds, msdids, data, args)
+        msdvec = 0
+        rr_result, fits, rr_ax = rr_plot(taus, msd[msdvec], msd_err[msdvec],
+                                         fits, args, msdvec)
 
     if args.save:
         helpy.save_fits(saveprefix, fits)
