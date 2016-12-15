@@ -1122,22 +1122,20 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     return ax
 
 
-def get_param_value(name, fits=None):
+def get_param_value(name, fits=(), sources=()):
     """get the appropriate value and source for a parameter."""
+    sources = sources or 'nn rn ra rp rr r0 pr p0 dr d0'.split()
     if hasattr(name, '__iter__'):
         # if multiple names are given, return two dicts of {name: value}
         return [dict(zip(name, v))
-                for v in zip(*(get_param_value(n, fits)
+                for v in zip(*(get_param_value(n, fits, sources)
                                for n in name))]
-    if fits is not None:
-        for source in 'nn rn ra rp rr r0 pr p0 dr d0'.split():
-            for fit in fits:
-                if fit.func == source:
-                    try:
-                        val = float(fits[fit].get(name, fit._asdict()[name]))
-                        return val, fit
-                    except (ValueError, TypeError):
-                        continue
+    for fit in [f for s in sources for f in fits if f.func == s]:
+        try:
+            val = float(fits[fit].get(name, fit._asdict()[name]))
+            return val, fit
+        except (ValueError, TypeError):
+            continue
     guesses = {'TR': 1.6, 'DR': 1/16, 'lp': 2.5, 'v0': 0.16, 'DT': 0.01}
     return guesses[name], helpy.make_fit({name: 'guess'})
 
