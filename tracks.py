@@ -914,9 +914,9 @@ def mean_msd(msds, dtau, dt0, nframes, A=1, fps=1, kill_flats=1, kill_jumps=1e9,
 
 
 def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
-             fig=(8, 6), fps=1, labels=True, legend=False, lw=1, meancol='r',
+             fig=(8, 6), fps=1, labels=True, legend=False,
              prefix='', save='', show=True, sys_size=0, title=None,
-             tnormalize=False, xlim=None, xscale='log', ylim=None):
+             tnormalize=False, **plt_kwargs):
     """ Plots the MS(A)Ds """
     A = 1 if ang else S**2
     if verbose:
@@ -934,8 +934,10 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     if errorbars:
         msd_err = msd_err / A
 
-    ax.set_xscale(xscale)
-    ax.set_yscale('log')
+    ax.set_xscale(plt_kwargs.pop('xscale', 'log'))
+    ax.set_yscale(plt_kwargs.pop('yscale', 'log'))
+    xlim = plt_kwargs.pop('xlim', None)
+    ylim = plt_kwargs.pop('ylim', None)
 
     label = "Mean Sq {}Disp".format("Angular "*ang)*labels
 
@@ -948,10 +950,12 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
         ax.plot(taus, msd[0]*taus/tnorm, 'k-', label="ref slope = 1", lw=2)
 
     if errorbars:
-        ax.errorbar(taus, msd, msd_err, c=meancol, lw=lw,
-                    capthick=0, elinewidth=1, errorevery=errorbars, label=label)
+        plt_kwargs = dict({'capthick': 0, 'elinewidth': 1, 'errorevery': 3,
+                           'c': 'r', 'lw': 0, 'marker': 'o'}, **plt_kwargs)
+        ax.errorbar(taus, msd, msd_err, label=label, **plt_kwargs)
     else:
-        ax.plot(taus, msd, c=meancol, lw=lw, label=label)
+        plt_kwargs = dict({'c': 'r', 'lw': 1, 'marker': ''}, **plt_kwargs)
+        ax.plot(taus, msd, label=label, **plt_kwargs)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
     if title is None:
@@ -1540,14 +1544,14 @@ def rn_plot(tracksets, fits, args):
     return result, fits, ax
 
 
-def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
+def rr_plot(taus, msd, msd_err, fits, args, msdvec=0, **plt_kwargs):
     model_name = 'rpd'[msdvec] + 'r0'[args.fit0]
 
     fig, ax = plot_msd(
         taus, msd, msd_err,
-        lw=2, labels=not args.clean, meancol=args.vcol, S=args.side, save=False,
-        show=False, errorbars=3, fps=args.fps, tnormalize=0, prefix=saveprefix,
-        title='' if args.clean else None, fig=(5, 4) if args.clean else (8, 6))
+        labels=not args.clean, S=args.side, save='', show=False, fps=args.fps,
+        tnormalize=0, prefix=saveprefix, title='' if args.clean else None,
+        errorbars=True, fig=(5, 4) if args.clean else (8, 6), **plt_kwargs)
 
     tmax = int(200*args.zoom)
     if verbose > 1:
