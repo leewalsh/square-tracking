@@ -1166,8 +1166,7 @@ def format_fit(result, model_name=None, sources=None):
 
     tex_eqn = result.model.func.func_doc.replace('\n', '')
     for_tex = '\n'.join([
-        #tex_eqn,
-        args.prefix,
+        tex_eqn,
         'fixed: ' + tex_fmt(fixed),
         'free: ' + tex_fmt(free)])
 
@@ -1177,7 +1176,7 @@ def format_fit(result, model_name=None, sources=None):
 def save_corr_plot(fig, fit_desc):
     save = '{}_{}-corr.pdf'.format(saveprefix, fit_desc)
     print 'saving <{}> correlation plot to'.format(fit_desc),
-    print save if verbose else os.path.basename(save)
+    print os.path.relpath(save, absprefix.replace(relprefix, ''))
     fig.savefig(save)
     return save
 
@@ -1429,6 +1428,7 @@ def nn_plot(tracksets, fits, args):
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
+    fitname = fit_desc[fit]
 
     if not args.nn:
         return result, fits, None
@@ -1438,14 +1438,15 @@ def nn_plot(tracksets, fits, args):
     ax.set_ylim(exp(-3*args.zoom), 1)
     ax.set_yscale('log')
     if labels:
-        ax.set_title("Orientation Autocorrelation\n"+prefix)
+        ax.set_title('\n'.join(["Orientation Autocorrelation",
+                                relprefix, fitname]))
     ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
     ax.set_xlabel("$tf$")
     ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
               framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, fit_desc[fit])
+        save_corr_plot(fig, fitname)
 
     return result, fits, ax
 
@@ -1501,6 +1502,7 @@ def rn_plot(tracksets, fits, args):
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
     fits[fit]['sym'] = float(sym.symmetry)
+    fitname = fit_desc[fit]
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1526,13 +1528,14 @@ def rn_plot(tracksets, fits, args):
                     'anti': '\nfit only to anti-symmetric part $f(t) - f(-t)$',
                     'max': '\n$l_p=$ max of anti-symmetric part $f(t) + f(-t)$',
                     }[args.rn]
-        ax.set_title("Position - Orientation Correlation" + subtitle)
+        ax.set_title('\n'.join(filter(None, ["Position-Orientation Correlation",
+                                             subtitle, relprefix, fitname])))
     ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
     ax.set_xlabel("$tf$")
     ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
-        save_corr_plot(fig, fit_desc[fit])
+        save_corr_plot(fig, fitname)
 
     return result, fits, ax
 
@@ -1542,7 +1545,7 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
 
     fig, ax = plot_msd(
         taus, msd, msd_err,
-        lw=3, labels=not args.clean, meancol=args.vcol, S=args.side, save=False,
+        lw=2, labels=not args.clean, meancol=args.vcol, S=args.side, save=False,
         show=False, errorbars=3, fps=args.fps, tnormalize=0, prefix=saveprefix,
         title='' if args.clean else None, fig=(5, 4) if args.clean else (8, 6))
 
@@ -1579,6 +1582,7 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
+    fitname = fit_desc[fit]
 
     ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=tex_fits)
 
@@ -1591,7 +1595,7 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
-    ax.set_title("mean squared {}".format(['disp', 'prog', 'diver'][msdvec]))
+    ax.set_title('\n'.join(["Mean Squared Displacement", relprefix, fitname]))
 
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
@@ -1603,7 +1607,7 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0):
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
     if args.save:
-        save_corr_plot(fig, fit_desc[fit])
+        save_corr_plot(fig, fitname)
 
     return result, fits, ax
 
