@@ -1040,13 +1040,12 @@ def make_fitnames():
 
     # from mean squared displacement: rr pr dr r0 p0 d0
     mkf = partial(helpy.make_fit, DT='free')
-    for func, TR, lp, DT in [(r+z, 'T'+T, 'L'+l, 'D'+D)
-                             for r in 'rpd' for z in 'r0'
-                             for T in '0nm' for l in 'fnard' for D in 'fd']:
+    for func, TR, lp, DT in [(r+z, 'T'+T, 'L'+l, 'D'+D) for T in '0nm'
+                             for D in 'fd' for l in 'fnard'
+                             for z in 'r0' for r in 'rpd']:
+        if func[0] in (lp[1], DT[1]):
+            continue  # cannot source lp or DT from self
         desc = '_'.join([func, TR, 'Rn', lp, DT])
-        d_desc = 'r' + desc[1:].replace('Ld', 'Lf').replace('Dd', 'Df')
-        if func.startswith('r') and (lp.endswith('d') or DT.endswith('d')):
-            continue  # cannot source lp from self
         TRf = {'T0': None,
                'Tn': 'nn_Tf_Rf',
                'Tm': 'nn_Tm_Rf'}[TR]
@@ -1054,16 +1053,21 @@ def make_fitnames():
         lpf = {'Lf': 'free',
                'Ln': 'rn_'+TR+'_Rn_Lf',
                'La': 'ra_'+TR+'_Rn_Lf',
-               'Lr': 'rn_'+TR+'_Rf_Lf',
-               'Ld': d_desc}[lp]
+               #'Lr': 'rn_'+TR+'_Rf_Lf',    # not using this anymore
+               'Lr': '_'.join(['r'+func[1], TR, 'Rn', 'Lf', 'Df']),
+               'Lp': '_'.join(['p'+func[1], TR, 'Rn', 'Lf', 'Df']),
+               'Ld': '_'.join(['d'+func[1], TR, 'Rn', 'Lf', 'Df']),
+              }[lp]
         DTf = {'Df': 'free',
-               'Dd': d_desc}[DT]
+               'Dr': '_'.join(['r'+func[1], TR, 'Rn', 'Lf', 'Df']),
+               'Dp': '_'.join(['p'+func[1], TR, 'Rn', 'Lf', 'Df']),
+               'Dd': '_'.join(['d'+func[1], TR, 'Rn', 'Lf', 'Df']),
+              }[DT]
         cf[desc] = mkf(func=func, TR=cf[TRf], DR=cf[DRf],
                        lp=cf[lpf], DT=cf[DTf])
 
     del cf['free'], cf[None]
-    fit_desc = {cf[k]: k for k in cf}
-    return cf, fit_desc
+    return cf, {cf[k]: k for k in cf}
 
 
 def plot_param(fits, param, x, y, convert=None, ax=None, label='',
