@@ -89,11 +89,12 @@ if __name__ == '__main__':
         default=False, help='Calculate and plot <rn> correlation')
     arg('--rr', action='store_true', help='Calculate and plot <rr> correlation')
     arg('--fitdr', action='store_true', help='D_R as free parameter in rn fit')
-    arg('--fitv0', action='store_true', help='v_0 as free parameter in MSD fit')
+    arg('--fitv0', const=True, nargs='?', default=False,
+        help='v_0 as free parameter in MSD fit')
     arg('--fit0', action='store_true', help='include t = 0, 1 in MSD fit?')
     arg('--colored', default=False, const=True, nargs='?', type=float,
         help='fit with colored noise')
-    arg('--fixdt', default=True, const=False, nargs='?', type=float,
+    arg('--fixdt', default=True, const=False, nargs='?',
         dest='fitdt', help='D_T as fixed value in MSD fit')
     arg('--fittr', action='store_true', help='tau_R as free parameter in fits')
     arg('--dx', type=float, default=0.25, help='Positional measurement '
@@ -1597,13 +1598,26 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     form = [rr_form_total, rr_form_prog, rr_form_div][msdvec]
     model = Model(form)
     params = model.make_params()
-    vals, sources = get_param_value(params.keys(), fits)
+    sources = {}
     frr = not (args.nn or args.rn)
-    params['TR'].set(vals['TR'], min=0, vary=args.colored and frr or args.fittr)
-    params['DR'].set(vals['DR'], min=0, vary=frr)
-    params['lp'].set(vals['lp'], min=0, vary=args.fitv0 or not args.rn)
-    if args.fitdt is True:
-        params['DT'].set(vals['DT'], min=0)
+    if args.colored:
+        val, sources['TR'] = get_param_value('TR', fits)
+        params['TR'].set(val, min=0, vary=frr or args.fittr)
+    else:
+        params['TR'].set(0, vary=False)
+        sources['TR'] = None
+    val, sources['DR'] = get_param_value('DR', fits)
+    params['DR'].set(val, min=0, vary=frr)
+    if isinstance(args.fitv0, int):
+        val, sources['lp'] = get_param_value('lp', fits, ['rpd'[args.fitv0]+z])
+        params['lp'].set(val, vary=False)
+    else:
+        params['lp'].set(val, min=0, vary=args.fitv0 or not args.rn)
+    if isinstance(args.fitdt, int):
+        val, sources['DT'] = get_param_value('DT', fits, ['rpd'[args.fitdt]+z])
+        params['DT'].set(val, vary=False)
+    elif args.fitdt is True:
+        params['DT'].set(0.1, min=0)
     else:
         params['DT'].set(args.fitdt or (params['lp']*params['DR'])**2, vary=0)
 
