@@ -11,6 +11,7 @@ from math import sqrt, log, exp
 
 import numpy as np
 from lmfit import Model
+from cycler import cycler
 
 import helpy
 import correlation as corr
@@ -1546,15 +1547,37 @@ def rn_plot(tracksets, fits, args):
     return result, fits, ax
 
 
-def rr_plot(taus, msd, msd_err, fits, args, msdvec=0, **plt_kwargs):
-    model_name = 'rpd'[msdvec] + 'r0'[args.fit0]
+def rr_plot(msds, msdids, data, fits, args):
+    taus, msd, msd_err = rr_corr(msds, msdids, data, args)
 
-    fig, ax = plot_msd(
-        taus, msd, msd_err,
-        labels=not args.clean, S=args.side, save='', show=False, fps=args.fps,
-        tnormalize=0, prefix=saveprefix, title='' if args.clean else None,
-        errorbars=True, fig=(5, 4) if args.clean else (8, 6), **plt_kwargs)
+    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    plt_cycler = cycler(msdvec=[0, 1, -1],
+                        c=[args.vcol, 'r', 'm'],
+                        lw=[2, 0, 0],
+                        marker=['', '^', 'v'])
+    fitnames = [None]*3
+    results = [None]*3
+    for plt_kwargs in plt_cycler:
+        msdvec = plt_kwargs.pop('msdvec')
+        plot_msd(taus, msd, msd_err, labels=not args.clean, S=args.side,
+                 save='', show=False, fps=args.fps, tnormalize=0,
+                 prefix=saveprefix, title='' if args.clean else None,
+                 errorbars=True, fig=fig, capthick=0, elinewidth=1,
+                 errorevery=3, **plt_kwargs)
 
+        fitname, result = rr_comp(taus, msd[msdvec], msd_err[msdvec],
+                                  ax, fits, args, msdvec)
+        fitnames[msdvec] = fitname
+        results[msdvec] = result
+    ax.set_title('\n'.join(["Mean Squared Displacement", relprefix, fitname]))
+    if args.save:
+        save_corr_plot(fig, fitname)
+    return results, fits, ax
+
+
+def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
+    z = 'r0'[args.fit0]
+    model_name = 'rpd'[msdvec] + z
     tmax = int(200*args.zoom)
     if verbose > 1:
         rrerrax = rrerrfig.axes[0]
@@ -1601,7 +1624,6 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0, **plt_kwargs):
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
     ax.legend(loc='upper left')
-    ax.set_title('\n'.join(["Mean Squared Displacement", relprefix, fitname]))
 
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
@@ -1612,10 +1634,7 @@ def rr_plot(taus, msd, msd_err, fits, args, msdvec=0, **plt_kwargs):
         ax.axvline(DR_time, 0, 1/2, ls='--', c='k')
         ax.text(DR_time, 2e-1, ' $1/D_R$')
 
-    if args.save:
-        save_corr_plot(fig, fitname)
-
-    return result, fits, ax
+    return fitname, result
 
 if __name__ == '__main__':
     helpy.save_log_entry(readprefix, 'argv')
@@ -1799,10 +1818,7 @@ if __name__ == '__main__':
 
     if args.rr:
         print "====== <rr> ======"
-        taus, msd, msd_err = rr_corr(msds, msdids, data, args)
-        msdvec = 0
-        rr_result, fits, rr_ax = rr_plot(taus, msd[msdvec], msd_err[msdvec],
-                                         fits, args, msdvec)
+        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
 
     if args.save:
         helpy.save_fits(saveprefix, fits)
