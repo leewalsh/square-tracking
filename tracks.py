@@ -1608,24 +1608,36 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
         sources['TR'] = None
     val, sources['DR'] = get_param_value('DR', fits)
     params['DR'].set(val, min=0, vary=frr)
-    if isinstance(args.fitv0, int):
-        val, sources['lp'] = get_param_value('lp', fits, ['rpd'[args.fitv0]+z])
-        params['lp'].set(val, vary=False)
+
+    pname = 'lp'
+    if args.fitv0 is True:
+        params[pname].set(val, min=0, vary=args.fitv0 or not args.rn)
+    elif isinstance(args.fitv0, basestring):
+        source = [{'disp': 'r', 'prog': 'p', 'div':'d'}[args.fitv0]+z]
+        val, sources[pname] = get_param_value(pname, fits, source)
+        params[pname].set(val, vary=False)
     else:
-        params['lp'].set(val, min=0, vary=args.fitv0 or not args.rn)
-    if isinstance(args.fitdt, int):
-        val, sources['DT'] = get_param_value('DT', fits, ['rpd'[args.fitdt]+z])
-        params['DT'].set(val, vary=False)
-    elif args.fitdt is True:
-        params['DT'].set(0.1, min=0)
+        val, sources[pname] = get_param_value(pname, fits)
+        params[pname].set(val, vary=False)
+
+    pname = 'DT'
+    if args.fitdt is True:
+        params[pname].set(0.1, min=0)
+    elif isinstance(args.fitdt, float):
+        params[pname].set(args.fitdt or (params['lp']*params['DR'])**2, vary=0)
     else:
-        params['DT'].set(args.fitdt or (params['lp']*params['DR'])**2, vary=0)
+        source = [{'disp': 'r', 'prog': 'p', 'div':'d'}[args.fitdt]+z]
+        val, sources[pname] = get_param_value(pname, fits, source)
+        params[pname].set(val, vary=False)
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
     fit, free, tex_fits = format_fit(result, model_name, sources)
-    fits[fit] = free
-    fitname = fit_desc[fit]
+    if free:
+        fits[fit] = free
+        fitname = fit_desc[fit]
+    else:
+        fitname = ', '.join(fit_desc.get(f, str(f)) for f in fit if f)
 
     ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=tex_fits)
 
