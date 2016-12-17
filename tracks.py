@@ -1552,26 +1552,40 @@ def rr_plot(msds, msdids, data, fits, args):
     taus, msd, msd_err = rr_corr(msds, msdids, data, args)
 
     fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
-    plt_cycler = cycler(msdvec=[0, 1, -1],
-                        c=[args.vcol, 'r', 'm'],
-                        lw=[2, 0, 0],
-                        marker=['', '^', 'v'])
+
+    # list arguments in order to be run
+    comp_kwargs = list(cycler(**{
+        'msdvec':  [0, -1, 0, -1, 1],
+        'fitv0':   [True, 'disp', 'disp', 'disp', 'disp'],
+        'fitdt':   [True, True, 'div', 'div', 'div'],
+        'do_plot': [False, False, True, True, True],
+    }))
+
+    # list arguments in order of msdvec: 0, 1, -1
+    plt_kwargs = list(cycler(**{
+        'c':      [args.vcol, 'c', 'm'],
+        'lw':     [2, 0, 0],
+        'marker': ['', '^', 'v'],
+    }))
     fitnames = [None]*3
     results = [None]*3
-    for plt_kwargs in plt_cycler:
-        msdvec = plt_kwargs.pop('msdvec')
-        plot_msd(taus, msd, msd_err, labels=not args.clean, S=args.side,
-                 save='', show=False, fps=args.fps, tnormalize=0,
-                 prefix=saveprefix, title='' if args.clean else None,
-                 errorbars=True, fig=fig, capthick=0, elinewidth=1,
-                 errorevery=3, **plt_kwargs)
+    for comp_kwarg in comp_kwargs:
+        msdvec = comp_kwarg['msdvec']
+        args.fitv0 = comp_kwarg['fitv0']
+        args.fitdt = comp_kwarg['fitdt']
+        args.pcol = plt_kwargs[msdvec]['c']
+        plot_msd(taus, msd[msdvec], msd_err[msdvec],
+                 labels=not args.clean, S=args.side, save='', show=False,
+                 fps=args.fps, tnormalize=0, prefix=saveprefix, fig=fig,
+                 title='' if args.clean else None, errorbars=True, capthick=0,
+                 elinewidth=1, errorevery=3, **plt_kwargs[msdvec])
 
         fitname, result = rr_comp(taus, msd[msdvec], msd_err[msdvec],
                                   ax, fits, args, msdvec)
         fitnames[msdvec] = fitname
         results[msdvec] = result
     ax.set_title('\n'.join(["Mean Squared Displacement", relprefix, fitname]))
-    if args.save:
+    if args.save and isinstance(fitname, basestring):
         save_corr_plot(fig, fitname)
     return results, fits, ax
 
