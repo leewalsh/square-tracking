@@ -1555,10 +1555,11 @@ def rr_plot(msds, msdids, data, fits, args):
 
     # list arguments in order to be run
     comp_kwargs = list(cycler(**{
-        'msdvec':  [0, -1, 0, -1, 1],
-        'fitv0':   [True, 'disp', 'disp', 'disp', 'disp'],
-        'fitdt':   [True, True, 'div', 'div', 'div'],
-        'do_plot': [False, False, True, True, True],
+        'msdvec':  [0, -1, 1],
+        'fitv0':   [True, False, 'disp'],
+        'fitdt':   [True, False, 'div'],
+        'do_plot': [True, True, True],
+        'do_fit':  [True, False, False],
     }))
 
     # list arguments in order of msdvec: 0, 1, -1
@@ -1573,26 +1574,33 @@ def rr_plot(msds, msdids, data, fits, args):
         msdvec = comp_kwarg['msdvec']
         args.fitv0 = comp_kwarg['fitv0']
         args.fitdt = comp_kwarg['fitdt']
-        args.pcol = plt_kwargs[msdvec]['c']
-        plot_msd(taus, msd[msdvec], msd_err[msdvec],
-                 labels=not args.clean, S=args.side, save='', show=False,
-                 fps=args.fps, tnormalize=0, prefix=saveprefix, fig=fig,
-                 title='' if args.clean else None, errorbars=True, capthick=0,
-                 elinewidth=1, errorevery=3, **plt_kwargs[msdvec])
+        if comp_kwarg['do_plot']:
+            plot_msd(taus, msd[msdvec], msd_err[msdvec],
+                     labels=not args.clean, S=args.side, save='', show=False,
+                     fps=args.fps, tnormalize=0, prefix=saveprefix, fig=fig,
+                     errorbars=True, capthick=0, elinewidth=1, errorevery=1,
+                     title='' if args.clean else None, **plt_kwargs[msdvec])
 
-        fitname, result = rr_comp(taus, msd[msdvec], msd_err[msdvec],
-                                  ax, fits, args, msdvec)
-        fitnames[msdvec] = fitname
-        results[msdvec] = result
-    ax.set_title('\n'.join(["Mean Squared Displacement", relprefix, fitname]))
-    if args.save and isinstance(fitname, basestring):
-        save_corr_plot(fig, fitname)
+        if comp_kwarg['do_fit']:
+            fitname, result = rr_comp(taus, msd[msdvec], msd_err[msdvec],
+                                      ax, fits, args, msdvec)
+            fitnames[msdvec] = fitname
+            results[msdvec] = result
+    ax.set_title('\n'.join(["Mean Squared Displacement",
+                            relprefix, fitnames[0]]))
+    if args.save:
+        save_corr_plot(fig, fitnames[0])
     return results, fits, ax
 
 
 def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     z = 'r0'[args.fit0]
     model_name = 'rpd'[msdvec] + z
+
+    taus = taus/args.fps
+    msd = msd/args.side**2
+    msd_err = msd_err/args.side**2
+
     tmax = int(200*args.zoom)
     if verbose > 1:
         rrerrax = rrerrfig.axes[0]
@@ -1625,6 +1633,7 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
 
     pname = 'lp'
     if args.fitv0 is True:
+        val, sources[pname] = get_param_value(pname, fits)
         params[pname].set(val, min=0, vary=args.fitv0 or not args.rn)
     elif isinstance(args.fitv0, basestring):
         source = [{'disp': 'r', 'prog': 'p', 'div':'d'}[args.fitv0]+z]
