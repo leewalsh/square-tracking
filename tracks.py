@@ -1043,7 +1043,7 @@ def make_fitnames():
     # from mean squared displacement: rr pr dr r0 p0 d0
     mkf = partial(helpy.make_fit, DT='free')
     for func, TR, lp, DT in [(r+z, 'T'+T, 'L'+l, 'D'+D) for T in '0nm'
-                             for D in 'fd' for l in 'fnard'
+                             for D in 'fd' for l in 'fnabqrd'
                              for z in 'r0' for r in 'rpd']:
         if func[0] in (lp[1], DT[1]):
             continue  # cannot source lp or DT from self
@@ -1055,7 +1055,8 @@ def make_fitnames():
         lpf = {'Lf': 'free',
                'Ln': 'rn_'+TR+'_Rn_Lf',
                'La': 'ra_'+TR+'_Rn_Lf',
-               #'Lr': 'rn_'+TR+'_Rf_Lf',    # not using this anymore
+               'Lb': 'ra_'+TR+'_Rf_Lf',
+               'Lq': 'rn_'+TR+'_Rf_Lf',
                'Lr': '_'.join(['r'+func[1], TR, 'Rn', 'Lf', 'Df']),
                'Lp': '_'.join(['p'+func[1], TR, 'Rn', 'Lf', 'Df']),
                'Ld': '_'.join(['d'+func[1], TR, 'Rn', 'Lf', 'Df']),
@@ -1556,7 +1557,7 @@ def rr_plot(msds, msdids, data, fits, args):
     # list arguments in order to be run
     comp_kwargs = list(cycler(**{
         'msdvec':  [0, -1, 1],
-        'fitv0':   [True, False, 'disp'],
+        'fitv0':   [args.fitv0, False, 'disp'],
         'fitdt':   [True, False, 'div'],
         'do_plot': [True, True, True],
         'do_fit':  [True, False, False],
