@@ -1073,16 +1073,16 @@ def make_fitnames():
     return cf, {cf[k]: k for k in cf}
 
 
-def plot_param(fits, param, x, y, convert=None, ax=None, label='',
+def plot_param(fits, param, fitx, fity, convert=None, ax=None, label='',
                tag=None, s=100, figsize=(4, 4), **kws):
     if ax is None:
         ax = plt.subplots(figsize=figsize)[1]
-    fitx, fity = fit_config[x], fit_config[y]
     resx, resy = fits[fitx], fits[fity]
     try:
         valx, valy = resx[param], resy[param]
     except KeyError as err:
-        fitc = {'x': fitx, 'y': fity, 'v': fit_config['vo']}
+        fitc = {'x': fitx, 'y': fity,
+                'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
         fitc = fitc.get(convert, convert)
         if fitc is None:
             raise err
@@ -1104,9 +1104,11 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
                     ax=None, legend=None, savename='', title='', **kwargs):
     kwargs.update(xs=xs, ys=ys)
     kws = helpy.transpose_dict_of_lists(kwargs)
+    fit_config, fit_desc = make_fitnames()
     for kw in kws:
         x, y = kw.pop('xs'), kw.pop('ys')
-        ax = plot_param(fits, param, x, y, ax=ax, **kw)
+        fitx, fity = fit_config[x], fit_config[y]
+        ax = plot_param(fits, param, fitx, fity, ax=ax, **kw)
 
     ax.set_xlabel('Noise statistics from velocity', usetex=True)
     ax.set_ylabel('Fits from correlation functions', usetex=True)
