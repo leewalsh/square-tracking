@@ -329,7 +329,7 @@ if __name__ == '__main__':
         t = np.arange(len(vv))/args.fps
         for v in ['o', 'par', 'perp', 'etapar']:
             ax.errorbar(t, vv[v], yerr=dvv[v], label=label[v], ls=ls[v])
-        ax.set_xlim(0, 10*args.fps)
+        ax.set_xlim(0, 10/args.fps)
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         ax.legend(loc='best')
     else:
