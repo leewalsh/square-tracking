@@ -393,7 +393,8 @@ if __name__ == '__main__':
 if __name__ == '__main__' and args.save:
     savename = os.path.abspath(args.prefix.rstrip('/._?*'))
     helpy.save_meta(savename, meta)
-    helpy.save_fits(savename, fits)
+    if not args.autocorr:
+        helpy.save_fits(savename, fits)
     savename += '_v' + ('corr' if args.autocorr else 'hist')
     if args.suffix:
         savename += '_' + args.suffix.strip('_')
