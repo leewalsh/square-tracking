@@ -104,6 +104,7 @@ if __name__ == '__main__':
     arg('-z', '--zoom', metavar="ZOOM", type=float,
         help="Factor by which to zoom out (in if ZOOM < 1)")
     arg('--clean', action='store_true', help='Make clean plot for presentation')
+    arg('--ax', type=int)
     arg('--fig', type=int)
     arg('--vcol', help='Color for velocity and displacement')
     arg('--pcol', help='Color for parameters and fits')
@@ -1192,7 +1193,8 @@ def save_corr_plot(fig, fit_desc):
     return save
 
 
-def plot_fit(result, tex_fits, args, t=None, data=None, ax=None):
+def plot_fit(result, tex_fits, args, t=None, data=None,
+             ax=None, plt_kwargs=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
     elif isinstance(ax, int):
@@ -1207,9 +1209,23 @@ def plot_fit(result, tex_fits, args, t=None, data=None, ax=None):
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, all_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(t, data, 1/result.weights, None, c=args.vcol, lw=3,
+    ax.errorbar(t, data, 1/result.weights, None,
+                c=args.vcol, lw=3, ls='', marker='o',
                 capthick=0, elinewidth=1, errorevery=3)
     ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
+
+    if plt_kwargs is None:
+        plt_kwargs = {}
+    ax.set_xlim(plt_kwargs.get('xlim'))
+    ax.set_ylim(plt_kwargs.get('ylim'))
+    ax.set_xscale(plt_kwargs.get('xscale') or ax.get_xscale())
+    ax.set_yscale(plt_kwargs.get('yscale') or ax.get_yscale())
+    if labels:
+        ax.set_title(plt_kwargs.get('title', ''))
+    ax.set_xlabel(plt_kwargs.get('xlabel', ''))
+    ax.set_ylabel(plt_kwargs.get('ylabel', ''))
+    ax.legend(**plt_kwargs.get('legend', {}))
+
     return fig, ax
 
 
@@ -1444,17 +1460,19 @@ def nn_plot(tracksets, fits, args):
     if not args.nn:
         return result, fits, None
 
-    fig, ax = plot_fit(result, tex_fits, args, ax=args.fig)
-    ax.set_xlim(0, 3*args.zoom/result.params['DR'] + result.params.get('TR', 0))
-    ax.set_ylim(exp(-3*args.zoom), 1)
-    ax.set_yscale('log')
-    if labels:
-        ax.set_title('\n'.join(["Orientation Autocorrelation",
-                                relprefix, fitname]))
-    ax.set_ylabel(r"$\langle \hat n(t) \hat n(0) \rangle$")
-    ax.set_xlabel("$tf$")
-    ax.legend(loc='upper right' if args.zoom <= 1 else 'lower left',
-              framealpha=1)
+    plt_kwargs = {
+        'xlim': (0, 3*args.zoom/result.params['DR']+result.params.get('TR', 0)),
+        'ylim': (exp(-3*args.zoom), 1),
+        'yscale': 'log',
+        'title': '\n'.join(["Orientation Autocorrelation", relprefix, fitname]),
+        'ylabel': r"$\langle \hat n(t) \hat n(0) \rangle$",
+        'xlabel': "$tf$",
+        'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
+                   'framealpha': 1},
+    }
+
+    fig, ax = plot_fit(result, tex_fits, args,
+                       ax=args.fig, plt_kwargs=plt_kwargs)
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1517,33 +1535,35 @@ def rn_plot(tracksets, fits, args):
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
+    ylim_pad = 1.5
+    subtitle = {'full': '', 'pos': '\nfit only to positive half $t>0$',
+                'sym': '\nfit only to symmetric part $f(t) + f(-t)$',
+                'anti': '\nfit only to anti-symmetric part $f(t) - f(-t)$',
+                'max': '\n$l_p=$ max of anti-symmetric part $f(t) + f(-t)$',
+               }[args.rn]
+    plt_kwargs = {
+        'xlim': (-tmax, tmax),
+        'ylim': (ylim_pad*result.best_fit.min(),
+                 ylim_pad*result.best_fit.max()),
+        'ylabel': r"$\langle \vec r(t) \hat n(0) \rangle / \ell$",
+        'xlabel': "$tf$",
+        'title': '\n'.join(filter(None, ["Position-Orientation Correlation",
+                                         subtitle, relprefix, fitname])),
+        'legend': {'loc': 'upper left', 'framealpha': 1},
+    }
     fig = args.fig and args.fig + 1
-    fig, ax = plot_fit(result, tex_fits, args, data=plot_data, ax=fig)
+    fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
+                       ax=fig, plt_kwargs=plt_kwargs)
     #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
     ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol)#, label="anti-symmetric")
     if args.rn == 'max':
         ax.scatter(sym.x[[t_max, -t_max]], sym.antisymmetric[[t_max, -t_max]],
                    marker='o', c=args.pcol)
 
-    ylim_pad = 1.5
-    ax.set_ylim(ylim_pad*result.best_fit.min(), ylim_pad*result.best_fit.max())
-    xlim = ax.set_xlim(-tmax, tmax)
     DR_time = 1/result.params['DR']
-    if xlim[0] < DR_time < xlim[1]:
+    if plt_kwargs['xlim'][0] < DR_time < plt_kwargs['xlim'][1]:
         ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
         ax.text(DR_time, 1e-2, ' $1/D_R$')
-
-    if labels:
-        subtitle = {'full': '', 'pos': '\nfit only to positive half $t>0$',
-                    'sym': '\nfit only to symmetric part $f(t) + f(-t)$',
-                    'anti': '\nfit only to anti-symmetric part $f(t) - f(-t)$',
-                    'max': '\n$l_p=$ max of anti-symmetric part $f(t) + f(-t)$',
-                    }[args.rn]
-        ax.set_title('\n'.join(filter(None, ["Position-Orientation Correlation",
-                                             subtitle, relprefix, fitname])))
-    ax.set_ylabel(r"$\langle \vec r(t) \hat n(0) \rangle / \ell$")
-    ax.set_xlabel("$tf$")
-    ax.legend(loc='upper left', framealpha=1)
 
     if args.save:
         save_corr_plot(fig, fitname)
