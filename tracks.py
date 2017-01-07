@@ -1420,7 +1420,7 @@ def limiting_regimes(s, DT, lp, DR, TR):
     return lines
 
 
-def nn_plot(tracksets, fits, args):
+def nn_plot(tracksets, fits, args, ax=None):
     model_name = 'nn'
     taus, meancorr, errcorr = nn_corr(tracksets, args)
     tmax = 50*args.zoom
@@ -1470,9 +1470,9 @@ def nn_plot(tracksets, fits, args):
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
                    'framealpha': 1},
     }
-
+    ax = ax or args.fig
     fig, ax = plot_fit(result, tex_fits, args,
-                       ax=args.fig, plt_kwargs=plt_kwargs)
+                       ax=ax, plt_kwargs=plt_kwargs)
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1480,7 +1480,7 @@ def nn_plot(tracksets, fits, args):
     return result, fits, ax
 
 
-def rn_plot(tracksets, fits, args):
+def rn_plot(tracksets, fits, args, ax=None):
     model_name = {'full': 'rn', 'pos': 'rp', 'anti': 'ra', 'max': 'rm'}[args.rn]
     taus, meancorr, errcorr = rn_corr(tracksets, args)
 
@@ -1551,9 +1551,9 @@ def rn_plot(tracksets, fits, args):
                                          subtitle, relprefix, fitname])),
         'legend': {'loc': 'upper left', 'framealpha': 1},
     }
-    fig = args.fig and args.fig + 1
+    ax = ax or args.fig and args.fig + 1
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
-                       ax=fig, plt_kwargs=plt_kwargs)
+                       ax=ax, plt_kwargs=plt_kwargs)
     #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
     ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol)#, label="anti-symmetric")
     if args.rn == 'max':
@@ -1571,10 +1571,13 @@ def rn_plot(tracksets, fits, args):
     return result, fits, ax
 
 
-def rr_plot(msds, msdids, data, fits, args):
+def rr_plot(msds, msdids, data, fits, args, ax=None):
     taus, msd, msd_err = rr_corr(msds, msdids, data, args)
 
-    fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 4) if args.clean else (8, 6))
+    else:
+        fig = ax.figure
 
     # list arguments in order to be run
     comp_kwargs = list(cycler(**{
@@ -1588,8 +1591,8 @@ def rr_plot(msds, msdids, data, fits, args):
     # list arguments in order of msdvec: 0, 1, -1
     plt_kwargs = list(cycler(**{
         'c':      [args.vcol, 'c', 'm'],
-        'lw':     [2, 0, 0],
-        'marker': ['', '^', 'v'],
+        'lw':     [0, 0, 0],
+        'marker': ['o', '^', 'v'],
     }))
     fitnames = [None]*3
     results = [None]*3
@@ -1600,7 +1603,7 @@ def rr_plot(msds, msdids, data, fits, args):
         if comp_kwarg['do_plot']:
             plot_msd(taus, msd[msdvec], msd_err[msdvec],
                      labels=not args.clean, S=args.side, save='', show=False,
-                     fps=args.fps, tnormalize=0, prefix=saveprefix, fig=fig,
+                     fps=args.fps, tnormalize=0, prefix=saveprefix, fig=ax,
                      errorbars=True, capthick=0, elinewidth=1, errorevery=1,
                      title='' if args.clean else None, **plt_kwargs[msdvec])
 
@@ -1880,17 +1883,22 @@ if __name__ == '__main__':
     if args.nn or args.rn or args.rr:
         fit_config, fit_desc = make_fitnames()
 
+        if args.fig == 0:
+            fig, axs = plt.subplots(ncols=3, figsize=(15, 4))
+        else:
+            axs = None, None, None
+
     if args.nn or args.colored:
         print "====== <nn> ======"
-        nn_result, fits, nn_ax = nn_plot(tracksets, fits, args)
+        nn_result, fits, nn_ax = nn_plot(tracksets, fits, args, ax=axs[0])
 
     if args.rn:
         print "====== <rn> ======"
-        rn_result, fits, rn_ax = rn_plot(tracksets, fits, args)
+        rn_result, fits, rn_ax = rn_plot(tracksets, fits, args, ax=axs[1])
 
     if args.rr:
         print "====== <rr> ======"
-        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
+        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args, axs[2])
 
     if args.save:
         helpy.save_fits(saveprefix, fits)
