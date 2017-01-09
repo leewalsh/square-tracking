@@ -189,16 +189,11 @@ def plot_widths(widths, stats, fig, normalize=False):
         ax.legend(loc='best')
 
 
-def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
+def plot_hist(a, ax, bins=100, log=True, orient=False,
               label='v', title='', subtitle='', c=vcol):
     if args.verbose:
         print title + subtitle + str(label)
     stats = get_stats(a)
-    nrows, ncols = nax
-    if isinstance(axi, tuple):
-        ax = axi[0]
-    else:
-        ax = plt.subplot(nrows, ncols, (axi - 1)*ncols + 1)
     label.update(stats)
     label = '\n'.join([r'$\langle {val} \rangle = {mean:.5f}$',
                        r'$\ D_{sub}\  = {var:.5f}$',
@@ -206,7 +201,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
                        r'$\ \gamma_2 = {kurt:.5f}$',
                        r'$\sigma/\sqrt{{N}} = {std:.5f}$']).format(**label)
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
-                              log=log and not lin, alpha=0.7, color=c)
+                              log=log, alpha=0.7, color=c)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     ax.legend(loc='upper left', fontsize='small', frameon=False)
     # ax.set_ylabel('Frequency')
@@ -218,25 +213,13 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \times f$'
+    if log:
+        ax.set_ylim(1, 10**int(1 + np.log10(counts.max())))
     ax.set_xlabel(xlabel)
     # ax.set_title(" ".join([title, subtitle]), fontsize='medium')
-    if ncols < 2:
-        return stats, (ax,)
-    if isinstance(axi, tuple):
-        ax2 = axi[1]
-    else:
-        ax2 = plt.subplot(nrows, ncols, axi*ncols)
-    counts, bins, _ = ax2.hist(a, bins*2, range=(2*bins[0], 2*bins[-1]),
-                               log=True, alpha=0.7, color=c)
-    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax2)
-    if orient:
-        l, r = ax2.set_xlim(bins[0], bins[-1])
-        xticks = np.linspace(l, r, 9)
-        ax2.set_xticks(xticks)
-        xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
-        ax2.set_xticklabels(xticklabels, fontsize='small')
-    ax2.set_ylim(1, 10**int(1 + np.log10(counts.max())))
-    return stats, (ax, ax2)
+    if title:
+        ax.set_title(title)
+    return stats
 
 
 def plot_gaussian(M, D, bins, count=1, ax=None):
@@ -310,7 +293,7 @@ def command_autocorr(tsets, args):
     ax.legend(loc='best')
 
 
-def command_hist(args, meta, compile_args):
+def command_hist(args, meta, compile_args, axes=None):
     args.width = args.width[0]
     helpy.sync_args_meta(args, meta,
                          ['stub', 'gaps', 'width'],
@@ -324,50 +307,57 @@ def command_hist(args, meta, compile_args):
     if not (args.log or args.lin):
         args.log = args.lin = True
 
-    nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
-           args.log + args.lin)
-    plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
-    axi = 1
+    if axes is None:
+        nrows = args.do_orientation + args.do_translation*(args.subtract + 1)
+        ncols = args.log + args.lin
+        fig, axes = plt.subplots(nrows, ncols, squeeze=False,
+                                figsize=(5*ncols, 2.5*nrows))
+    irow = 0
     subtitle = args.particle
     bins = np.linspace(-1, 1, 51)
     brange = 0.5
     if args.do_orientation:
-        title = 'Orientation'
-        label = {'val': r'\xi', 'sub': 'R'}
-        stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
-                                lin=args.lin, log=args.log, label=label,
-                                orient=True, title=title, subtitle=subtitle)
-        fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-        fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-        axi += 1
+        for icol in range(ncols):
+            title = 'Orientation'
+            label = {'val': r'\xi', 'sub': 'R'}
+            stats = plot_hist(vs['o'], axes[irow, icol], bins=bins*pi/2, c=ncol,
+                            log=args.log and icol or not args.lin, label=label,
+                            orient=True, title=title, subtitle=subtitle)
+            fit = helpy.make_fit(func='vo', DR='var', w0='mean')
+            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        irow += 1
     if args.do_translation:
         title = 'Parallel & Transverse'
-        label = {'val': r'v_\perp', 'sub': r'\perp'}
-        stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
-                                lin=args.lin, log=args.log, label=label,
-                                title=title, subtitle=subtitle, c=ncol)
-        fit = helpy.make_fit(func='vt', DT='var')
-        fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-        label = {'val': r'v_\parallel', 'sub': r'\parallel'}
-        stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
-                                lin=args.lin, log=args.log, label=label)
-        fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-        fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-        axi += 1
+        for icol in range(ncols):
+            label = {'val': r'v_\perp', 'sub': r'\perp'}
+            stats = plot_hist(vs['perp'], axes[irow, icol], bins=bins*brange,
+                            log=args.log and icol or not args.lin, label=label,
+                            title=title, subtitle=subtitle, c=ncol)
+            fit = helpy.make_fit(func='vt', DT='var')
+            fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+            label = {'val': r'v_\parallel', 'sub': r'\parallel'}
+            stats = plot_hist(vs['par'], axes[irow, icol], bins=bins*brange,
+                            log=args.log and icol or not args.lin, label=label)
+            fit = helpy.make_fit(func='vn', v0='mean', DT='var')
+            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        irow += 1
         if args.subtract:
-            label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
-            plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
-                      lin=args.lin, log=args.log, label=label,
-                      bins=bins, title='$v_0$ subtracted',
-                      subtitle=subtitle)
-            axi += 1
-    return fits
+            for icol in range(ncols):
+                label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
+                plot_hist(np.concatenate([vs['etapar'], vs['perp']]),
+                          axes[irow, icol], bins=bins,
+                          log=args.log and icol or not args.lin, label=label,
+                          title='$v_0$ subtracted', subtitle=subtitle)
+            irow += 1
+
+    return fig, fits
+
 
 if __name__ == '__main__':
     suf = '_TRACKS.npz'
