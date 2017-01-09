@@ -28,6 +28,11 @@ if __name__ == '__main__':
     parser = ArgumentParser(description=description)
     arg = parser.add_argument
     arg('prefix', help='Prefix without trial number')
+    arg('command', nargs='+', choices=['widths', 'hist', 'autocorr'],
+        help=('Which command to run: '
+              '`widths`: plot several derivative widths, '
+              '`hist`: plot velocity histograms, '
+              '`autocorr`: plot <vv> autocorrelation'))
     arg('-o', '--orientation', action='store_false',
         dest='do_translation', help='Only orientational noise?')
     arg('-t', '--translation', action='store_false',
@@ -46,7 +51,6 @@ if __name__ == '__main__':
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
-    arg('--autocorr', action='store_true', help='Plot <vv> autocorrelation?')
     arg('--frame', choices=['lab', 'self'], default='self',
         help='Correlations in "lab" or "self" frame?')
     arg('--untrackorient', action='store_false', dest='torient',
@@ -318,10 +322,10 @@ if __name__ == '__main__':
     cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
 
 if __name__ == '__main__':
-    if len(args.width) > 1:
+    if 'widths' in args.command:
         stats = compile_widths(tsets, **compile_args)
         plot_widths(args.width, stats, normalize=args.normalize)
-    elif args.autocorr:
+    if 'autocorr' in args.command:
         vs = compile_noise(tsets, args.width, cat=False,
                            side=args.side, fps=args.fps)
         vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
@@ -332,7 +336,7 @@ if __name__ == '__main__':
         ax.set_xlim(0, 10/args.fps)
         ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
         ax.legend(loc='best')
-    else:
+    if 'hist' in args.command:
         args.width = args.width[0]
         helpy.sync_args_meta(args, meta,
                              ['stub', 'gaps', 'width'],
@@ -393,7 +397,7 @@ if __name__ == '__main__':
 if __name__ == '__main__' and args.save:
     savename = os.path.abspath(args.prefix.rstrip('/._?*'))
     helpy.save_meta(savename, meta)
-    if not args.autocorr:
+    if 'hist' in args.command:
         helpy.save_fits(savename, fits)
     savename += '_v' + ('corr' if args.autocorr else 'hist')
     if args.suffix:
