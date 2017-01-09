@@ -1315,7 +1315,7 @@ def nn_form_dot_white(s, DR):
 
 
 def nn_form_dot_color(s, DR, TR):
-    r"""$e^{-D_R\left[t - \tau_R \left(1 - e^{-t/\tau_R}\right)\right]}$
+    r"""$e^{-D_R\left[t - \tau \left(1 - e^{-t/\tau}\right)\right]}$
     """
     if TR > 1e-3/args.fps:
         # only calculate if TR will have significant effect
@@ -1331,7 +1331,7 @@ def nn_form_components_white(s, DR):
 
 def nn_form_components_color(s, DR, TR):
     r"""$\frac{1}{2}e^{-D_R
-        \left[t - \tau_R \left(1 - e^{-t/\tau_R}\right)\right]}$
+        \left[t - \tau \left(1 - e^{-t/\tau}\right)\right]}$
     """
     if TR > 1e-3/args.fps:
         # only calculate if TR will have significant effect
@@ -1346,7 +1346,7 @@ def rn_form_dot_white(s, lp, DR):
 
 
 def rn_form_dot_color(s, lp, DR, TR):
-    r"""$\frac{v_0}{D_R}e^{D_R\tau_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    r"""$\frac{v_0}{D_R}e^{D_R\tau}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
     """
     return -lp*exp(DR*TR)*np.sign(s)*np.expm1(-DR*np.abs(s))
 
@@ -1358,7 +1358,7 @@ def rn_form_components_white(s, lp, DR):
 
 
 def rn_form_components_color(s, lp, DR, TR):
-    r"""$\frac{v_0}{2D_R}e^{D_R\tau_R}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
+    r"""$\frac{v_0}{2D_R}e^{D_R\tau}(1 - e^{-D_R|t|})\operatorname{sign}(t)$
     """
     return -0.5*lp*exp(DR*TR)*np.sign(s)*np.expm1(-DR*np.abs(s))
 
@@ -1369,7 +1369,7 @@ def quartic(a):
 
 
 def rr_form_total(s, DT, lp, DR, TR):
-    r"""$2(v_0/D_R)^2 e^{D_R\tau_R} \left(D_Rt - 1 + e^{-D_Rt}\right) + 4 D_Tt$
+    r"""$2(v_0/D_R)^2 e^{D_R\tau} \left(D_Rt - 1 + e^{-D_Rt}\right) + 4 D_Tt$
     """
     color = exp(DR*TR)
     persistence = color*lp**2
@@ -1380,10 +1380,10 @@ def rr_form_total(s, DT, lp, DR, TR):
 
 
 def rr_form_prog(s, DT, lp, DR, TR):
-    r"""$\ell_p^2 e^{D_R \tau_R}
+    r"""$\ell_p^2 e^{D_R \tau}
     \left(
         D_R t - 1 + e^{-D_Rt}
-        + \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
+        + \frac{1}{12} e^{4D_R\tau} (e^{-4D_Rt}-4e^{-D_Rt}+3)
     \right) + 2 D_Tt$
     """
     color = exp(DR*TR)
@@ -1396,10 +1396,10 @@ def rr_form_prog(s, DT, lp, DR, TR):
 
 
 def rr_form_div(s, DT, lp, DR, TR):
-    r"""$\ell_p^2 e^{D_R \tau_R}
+    r"""$\ell_p^2 e^{D_R \tau}
     \left(
         D_R t - 1 + e^{-D_Rt}
-        - \frac{1}{12} e^{4D_R\tau_R} (e^{-4D_Rt}-4e^{-D_Rt}+3)
+        - \frac{1}{12} e^{4D_R\tau} (e^{-4D_Rt}-4e^{-D_Rt}+3)
     \right) + 2 D_Tt$
     """
     color = exp(DR*TR)
