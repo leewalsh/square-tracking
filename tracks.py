@@ -1479,7 +1479,7 @@ def nn_plot(tracksets, fits, args, ax=None):
                    'framealpha': 1, 'frameon': labels},
     }
     if labels:
-        plt_kwargs['title'] += '\n' + '\n'.join([relprefix, fitname]),
+        plt_kwargs['title'] += '\n' + '\n'.join([relprefix, fitname])
     ax = ax or args.fig
     fig, ax = plot_fit(result, tex_fits, args,
                        ax=ax, plt_kwargs=plt_kwargs)
@@ -1562,7 +1562,7 @@ def rn_plot(tracksets, fits, args, ax=None):
     }
     if labels:
         plt_kwargs['title'] += '\n' + '\n'.join(
-            filter(None, [subtitle, relprefix, fitname])),
+            filter(None, [subtitle, relprefix, fitname]))
     ax = ax or args.fig and args.fig + 1
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
                        ax=ax, plt_kwargs=plt_kwargs)
@@ -1823,8 +1823,13 @@ if __name__ == '__main__':
     if args.nn or args.rn or args.rr:
         fits = {}
         helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
-        labels = not args.clean
-        plt.rcParams['text.usetex'] = args.clean
+        if args.clean:
+            labels = False
+            plt.rcParams['text.usetex'] = True
+            plt.rcParams['text.latex.preamble'].append(r'\usepackage{amsmath}')
+        else:
+            labels = True
+            plt.rcParams['text.usetex'] = False
 
     if args.msd or args.nn or args.rn:
         # for backwards compatability, clean up reverse, retire.
