@@ -215,7 +215,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
     if orient:
         xticks = np.linspace(l, r, 5)
         ax.set_xticks(xticks)
-        xticklabels = map('${:.2f}\pi$'.format, xticks/pi)
+        xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \times f$'
     ax.set_xlabel(xlabel)
@@ -233,7 +233,7 @@ def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
         l, r = ax2.set_xlim(bins[0], bins[-1])
         xticks = np.linspace(l, r, 9)
         ax2.set_xticks(xticks)
-        xticklabels = map('${:.2f}\pi$'.format, xticks/pi)
+        xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         ax2.set_xticklabels(xticklabels, fontsize='small')
     ax2.set_ylim(1, 10**int(1 + np.log10(counts.max())))
     return stats, (ax, ax2)
@@ -295,7 +295,7 @@ def command_widths(tsets, compile_args, args):
 
 def command_autocorr(tsets, args):
     vs = compile_noise(tsets, args.width, cat=False,
-                        side=args.side, fps=args.fps)
+                       side=args.side, fps=args.fps)
     vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
     fig, ax = plt.subplots()
     t = np.arange(len(vv))/args.fps
@@ -309,19 +309,19 @@ def command_autocorr(tsets, args):
 def command_hist(args, meta, compile_args):
     args.width = args.width[0]
     helpy.sync_args_meta(args, meta,
-                            ['stub', 'gaps', 'width'],
-                            ['vel_stub', 'vel_gaps', 'vel_dx_width'],
-                            [10, 'interp', 0.65])
+                         ['stub', 'gaps', 'width'],
+                         ['vel_stub', 'vel_gaps', 'vel_dx_width'],
+                         [10, 'interp', 0.65])
     fits = {}
     args.width = [args.width]
     compile_args.update(args.__dict__)
     vs = compile_noise(tsets, args.width, cat=True,
-                        side=args.side, fps=args.fps)
+                       side=args.side, fps=args.fps)
     if not (args.log or args.lin):
         args.log = args.lin = True
 
     nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
-            args.log + args.lin)
+           args.log + args.lin)
     plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
     axi = 1
     subtitle = args.particle
@@ -335,33 +335,33 @@ def command_hist(args, meta, compile_args):
                                 orient=True, title=title, subtitle=subtitle)
         fit = helpy.make_fit(func='vo', DR='var', w0='mean')
         fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
-                        'KU': stats['kurt'], 'SK': stats['skew'],
-                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+                     'KU': stats['kurt'], 'SK': stats['skew'],
+                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         axi += 1
     if args.do_translation:
         title = 'Parallel & Transverse'
-        label = {'val': 'v_\perp', 'sub': '\perp'}
+        label = {'val': r'v_\perp', 'sub': r'\perp'}
         stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
                                 lin=args.lin, log=args.log, label=label,
                                 title=title, subtitle=subtitle, c=ncol)
         fit = helpy.make_fit(func='vt', DT='var')
         fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
-                        'KU': stats['kurt'], 'SK': stats['skew'],
-                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-        label = {'val': 'v_\parallel', 'sub': '\parallel'}
+                     'KU': stats['kurt'], 'SK': stats['skew'],
+                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        label = {'val': r'v_\parallel', 'sub': r'\parallel'}
         stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
                                 lin=args.lin, log=args.log, label=label)
         fit = helpy.make_fit(func='vn', v0='mean', DT='var')
         fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
-                        'KU': stats['kurt'], 'SK': stats['skew'],
-                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+                     'KU': stats['kurt'], 'SK': stats['skew'],
+                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         axi += 1
         if args.subtract:
             label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
             plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
-                        lin=args.lin, log=args.log, label=label,
-                        bins=bins, title='$v_0$ subtracted',
-                        subtitle=subtitle)
+                      lin=args.lin, log=args.log, label=label,
+                      bins=bins, title='$v_0$ subtracted',
+                      subtitle=subtitle)
             axi += 1
     return fits
 
