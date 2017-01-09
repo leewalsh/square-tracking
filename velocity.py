@@ -169,8 +169,7 @@ def compile_widths(tracksets, widths, side=1, fps=1):
     return stats
 
 
-def plot_widths(widths, stats, normalize=False):
-    fig = plt.figure(figsize=(8, 12))
+def plot_widths(widths, stats, fig, normalize=False):
     for i, s in enumerate(stats['o']):
         ax = fig.add_subplot(len(stats['o']), 1, i+1)
         for v in stats:
@@ -188,7 +187,6 @@ def plot_widths(widths, stats, normalize=False):
         if normalize:
             ax.set_ylim(-0.1, 1.1)
         ax.legend(loc='best')
-    return fig
 
 
 def plot_hist(a, nax=(1, 1), axi=1, bins=100, log=True, lin=True, orient=False,
@@ -290,9 +288,12 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
     return vv_radial / vv_counts, bins
 
 
-def command_widths(tsets, compile_args, args):
+def command_widths(tsets, compile_args, args, fig=None):
     stats = compile_widths(tsets, **compile_args)
-    fig = plot_widths(args.width, stats, normalize=args.normalize)
+    if fig is None:
+        fig = plt.figure(figsize=(8, 12))
+    plot_widths(args.width, stats, fig, normalize=args.normalize)
+    return fig
 
 
 def command_autocorr(tsets, args):
