@@ -942,7 +942,12 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     xlim = plt_kwargs.pop('xlim', None)
     ylim = plt_kwargs.pop('ylim', None)
 
-    label = "Mean Sq {}Disp".format("Angular "*ang)*labels
+    if labels is True:
+        label = "Mean Sq {}Disp".format("Angular "*ang)
+    elif isinstance(labels, basestring):
+        label = labels
+    else:
+        label = ''
 
     if tnormalize:
         tnorm = taus**tnormalize
@@ -1177,10 +1182,9 @@ def format_fit(result, model_name=None, sources=None):
     print print_fmt(free)
 
     tex_eqn = result.model.func.func_doc.replace('\n', '')
-    for_tex = '\n'.join([
-        tex_eqn,
-        'fixed: ' + tex_fmt(fixed),
-        'free: ' + tex_fmt(free)])
+    for_tex = [tex_eqn,
+               'fixed: ' + tex_fmt(fixed),
+               'free: ' + tex_fmt(free)]
 
     return fit, free, for_tex
 
@@ -1210,9 +1214,10 @@ def plot_fit(result, tex_fits, args, t=None, data=None,
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, all_corrs.T, 'b', alpha=.2, lw=0.5)
     ax.errorbar(t, data, 1/result.weights, None,
-                c=args.vcol, lw=3, ls='', marker='o',
-                capthick=0, elinewidth=1, errorevery=3)
-    ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=labels*tex_fits)
+                c=args.vcol, lw=3, ls='', marker='o', markersize=4, mec='none',
+                capthick=0, elinewidth=1, errorevery=3, label='experiment')
+    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
+    ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=fitlabel)
 
     if plt_kwargs is None:
         plt_kwargs = {}
@@ -1222,9 +1227,12 @@ def plot_fit(result, tex_fits, args, t=None, data=None,
     ax.set_yscale(plt_kwargs.get('yscale') or ax.get_yscale())
     if labels:
         ax.set_title(plt_kwargs.get('title', ''))
+        ax.legend(fontsize='small', **plt_kwargs.get('legend', {}))
+    else:
+        ax.legend(title=plt_kwargs.get('title', ''), fontsize='small',
+                  **plt_kwargs.get('legend', {}))
     ax.set_xlabel(plt_kwargs.get('xlabel', ''))
     ax.set_ylabel(plt_kwargs.get('ylabel', ''))
-    ax.legend(**plt_kwargs.get('legend', {}))
 
     return fig, ax
 
@@ -1464,12 +1472,14 @@ def nn_plot(tracksets, fits, args, ax=None):
         'xlim': (0, 3*args.zoom/result.params['DR']+result.params.get('TR', 0)),
         'ylim': (exp(-3*args.zoom), 1),
         'yscale': 'log',
-        'title': '\n'.join(["Orientation Autocorrelation", relprefix, fitname]),
+        'title': "Orientation Autocorrelation",
         'ylabel': r"$\langle \hat n(t) \hat n(0) \rangle$",
         'xlabel': "$tf$",
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
-                   'framealpha': 1},
+                   'framealpha': 1, 'frameon': labels},
     }
+    if labels:
+        plt_kwargs['title'] += '\n' + '\n'.join([relprefix, fitname]),
     ax = ax or args.fig
     fig, ax = plot_fit(result, tex_fits, args,
                        ax=ax, plt_kwargs=plt_kwargs)
@@ -1547,10 +1557,12 @@ def rn_plot(tracksets, fits, args, ax=None):
                  ylim_pad*result.best_fit.max()),
         'ylabel': r"$\langle \vec r(t) \hat n(0) \rangle / \ell$",
         'xlabel': "$tf$",
-        'title': '\n'.join(filter(None, ["Position-Orientation Correlation",
-                                         subtitle, relprefix, fitname])),
-        'legend': {'loc': 'upper left', 'framealpha': 1},
+        'title': "Position-Orientation Correlation",
+        'legend': {'loc': 'upper left', 'framealpha': 1, 'frameon': labels},
     }
+    if labels:
+        plt_kwargs['title'] += '\n' + '\n'.join(
+            filter(None, [subtitle, relprefix, fitname])),
     ax = ax or args.fig and args.fig + 1
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
                        ax=ax, plt_kwargs=plt_kwargs)
@@ -1582,6 +1594,7 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
     # list arguments in order to be run
     comp_kwargs = list(cycler(**{
         'msdvec':  [0, -1, 1],
+        'label':   ['experiment (total)', '(transverse)', '(longitudinal)'],
         'fitv0':   [args.fitv0, False, 'disp'],
         'fitdt':   [True, False, 'div'],
         'do_plot': [True, True, True],
@@ -1593,16 +1606,19 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
         'c':      [args.vcol, 'c', 'm'],
         'lw':     [0, 0, 0],
         'marker': ['o', '^', 'v'],
+        'markersize': [4]*3,
+        'mec': ['none']*3,
     }))
     fitnames = [None]*3
     results = [None]*3
     for comp_kwarg in comp_kwargs:
         msdvec = comp_kwarg['msdvec']
+        label = comp_kwarg['label']
         args.fitv0 = comp_kwarg['fitv0']
         args.fitdt = comp_kwarg['fitdt']
         if comp_kwarg['do_plot']:
             plot_msd(taus, msd[msdvec], msd_err[msdvec],
-                     labels=not args.clean, S=args.side, save='', show=False,
+                     labels=label, S=args.side, save='', show=False,
                      fps=args.fps, tnormalize=0, prefix=saveprefix, fig=ax,
                      errorbars=True, capthick=0, elinewidth=1, errorevery=1,
                      title='' if args.clean else None, **plt_kwargs[msdvec])
@@ -1612,8 +1628,13 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
                                       ax, fits, args, msdvec)
             fitnames[msdvec] = fitname
             results[msdvec] = result
-    ax.set_title('\n'.join(["Mean Squared Displacement",
-                            relprefix, fitnames[0]]))
+    if labels:
+        ax.set_title('\n'.join(["Mean Squared Displacement",
+                                relprefix, fitnames[0]]))
+        ax.legend(loc='upper left', fontsize='small')
+    else:
+        ax.legend(title="Mean Squared Displacement",
+                  loc='upper left', fontsize='small', frameon=False)
     if args.save:
         save_corr_plot(fig, fitnames[0])
     return results, fits, ax
@@ -1688,7 +1709,8 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     else:
         fitname = ', '.join(fit_desc.get(f, str(f)) for f in fit if f)
 
-    ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=tex_fits)
+    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
+    ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=fitlabel)
 
     guide = limiting_regimes(taus, **result.best_values)
     ax.plot(taus, guide, '--k', lw=1.5)
@@ -1698,7 +1720,6 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
-    ax.legend(loc='upper left')
 
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
@@ -1785,8 +1806,8 @@ if __name__ == '__main__':
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(
-                prefix=relprefix, frames=args.slice,
-                load=True, verbose=args.verbose)
+            prefix=relprefix, frames=args.slice,
+            load=True, verbose=args.verbose)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
         fisets = helpy.load_framesets(tdata, run_repair='interp')
@@ -1803,6 +1824,7 @@ if __name__ == '__main__':
         fits = {}
         helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
         labels = not args.clean
+        plt.rcParams['text.usetex'] = args.clean
 
     if args.msd or args.nn or args.rn:
         # for backwards compatability, clean up reverse, retire.
@@ -1884,7 +1906,7 @@ if __name__ == '__main__':
         fit_config, fit_desc = make_fitnames()
 
         if args.fig == 0:
-            fig, axs = plt.subplots(ncols=3, figsize=(15, 4))
+            fig, axs = plt.subplots(ncols=3, figsize=(12, 3))
         else:
             axs = None, None, None
 
