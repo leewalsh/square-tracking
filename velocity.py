@@ -288,6 +288,83 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
     return vv_radial / vv_counts, bins
 
 
+def command_widths(tsets, compile_args, args):
+    stats = compile_widths(tsets, **compile_args)
+    fig = plot_widths(args.width, stats, normalize=args.normalize)
+
+
+def command_autocorr(tsets, args):
+    vs = compile_noise(tsets, args.width, cat=False,
+                        side=args.side, fps=args.fps)
+    vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
+    fig, ax = plt.subplots()
+    t = np.arange(len(vv))/args.fps
+    for v in ['o', 'par', 'perp', 'etapar']:
+        ax.errorbar(t, vv[v], yerr=dvv[v], label=label[v], ls=ls[v])
+    ax.set_xlim(0, 10/args.fps)
+    ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
+    ax.legend(loc='best')
+
+
+def command_hist(args, meta, compile_args):
+    args.width = args.width[0]
+    helpy.sync_args_meta(args, meta,
+                            ['stub', 'gaps', 'width'],
+                            ['vel_stub', 'vel_gaps', 'vel_dx_width'],
+                            [10, 'interp', 0.65])
+    fits = {}
+    args.width = [args.width]
+    compile_args.update(args.__dict__)
+    vs = compile_noise(tsets, args.width, cat=True,
+                        side=args.side, fps=args.fps)
+    if not (args.log or args.lin):
+        args.log = args.lin = True
+
+    nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
+            args.log + args.lin)
+    plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
+    axi = 1
+    subtitle = args.particle
+    bins = np.linspace(-1, 1, 51)
+    brange = 0.5
+    if args.do_orientation:
+        title = 'Orientation'
+        label = {'val': r'\xi', 'sub': 'R'}
+        stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
+                                lin=args.lin, log=args.log, label=label,
+                                orient=True, title=title, subtitle=subtitle)
+        fit = helpy.make_fit(func='vo', DR='var', w0='mean')
+        fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        axi += 1
+    if args.do_translation:
+        title = 'Parallel & Transverse'
+        label = {'val': 'v_\perp', 'sub': '\perp'}
+        stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
+                                lin=args.lin, log=args.log, label=label,
+                                title=title, subtitle=subtitle, c=ncol)
+        fit = helpy.make_fit(func='vt', DT='var')
+        fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        label = {'val': 'v_\parallel', 'sub': '\parallel'}
+        stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
+                                lin=args.lin, log=args.log, label=label)
+        fit = helpy.make_fit(func='vn', v0='mean', DT='var')
+        fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
+                        'KU': stats['kurt'], 'SK': stats['skew'],
+                        'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        axi += 1
+        if args.subtract:
+            label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
+            plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
+                        lin=args.lin, log=args.log, label=label,
+                        bins=bins, title='$v_0$ subtracted',
+                        subtitle=subtitle)
+            axi += 1
+    return fits
+
 if __name__ == '__main__':
     suf = '_TRACKS.npz'
     if '*' in args.prefix or '?' in args.prefix:
@@ -323,76 +400,11 @@ if __name__ == '__main__':
 
 if __name__ == '__main__':
     if 'widths' in args.command:
-        stats = compile_widths(tsets, **compile_args)
-        plot_widths(args.width, stats, normalize=args.normalize)
+        command_widths(tsets, compile_args, args)
     if 'autocorr' in args.command:
-        vs = compile_noise(tsets, args.width, cat=False,
-                           side=args.side, fps=args.fps)
-        vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
-        fig, ax = plt.subplots()
-        t = np.arange(len(vv))/args.fps
-        for v in ['o', 'par', 'perp', 'etapar']:
-            ax.errorbar(t, vv[v], yerr=dvv[v], label=label[v], ls=ls[v])
-        ax.set_xlim(0, 10/args.fps)
-        ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
-        ax.legend(loc='best')
+        command_autocorr(tsets, args)
     if 'hist' in args.command:
-        args.width = args.width[0]
-        helpy.sync_args_meta(args, meta,
-                             ['stub', 'gaps', 'width'],
-                             ['vel_stub', 'vel_gaps', 'vel_dx_width'],
-                             [10, 'interp', 0.65])
-        fits = {}
-        args.width = [args.width]
-        compile_args.update(args.__dict__)
-        vs = compile_noise(tsets, args.width, cat=True,
-                           side=args.side, fps=args.fps)
-        if not (args.log or args.lin):
-            args.log = args.lin = True
-
-        nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
-               args.log + args.lin)
-        plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
-        axi = 1
-        subtitle = args.particle
-        bins = np.linspace(-1, 1, 51)
-        brange = 0.5
-        if args.do_orientation:
-            title = 'Orientation'
-            label = {'val': r'\xi', 'sub': 'R'}
-            stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
-                                    lin=args.lin, log=args.log, label=label,
-                                    orient=True, title=title, subtitle=subtitle)
-            fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-            axi += 1
-        if args.do_translation:
-            title = 'Parallel & Transverse'
-            label = {'val': 'v_\perp', 'sub': '\perp'}
-            stats, axes = plot_hist(vs['perp'], nax, axi, bins=bins*brange,
-                                    lin=args.lin, log=args.log, label=label,
-                                    title=title, subtitle=subtitle, c=ncol)
-            fit = helpy.make_fit(func='vt', DT='var')
-            fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-            label = {'val': 'v_\parallel', 'sub': '\parallel'}
-            stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
-                                    lin=args.lin, log=args.log, label=label)
-            fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
-            axi += 1
-            if args.subtract:
-                label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
-                plot_hist(np.concatenate([vs['etapar'], vs['perp']]), nax, axi,
-                          lin=args.lin, log=args.log, label=label,
-                          bins=bins, title='$v_0$ subtracted',
-                          subtitle=subtitle)
-                axi += 1
+        fits = command_hist(args, meta, compile_args)
 
 if __name__ == '__main__' and args.save:
     savename = os.path.abspath(args.prefix.rstrip('/._?*'))
