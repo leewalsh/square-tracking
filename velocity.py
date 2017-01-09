@@ -76,6 +76,12 @@ vcol = (1, 0.4, 0)
 pcol = (0.25, 0.5, 0)
 ncol = (0.4, 0.4, 1)
 
+ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '-.', 'perp': ':', 'etapar': '--'}
+cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k'}
+texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
+            'perp': r'$v_\perp$', 'etapar': r'$\eta_\parallel$'}
+englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)', 'par': 'forward',
+            'perp': 'transverse', 'etapar': 'forward devation'}
 
 def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     """calculate angular and positional derivatives in lab & particle frames.
@@ -164,10 +170,6 @@ def compile_widths(tracksets, widths, side=1, fps=1):
 
 
 def plot_widths(widths, stats, normalize=False):
-    ls = {'o': '-', 'par': '-.', 'perp': ':', 'etapar': '--'}
-    cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k'}
-    label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
-             'etapar': r'$\eta_\parallel$'}
     fig = plt.figure(figsize=(8, 12))
     for i, s in enumerate(stats['o']):
         ax = fig.add_subplot(len(stats['o']), 1, i+1)
@@ -178,7 +180,7 @@ def plot_widths(widths, stats, normalize=False):
                 val = sign*val
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
-            ax.plot(widths, val, '.'+ls[v]+cs[s], label=label[v])
+            ax.plot(widths, val, '.'+ls[v]+cs[s], label=texlabel[v])
         ax.set_title(s)
         ax.margins(y=0.1)
         ax.minorticks_on()
@@ -300,7 +302,8 @@ def command_autocorr(tsets, args):
     fig, ax = plt.subplots()
     t = np.arange(len(vv))/args.fps
     for v in ['o', 'par', 'perp', 'etapar']:
-        ax.errorbar(t, vv[v], yerr=dvv[v], label=label[v], ls=ls[v])
+        ax.errorbar(t, vv[v], yerr=dvv[v], ls=ls[v],
+                    label=' '.join([texlabel[v], englabel[v]]))
     ax.set_xlim(0, 10/args.fps)
     ax.set_title(r"Velocity Autocorrelation $\langle v(t) v(0) \rangle$")
     ax.legend(loc='best')
@@ -392,13 +395,6 @@ if __name__ == '__main__':
                 run_track_orient=args.torient)
              for prefix in prefixes}
 
-    label = {'o': r'$\xi$', 'par': r'$v_\parallel$', 'perp': r'$v_\perp$',
-             'etapar': r'$\eta_\parallel$', 'x': '$v_x$', 'y': '$v_y$'}
-    ls = {'o': '-', 'x': '-.', 'y': ':',
-          'par': '-.', 'perp': ':', 'etapar': '--'}
-    cs = {'mean': 'r', 'var': 'g', 'std': 'b'}
-
-if __name__ == '__main__':
     if 'widths' in args.command:
         command_widths(tsets, compile_args, args)
     if 'autocorr' in args.command:
