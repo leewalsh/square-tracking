@@ -72,16 +72,19 @@ if __name__ == '__main__':
         plt.rc('text', usetex=True)
 
 pi = np.pi
-vcol = (1, 0.4, 0)
-pcol = (0.25, 0.5, 0)
-ncol = (0.4, 0.4, 1)
 
-ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '-.', 'perp': ':', 'etapar': '--'}
-cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k'}
+ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '--', 'perp': '-.', 'etapar': ':'}
+marker = {'o': 'o', 'x': '-', 'y': '|', 'par': '^', 'perp': 'v', 'etapar': '^'}
+cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
+      'o': plt.cm.PRGn(0.9), 'x': plt.cm.PRGn(0.1), 'y': plt.cm.PRGn(0.1),
+      'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.8),
+      'perp': plt.cm.RdBu(0.2)}
+
 texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
             'perp': r'$v_\perp$', 'etapar': r'$\eta_\parallel$'}
 englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
             'par': 'longitudinal', 'perp': 'transverse', 'etapar': 'longitudinal'}
+labels = 0
 
 def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     """calculate angular and positional derivatives in lab & particle frames.
@@ -190,7 +193,7 @@ def plot_widths(widths, stats, fig, normalize=False):
 
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
-              label='v', title='', subtitle='', c=vcol):
+              label='v', title='', subtitle='', c=cs['o']):
     if args.verbose:
         print title + subtitle + str(label)
     stats = get_stats(a)
@@ -201,22 +204,37 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
                            r'$\ \gamma_1 = {skew:.5f}$',
                            r'$\ \gamma_2 = {kurt:.5f}$',
                            r'$\sigma/\sqrt{{N}} = {std:.5f}$']).format(**label)
+    if label == 'longitudinal':
+        xlim = bins[0]
+        bins = bins + stats['mean']/2
+        xlim = xlim, bins[-1]
+    else:
+        xlim = bins[0], bins[-1]
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
-                              log=log, alpha=0.7, color=c)
+                              log=log, alpha=0.6, color=c, lw=0.5)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
-    ax.legend(loc='upper left', fontsize='small', frameon=False)
-    # ax.set_ylabel('Frequency')
+    ax.tick_params(top=False, which='both')
+    ax.legend(loc='upper left', fontsize='small', frameon=False,
+              handlelength=1, handletextpad=0.5, labelspacing=.1,
+              borderaxespad=0.2)
+    ax.set_ylabel('$N$', labelpad=2)
     xlabel = r'$\Delta r \times f/\ell$'
-    l, r = ax.set_xlim(bins[0], bins[-1])
+    l, r = ax.set_xlim(xlim)
     if orient:
-        xticks = np.linspace(l, r, 5)
+        #xticks = np.linspace(l, r, 3)
+        xticks = np.array([-pi/4, 0, pi/4])
         ax.set_xticks(xticks)
         xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \times f$'
+    else:
+        pass
+        #xticks = np.linspace(np.round(l, 1), np.round(r, 1), 3)
+        #xticks = [-0.5, 0, 0.5]
+        #ax.set_xticks(xticks)
     if log:
-        ax.set_ylim(1, 10**int(1 + np.log10(counts.max())))
-    ax.set_xlabel(xlabel)
+        ax.set_ylim(1, 10**int(1.9 + np.log10(counts.max())) - 1)
+    ax.set_xlabel(xlabel, labelpad=2)
     title = " ".join(filter(None, [title, subtitle]))
     if title:
         ax.set_title(title)
@@ -229,7 +247,7 @@ def plot_gaussian(M, D, bins, count=1, ax=None):
     var = 2*D
     g = np.exp(-0.5 * (bins-M)**2 / var)
     g /= sqrt(2*pi*var) / (dx*count)
-    ax.plot(bins, g, c=pcol, lw=2, zorder=0.5)
+    ax.plot(bins, g, c=cs['fit'], lw=1, zorder=0.5)
 
 
 def vv_autocorr(vs, normalize=False):
@@ -288,14 +306,19 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
-    n = 10
+    n = 12
     t = np.arange(n)/args.fps
     for v in comps.split():
-        ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v],
-                    label=' '.join([texlabel[v], englabel[v]]))
-    ax.set_xlabel(r'$tf$')
-    ax.set_ylabel(r'$\langle v(t) v(0) \rangle$')
-    ax.legend(title=r"Velocity Autocorrelation", loc='best', frameon=False)
+        ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
+                    markersize=4, color=cs[v], label=texlabel[v])
+    ax.set_xlim(-0.1, t[-1])
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlabel(r'$tf$', labelpad=2)
+    ax.set_ylabel(r'$\langle {0}(t) {0}(0) \rangle$'.format(
+        texlabel.get(comps, 'v').strip('$')), labelpad=2)
+    ax.legend(title=r"Velocity Autocorrelation"*labels, loc='best',
+              markerfirst=False, fontsize='small', numpoints=1, handlelength=1,
+              frameon=False)
     return fig, ax
 
 
@@ -320,16 +343,16 @@ def command_hist(args, meta, compile_args, axes=None):
         fig = axes[0, 0].figure
     irow = 0
     subtitle = args.particle
-    bins = np.linspace(-1, 1, 51)
-    brange = 0.5
+    bins = np.linspace(-1, 1, 26)
+    brange = 0.7
     if args.do_orientation:
         for icol in range(ncols):
             title = ''#Orientation'
             v = 'o'
-            label = texlabel[v] + ' ' + englabel[v]
+            label = englabel[v]
             if args.verbose:
                 label = {'val': label, 'sub': 'R'}
-            stats = plot_hist(vs[v], axes[irow, icol], bins=bins*pi/2, c=ncol,
+            stats = plot_hist(vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
                               log=args.log and icol or not args.lin, label=label,
                               orient=True, title=title, subtitle=subtitle)
             fit = helpy.make_fit(func='vo', DR='var', w0='mean')
@@ -341,23 +364,23 @@ def command_hist(args, meta, compile_args, axes=None):
         title = ''#Parallel & Transverse'
         for icol in range(ncols):
             v = 'perp'
-            label = texlabel[v] + ' ' + englabel[v]
+            label = englabel[v]
             if args.verbose:
                 label = {'val': label, 'sub': r'\perp'}
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
                               log=args.log and icol or not args.lin, label=label,
-                              title=title, subtitle=subtitle, c=ncol)
+                              title=title, subtitle=subtitle, c=cs[v])
             fit = helpy.make_fit(func='vt', DT='var')
             fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
                          'KU': stats['kurt'], 'SK': stats['skew'],
                          'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             v = 'par'
-            label = texlabel[v] + ' ' + englabel[v]
+            label = englabel[v]
             if args.verbose:
                 label = {'val': label, 'sub': r'\parallel'}
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
                               log=args.log and icol or not args.lin,
-                              label=label, title=title)
+                              label=label, title=title, c=cs[v])
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
             fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
                          'KU': stats['kurt'], 'SK': stats['skew'],
@@ -366,7 +389,7 @@ def command_hist(args, meta, compile_args, axes=None):
         if args.subtract:
             for icol in range(ncols):
                 v = 'etapar'
-                label = texlabel[v] + ' ' + englabel[v]
+                label = englabel[v]
                 if args.verbose:
                     label = {'val': label, 'sub': r'\alpha'}
                 plot_hist(np.concatenate([vs[v], vs['perp']]),
@@ -411,9 +434,14 @@ if __name__ == '__main__':
         fig = command_widths(tsets, compile_args, args)
     else:
         nrows = args.do_orientation + args.do_translation*(args.subtract+1)
-        ncols = args.log + args.lin + (len(args.command) > 1)
-        fig, axes = plt.subplots(nrows, ncols, squeeze=False,
-                                figsize=(5*ncols, 2.5*nrows))
+        ncols = len(args.command)
+        if 'hist' in args.command and args.log and args.lin:
+            ncols += 1
+        figsize = (3.5*ncols, 3.0*nrows) if labels else (3.5, 3.0*nrows/ncols)
+        gridspec_kw = {'width_ratios': [1, 1], 'wspace': 0.4, 'hspace': 0.4}
+        fig, axes = plt.subplots(nrows, ncols, squeeze=False, figsize=figsize,
+                                 gridspec_kw=gridspec_kw)
+        plt.rcParams['font.size'] = plt.rcParamsDefault['font.size'] if labels else 8
         if 'hist' in args.command:
             fig, fits = command_hist(args, meta, compile_args, axes)
         if 'autocorr' in args.command:
