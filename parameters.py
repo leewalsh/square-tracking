@@ -1,4 +1,3 @@
-
 # coding: utf-8
 
 from __future__ import division
@@ -313,75 +312,23 @@ for p in pargs:
     for k in new:
         pargs[p].setdefault(k, new[k])
 
+figs = 'single'
 
-fig, axes = plt.subplots(ncols=3, figsize=(14, 5))
-params = ['DR', 'lp', 'DT']
-for p, ax in zip(params, axes):
-    tracks.plot_parametric(fits, ax=ax, **pargs[p])
-if save_figs:
-    fig.savefig('parameters/parametric_all.pdf')
+if figs == 'single':
+    fig, axes = plt.subplots(ncols=3, figsize=(7, 3))
 
+    params = ['DR', 'lp', 'DT']
+    for p, ax in zip(params, axes):
+        tracks.plot_parametric(fits, ax=ax, **pargs[p])
+    if save_figs:
+        fig.savefig('parameters/parametric_all.pdf')
 
-param = 'DR'
-parg = pargs[param]
-
-ax = tracks.plot_parametric(fits, **parg)
-
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
-
-
-param = 'lp'
-parg = pargs[param]
-
-ax = tracks.plot_parametric(fits, **parg)
-
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
-
-
-param = 'v0'
-parg = pargs[param]
-
-ax = tracks.plot_parametric(fits, **parg)
-
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
-
-
-param = 'DT'
-parg = pargs[param]
-
-ax = tracks.plot_parametric(fits, **parg)
-
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
-
-
-pargs['lp_msdvec']['ys']
-
-
-param = 'lp_msdvec'
-parg = pargs[param]
-
-ax = tracks.plot_parametric(fits, **parg)
-
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
-
-
-param = 'DT_msdvec'
-parg = pargs[param].copy()
-
-parg['figsize'] = (6, 6)
-parg['legend'] = {'loc': 'upper right'}
-
-ax = tracks.plot_parametric(fits, **parg)
-
-ax.set_xlim(0, 0.025)
-ax.set_ylim(0, 0.025)
-#ax.legend(loc='lower right')
-if save_figs:
-    ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
+elif figs == 'individual':
+    params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
+    for param in params:
+        parg = pargs[param]
+        ax = tracks.plot_parametric(fits, **parg)
+        if save_figs:
+            ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
 
 plt.show()
