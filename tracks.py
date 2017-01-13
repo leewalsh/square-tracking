@@ -127,9 +127,6 @@ if __name__ == '__main__':
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
-    args.vcol = args.vcol or (1, 0.4, 0)
-    args.pcol = args.pcol or (0.25, 0.5, 0)
-    args.ncol = args.ncol or (0.4, 0.4, 1)
     args.verbose = args.verbose or 0
     args.quiet = args.quiet or 0
     args.verbose = max(0, args.verbose - args.quiet)
@@ -140,13 +137,20 @@ if __name__ == '__main__':
     np.seterr(divide=warnlevel[verbose], invalid=warnlevel[verbose])
 else:
     verbose = False
+    need_plt = True
 
 
-if __name__ != '__main__' or need_plt:
+if need_plt:
     if helpy.gethost() == 'foppl':
         import matplotlib
         matplotlib.use("agg")
     import matplotlib.pyplot as plt
+    if __name__ == '__main__':
+        args.vcol = args.vcol or plt.cm.PRGn(0.9)   #(1, 0.4, 0)
+        args.pcol = args.pcol or 'black'            #(0.25, 0.5, 0)
+        args.ncol = args.ncol or plt.cm.PRGn(0.1)   #(0.4, 0.4, 1)
+        args.lcol = plt.cm.RdBu(.8)
+        args.tcol = plt.cm.RdBu(.2)
 
 
 sf = helpy.SciFormatter().format
@@ -958,11 +962,13 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
         ax.plot(taus, msd[0]*taus/tnorm, 'k-', label="ref slope = 1", lw=2)
 
     if errorbars:
-        plt_kwargs = dict({'capthick': 0, 'elinewidth': 1, 'errorevery': 3,
-                           'c': 'r', 'lw': 0, 'marker': 'o'}, **plt_kwargs)
+        default = {'capthick': 0, 'elinewidth': 1, 'errorevery': 3,
+                   'color': 'r', 'linewidth': 0, 'marker': 'o'}
+        plt_kwargs = dict(default, **plt_kwargs)
         ax.errorbar(taus, msd, msd_err, label=label, **plt_kwargs)
     else:
-        plt_kwargs = dict({'c': 'r', 'lw': 1, 'marker': ''}, **plt_kwargs)
+        default = {'color': 'r', 'linewidth': 1, 'marker': ''}
+        plt_kwargs = dict(default, **plt_kwargs)
         ax.plot(taus, msd, label=label, **plt_kwargs)
     if sys_size:
         ax.axhline(sys_size, ls='--', lw=.5, c='k', label='System Size')
@@ -971,9 +977,10 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     ax.set_title(title)
     xlabel = '$tf$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
     ax.set_xlabel(xlabel)
-    ylabel = (r"$\left\langle\left[\vec r(t) - "
-              r"\vec r(0)\right]^2\right\rangle / \ell^2$")
-    ax.set_ylabel(ylabel)
+    ylabel = (r"${}\langle\left[\vec r(t) -".format('' if args.clean else r'\left')
+              + r"\vec r(0)\right]^2{}\rangle / \ell^2$".format(
+                  '' if args.clean else r'\right'))
+    ax.set_ylabel(ylabel, labelpad=-2, ha='right', va='bottom')
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -1182,6 +1189,8 @@ def format_fit(result, model_name=None, sources=None):
     print print_fmt(free)
 
     tex_eqn = result.model.func.func_doc.replace('\n', '')
+    if args.clean:
+        tex_eqn= tex_eqn.replace('(v_0/D_R)', r'\ell_p')
     for_tex = [tex_eqn,
                'fixed: ' + tex_fmt(fixed),
                'free: ' + tex_fmt(free)]
@@ -1213,26 +1222,19 @@ def plot_fit(result, tex_fits, args, t=None, data=None,
     if args.showtracks:
         raise NotImplementedError('cannot show tracks here')
         ax.plot(t, all_corrs.T, 'b', alpha=.2, lw=0.5)
-    ax.errorbar(t, data, 1/result.weights, None,
-                c=args.vcol, lw=3, ls='', marker='o', markersize=4, mec='none',
-                capthick=0, elinewidth=1, errorevery=3, label='experiment')
-    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
-    ax.plot(t, result.best_fit, c=args.pcol, lw=2, label=fitlabel)
 
-    if plt_kwargs is None:
-        plt_kwargs = {}
-    ax.set_xlim(plt_kwargs.get('xlim'))
-    ax.set_ylim(plt_kwargs.get('ylim'))
-    ax.set_xscale(plt_kwargs.get('xscale') or ax.get_xscale())
-    ax.set_yscale(plt_kwargs.get('yscale') or ax.get_yscale())
-    if labels:
-        ax.set_title(plt_kwargs.get('title', ''))
-        ax.legend(fontsize='small', **plt_kwargs.get('legend', {}))
-    else:
-        ax.legend(title=plt_kwargs.get('title', ''), fontsize='small',
-                  **plt_kwargs.get('legend', {}))
-    ax.set_xlabel(plt_kwargs.get('xlabel', ''))
-    ax.set_ylabel(plt_kwargs.get('ylabel', ''))
+    kws = dict(label='experiment'*labels, color=args.vcol, linestyle='',
+               marker='o', markersize=4, markeredgecolor=args.vcol,
+               markerfacecolor='none', capthick=0, elinewidth=1, errorevery=3)
+    kws.update(plt_kwargs.get('errorbar', {}))
+    ax.errorbar(t, data, 1/result.weights, None, zorder=2, **kws)
+    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
+    ax.plot(t, result.best_fit, c=args.pcol, lw=1, label=fitlabel, zorder=2.5)
+
+    axes_setter(ax, **plt_kwargs.get('axes', {}))
+    ax.legend(**dict({'fontsize': 'small', 'framealpha': 1, 'frameon': labels,
+                      'numpoints': 1, 'handlelength': 1},
+                     **plt_kwargs.get('legend', {})))
 
     return fig, ax
 
@@ -1418,14 +1420,92 @@ def limiting_regimes(s, DT, lp, DR, TR):
     if DT_time > DR_time:
         return np.full_like(s, np.nan)
     timescales = (DT_time, DR_time)
+    regimes = np.searchsorted(timescales, s)
 
     early = 2*DT*s          # s < DT_time
     middle = 2*ll*(DR*s)**2     # DT_time < s < DR_time
     late = 2*(ll*DR + DT)*s                   # DR_time < s
-    lines = np.choose(np.searchsorted(timescales, s), [early, middle, late])
+    lines = np.choose(regimes, [early, middle, late])
 
-    lines[np.clip(np.searchsorted(s, timescales), 0, len(s)-1)] = np.nan
-    return lines
+    transitions = np.clip(np.searchsorted(s, timescales), 0, len(s)-1)
+    lines[transitions] = np.nan
+
+    transitions += 1
+    return lines, transitions
+
+
+def get_axes_ratio(ax=None):
+    """Calculate the aspect ratio of an axes boundary/frame"""
+    if ax is None:
+        ax = plt.gca()
+    fig = ax.figure
+
+    ll, ur = ax.get_position() * fig.get_size_inches()
+    width, height = ur - ll
+
+    return height / width
+
+
+def get_data_ratio(ax=None):
+    """Calculate the data limit ratio of an axes"""
+    if ax is None:
+        ax = plt.gca()
+
+    xscale, yscale = ax.get_xscale(), ax.get_yscale()
+    if xscale != yscale:
+        raise ValueError('Cannot get data ratio for semilog plot')
+    elif xscale == 'linear':
+        return ax.get_data_ratio()
+    elif xscale == 'log':
+        return ax.get_data_ratio_log()
+    else:
+        raise ValueError(
+            "Unknown scale `{}`; expected `'linear'` or `'log'`".format(xscale))
+
+
+def get_aspect(ax=None):
+    """Calculate the aspect ratio of an axes"""
+    if ax is None:
+        ax = plt.gca()
+
+    return get_axes_ratio(ax) / get_data_ratio(ax)
+
+
+def axes_set(ax, attr, *args, **kwargs):
+    set_attr = getattr(ax, 'set_{}'.format(attr))
+    return set_attr(*args, **kwargs)
+
+
+def axes_setter(ax=None, **attr_dict):
+    if ax is None:
+        ax = plt.gca()
+    props = {}
+    for attr, args in attr_dict.iteritems():
+        if isinstance(args, tuple):
+            if len(args) > 1 and isinstance(args[-1], dict):
+                args, kwargs = args[:-1], args[-1]
+            else:
+                args, kwargs = args, {}
+        elif isinstance(args, dict):
+            args, kwargs = (), args
+        else:
+            args, kwargs = (args,), {}
+        props[attr] = axes_set(ax, attr, *args, **kwargs)
+    return props
+
+
+def move_axis_label(ax, which, x=None, y=None, ha=None, va=None):
+    ax.figure.canvas.draw_idle() # update current label position before moving
+    axis = {'y': ax.yaxis, 'x': ax.xaxis}[which]
+    label = axis.get_label()
+    if ha is not None:
+        label.set_ha(ha)
+    if va is not None:
+        label.set_va(va)
+    orig_x, orig_y = label.get_position()
+    axis.set_label_coords(orig_x if x is None else x,
+                          orig_y if y is None else y,
+                          transform=label.get_transform())
 
 
 def nn_plot(tracksets, fits, args, ax=None):
@@ -1468,21 +1548,27 @@ def nn_plot(tracksets, fits, args, ax=None):
     if not args.nn:
         return result, fits, None
 
+    xlim_pad = 2.5
+    tmax = xlim_pad*args.zoom/result.params['DR'] + result.params.get('TR', 0)
     plt_kwargs = {
-        'xlim': (0, 3*args.zoom/result.params['DR']+result.params.get('TR', 0)),
-        'ylim': (exp(-3*args.zoom), 1),
-        'yscale': 'log',
-        'title': "Orientation Autocorrelation",
-        'ylabel': r"$\langle \hat n(t) \hat n(0) \rangle$",
-        'xlabel': "$tf$",
+        'axes': {'xlim': (0, tmax),
+                 'ylim': (exp(-xlim_pad*args.zoom), 1.05),
+                 'yscale': 'log',
+                 'ylabel': (r"$\langle \hat n(t) \cdot \hat n(0) \rangle$",
+                            {'labelpad': -12}),
+                 'xlabel': "$tf$",
+                },
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
-                   'framealpha': 1, 'frameon': labels},
+                   'markerfirst': False},
     }
     if labels:
-        plt_kwargs['title'] += '\n' + '\n'.join([relprefix, fitname])
+        plt_kwargs['axes']['title'] = '\n'.join(filter(None, [
+            "Orientation Autocorrelation", relprefix, fitname]))
     ax = ax or args.fig
     fig, ax = plot_fit(result, tex_fits, args,
                        ax=ax, plt_kwargs=plt_kwargs)
+
+    #move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1505,7 +1591,8 @@ def rn_plot(tracksets, fits, args, ax=None):
     if args.colored:
         params['TR'].set(vals['TR'], min=0, vary=args.fittr)
 
-    tmax = 3*args.zoom/params['DR']
+    xlim_pad = 3.0
+    tmax = xlim_pad*args.zoom/params['DR']
     tmin = 0 if args.rn == 'pos' else -tmax
     if verbose > 1:
         rnerrfig, rnerrax = plt.subplots()
@@ -1545,37 +1632,45 @@ def rn_plot(tracksets, fits, args, ax=None):
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
-    ylim_pad = 1.5
+    ylim_pad = 1.2
     subtitle = {'full': '', 'pos': '\nfit only to positive half $t>0$',
                 'sym': '\nfit only to symmetric part $f(t) + f(-t)$',
                 'anti': '\nfit only to anti-symmetric part $f(t) - f(-t)$',
                 'max': '\n$l_p=$ max of anti-symmetric part $f(t) + f(-t)$',
                }[args.rn]
     plt_kwargs = {
-        'xlim': (-tmax, tmax),
-        'ylim': (ylim_pad*result.best_fit.min(),
-                 ylim_pad*result.best_fit.max()),
-        'ylabel': r"$\langle \vec r(t) \hat n(0) \rangle / \ell$",
-        'xlabel': "$tf$",
-        'title': "Position-Orientation Correlation",
-        'legend': {'loc': 'upper left', 'framealpha': 1, 'frameon': labels},
+        'errorbar': {'errorevery': 6,},
+        'axes': {'xlim': (-tmax, tmax),
+                 'ylim': (ylim_pad*result.best_fit.min(),
+                          ylim_pad*result.best_fit.max()),
+                 'xlabel': "$tf$",
+                 'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
+                            {'labelpad': -8}),
+                },
+        'legend': {'loc': 'upper left',},
     }
     if labels:
-        plt_kwargs['title'] += '\n' + '\n'.join(
-            filter(None, [subtitle, relprefix, fitname]))
+        plt_kwargs['axes']['title'] = '\n'.join(filter(None, [
+            "Position-Orientation Correlation", subtitle, relprefix, fitname]))
     ax = ax or args.fig and args.fig + 1
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
                        ax=ax, plt_kwargs=plt_kwargs)
     #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
-    ax.plot(sym.x, sym.antisymmetric, '--', c=args.vcol)#, label="anti-symmetric")
+    ax.plot(sym.x, sym.antisymmetric, '.', c=args.ncol,
+            markersize=2, label="anti-symmetric", zorder=2.1)
+
     if args.rn == 'max':
         ax.scatter(sym.x[[t_max, -t_max]], sym.antisymmetric[[t_max, -t_max]],
                    marker='o', c=args.pcol)
 
     DR_time = 1/result.params['DR']
-    if plt_kwargs['xlim'][0] < DR_time < plt_kwargs['xlim'][1]:
-        ax.axvline(DR_time, 0, 2/3, ls='--', c='k')
-        ax.text(DR_time, 1e-2, ' $1/D_R$')
+    if ax.get_xlim()[0] < DR_time < ax.get_xlim()[1]:
+        ax.axvline(DR_time, 0, 0.6, ls='--', c='k')
+        ax.annotate(r'$1/D_R$',
+                    xy=(DR_time, 0.3), xycoords=('data', 'axes fraction'),
+                    xytext=(6, 0), textcoords='offset points')
+
+    ##move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1594,7 +1689,7 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
     # list arguments in order to be run
     comp_kwargs = list(cycler(**{
         'msdvec':  [0, -1, 1],
-        'label':   ['experiment (total)', '(transverse)', '(longitudinal)'],
+        'label':   ['total', 'transverse', 'longitudinal'],
         'fitv0':   [args.fitv0, False, 'disp'],
         'fitdt':   [True, False, 'div'],
         'do_plot': [True, True, True],
@@ -1603,11 +1698,13 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
 
     # list arguments in order of msdvec: 0, 1, -1
     plt_kwargs = list(cycler(**{
-        'c':      [args.vcol, 'c', 'm'],
-        'lw':     [0, 0, 0],
-        'marker': ['o', '^', 'v'],
-        'markersize': [4]*3,
-        'mec': ['none']*3,
+        'color':        [args.vcol, args.lcol, args.tcol],
+        'linewidth':    [0, 0, 0],
+        'marker':       ['o', '^', 'v'],
+        'markersize':   [4, 3, 3],
+        'markeredgecolor': ['none', args.lcol, args.tcol],
+        'markerfacecolor': [args.vcol, 'w', 'w'],
+        'zorder':       [1, .9, .8],
     }))
     fitnames = [None]*3
     results = [None]*3
@@ -1631,10 +1728,15 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
     if labels:
         ax.set_title('\n'.join(["Mean Squared Displacement",
                                 relprefix, fitnames[0]]))
-        ax.legend(loc='upper left', fontsize='small')
     else:
-        ax.legend(title="Mean Squared Displacement",
-                  loc='upper left', fontsize='small', frameon=False)
+        ax.tick_params(which='both', top=False, right=False)
+    legend = np.array(ax.get_legend_handles_labels())
+    legend_order = [0, 3, 2, 1]
+    ax.legend(*legend[:, legend_order], loc='upper left',
+              fontsize='small', frameon=False, numpoints=1, handlelength=1)
+
+    #move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
+
     if args.save:
         save_corr_plot(fig, fitnames[0])
     return results, fits, ax
@@ -1710,10 +1812,7 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
         fitname = ', '.join(fit_desc.get(f, str(f)) for f in fit if f)
 
     fitlabel = '\n'.join(tex_fits[:None if labels else 1])
-    ax.plot(taus, result.best_fit, c=args.pcol, lw=2, label=fitlabel)
-
-    guide = limiting_regimes(taus, **result.best_values)
-    ax.plot(taus, guide, '--k', lw=1.5)
+    ax.plot(taus, result.best_fit, c=args.pcol, lw=1, label=fitlabel)
 
     ax.set_ylim(min(result.best_fit[0], msd[0]), result.best_fit[-1])
     xlim = ax.set_xlim(taus[0], tmax)
@@ -1721,14 +1820,30 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
 
+    guide, transitions = limiting_regimes(taus, **result.best_values)
+    ax.plot(taus, 2*guide, linestyle=':', color='black')
+    ax.figure.tight_layout()
+    ratio = get_aspect(ax)
+    for (transition, slope) in zip(transitions, [2, 1]):
+        xy = (taus[transition], 2*guide[transition])
+        rotation = np.degrees(np.arctan(slope*ratio))
+        ax.annotate(
+            'slope {:d}'.format(slope), fontsize='small',
+            xy=xy, xycoords='data', xytext=(0, 6), textcoords='offset points',
+            rotation=rotation, rotation_mode='anchor', ha='left', va='bottom')
+
     DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
     DR_time = 1/result.params['DR']
     if xlim[0] < DT_time < xlim[1]:
-        ax.axvline(DT_time, 0, 1/3, ls='--', c='k')
-        ax.text(DT_time, 2e-2, ' $D_T/v_0^2$')
+        ax.axvline(DT_time, 0, 0.2, ls='--', c='k')
+        ax.annotate(r'$D_T/v_0^2$', fontsize='small', ha='left', va='center',
+                    xy=(DT_time, 0.1), xycoords=('data', 'axes fraction'),
+                    xytext=(6, 0), textcoords='offset points')
     if xlim[0] < DR_time < xlim[1]:
-        ax.axvline(DR_time, 0, 1/2, ls='--', c='k')
-        ax.text(DR_time, 2e-1, ' $1/D_R$')
+        ax.axvline(DR_time, 0, 0.4, ls='--', c='k')
+        ax.annotate(r'$1/D_R$', fontsize='small', ha='left', va='center',
+                    xy=(DR_time, 0.2), xycoords=('data', 'axes fraction'),
+                    xytext=(6, 0), textcoords='offset points')
 
     return fitname, result
 
@@ -1911,10 +2026,12 @@ if __name__ == '__main__':
         fit_config, fit_desc = make_fitnames()
 
         if args.fig == 0:
-            fig, axs = plt.subplots(ncols=3, figsize=(12, 3))
+            fig, axs = plt.subplots(ncols=3, figsize=(7, 2.3),
+                                    gridspec_kw={'width_ratios': [2.5, 3, 4]})
+            plt.rcParams['font.size'] = 8
         else:
+            plt.rcParams['font.size'] = plt.rcParamsDefault['font.size']
             axs = None, None, None
-
     if args.nn or args.colored:
         print "====== <nn> ======"
         nn_result, fits, nn_ax = nn_plot(tracksets, fits, args, ax=axs[0])
