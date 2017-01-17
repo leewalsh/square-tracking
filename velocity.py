@@ -68,8 +68,11 @@ if __name__ == '__main__':
     arg('-v', '--verbose', action='count', help="Be verbose")
     args = parser.parse_args()
 
+    rcParamsOriginal = {}
     if args.save or args.show:
-        plt.rc('text', usetex=True)
+        rcParam_key = 'text.usetex'
+        rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
+        plt.rcParams[rcParam_key] = True
 
 pi = np.pi
 
@@ -152,14 +155,14 @@ def get_stats(a):
     KU = kurtosis(a, -1, nan_policy='omit')
     SK_t = skewtest(a, -1, nan_policy='omit')
     KU_t = kurtosistest(a, -1, nan_policy='omit')
-    print 'skewness:', SK, SK_t
-    print 'kurtosis:', KU, KU_t
     if keepdims:
         SK = SK[..., None]
         KU = KU[..., None]
     else:
         SK = float(SK)
         KU = float(KU)
+        print 'skewness: {:.3f}'.format(SK),# SK_t
+        print 'kurtosis: {:.3f}'.format(KU)#, KU_t
     return {'mean': M, 'var': D, 'std': SE,
             'skew': SK, 'skew_test': float(SK_t.statistic),
             'kurt': KU, 'kurt_test': float(KU_t.statistic)}
@@ -213,7 +216,8 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
                               log=log, alpha=0.6, color=c, lw=0.5)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
-    ax.tick_params(top=False, which='both')
+    #ax.tick_params(top=False, which='both')
+    ax.tick_params(direction='in', which='both')
     ax.legend(loc='upper left', fontsize='small', frameon=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
@@ -224,7 +228,8 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         #xticks = np.linspace(l, r, 3)
         xticks = np.array([-pi/4, 0, pi/4])
         ax.set_xticks(xticks)
-        xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
+        #xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
+        xticklabels = [r'$-\pi/4$', r'$0$', r'$\pi/4$']
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \times f$'
     else:
@@ -233,7 +238,12 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         #xticks = [-0.5, 0, 0.5]
         #ax.set_xticks(xticks)
     if log:
-        ax.set_ylim(1, 10**int(1.9 + np.log10(counts.max())) - 1)
+        ypowb, ypowt = 0, int(1.9 + np.log10(counts.max()))
+        ax.set_ylim(10**ypowb, 10**ypowt - 1)
+        yticks = 10**np.arange(ypowb, ypowt)
+        yticks_minor = yticks * np.arange(2, 10)[:, None]
+        ax.set_yticks(yticks)
+        ax.set_yticks(yticks_minor.flatten(), minor=True)
     ax.set_xlabel(xlabel, labelpad=2)
     title = " ".join(filter(None, [title, subtitle]))
     if title:
@@ -310,15 +320,21 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
     t = np.arange(n)/args.fps
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
-                    markersize=4, color=cs[v], label=texlabel[v])
-    ax.set_xlim(-0.1, t[-1])
+                    linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
+    ax.set_xlim(-0.2, t[-1])
     ax.set_ylim(-0.05, 1.05)
+
+    ax.tick_params(direction='in', which='both')
+    ax.set_xticks(np.arange(int(t[-1] + 1)))
+
     ax.set_xlabel(r'$tf$', labelpad=2)
-    ax.set_ylabel(r'$\langle {0}(t) {0}(0) \rangle$'.format(
-        texlabel.get(comps, 'v').strip('$')), labelpad=2)
-    ax.legend(title=r"Velocity Autocorrelation"*labels, loc='best',
-              markerfirst=False, fontsize='small', numpoints=1, handlelength=1,
-              frameon=False)
+    ylabel = r'$\langle {0}(t) {0}(0) \rangle$'.format(
+        texlabel.get(comps, 'v').strip('$'))
+    ax.set_ylabel(ylabel, labelpad=2)
+
+    title = r"Velocity Autocorrelation"*labels
+    ax.legend(title=title, loc='best', markerfirst=False, fontsize='small',
+              numpoints=1, handlelength=1, frameon=False)
     return fig, ax
 
 
@@ -438,10 +454,9 @@ if __name__ == '__main__':
         if 'hist' in args.command and args.log and args.lin:
             ncols += 1
         figsize = (3.5*ncols, 3.0*nrows) if labels else (3.5, 3.0*nrows/ncols)
-        gridspec_kw = {'width_ratios': [1, 1], 'wspace': 0.4, 'hspace': 0.4}
+        gridspec_kw = {'wspace': 0.4, 'hspace': 0.4}
         fig, axes = plt.subplots(nrows, ncols, squeeze=False, figsize=figsize,
                                  gridspec_kw=gridspec_kw)
-        plt.rcParams['font.size'] = plt.rcParamsDefault['font.size'] if labels else 8
         if 'hist' in args.command:
             fig, fits = command_hist(args, meta, compile_args, axes)
         if 'autocorr' in args.command:
@@ -453,17 +468,19 @@ if __name__ == '__main__':
                 command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
 
 
-if __name__ == '__main__' and args.save:
-    savename = os.path.abspath(args.prefix.rstrip('/._?*'))
-    helpy.save_meta(savename, meta)
-    if 'hist' in args.command:
-        helpy.save_fits(savename, fits)
-    savename += '_v' + ('corr' if args.autocorr else 'hist')
-    if args.suffix:
-        savename += '_' + args.suffix.strip('_')
-    savename += '.pdf'
-    print 'Saving plot to {}'.format(savename)
-    fig.savefig(savename)
+    if args.save:
+        savename = os.path.abspath(args.prefix.rstrip('/._?*'))
+        helpy.save_meta(savename, meta)
+        if 'hist' in args.command:
+            helpy.save_fits(savename, fits)
+        savename += '_v' + ('corr' if args.autocorr else 'hist')
+        if args.suffix:
+            savename += '_' + args.suffix.strip('_')
+        savename += '.pdf'
+        print 'Saving plot to {}'.format(savename)
+        fig.savefig(savename)
 
-if __name__ == '__main__' and args.show:
-    plt.show()
+    if args.show:
+        plt.show()
+
+    plt.rcParams.update(rcParamsOriginal)

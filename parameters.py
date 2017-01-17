@@ -5,41 +5,21 @@ from __future__ import division
 import sys
 from functools import partial
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 import helpy
 import tracks
 
 
-large = {'figure': {'figsize': (10, 12)},
-         'legend': {'fontsize': 'small'},
-         'font':   {'size': 12},
-         'text':   {},
-        }
-small = {'figure': {'figsize': (5, 6)},
-         'legend': {'fontsize': 'small',
-                    'framealpha': 0.5},
-         'font':   {'size': 10},
-         'text':   {},
-        }
-default = {'figure': {'dpi': 120},
-           'legend': {'loc': 'best'},
-           'font':   {},
-           'text':   {'usetex': True},
-          }
-rc = small
-for grp in rc:
-    rc[grp].update(default[grp])
-    plt.rc(grp, **rc[grp])
 
-
-save_figs = False
+save_figs = True
 
 
 prefixes = sys.argv[1:]
-print 'prefixes', prefixes
 pres = tuple([p.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
               for p in prefixes])
+print '\n'.join([p.replace('/Users/leewalsh', '~') for p in pres])
 fits = helpy.gather_fits(prefixes)
 
 
@@ -65,6 +45,24 @@ def markers(fit, default='x'):
         msg = 'Unknown fit {} {}'.format
         raise TypeError(msg(type(fit), fit))
 
+# marker can be a tuple: (`numsides`, `style`, `angle`)
+#       where `style` is {0: polygon, 1: star, 2: asterisk}
+
+markersize = 2.0    # default is 6.0
+markersizes = {4        : markersize,
+               5        : markersize,
+               '>'      : markersize,
+               'D'      : markersize - 1,
+               '^'      : markersize,
+               'o'      : markersize,
+               's'      : markersize,
+               (5, 0, 0): markersize,# + 0.5,
+               (5, 1, 0): markersize,
+               (6, 1, 0): markersize,
+               (7, 1, 0): markersize,
+              }
+
+colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
 
 def colors(fit, default='k'):
     if isinstance(fit, basestring):
@@ -78,10 +76,18 @@ def colors(fit, default='k'):
         o = {
             'Tn_Rn': 'b',
             'Tm': 'r', 'Tm_Rn': 'c',
-             'Tn_Rf': 'm',
-             'Tm_Rn_Lf': 'm', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
+            'Tn_Rf': 'm',
+            'Tm_Rn_Lf': 'm', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
             }
-        return d.get(fit[3:-3], default)
+        mpl2 = {'b': 'b',
+                'g': 'c',
+                'r': 'r',
+                'c': 'o',
+                'm': 'g',
+                'k': 'k',
+                'y': 'y',
+               }
+        return colorbrewer[mpl2[d.get(fit[3:-3], default)]]
     elif hasattr(fit, 'func'):
         return colors(fit_desc.get(fit), default)
     elif isinstance(fit, list):
@@ -157,8 +163,8 @@ pargs['DR'] = dict(
             'rp_Tm_Rf_Lf',
             'ra_Tn_Rf_Lf',
         ],
-       }[scope],
-    lims=(0, 0.13),
+    }[scope],
+    lims=(0, 0.14),
     legend={'loc':'lower right'},
 )
 
@@ -191,8 +197,8 @@ pargs['lp'] = dict(
             'rr_Tm_Rn_Lf_Df',
             'rr_Tn_Rn_Lf_Df',
         ],
-       }[scope],
-    lims=(0, 4.0),
+    }[scope],
+    lims=(0, 4.5),
     legend={'loc':'lower right'},
 )
 
@@ -239,7 +245,7 @@ pargs['v0'] = dict(
             'rp_Tn_Rn_Lf',
             'rr_Tn_Rn_Lf_Df',
         ],
-       }[scope],
+    }[scope],
     lims=(0, 0.25),
     legend={'loc':'lower right'},
 )
@@ -265,8 +271,8 @@ pargs['DT'] = dict(
             'rr_Tn_Rn_Lf_Df',
             'rr_Tn_Rn_Ln_Df',
         ],
-       }[scope],
-    lims=(0, .025),
+    }[scope],
+    lims=(0, .023),
 )
 
 
@@ -301,34 +307,127 @@ pargs[p]['ys'] = [
 pargs[p]['label'] = [l.replace('_', ' ') for l in pargs[p]['ys']]
 
 
+def trendline(xvals, yvals):
+    slope = np.mean(yvals/xvals)
+    print 'parametric slope {:.4f}'.format(slope)
+    xmax = max(yvals.max()/slope, xvals.max())
+    xmin = min(yvals.min()/slope, xvals.min())
+    xmax += xmin/4
+    xmin *= 0.75
+    return [xmin, xmax], [xmin*slope, xmax*slope]
+
+
+
+def plot_param(fits, param, fitx, fity, convert=None, ax=None,
+               tag=None, figsize=(4, 4), **kws):
+    if ax is None:
+        ax = plt.subplots(figsize=figsize)[1]
+    resx, resy = fits[fitx], fits[fity]
+    try:
+        valx, valy = resx[param], resy[param]
+    except KeyError as err:
+        fitc = {'x': fitx, 'y': fity,
+                'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
+        fitc = fitc.get(convert, convert)
+        if fitc is None:
+            raise err
+        #label += ' {}DR({}, {})'.format(
+            #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
+            #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
+        DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
+        valx = resx.get(param) or resx['v0']/DR
+        valy = resy.get(param) or resy['lp']*DR
+    valx, valy = np.array(valx), np.array(valy)
+    ax.plot(valx, valy, **kws)
+    ax.plot(*trendline(valx, valy), color=kws['color'], linewidth=0.5, zorder=1)
+    if tag:
+        tag = [t.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
+               for t in tag]
+        tracks.plt_text(valx, valy, tag, fontsize='x-small')
+    return ax
+
+
+def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
+                    ax=None, legend=None, savename='', title='', **kwargs):
+    kwargs.update(xs=xs, ys=ys)
+    kws = helpy.transpose_dict_of_lists(kwargs)
+    for kw in kws:
+        x, y = kw.pop('xs'), kw.pop('ys')
+        print 'plotting {} from {} vs {}'.format(param, y, x)
+        fitx, fity = fit_config[x], fit_config[y]
+        ax = plot_param(fits, param, fitx, fity, ax=ax, **kw)
+
+    if scale == 'log' and lims[0] < 1e-3:
+        lims[0] = 1e-3
+    ax.set_xscale(scale)
+    ax.set_yscale(scale)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xlim(lims)
+    ticks = ax.get_xticks() # must get_xticks after xlim
+    ax.set_xticks(ticks)    # to prevent auto-changing later
+    ax.set_yticks(ticks)
+    ax.set_xlim(lims)       # must set_xlims again to fix
+    ax.set_ylim(lims)
+    ax.tick_params(direction='in', which='both')
+    ax.plot(lims, lims, color=colorbrewer['k'], linewidth=0.5, zorder=1)
+    if legend is False:
+        if title:
+            pad = 0.07
+            ax.annotate(s=title, xy=(1-pad, pad), xycoords='axes fraction',
+                        fontsize='x-large', ha='right', va='baseline')
+    else:
+        ax.legend(**dict(dict(loc='best', scatterpoints=1), **(legend or {})))
+        if title:
+            ax.set_title(title)
+    if savename:
+        ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
+                          'parametric_{}.pdf'.format(savename))
+    return ax
+
+
 for p in pargs:
     ys = pargs[p]['ys']
     new = {
         'figsize': (5, 5),
-        'c': colors(ys),
+        'color': colors(ys),
         'marker': markers(ys),
         'label': labels(ys),
+        'linestyle': '',
     }
+    new['markersize'] = [markersizes[m] + markersize for m in new['marker']]
     for k in new:
         pargs[p].setdefault(k, new[k])
 
+orig_text_usetex = plt.rcParams['text.usetex']
+plt.rcParams['text.usetex'] = True
 figs = 'single'
 
 if figs == 'single':
     fig, axes = plt.subplots(ncols=3, figsize=(7, 3))
 
+    overrides = {'legend': False}
+
     params = ['DR', 'lp', 'DT']
     for p, ax in zip(params, axes):
-        tracks.plot_parametric(fits, ax=ax, **pargs[p])
+        kwargs = dict(pargs[p], **overrides)
+        plot_parametric(fits, ax=ax, **kwargs)
+
+    axes[0].set_ylabel('Fits to correlation functions')
+    axes[1].set_xlabel('Noise statistics')
+    fig.tight_layout(w_pad=0.8)
     if save_figs:
-        fig.savefig('parameters/parametric_all.pdf')
+        fig.savefig('parametric_all.pdf')
 
 elif figs == 'individual':
     params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
     for param in params:
         parg = pargs[param]
-        ax = tracks.plot_parametric(fits, **parg)
+        ax = plot_parametric(fits, **parg)
+        ax.set_xlabel('Noise statistics from velocity')
+        ax.set_ylabel('Fits from correlation functions')
+
         if save_figs:
             ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
 
 plt.show()
+plt.rcParams['text.usetex'] = orig_text_usetex

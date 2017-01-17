@@ -975,12 +975,12 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     if title is None:
         title = "Mean Sq {}Disp".format("Angular " if ang else "")
     ax.set_title(title)
-    xlabel = '$tf$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
+    xlabel = r'$t \cdot f$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
     ax.set_xlabel(xlabel)
     ylabel = (r"${}\langle\left[\vec r(t) -".format('' if args.clean else r'\left')
               + r"\vec r(0)\right]^2{}\rangle / \ell^2$".format(
                   '' if args.clean else r'\right'))
-    ax.set_ylabel(ylabel, labelpad=-2, ha='right', va='bottom')
+    ax.set_ylabel(ylabel, labelpad=-2, fontsize='large', ha='right', va='bottom')
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -1084,64 +1084,6 @@ def make_fitnames():
 
     del cf['free'], cf[None]
     return cf, {cf[k]: k for k in cf}
-
-
-def plot_param(fits, param, fitx, fity, convert=None, ax=None, label='',
-               tag=None, s=100, figsize=(4, 4), **kws):
-    if ax is None:
-        ax = plt.subplots(figsize=figsize)[1]
-    resx, resy = fits[fitx], fits[fity]
-    try:
-        valx, valy = resx[param], resy[param]
-    except KeyError as err:
-        fitc = {'x': fitx, 'y': fity,
-                'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
-        fitc = fitc.get(convert, convert)
-        if fitc is None:
-            raise err
-        #label += ' {}DR({}, {})'.format(
-            #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
-            #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
-        DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
-        valx = resx.get(param) or resx['v0']/DR
-        valy = resy.get(param) or resy['lp']*DR
-    ax.scatter(valx, valy, s=s, label=label, **kws)
-    if tag:
-        tag = [t.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
-               for t in tag]
-        plt_text(valx, valy, tag, fontsize='x-small')
-    return ax
-
-
-def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
-                    ax=None, legend=None, savename='', title='', **kwargs):
-    kwargs.update(xs=xs, ys=ys)
-    kws = helpy.transpose_dict_of_lists(kwargs)
-    fit_config, fit_desc = make_fitnames()
-    for kw in kws:
-        x, y = kw.pop('xs'), kw.pop('ys')
-        fitx, fity = fit_config[x], fit_config[y]
-        ax = plot_param(fits, param, fitx, fity, ax=ax, **kw)
-
-    ax.set_xlabel('Noise statistics from velocity', usetex=True)
-    ax.set_ylabel('Fits from correlation functions', usetex=True)
-
-    lims = lims or [0, {'DR': 0.15, 'v0': 0.25, 'DT': 0.03, 'lp': 4}[param]]
-    if scale == 'log' and lims[0] < 1e-3:
-        lims[0] = 1e-3
-    ax.set_xscale(scale)
-    ax.set_yscale(scale)
-    ax.set_aspect('equal', adjustable='box')
-    ax.set_xlim(lims)
-    ax.set_ylim(lims)
-    ax.plot(lims, lims, '-k', alpha=0.7)
-    ax.legend(**dict(dict(loc='best', scatterpoints=1), **(legend or {})))
-    if title:
-        ax.set_title(title)
-    if savename:
-        ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
-                          'parametric_{}.pdf'.format(savename))
-    return ax
 
 
 def get_param_value(name, fits=(), sources=()):
@@ -1555,8 +1497,8 @@ def nn_plot(tracksets, fits, args, ax=None):
                  'ylim': (exp(-xlim_pad*args.zoom), 1.05),
                  'yscale': 'log',
                  'ylabel': (r"$\langle \hat n(t) \cdot \hat n(0) \rangle$",
-                            {'labelpad': -12}),
-                 'xlabel': "$tf$",
+                            {'labelpad': -12, 'fontsize': 'large'}),
+                 'xlabel': r"$t \cdot f$",
                 },
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
                    'markerfirst': False},
@@ -1643,9 +1585,9 @@ def rn_plot(tracksets, fits, args, ax=None):
         'axes': {'xlim': (-tmax, tmax),
                  'ylim': (ylim_pad*result.best_fit.min(),
                           ylim_pad*result.best_fit.max()),
-                 'xlabel': "$tf$",
+                 'xlabel': r"$t \cdot f$",
                  'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
-                            {'labelpad': -8}),
+                            {'labelpad': -8, 'fontsize': 'large'}),
                 },
         'legend': {'loc': 'upper left',},
     }
@@ -1938,13 +1880,6 @@ if __name__ == '__main__':
     if args.nn or args.rn or args.rr:
         fits = {}
         helpy.sync_args_meta(args, meta, ['zoom'], ['corr_zoom'], [1])
-        if args.clean:
-            labels = False
-            plt.rcParams['text.usetex'] = True
-            plt.rcParams['text.latex.preamble'].append(r'\usepackage{amsmath}')
-        else:
-            labels = True
-            plt.rcParams['text.usetex'] = False
 
     if args.msd or args.nn or args.rn:
         # for backwards compatability, clean up reverse, retire.
@@ -2025,13 +1960,27 @@ if __name__ == '__main__':
     if args.nn or args.rn or args.rr:
         fit_config, fit_desc = make_fitnames()
 
+        rcParamsOriginal = {}
+        labels = not args.clean
+        rcParam_key = 'text.usetex'
+        rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
+        plt.rcParams[rcParam_key] = args.clean
+
+        if args.clean:
+            rcParam_key = 'text.latex.preamble'
+            if r'\usepackage{amsmath}' not in plt.rcParams[rcParam_key]:
+                rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
+                plt.rcParams[rcParam_key].append(r'\usepackage{amsmath}')
+
         if args.fig == 0:
+            rcParam_key = 'font.size'
+            rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
+            plt.rcParams[rcParam_key] = 8
             fig, axs = plt.subplots(ncols=3, figsize=(7, 2.3),
                                     gridspec_kw={'width_ratios': [2.5, 3, 4]})
-            plt.rcParams['font.size'] = 8
         else:
-            plt.rcParams['font.size'] = plt.rcParamsDefault['font.size']
             axs = None, None, None
+
     if args.nn or args.colored:
         print "====== <nn> ======"
         nn_result, fits, nn_ax = nn_plot(tracksets, fits, args, ax=axs[0])
@@ -2052,3 +2001,7 @@ if __name__ == '__main__':
             plt.show()
         else:
             plt.close('all')
+
+    if args.nn or args.rn or args.rr:
+        plt.rcParams.update(rcParamsOriginal)
+        rcParamsOriginal.clear()
