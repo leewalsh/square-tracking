@@ -1472,7 +1472,7 @@ def parse_slice(desc, shape=0, index_array=False):
 
 
 def find_tiffs(path='', prefix='', meta='', frames='', single=False,
-               load=False, verbose=False):
+               load=False, verbose=False, maxsize=100e6):
     meta = meta or load_meta(prefix)
     path = path or meta.get('path_to_tiffs', prefix)
     path = drive_path(path, both=True)
@@ -1518,11 +1518,21 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         fnames = fnames[frames]
         if load:
             from scipy.ndimage import imread
-            fnames = fnames[:100]
             if verbose:
                 print '. . .',
-            imfiles = map(tar.extractfile, fnames) if tar else fnames
-            fnames = np.squeeze(map(imread, imfiles))
+            batchsize = 50
+            ims = []
+            for batch_i in xrange(0, len(fnames), batchsize):
+                batch = fnames[batch_i:batch_i+batchsize]
+                if tar:
+                    batch = map(tar.extractfile, batch)
+                imbatch = map(imread, batch)
+                im = imbatch[0]
+                if im.itemsize*im.size*(batch_i + len(imbatch)) > maxsize:
+                    break
+                else:
+                    ims.extend(imbatch)
+            fnames = np.squeeze(ims)
             if verbose:
                 print 'loaded'
         if tar:
