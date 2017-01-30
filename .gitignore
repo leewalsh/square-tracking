@@ -8,3 +8,4 @@ michael-*.py
 # outputs from .md files:
 noise.pdf
 melting.pdf
+*.html
