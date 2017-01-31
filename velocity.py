@@ -84,7 +84,7 @@ cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
       'perp': plt.cm.RdBu(0.2)}
 
 texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
-            'perp': r'$v_\perp$', 'etapar': r'$\eta_\parallel$'}
+            'perp': r'$\eta_\perp$', 'etapar': r'$\eta_\parallel$'}
 englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
             'par': 'longitudinal', 'perp': 'transverse', 'etapar': 'longitudinal'}
 labels = 0
@@ -222,7 +222,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
     ax.set_ylabel('$N$', labelpad=2)
-    xlabel = r'$\Delta r \times f/\ell$'
+    xlabel = r'$\Delta r \enspace f/\ell$'
     l, r = ax.set_xlim(xlim)
     if orient:
         #xticks = np.linspace(l, r, 3)
@@ -231,7 +231,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         #xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         xticklabels = [r'$-\pi/4$', r'$0$', r'$\pi/4$']
         ax.set_xticklabels(xticklabels, fontsize='small')
-        xlabel = r'$\Delta\theta \times f$'
+        xlabel = r'$\Delta\theta \enspace f$'
     else:
         pass
         #xticks = np.linspace(np.round(l, 1), np.round(r, 1), 3)
@@ -327,9 +327,9 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(int(t[-1] + 1)))
 
-    ax.set_xlabel(r'$tf$', labelpad=2)
-    ylabel = r'$\langle {0}(t) {0}(0) \rangle$'.format(
-        texlabel.get(comps, 'v').strip('$'))
+    ax.set_xlabel(r'$t \enspace f$', labelpad=2)
+    ylabel = r'$\langle {0}(t) \enspace {0}(0) \rangle$'.format(
+        texlabel.get(comps, r'\eta').strip('$'))
     ax.set_ylabel(ylabel, labelpad=2)
 
     title = r"Velocity Autocorrelation"*labels

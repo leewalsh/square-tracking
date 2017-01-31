@@ -975,7 +975,7 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     if title is None:
         title = "Mean Sq {}Disp".format("Angular " if ang else "")
     ax.set_title(title)
-    xlabel = r'$t \cdot f$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
+    xlabel = r'$t \enspace f$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
     ax.set_xlabel(xlabel)
     ylabel = (r"${}\langle\left[\vec r(t) -".format('' if args.clean else r'\left')
               + r"\vec r(0)\right]^2{}\rangle / \ell^2$".format(
@@ -1498,7 +1498,7 @@ def nn_plot(tracksets, fits, args, ax=None):
                  'yscale': 'log',
                  'ylabel': (r"$\langle \hat n(t) \cdot \hat n(0) \rangle$",
                             {'labelpad': -12, 'fontsize': 'large'}),
-                 'xlabel': r"$t \cdot f$",
+                 'xlabel': r"$t \enspace f$",
                 },
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
                    'markerfirst': False},
@@ -1585,7 +1585,7 @@ def rn_plot(tracksets, fits, args, ax=None):
         'axes': {'xlim': (-tmax, tmax),
                  'ylim': (ylim_pad*result.best_fit.min(),
                           ylim_pad*result.best_fit.max()),
-                 'xlabel': r"$t \cdot f$",
+                 'xlabel': r"$t \enspace f$",
                  'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
                             {'labelpad': -8, 'fontsize': 'large'}),
                 },
