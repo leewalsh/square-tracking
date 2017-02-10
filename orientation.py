@@ -149,19 +149,16 @@ def get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
             'orient' for orientation of particles
             'cdisp' for the corner - center displacement
     """
-    if do_average or nc == 1:
-        dt = [('corner', float, (nc, 2)),
-              ('orient', float),
-              ('cdisp', float, (nc,))]
-    elif nc > 1:
-        dt = [('corner', float, (nc, 2,)),
-              ('orient', float, (nc,)),
-              ('cdisp', float, (nc,))]
+    dt = [('corner', float, (nc, 2)),
+          ('orient', float),
+          ('cdisp', float, (nc,))]
+    if nc > 1 and not do_average:
+        dt[1] += ((nc,),)   # give the 'orient' field a shape of (nc,)
+    odata = np.full(len(pdata), np.nan, dtype=dt)
     if ang > pi:
         ang = np.radians(ang)
         if dang:
             dang = np.radians(dang)
-    odata = np.full(len(pdata), np.nan, dtype=dt)
     odata_corner = odata['corner']
     odata_orient = odata['orient']
     odata_cdisp = odata['cdisp']
