@@ -338,12 +338,13 @@ def orient_op(orientations, m=4, positions=None, margin=0,
 
 def dtheta(i, j=None, m=1, sign=False):
     """ given two angles or one array (N, 2) of pairs
-        returns the _smallest angle between them, modulo m
+        returns the smallest angle between them, modulo m
         if sign is True, retuns a negative angle for i<j, else abs
     """
     ma = tau/m
-    diff = np.diff(i, axis=1) if j is None else i - j
-    diff = (diff + ma/2) % ma - ma/2
+    if j is None:
+        i, j = i.T
+    diff = (j - i + ma/2) % ma - ma/2
     return diff if sign else np.abs(diff)
 
 
