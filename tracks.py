@@ -728,7 +728,7 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
 
 
 def plot_tracks(data, trackids=None, bgimage=None, mask=None,
-                fignum=None, save=True, show=True):
+                save=False, show=True):
     """ Plots the tracks of particles in 2D
 
     parameters
@@ -741,12 +741,11 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
     save : where to save the figure
     show : whether to show the figure
     """
-    fig = plt.figure(fignum)
-    ax = fig.gca()
+    fig, ax = plt.subplots()
     if bgimage is not None:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap='gray', origin='upper')
+        ax.imshow(bgimage, cmap='gray')
     if trackids is None:
         trackids = data['t']
     if mask is None:
