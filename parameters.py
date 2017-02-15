@@ -13,7 +13,7 @@ import tracks
 
 
 
-save_figs = True
+save_figs = False
 
 
 prefixes = sys.argv[1:]
@@ -63,6 +63,7 @@ markersizes = {4        : markersize,
               }
 
 colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
+colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
 
 def colors(fit, default='k'):
     if isinstance(fit, basestring):
@@ -79,13 +80,13 @@ def colors(fit, default='k'):
             'Tn_Rf': 'm',
             'Tm_Rn_Lf': 'm', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
             }
-        mpl2 = {'b': 'b',
-                'g': 'c',
-                'r': 'r',
-                'c': 'o',
-                'm': 'g',
-                'k': 'k',
-                'y': 'y',
+        mpl2 = {'b': 'b', # blue -> blue
+                'g': 'c', # green -> brown(c)
+                'r': 'r', # red -> red
+                'c': 'o', # cyan -> orange
+                'm': 'g', # magenta -> green
+                'k': 'k', # black -> grey(k)
+                'y': 'y', # yellow -> yellow
                }
         return colorbrewer[mpl2[d.get(fit[3:-3], default)]]
     elif hasattr(fit, 'func'):
@@ -309,7 +310,7 @@ pargs[p]['label'] = [l.replace('_', ' ') for l in pargs[p]['ys']]
 
 def trendline(xvals, yvals):
     slope = np.mean(yvals/xvals)
-    print 'parametric slope {:.4f}'.format(slope)
+    print '    slope {:.4f}'.format(slope)
     xmax = max(yvals.max()/slope, xvals.max())
     xmin = min(yvals.min()/slope, xvals.min())
     xmax += xmin/4
@@ -352,8 +353,9 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     kwargs.update(xs=xs, ys=ys)
     kws = helpy.transpose_dict_of_lists(kwargs)
     for kw in kws:
+        print '\n{}: {ys:<15} vs {xs}. {colcode}, {marker}\n{label}'.format(
+            param, colcode=colorunbrewer[kw['color']], **kw)
         x, y = kw.pop('xs'), kw.pop('ys')
-        print 'plotting {} from {} vs {}'.format(param, y, x)
         fitx, fity = fit_config[x], fit_config[y]
         ax = plot_param(fits, param, fitx, fity, ax=ax, **kw)
 
@@ -416,7 +418,7 @@ if figs == 'single':
     axes[1].set_xlabel('Noise statistics')
     fig.tight_layout(w_pad=0.8)
     if save_figs:
-        fig.savefig('parametric_all.pdf')
+        fig.savefig('parametric.pdf')
 
 elif figs == 'individual':
     params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
