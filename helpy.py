@@ -274,6 +274,8 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
     if pad:
         # could return_mask=True and isfin = ~mask, but that misses input nans
         arrs = pad_uneven(arrs, np.nan, return_mask=False, align=align)
+    else:
+        arrs = np.asarray(arrs)
     isfin = np.isfinite(arrs)
     added = isfin.sum(0)
     enough = (added >= min_added).all(tuple(range(1, added.ndim))).nonzero()[0]
