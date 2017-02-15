@@ -1399,13 +1399,16 @@ def dist(a, b):
     return np.hypot(*(a - b).T)
 
 
-def rotate(v, theta, out=None):
+def rotate(v, theta, out=None, angle=False):
     """rotate a 2-d vector into the basis defined by theta
 
     parameters
     ----------
     v:      vector(s) with shape (2, ...)
     theta:  angle(s) with shape (...,)
+            or, normal vector(s) with shape `v.shape`
+    out:    (optional) array in which to save rotated output
+    angle:  (default False) whether to rotate _away_ from theta's basis by angle
 
     returns
     -------
@@ -1417,10 +1420,14 @@ def rotate(v, theta, out=None):
     """
     if out is None:
         out = np.empty_like(v)
-    cos, sin = np.cos(theta), np.sin(theta)
+    if theta.shape == v.shape:
+        cos, sin = theta
+    else:
+        cos, sin = np.cos(theta), np.sin(theta)
     rot = np.array([[cos, sin],
                     [-sin, cos]])
-    return np.einsum('ij...,...j', rot, v, out=out)
+    ein_ind = 'ij..., {}...->{}...'.format(*('ij' if angle else 'ji'))
+    return np.einsum(ein_ind, rot, v, out=out)
 
 
 def circle_three_points(*xs):
