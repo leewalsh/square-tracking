@@ -4,6 +4,23 @@ import numpy as np
 from math import sqrt
 import helpy
 
+class cached_property(object):
+    """
+    A property that is only computed once per instance and then replaces itself
+    with an ordinary attribute. Deleting the attribute resets the property.
+    Source: github.com/pydanny/cached-property/blob/1.3.0/cached_property.py
+    """
+
+    def __init__(self, func):
+        self.__doc__ = getattr(func, '__doc__')
+        self.func = func
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+        value = obj.__dict__[self.func.__name__] = self.func(obj)
+        return value
+
 
 class SimTrack(object):
     """A simulated particle track"""
@@ -16,79 +33,56 @@ class SimTrack(object):
         self.size = size
         self.fps = fps
 
-        self._eta, self._v, self._xi = None, None, None
-        self._theta, self._n = None, None
-        self._r, self._x, self._y = None, None, None
-
-
-    @property
+    @cached_property
     def eta(self):
         """eta, translational noise (lab frame)"""
-        if self._eta is None:
-            self._eta = helpy.rotate(self.v, self.n)
-        return self._eta
+        return helpy.rotate(self.v, self.n)
 
 
-    @property
+    @cached_property
     def v(self):
         """v, translational velocity (body frame)"""
-        if self._v is None:
-            self._v = np.random.normal(loc=[[self.v0], [0]],
-                                       scale=sqrt(2*self.DT),
-                                       size=(2, self.size))
-        return self._v
+        return np.random.normal(loc=[[self.v0], [0]],
+                                scale=sqrt(2*self.DT),
+                                size=(2, self.size))
 
 
-    @property
+    @cached_property
     def xi(self):
         """xi, rotational noise"""
-        if self._xi is None:
-            self._xi = np.random.normal(loc=self.w0,
-                                        scale=sqrt(2*self.DR),
-                                        size=self.size)
-        return self._xi
+        return np.random.normal(loc=self.w0,
+                                scale=sqrt(2*self.DR),
+                                size=self.size)
 
 
-    @property
+    @cached_property
     def theta(self):
         """theta, orientation of particle"""
-        if self._theta is None:
-            self._theta = np.cumsum(self.xi, axis=-1)
-        return self._theta
+        return np.cumsum(self.xi, axis=-1)
 
 
-    @property
+    @cached_property
     def n(self):
         """n, normal vector of particle"""
-        if self._n is None:
-            cos = np.cos(self.theta)
-            sin = np.sin(self.theta)
-            self._n = np.array([cos, sin])
-        return self._n
+        cos = np.cos(self.theta)
+        sin = np.sin(self.theta)
+        return np.array([cos, sin])
 
 
-    @property
+    @cached_property
     def r(self):
         """r, position of particle (lab frame)"""
-        if self._r is None:
-            self._r = np.cumsum(self.eta, axis=-1)
-        return self._r
+        return np.cumsum(self.eta, axis=-1)
 
 
-    @property
+    @cached_property
     def x(self):
         """x, x-position of particle (lab frame)"""
-        if self._x is None:
-            self._x, self._y = self.r
-        return self._x
+        return self.r[0]
 
 
-    @property
+    @cached_property
     def y(self):
         """y, y-position of particle (lab frame)"""
-        if self._y is None:
-            self._x, self._y = self.r
-        return self._y
-
-
+        return self.r[1]
 
