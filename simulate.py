@@ -36,7 +36,7 @@ class SimTrack(object):
     @cached_property
     def eta(self):
         """eta, translational noise (lab frame)"""
-        return helpy.rotate(self.v, self.n)
+        return helpy.rotate(self.v, self.n, angle=True)
 
 
     @cached_property
@@ -56,16 +56,16 @@ class SimTrack(object):
 
 
     @cached_property
-    def theta(self):
-        """theta, orientation of particle"""
+    def o(self):
+        """o, orientation of particle"""
         return np.cumsum(self.xi, axis=-1)
 
 
     @cached_property
     def n(self):
         """n, normal vector of particle"""
-        cos = np.cos(self.theta)
-        sin = np.sin(self.theta)
+        cos = np.cos(self.o)
+        sin = np.sin(self.o)
         return np.array([cos, sin])
 
 
