@@ -25,13 +25,25 @@ class cached_property(object):
 class SimTrack(object):
     """A simulated particle track"""
 
-    def __init__(self, DR, DT, v0, w0=0, size=100, fps=1):
+    def __init__(self, DR, DT, v0, w0=0, size=100, fps=1, side=1):
+        self.fps = fps
+        self.side = side
+        self.dt = 1/self.fps
+        self.dx = 1/self.side
+
+        # in physical (input/output) units
         self.DR = DR
         self.DT = DT
         self.v0 = v0
         self.w0 = w0
+
+        # in step (measurement, calculation) units:
+        self._DR = self.DR / (1/self.dt)
+        self._DT = self.DT / (self.dx**2/self.dt)
+        self._v0 = self.v0 / (self.dx/self.dt)
+        self._w0 = self.w0 / (1/self.dt)
+
         self.size = size
-        self.fps = fps
 
     @cached_property
     def eta(self):
@@ -42,16 +54,16 @@ class SimTrack(object):
     @cached_property
     def v(self):
         """v, translational velocity (body frame)"""
-        return np.random.normal(loc=[[self.v0], [0]],
-                                scale=sqrt(2*self.DT),
+        return np.random.normal(loc=[[self._v0], [0]],
+                                scale=sqrt(2*self._DT),
                                 size=(2, self.size))
 
 
     @cached_property
     def xi(self):
         """xi, rotational noise"""
-        return np.random.normal(loc=self.w0,
-                                scale=sqrt(2*self.DR),
+        return np.random.normal(loc=self._w0,
+                                scale=sqrt(2*self._DR),
                                 size=self.size)
 
 
