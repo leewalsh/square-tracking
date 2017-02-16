@@ -123,6 +123,8 @@ if __name__ == '__main__':
         saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
+    if args.prefix == 'simulate':
+        relprefix = absprefix = readprefix = prefix = saveprefix = 'simulate'
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
@@ -1836,7 +1838,17 @@ if __name__ == '__main__':
             print save if verbose else os.path.basename(save)
             np.savez_compressed(save, data=data)
     else:
-        data = helpy.load_data(readprefix, 'track')
+        if readprefix == 'simulate':
+            import simulate as sim
+            spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+                    'fps': args.fps, 'side': args.side, 'size': 1000}
+            print spar
+            sdata = [sim.SimTrack(num=i, **spar)
+                     for i in xrange(1, 1001)]
+            data = np.concatenate([sdatum.track for sdatum in sdata])
+            data['id'] = np.arange(len(data))
+        else:
+            data = helpy.load_data(readprefix, 'track')
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(

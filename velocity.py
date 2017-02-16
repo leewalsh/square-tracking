@@ -364,12 +364,7 @@ def command_hist(args, meta, compile_args):
             axi += 1
     return fits
 
-if __name__ == '__main__':
-    helpy.save_log_entry(args.prefix, 'argv')
-    meta = helpy.load_meta(args.prefix)
-    helpy.sync_args_meta(args, meta,
-                         ['side', 'fps'], ['sidelength', 'fps'], [1, 1])
-    compile_args = dict(args.__dict__)
+def find_data(args):
     suf = '_TRACKS.npz'
     if '*' in args.prefix or '?' in args.prefix:
         fs = iglob(args.prefix+suf)
@@ -383,7 +378,26 @@ if __name__ == '__main__':
         print 'prefixes:',
         print '\n          '.join(prefixes)
 
-    data = {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
+    return {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
+
+if __name__ == '__main__':
+    helpy.save_log_entry(args.prefix, 'argv')
+    meta = helpy.load_meta(args.prefix)
+    helpy.sync_args_meta(args, meta,
+                         ['side', 'fps'], ['sidelength', 'fps'], [1, 1])
+    compile_args = dict(args.__dict__)
+    if args.prefix == 'simulate':
+        import simulate as sim
+        spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+                'fps': args.fps, 'side': args.side, 'size': 1000}
+        print spar
+        sdata = [sim.SimTrack(num=i, **spar)
+                 for i in xrange(1, 1001)]
+        data = np.concatenate([sdatum.track for sdatum in sdata])
+        data['id'] = np.arange(len(data))
+        data = {'simulate': data}
+    else:
+        data = find_data(args)
     tsets = {prefix: helpy.load_tracksets(
                 data[prefix], min_length=args.stub, verbose=args.verbose,
                 run_remove_dupes=args.dupes, run_repair=args.gaps,
