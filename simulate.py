@@ -25,7 +25,7 @@ class cached_property(object):
 class SimTrack(object):
     """A simulated particle track"""
 
-    def __init__(self, DR, DT, v0, w0=0, size=100, fps=1, side=1):
+    def __init__(self, DR, DT, v0, w0=0, size=100, fps=1, side=1, num=1):
         self.fps = fps
         self.side = side
         self.dt = 1/self.fps
@@ -44,6 +44,7 @@ class SimTrack(object):
         self._w0 = self.w0 / (1/self.dt)
 
         self.size = size
+        self.num = num
 
     @cached_property
     def eta(self):
@@ -98,3 +99,16 @@ class SimTrack(object):
         """y, y-position of particle (lab frame)"""
         return self.r[1]
 
+
+    @cached_property
+    def track(self):
+        track = np.empty(self.size, dtype=helpy.track_dtype)
+        track = helpy.add_self_view(track, ('x', 'y'), 'xy')
+
+        track['id'] = np.arange(self.size)
+        track['f'] = np.arange(self.size)
+        track['t'] = self.num
+        for attr in ['x', 'y', 'o']:
+            track[attr] = getattr(self, attr)
+
+        return track
