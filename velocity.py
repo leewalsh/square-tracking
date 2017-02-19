@@ -218,7 +218,10 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     #ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
-    ax.legend(loc='upper left', fontsize='small', frameon=False,
+
+    leg_handles, leg_labels = ax.get_legend_handles_labels()
+    ax.legend(leg_handles[::-1], leg_labels[::-1],
+              loc='upper left', fontsize='small', frameon=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
     ax.set_ylabel('$N$', labelpad=2)
@@ -331,9 +334,13 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
         texlabel.get(comps, r'\eta').strip('$'))
     ax.set_ylabel(ylabel, labelpad=2)
 
-    title = r"Velocity Autocorrelation"*labels
-    ax.legend(title=title, loc='best', markerfirst=False, fontsize='small',
-              numpoints=1, handlelength=1, frameon=False)
+    leg_title = r"Velocity Autocorrelation"*labels
+    leg_handles, leg_labels = ax.get_legend_handles_labels()
+    # remove errorbars (has_yerr=False), lines (handlelength=0) from legend keys
+    for leg_handle in leg_handles:
+        leg_handle.has_yerr = False
+    ax.legend(leg_handles, leg_labels, title=leg_title, loc='best', numpoints=1,
+              markerfirst=False, fontsize='small', handlelength=0, frameon=False)
     return fig, ax
 
 

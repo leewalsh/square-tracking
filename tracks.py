@@ -1751,10 +1751,16 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
                                 relprefix, fitnames[0]]))
     else:
         ax.tick_params(which='both', top=False, right=False)
-    legend = np.array(ax.get_legend_handles_labels())
-    legend_order = [0, 3, 2, 1]
-    ax.legend(*legend[:, legend_order], loc='upper left',
-              fontsize='small', frameon=False, numpoints=1, handlelength=1)
+
+    leg_handles, leg_labels = ax.get_legend_handles_labels()
+    # remove errorbars (has_yerr=False) from legend keys
+    for leg_handle in leg_handles:
+        leg_handle.has_yerr = False
+    # reorder from (eqn, tot, trans, long) to (eqn, long, trans, tot)
+    ax.legend(leg_handles[:1] + leg_handles[:0:-1],
+              leg_labels[:1] + leg_labels[:0:-1],
+              loc='upper left', fontsize='small', frameon=False,
+              numpoints=1, handlelength=1)
 
     #move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
