@@ -310,7 +310,7 @@ pargs[p]['label'] = [l.replace('_', ' ') for l in pargs[p]['ys']]
 
 def trendline(xvals, yvals):
     slope = np.mean(yvals/xvals)
-    print '    slope {:.4f}'.format(slope)
+    print 'Slope: {:.4f}'.format(slope)
     xmax = max(yvals.max()/slope, xvals.max())
     xmin = min(yvals.min()/slope, xvals.min())
     xmax += xmin/4
@@ -330,6 +330,12 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
         fitc = {'x': fitx, 'y': fity,
                 'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
         fitc = fitc.get(convert, convert)
+        if param not in resx:
+            print 'Convert: {} = {}.v0 / {}.DR'.format(param, fit_desc[fitx], fit_desc[fitc])
+        elif param not in resy:
+            print 'Convert: {} = {}.lp * {}.DR'.format(param, fit_desc[fity], fit_desc[fitc])
+        else:
+            print 'um Converting using D_R from', convert, fit_desc[fitc]
         if fitc is None:
             raise err
         #label += ' {}DR({}, {})'.format(
@@ -353,10 +359,14 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     kwargs.update(xs=xs, ys=ys)
     kws = helpy.transpose_dict_of_lists(kwargs)
     for kw in kws:
-        print '\n{}: {ys:<15} vs {xs}. {colcode}, {marker}\n{label}'.format(
+        print '\n{}: {colcode}, {marker}'.format(
             param, colcode=colorunbrewer[kw['color']], **kw)
         x, y = kw.pop('xs'), kw.pop('ys')
         fitx, fity = fit_config[x], fit_config[y]
+        print "y-axis:", y
+        print helpy.fit_str(fity, remove_none=True)
+        print "x-axis:", x
+        print helpy.fit_str(fitx, remove_none=True)
         ax = plot_param(fits, param, fitx, fity, ax=ax, **kw)
 
     if scale == 'log' and lims[0] < 1e-3:
