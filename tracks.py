@@ -1059,7 +1059,7 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     ylabel = (r"${}\langle\left[\vec r(t) -".format('' if args.clean else r'\left')
               + r"\vec r(0)\right]^2{}\rangle / \ell^2$".format(
                   '' if args.clean else r'\right'))
-    ax.set_ylabel(ylabel, labelpad=-2, fontsize='large', ha='right', va='bottom')
+    ax.set_ylabel(ylabel, labelpad=-2, fontsize='large')
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -1666,7 +1666,7 @@ def rn_plot(tracksets, fits, args, ax=None):
                           ylim_pad*result.best_fit.max()),
                  'xlabel': r"$t \enspace f$",
                  'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
-                            {'labelpad': -8, 'fontsize': 'large'}),
+                            {'labelpad': 0, 'fontsize': 'large'}),
                 },
         'legend': {'loc': 'upper left',},
     }
