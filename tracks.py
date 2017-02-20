@@ -2055,48 +2055,51 @@ if __name__ == '__main__':
     if args.nn or args.rn or args.rr:
         fit_config, fit_desc = make_fitnames()
 
-        rcParamsOriginal = {}
         labels = not args.clean
-        rcParam_key = 'text.usetex'
-        rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
-        plt.rcParams[rcParam_key] = args.clean
 
-        if args.clean:
-            rcParam_key = 'text.latex.preamble'
-            if r'\usepackage{amsmath}' not in plt.rcParams[rcParam_key]:
-                rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
-                plt.rcParams[rcParam_key].append(r'\usepackage{amsmath}')
+        rcParams_for_context = {
+            'text.usetex': args.clean,
+            'text.latex.preamble': list(set(
+                plt.rcParams['text.latex.preamble'] + [r'\usepackage{amsmath}']
+            )),
+            'font.size': 8 if args.fig == 0 else plt.rcParams['font.size'],
+        }
 
-        if args.fig == 0:
-            rcParam_key = 'font.size'
-            rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
-            plt.rcParams[rcParam_key] = 8
-            fig, axs = plt.subplots(ncols=3, figsize=(7, 2.3),
-                                    gridspec_kw={'width_ratios': [2.5, 3, 4]})
-        else:
-            axs = None, None, None
+        with plt.rc_context(rc=rcParams_for_context):
+            print 'entering context with rc'
+            print rcParams_for_context
 
-    if args.nn or args.colored:
-        print "====== <nn> ======"
-        nn_result, fits, nn_ax = nn_plot(tracksets, fits, args, ax=axs[0])
+            if args.fig == 0:
+                fig, axs = plt.subplots(
+                    ncols=3,
+                    figsize=(7.0, 2.3),
+                    gridspec_kw={'width_ratios': [2.5, 3, 4]})
+            else:
+                axs = [None]*3
 
-    if args.rn:
-        print "====== <rn> ======"
-        rn_result, fits, rn_ax = rn_plot(tracksets, fits, args, ax=axs[1])
+            if args.nn or args.colored:
+                print "====== <nn> ======"
+                nn_result, fits, nn_ax = nn_plot(
+                    tracksets, fits, args, ax=axs[0])
 
-    if args.rr:
-        print "====== <rr> ======"
-        rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args, axs[2])
+            if args.rn:
+                print "====== <rn> ======"
+                rn_result, fits, rn_ax = rn_plot(
+                    tracksets, fits, args, ax=axs[1])
+
+            if args.rr:
+                print "====== <rr> ======"
+                rr_result, fits, rr_ax = rr_plot(
+                    msds, msdids, data, fits, args, axs[2])
+    else:
+        rcParams_for_context = {}
 
     if args.save:
         helpy.save_fits(saveprefix, fits)
 
     if need_plt:
-        if args.show:
-            plt.show()
-        else:
-            plt.close('all')
-
-    if args.nn or args.rn or args.rr:
-        plt.rcParams.update(rcParamsOriginal)
-        rcParamsOriginal.clear()
+        with plt.rc_context(rc=rcParams_for_context):
+            if args.show:
+                plt.show()
+            else:
+                plt.close('all')

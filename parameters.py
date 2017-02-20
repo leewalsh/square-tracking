@@ -410,11 +410,9 @@ for p in pargs:
     for k in new:
         pargs[p].setdefault(k, new[k])
 
-orig_text_usetex = plt.rcParams['text.usetex']
-plt.rcParams['text.usetex'] = True
-figs = 'single'
 
-if figs == 'single':
+rcParams_for_context = {'text.usetex': True}
+with plt.rc_context(rc=rcParams_for_context):
     fig, axes = plt.subplots(ncols=3, figsize=(7, 3))
 
     overrides = {'legend': False}
@@ -430,16 +428,15 @@ if figs == 'single':
     if save_figs:
         fig.savefig('parametric.pdf')
 
-elif figs == 'individual':
-    params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
-    for param in params:
-        parg = pargs[param]
-        ax = plot_parametric(fits, **parg)
-        ax.set_xlabel('Noise statistics from velocity')
-        ax.set_ylabel('Fits from correlation functions')
+    # individual figures:
+    #params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
+    #for param in params:
+    #    parg = pargs[param]
+    #    ax = plot_parametric(fits, **parg)
+    #    ax.set_xlabel('Noise statistics from velocity')
+    #    ax.set_ylabel('Fits from correlation functions')
 
-        if save_figs:
-            ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
+    #    if save_figs:
+    #        ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
 
-plt.show()
-plt.rcParams['text.usetex'] = orig_text_usetex
+    plt.show()

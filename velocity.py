@@ -68,12 +68,6 @@ if __name__ == '__main__':
     arg('-v', '--verbose', action='count', help="Be verbose")
     args = parser.parse_args()
 
-    rcParamsOriginal = {}
-    if args.save or args.show:
-        rcParam_key = 'text.usetex'
-        rcParamsOriginal[rcParam_key] = plt.rcParams[rcParam_key]
-        plt.rcParams[rcParam_key] = True
-
 pi = np.pi
 
 ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '--', 'perp': '-.', 'etapar': ':'}
@@ -465,41 +459,41 @@ if __name__ == '__main__':
                 run_track_orient=args.torient)
              for prefix in data}
 
-    if 'widths' in args.command:
-        fig = command_widths(tsets, compile_args, args)
-    else:
-        nrows = args.do_orientation + args.do_translation*(args.subtract+1)
-        ncols = len(args.command)
-        if 'hist' in args.command and args.log and args.lin:
-            ncols += 1
-        figsize = (3.5*ncols, 3.0*nrows) if labels else (3.5, 3.0*nrows/ncols)
-        gridspec_kw = {'wspace': 0.4, 'hspace': 0.4}
-        fig, axes = plt.subplots(nrows, ncols, squeeze=False, figsize=figsize,
-                                 gridspec_kw=gridspec_kw)
-        if 'hist' in args.command:
-            fig, fits = command_hist(args, meta, compile_args, axes)
-        if 'autocorr' in args.command:
-            i = 0
-            if args.do_orientation:
-                command_autocorr(tsets, args, 'o', axes[i, -1])
-                i += 1
-            if args.do_translation:
-                command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
+    rcParams_for_context = {'text.usetex': args.save or args.show}
+    with plt.rc_context(rc=rcParams_for_context):
+        if 'widths' in args.command:
+            fig = command_widths(tsets, compile_args, args)
+        else:
+            nrows = args.do_orientation + args.do_translation*(args.subtract+1)
+            ncols = len(args.command)
+            if 'hist' in args.command and args.log and args.lin:
+                ncols += 1
+            fig, axes = plt.subplots(
+                nrows, ncols, squeeze=False,
+                figsize=(3.5*ncols, 3.0*nrows) if labels
+                else (3.5, 3.0*nrows/ncols),
+                gridspec_kw={'wspace': 0.4, 'hspace': 0.4})
+            if 'hist' in args.command:
+                fig, fits = command_hist(args, meta, compile_args, axes)
+            if 'autocorr' in args.command:
+                i = 0
+                if args.do_orientation:
+                    command_autocorr(tsets, args, 'o', axes[i, -1])
+                    i += 1
+                if args.do_translation:
+                    command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
 
+        if args.save:
+            savename = os.path.abspath(args.prefix.rstrip('/._?*'))
+            helpy.save_meta(savename, meta)
+            if 'hist' in args.command:
+                helpy.save_fits(savename, fits)
+            savename += '_v' + ('corr' if args.autocorr else 'hist')
+            if args.suffix:
+                savename += '_' + args.suffix.strip('_')
+            savename += '.pdf'
+            print 'Saving plot to {}'.format(savename)
+            fig.savefig(savename)
 
-    if args.save:
-        savename = os.path.abspath(args.prefix.rstrip('/._?*'))
-        helpy.save_meta(savename, meta)
-        if 'hist' in args.command:
-            helpy.save_fits(savename, fits)
-        savename += '_v' + ('corr' if args.autocorr else 'hist')
-        if args.suffix:
-            savename += '_' + args.suffix.strip('_')
-        savename += '.pdf'
-        print 'Saving plot to {}'.format(savename)
-        fig.savefig(savename)
-
-    if args.show:
-        plt.show()
-
-    plt.rcParams.update(rcParamsOriginal)
+        if args.show:
+            plt.show()
