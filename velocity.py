@@ -488,7 +488,7 @@ if __name__ == '__main__':
             helpy.save_meta(savename, meta)
             if 'hist' in args.command:
                 helpy.save_fits(savename, fits)
-            savename += '_v' + ('corr' if args.autocorr else 'hist')
+            savename += '_velocity_' + '_'.join(args.command)
             if args.suffix:
                 savename += '_' + args.suffix.strip('_')
             savename += '.pdf'
@@ -497,3 +497,5 @@ if __name__ == '__main__':
 
         if args.show:
             plt.show()
+        else:
+            plt.close('all')
