@@ -212,6 +212,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     #ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
+    ax.axvline(x=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
 
     leg_handles, leg_labels = ax.get_legend_handles_labels()
     ax.legend(leg_handles[::-1], leg_labels[::-1],

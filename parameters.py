@@ -31,8 +31,8 @@ all_colors = 'rgkbmyc'
 def markers(fit, default='x'):
     if isinstance(fit, basestring):
         d = {'nn': 'o',
-             'rn': 's', 'rp': '>', 'ra': 'D', 'rm': '^',
-             'rr': (5, 1, 0), 'r0': (5, 0, 0),
+             'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
+             'rr': (4, 1, 0), 'r0': 's',
              'pr': (6, 1, 0), 'p0': 5,#(6, 0, 0),
              'dr': (7, 1, 0), 'd0': 4,#(7, 0, 0),
             }
@@ -52,11 +52,13 @@ markersize = 2.0    # default is 6.0
 markersizes = {4        : markersize,
                5        : markersize,
                '>'      : markersize,
+               '<'      : markersize,
                'D'      : markersize - 1,
                '^'      : markersize,
+               'v'      : markersize,
                'o'      : markersize,
-               's'      : markersize,
-               (5, 0, 0): markersize,# + 0.5,
+               's'      : markersize - 0.5,
+               (4, 1, 0): markersize,
                (5, 1, 0): markersize,
                (6, 1, 0): markersize,
                (7, 1, 0): markersize,

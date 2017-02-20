@@ -1517,6 +1517,7 @@ def axes_setter(ax=None, **attr_dict):
 
 def move_axis_label(ax, which, x=None, y=None, ha=None, va=None):
     ax.figure.canvas.draw_idle() # update current label position before moving
+    #ax.figure.tight_layout(pad=0)
     axis = {'y': ax.yaxis, 'x': ax.xaxis}[which]
     label = axis.get_label()
     if ha is not None:
@@ -1576,7 +1577,7 @@ def nn_plot(tracksets, fits, args, ax=None):
                  'ylim': (exp(-xlim_pad*args.zoom), 1.05),
                  'yscale': 'log',
                  'ylabel': (r"$\langle \hat n(t) \cdot \hat n(0) \rangle$",
-                            {'labelpad': -12, 'fontsize': 'large'}),
+                            {'labelpad': -16, 'fontsize': 'large'}),
                  'xlabel': r"$t \enspace f$",
                 },
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
@@ -1588,8 +1589,6 @@ def nn_plot(tracksets, fits, args, ax=None):
     ax = ax or args.fig
     fig, ax = plot_fit(result, tex_fits, args,
                        ax=ax, plt_kwargs=plt_kwargs)
-
-    #move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1666,7 +1665,7 @@ def rn_plot(tracksets, fits, args, ax=None):
                           ylim_pad*result.best_fit.max()),
                  'xlabel': r"$t \enspace f$",
                  'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
-                            {'labelpad': 0, 'fontsize': 'large'}),
+                            {'labelpad': -2, 'fontsize': 'large'}),
                 },
         'legend': {'loc': 'upper left',},
     }
@@ -1677,8 +1676,10 @@ def rn_plot(tracksets, fits, args, ax=None):
     fig, ax = plot_fit(result, tex_fits, args, data=plot_data,
                        ax=ax, plt_kwargs=plt_kwargs)
     #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
-    ax.plot(sym.x, sym.antisymmetric, '.', c=args.ncol,
-            markersize=2, label="anti-symmetric", zorder=2.1)
+    ax.plot(sym.x, sym.antisymmetric, '-', c=args.ncol,
+            linewidth=1, label="anti-symmetric", zorder=2.1)
+    ax.axhline(y=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
+    ax.axvline(x=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
 
     if args.rn == 'max':
         ax.scatter(sym.x[[t_max, -t_max]], sym.antisymmetric[[t_max, -t_max]],
@@ -1686,12 +1687,10 @@ def rn_plot(tracksets, fits, args, ax=None):
 
     DR_time = 1/result.params['DR']
     if ax.get_xlim()[0] < DR_time < ax.get_xlim()[1]:
-        ax.axvline(DR_time, 0, 0.6, ls='--', c='k')
+        ax.axvline(DR_time, 0, 0.4, ls='--', c='k')
         ax.annotate(r'$1/D_R$',
-                    xy=(DR_time, 0.3), xycoords=('data', 'axes fraction'),
+                    xy=(DR_time, 0.2), xycoords=('data', 'axes fraction'),
                     xytext=(6, 0), textcoords='offset points')
-
-    ##move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1761,8 +1760,6 @@ def rr_plot(msds, msdids, data, fits, args, ax=None):
               leg_labels[:1] + leg_labels[:0:-1],
               loc='upper left', fontsize='small', frameon=False,
               numpoints=1, handlelength=1)
-
-    #move_axis_label(ax, 'y', x=None, y=0.9, ha='right', va='bottom')
 
     if args.save:
         save_corr_plot(fig, fitnames[0])
@@ -2066,9 +2063,6 @@ if __name__ == '__main__':
         }
 
         with plt.rc_context(rc=rcParams_for_context):
-            print 'entering context with rc'
-            print rcParams_for_context
-
             if args.fig == 0:
                 fig, axs = plt.subplots(
                     ncols=3,
