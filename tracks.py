@@ -1221,6 +1221,8 @@ def format_fit(result, model_name=None, sources=None):
 
 def save_corr_plot(fig, fit_desc):
     save = '{}_{}-corr.pdf'.format(saveprefix, fit_desc)
+    if args.fig == 0:
+        return
     print 'saving <{}> correlation plot to'.format(fit_desc),
     print os.path.relpath(save, absprefix.replace(relprefix, ''))
     fig.savefig(save)
@@ -2085,15 +2087,26 @@ if __name__ == '__main__':
                 print "====== <rr> ======"
                 rr_result, fits, rr_ax = rr_plot(
                     msds, msdids, data, fits, args, axs[2])
-    else:
-        rcParams_for_context = {}
 
-    if args.save:
-        helpy.save_fits(saveprefix, fits)
+            if args.fig == 0:
+                fig.tight_layout(pad=0, w_pad=0, h_pad=0)
+                for ax in axs:
+                    move_axis_label(ax, 'y', x=None, y=2/3,
+                                    ha='center', va='bottom')
+            if args.save:
+                helpy.save_fits(saveprefix, fits)
 
-    if need_plt:
-        with plt.rc_context(rc=rcParams_for_context):
+                save = '{}-correlations.pdf'.format(saveprefix)
+                print 'saving all correlations figure to',
+                print os.path.relpath(save, absprefix.replace(relprefix, ''))
+                fig.savefig(save, bbox_inches='tight', pad_inches=0)
+
             if args.show:
                 plt.show()
             else:
                 plt.close('all')
+    elif need_plt:
+        if args.show:
+            plt.show()
+        else:
+            plt.close('all')
