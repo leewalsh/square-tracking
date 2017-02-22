@@ -2068,7 +2068,7 @@ if __name__ == '__main__':
             if args.fig == 0:
                 fig, axs = plt.subplots(
                     ncols=3,
-                    figsize=(7.0, 2.3),
+                    figsize=(7.0, 2.0),
                     gridspec_kw={'width_ratios': [2.5, 3, 4]})
             else:
                 axs = [None]*3
