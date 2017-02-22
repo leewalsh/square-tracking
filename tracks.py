@@ -1203,7 +1203,9 @@ def format_fit(result, model_name=None, sources=None):
     fit = helpy.make_fit(dict.fromkeys(free, 'free'),
                          {p: sources[p] for p in fixed},
                          func=model_name or result.model.name)
+    fitname = fit_desc[fit]
 
+    print fitname
     print "fixed params:"
     print print_fmt(fixed)
     print "free params:"
@@ -1216,7 +1218,7 @@ def format_fit(result, model_name=None, sources=None):
                'fixed: ' + tex_fmt(fixed),
                'free: ' + tex_fmt(free)]
 
-    return fit, free, for_tex
+    return fit, fitname, free, for_tex
 
 
 def save_corr_plot(fig, fit_desc):
@@ -1565,9 +1567,8 @@ def nn_plot(tracksets, fits, args, ax=None):
 
     result = model.fit(meancorr, params, 1/sigma, s=taus)
 
-    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fit, fitname, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
-    fitname = fit_desc[fit]
 
     if not args.nn:
         return result, fits, None
@@ -1647,10 +1648,9 @@ def rn_plot(tracksets, fits, args, ax=None):
         if args.rn == 'max':
             result.params['lp'].set(vary=True)
 
-    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fit, fitname, free, tex_fits = format_fit(result, model_name, sources)
     fits[fit] = free
     fits[fit]['sym'] = float(sym.symmetry)
-    fitname = fit_desc[fit]
 
     print ' ==>  v0: {:.3f}'.format(result.params['lp']*result.params['DR'])
 
@@ -1830,10 +1830,9 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
 
     result = model.fit(msd, params, 1/sigma, s=taus)
 
-    fit, free, tex_fits = format_fit(result, model_name, sources)
+    fit, fitname, free, tex_fits = format_fit(result, model_name, sources)
     if free:
         fits[fit] = free
-        fitname = fit_desc[fit]
     else:
         fitname = ', '.join(fit_desc.get(f, str(f)) for f in fit if f)
 
