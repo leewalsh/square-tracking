@@ -1443,7 +1443,7 @@ def limiting_regimes(s, DT, lp, DR, TR):
     DR_time = 1/DR
     DT_time = DT/ll*DR_time**2
     if DT_time > DR_time:
-        return np.full_like(s, np.nan)
+        return np.full_like(s, np.nan), []
     timescales = (DT_time, DR_time)
     regimes = np.searchsorted(timescales, s)
 
