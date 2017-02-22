@@ -1314,8 +1314,7 @@ def nn_corr(tracksets, args):
 def rn_corr(tracksets, args):
     """Calculate the <rn> correlation for all the tracks in a given dataset
     """
-    correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
-                           cumulant=(True, False), norm=0)
+    correlate_rn = partial(corr.crosscorr, cumulant=False, norm=0, ret_dx=True)
 
     # shape (track, x_or_y, time_or_correlation, time)
     rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
