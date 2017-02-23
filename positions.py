@@ -1,36 +1,49 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Detect the positions in images of marked granular particles and save them to
+be tracked. Primary input is a sequence (or single) image file, and output is a
+formatted list of the positions of the centers and orientation marks of the
+particles.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
 from collections import namedtuple
 from itertools import izip
-from distutils.version import StrictVersion as version
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
 
-import helpy
-
+# skimage (scikit-image) changed the location, names, and api of several
+# functions at versions 0.10 and 0.11 (at leaste), but they still have
+# effectively the same functionality. to run with old versions of skimage (from
+# enthought or conda), we must check for the version and import them from the
+# proper module and use them with the appropriate api syntax:
+from distutils.version import StrictVersion
 import skimage
-from skimage.morphology import disk as _disk
-skversion = version(skimage.__version__)
-if skversion < version('0.10'):
+skimage_version = StrictVersion(skimage.__version__)
+from skimage.morphology import disk as skdisk
+if skimage_version < StrictVersion('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
 else:
     from skimage.measure import regionprops, label as sklabel
 
+import helpy
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('files', metavar='FILE', nargs='+', help='Images to process')
+    arg('-o', '--output', help='Output filename prefix.')
     arg('-p', '--plot', action='count', default=1,
         help="Produce plots for each image. Two p's gives lots more")
     arg('-v', '--verbose', action='count', help="Control verbosity")
-    arg('-o', '--output', help='Output filename prefix.')
     arg('-z', '--nozip', action='store_false', dest='gz', help="Don't compress")
     arg('--nosave', action='store_false', dest='save', help="Don't save output")
     arg('--noplot', action='store_true', help="Don't depend on matplotlib")
@@ -66,7 +79,7 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
         closing_size -- The size of the closing filter
     """
     from skimage.morphology import square, binary_closing, skeletonize
-    if skversion < version('0.11'):
+    if skimage_version < StrictVersion('0.11'):
         from skimage.filter import canny
     else:
         from skimage.filters import canny
@@ -149,7 +162,7 @@ def filter_segments(labels, max_ecc, min_area, max_area, keep=False,
     pts = []
     pts_mask = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    if skversion < version('0.10'):
+    if skimage_version < StrictVersion('0.10'):
         rpropargs = labels, ['Area', 'Eccentricity', centroid], intensity
     else:
         rpropargs = labels, intensity
@@ -222,7 +235,7 @@ def find_particles(im, method, **kwargs):
 
 
 def disk(n):
-    return _disk(n).astype(int)
+    return skdisk(n).astype(int)
 
 
 def gdisk(width, inner=0, outer=None):

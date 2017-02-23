@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Helpful python functions, types, and classes for use in various analysis.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
@@ -24,10 +29,13 @@ COMMIT = None
 
 
 def replace_all(s, old, new=''):
+    """str.replace all characters or strings in `old` that appear `s` with `new`
+    equivalent to `s.replace(old[0], new).replace(old[1], new)...`"""
     return reduce(lambda a, b: a.replace(b, new), old, s)
 
 
 def getsystem():
+    """return system name (Darwin, Windows, Linux, etc). Cached as global."""
     global SYSTEM
     if not SYSTEM:
         SYSTEM = platform.system()
@@ -35,6 +43,7 @@ def getsystem():
 
 
 def gethost():
+    """return host name. Cached as global."""
     getsystem()
     global HOST
     if not HOST:
@@ -52,6 +61,7 @@ def gethost():
 
 
 def getuser():
+    """return user name. Cached as global."""
     global USER
     if not USER:
         USER = getpass.getuser().replace(' ', '_')
@@ -59,6 +69,7 @@ def getuser():
 
 
 def getcommit():
+    """return git commit hash. Cached as global."""
     global COMMIT
     if not COMMIT:
         gitdir = os.path.dirname(__file__) or os.curdir
@@ -163,6 +174,7 @@ def splitter(data, indices, method=None,
 
 
 def is_sorted(a):
+    """check whether a numerical array is non-decreasing"""
     return np.all(np.diff(a) >= 0)
 
 
@@ -248,8 +260,8 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
         dtype = np.result_type(fill, np.array(lol[0][0]))
     lengths = np.array(map(len, lol), int)
     lengths[lengths < shortest] = 0
-    length = min(longest or np.inf, lengths.max())
-    shape = (len(lol), length) + np.shape(lol[0][0])
+    shape = \
+        (len(lol), min(longest or np.inf, lengths.max())) + np.shape(lol[0][0])
     if align is None:
         align = it.repeat(0)
     else:
@@ -269,6 +281,7 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
 
 def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
                ret_all=False):
+    """calculate mean along a cross dimension of an uneven list of lists"""
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
@@ -297,6 +310,7 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
 
 
 def nan_info(arr, verbose=False):
+    """return (and print if verbose) some info on the nan contents of arr"""
     isnan = np.isnan(arr)
     nnan = np.count_nonzero(isnan)
     if nnan:
@@ -384,6 +398,13 @@ def dmap(f, d):
 
 
 def dfilter(d, f=None, by='k'):
+    """filter a dict through function f
+
+    f:  filtering function. if None, then filter by the key or value itself
+    by: filter by the key or the value
+
+    return subset of `d` with only items where f(key or value) is true
+    """
     if by.startswith('k'):
         return {k: d[k] for k in it.ifilter(f, d)}
     elif by.startswith('v'):
@@ -408,6 +429,7 @@ def dict_to_arr(d, fields=None):
 
 
 def str_union(a, b=None):
+    """attempt to find a common substring of two strings or a list of strings"""
     if b is None:
         return reduce(str_union, a)
     if a == b:
@@ -1572,7 +1594,7 @@ def circle_click(im):
     import matplotlib
     if matplotlib.is_interactive():
         raise RuntimeError("Cannot do circle_click in interactive/pylab mode")
-    from matplotlib import pyplot as plt
+    import matplotlib.pyplot as plt
 
     print ("Please click three points on circumference of the boundary, "
            "then close the figure")
@@ -1585,15 +1607,18 @@ def circle_click(im):
     ax.imshow(im)
 
     def circle_click_connector(click):
-        # convert to image coordinates from cartesian
+        """receive and save clicks. when there are three, calculate the circle
+
+         * swap x, y to convert image coordinates to cartesian
+         * the return value cannot be saved, so modify a global variable
+        """
         x, y = click.ydata, click.xdata
         xs.append(x)
         ys.append(y)
         print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(xs), x, y)
         if len(xs) == 3:
-            # With three points, calculate circle
             print 'got three points'
-            global xo, yo, r  # can't access connector function's returned value
+            global xo, yo, r
             xo, yo, r = circle_three_points(xs, ys)
             cpatch = matplotlib.patches.Circle([yo, xo], r, linewidth=3,
                                                color='g', fill=False)
@@ -1634,6 +1659,7 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
 
 
 def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
+    """interactively display neighbors defined by corr.neighborhoods to check"""
     import matplotlib.pyplot as plt
     from correlation import neighborhoods
     fig, ax = plt.subplots()
@@ -1664,6 +1690,7 @@ def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
 
 
 def derivwidths(w, dx, sigmas, order):
+    """testing function to explore effect of numerical derivatives widths"""
     from scipy.ndimage import gaussian_filter1d
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
@@ -1689,6 +1716,8 @@ def derivwidths(w, dx, sigmas, order):
 
 
 class SciFormatter(Formatter):
+    """subclass string.Formatter that recognizes `e` format for sci notation"""
+
     def format_field(self, value, format_spec):
         if format_spec.endswith('T'):
             s = format(value, format_spec[:-1])

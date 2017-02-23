@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Various functions for functions, such as common mathematical functions,
+curve-fitting, and functionals.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
@@ -7,7 +13,7 @@ import itertools as it
 from collections import namedtuple
 
 import numpy as np
-from numpy.polynomial import polynomial as poly
+from numpy.polynomial import polynomial
 from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
@@ -19,32 +25,44 @@ twopi = 2*pi
 rt2 = np.sqrt(2)
 
 
-def poly_exp(x, gamma, a, *coeffs):  # return_poly=False):
+def poly_exp(x, gamma, amp, *coeffs):
     """ exponential decay with a polynomial decay scale
 
+                     gamma
                  - x
-           ------------------
-           a + b x + c x² ...
-        e
+          -----------------------
+          c0 + c1 x + c2 x² + ...
+    a * e
     """
-    return_poly = False
-    d = poly.polyval(x, coeffs or (1,))
-    f = a*np.exp(-x**gamma/d)
-    return (f, d) if return_poly else f
+    d = polynomial.polyval(x, coeffs or (1,))
+    return amp * np.exp(-x**gamma/d)
 
 
-def vary_gauss(a, sig=1, verbose=False):
-    n = len(a)
-    b = np.empty_like(a)
+def vary_gauss(arr, sig=1, verbose=False):
+    """gaussian filter with variable width
+
+    parameters
+    ----------
+    arr : array to be smoothed
+    sig : gaussian width, which may be any of the following types:
+        - scalar:     width = sig * x
+        - tuple:      width = sig[0] + sig[1]*x + ...
+        - callable:   width = sig(x)
+        - arraylike:  width = sig
+
+
+    """
+    n = len(arr)
+    out = np.empty_like(arr)
 
     if np.isscalar(sig):
         sig *= np.arange(n)
     elif isinstance(sig, tuple):
-        sig = poly.polyval(np.arange(n), sig)
+        sig = polynomial.polyval(np.arange(n), sig)
     elif callable(sig):
         sig = sig(np.arange(n))
     elif hasattr(sig, '__getitem__'):
-        assert len(a) == len(sig)
+        assert len(arr) == len(sig)
     else:
         raise TypeError('`sig` is neither callable nor arraylike')
     for i, s in enumerate(sig):
@@ -52,30 +70,30 @@ def vary_gauss(a, sig=1, verbose=False):
         w = round(2*s)  # kernel half-width, must be integer
         if s == 0:
             s = 1
-        k = gauss(np.arange(-w, w+1, dtype=float), sig=s)
+        k = gauss(np.arange(-w, w + 1, dtype=float), sig=s)
 
         # slice the array (min/max prevent going past ends)
-        al = max(i - w,     0)
+        al = max(i - w, 0)
         ar = min(i + w + 1, n)
-        ao = a[al:ar]
+        ao = arr[al:ar]
 
         # and the kernel
-        kl = max(w - i,     0)
-        kr = min(w - i + n, 2*w+1)
+        kl = max(w - i, 0)
+        kr = min(w - i + n, 2*w + 1)
         ko = k[kl:kr]
-        b[i] = np.dot(ao, ko)/ko.sum()
+        out[i] = np.dot(ao, ko)/ko.sum()
 
-    return b
+    return out
 
 
 def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
-    l = np.searchsorted(xdata, x0-w/2)
-    r = np.searchsorted(xdata, x0+w/2)
+    """fit a peak (gaussian or parabola) to a high point in a curve"""
+    l, r = np.searchsorted(xdata, [x0-w/2, x0+w/2])
     x = xdata[l:r+1]
     y = ydata[l:r+1]
     form = form.lower()
     if form.startswith('p'):
-        c = poly.polyfit(x, y, 2)
+        c = polynomial.polyfit(x, y, 2)
         loc = -0.5*c[1]/c[2]
         height = c[0] - 0.25 * c[1]**2 / c[2]
     elif form.startswith('g'):
@@ -86,40 +104,30 @@ def fit_peak(xdata, ydata, x0, y0=1., w=helpy.S_slr, form='gauss'):
 
 
 def exp_decay(t, sig=1., a=1., c=0):
-    """ exp_decay(t, sig, a, c)
-        exponential decay function for fitting
-
-        Args:
-            t,  independent variable
-        Params:
-          sig,  decay constant
-            a,  prefactor
-            c,  constant offset
-
-        Returns:
-            value at t
+    """exponential decay function
+                                           - t
+                                          -----
+                                           sig
+       exp_decay(t, sig, a, c) = c + a * e
     """
     return c + a*np.exp(-t/sig)
 
 
 def log_decay(t, a=1, l=1., c=0.):
+    """logarithmic decay function
+
+                                            t
+       log_decay(t, a, l, c) = c - a * log ---
+                                            l
+    """
     return c - a*np.log(t/l)
 
 
 def powerlaw(t, b=1., a=1., c=0):
-    """ powerlaw(t, b, a, c)
-        power law function for fitting
-                                      -b
-        powerlaw(t, b, a, c) = c + a t
+    """power law decay function
+                                     -b
+       powerlaw(t, b, a, c) = c + a t
 
-        Args:
-            t,  independent variable
-        Params:
-            b,  exponent (power)
-            a,  prefactor
-            c,  constant offset
-        Returns:
-            power law value at t
     """
     return c + a * np.power(t, -b)
 
@@ -128,6 +136,8 @@ decays = {'exp': exp_decay, 'pow': powerlaw}
 
 
 def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
+    """double power law decay, constant slows to smaller value at crossover time
+    """
     p1 = powerlaw(t, b1, d1, c1)
     p2 = powerlaw(t, b2, d2, c2)
     cp = np.maximum(p1, p2)
@@ -142,6 +152,7 @@ def chained_power(t, d1, d2, b1=1, b2=1, c1=0, c2=0, ret_crossover=False):
 
 
 def shift_power(t, tc=0, a=1, b=1, c=0, dt=0):
+    """power law decay function with (protected to keep positive) timeshift"""
     tshift = np.sqrt((tc-t)**2 + dt**2) if dt else tc - t
     return powerlaw(tshift, b, a, c)
 
@@ -159,6 +170,13 @@ def critical_power(t, f, tc=0, a=None, b=None, c=None,
 
 
 def gauss(x, a=1., x0=0., sig=1., c=0.):
+    """gaussian function (e.g., the pdf of a normal distribution)
+
+                                        - (x - x0)²
+                                        -----------
+                                            sig²
+    gauss(x, a, x0, sig, c) = c + a * e
+    """
     x2 = np.square(x-x0)
     s2 = sig*sig
     return c + a*np.exp(-x2/s2)
@@ -198,7 +216,22 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
 
 
 def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
-    """ Replace nans in function f(x) with their linear interpolation"""
+    """ Replace nans in function f(x) with their linear interpolation
+
+        parameters
+        ----------
+        f : 1d or 2d array with some nans
+        x : x-values for array f (in case non-uniform)
+        max_gap : upper limit for number of consecutive nans to interpolate.
+            nans in a consecutive run of length over max_gap will remain.
+        inplace : whether to overwite nans in f, or to return a copy.
+        verbose : whether to print information about gaps interpolated.
+
+        returns
+        -------
+        interpolated : f (itself if inplace otherwise a copy) with nans replaced
+            by the interpolated values (may still have nans).
+    """
     n = len(f)
     if n < 3:
         return f
@@ -229,9 +262,9 @@ def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
         bfin = ifin
     gaps = np.diff(bfin) - 1
     if verbose:
-        fmt = '\t      interp {:7} {:8} {:10}'.format
-        print fmt('{}@{}'.format(gaps.max(), gaps.argmax()),
-                  np.count_nonzero(gaps), gaps.sum())
+        print '\t      interp {:7} {:8} {:10}'.format(
+            '{}@{}'.format(gaps.max(), gaps.argmax()),
+            np.count_nonzero(gaps), gaps.sum())
     inan = ((gaps > 0) & (gaps <= max_gap)).nonzero()[0]
     if len(inan) < 1:
         return f
@@ -247,6 +280,28 @@ def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
 
 
 def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
+    """ fill gaps in a function f(x)
+
+            f = [9, 2, 5, 0]  --->  [9, 2, *, *, 5, *, *, 0]
+            x = [0, 1, 4, 7]  --->  [0, 1, 2, 3, 4, 5, 6, 7]
+
+        where * is the representation of np.nan in f.dtype
+
+        parameters
+        ----------
+        f : values at gapped x.
+        x : array with missing values, must be linear.
+        max_gap : upper limit for size of gap to fill. if largest gap exceeds
+            this, return (None, x[, gaps])
+        ret_gaps : whether to return gap sizes found
+        verbose : whether to print information about gaps filled.
+
+        returns
+        -------
+        filled_f : expanded f with gaps filled by np.nan (or equivalent for f)
+        filled_x : expanded x with all gaps interpolated
+        [gaps] : (if ret_gaps) array of the sizes of each gap.
+    """
     gaps = np.diff(x) - 1
     ret_gaps = (gaps,) if ret_gaps else ()
     mx = gaps.max()
@@ -276,7 +331,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
 
     A function convolved with the derivative of a gaussian kernel gives the
     derivative of the function convolved with the integral of the kernel of a
-    gaussian kernel.  For any convolution:
+    gaussian kernel. For any convolution:
         (f * g)' = f * g' = g * f'
     so we start with f and g', and return g and f', a smoothed derivative.
 
@@ -332,7 +387,6 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         if iwidth < min_iwidth:
             msg = "Width of {} too small for reliable results using {}"
             raise UserWarning(msg.format(iwidth, min_iwidth))
-            iwidth = min_iwidth
         from scipy.ndimage import gaussian_filter1d
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
@@ -342,9 +396,14 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
 
 
 def flip(f, x=None):
-    """reverse a function f(x).
+    """reverse a function f(x) about x = 0, giving f(-x)
 
-    return (f(x), f(-x), x)
+    returns
+    -------
+    f_pos : the function f(x) in the overlapping domain
+    f_neg : the reversed function f(-x)
+    x : argument x to function f
+    i : slice to the overlapping region
     """
     if x is None:
         l = len(f)/2
@@ -419,12 +478,8 @@ def symmetry(f, x=None, parity=None, integrate=False):
     return sym(x, i, *parts, symmetry=(total if integrate else normed))
 
 
-def print_stats(**kwargs):
-    for k, v in kwargs.iteritems():
-        print k + ':', v.shape, 'min', v.min(1), 'max', v.max(1)
-
-
 def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
+    """testing function for propagating uncertainties"""
     if size >= 10:
         size = np.log10(size)
     size = int(round(size))
@@ -448,7 +503,8 @@ def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
     x_meas = x_true + x_err
     if verbose:
         print
-        print_stats(x_true=x_true, x_meas=x_meas, x_err=x_err)
+        for k, v in dict(x_true=x_true, x_meas=x_meas, x_err=x_err).iteritems():
+            print k + ':', v.shape, 'min', v.min(1), 'max', v.max(1)
     xfmt = 'x: [{d[1][0]:5.2g}, {d[1][1]:5.2g}) +/- {dx:<5.4g} '
     thetafmt = 'theta: [{d[0][0]:.2g}, {d[0][1]:.3g}) +/- {dtheta:<5.4g} '
     if func == 'nn':
@@ -498,7 +554,7 @@ def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
     ratio = f_uncert/f_err_std
     missed = ratio - 1
     print '{:< 9.4f}/{:< 9.4f} = {:<.3f} ({: >+7.2%})'.format(
-            f_uncert, f_err_std, ratio, missed),
+        f_uncert, f_err_std, ratio, missed),
     print '='*int(-np.log10(np.abs(missed)))
     if verbose:
         print
@@ -506,6 +562,7 @@ def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
 
 
 def sigprint(sigma):
+    """print some info about uncertainty sigma"""
     sigfmt = ('{:7.4g}, '*5)[:-2].format
     mn, mx = sigma.min(), sigma.max()
     return sigfmt(mn, sigma.mean(), mx, sigma.std(ddof=1), mx/mn)
@@ -514,6 +571,7 @@ def sigprint(sigma):
 def sigma_for_fit(arr, std_err, std_dev=None, added=None, x=None, plot=False,
                   relative=None, const=None, xnorm=None, ignore=None,
                   verbose=False):
+    """calculate the uncertainty for fitting a function"""
     if x is None:
         x = np.arange(len(arr))
     if ignore is not None:
