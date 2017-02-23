@@ -1944,7 +1944,7 @@ if __name__ == '__main__':
     else:
         if readprefix == 'simulate':
             import simulate as sim
-            spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+            spar = {'DR': 1/20, 'v0': 0.10, 'DT': 0.01,
                     'fps': args.fps, 'side': args.side, 'size': 1000}
             print spar
             sdata = [sim.SimTrack(num=i, **spar)
@@ -2095,10 +2095,11 @@ if __name__ == '__main__':
             if args.save:
                 helpy.save_fits(saveprefix, fits)
 
-                save = '{}-correlations.pdf'.format(saveprefix)
-                print 'saving all correlations figure to',
-                print os.path.relpath(save, absprefix.replace(relprefix, ''))
-                fig.savefig(save, bbox_inches='tight', pad_inches=0)
+                if args.fig == 0:
+                    save = '{}-correlations.pdf'.format(saveprefix)
+                    print 'saving all correlations figure to',
+                    print os.path.relpath(save, absprefix.replace(relprefix, ''))
+                    fig.savefig(save, bbox_inches='tight', pad_inches=0)
 
             if args.show:
                 plt.show()
