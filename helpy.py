@@ -145,8 +145,7 @@ def splitter(data, indices, method=None,
         tracksets = splitter(data, 't', noncontiguous=True, ret_dict=True)
         trackset = tracksets[trackid]
     """
-    multi = isinstance(data, tuple)
-    if not multi:
+    if not isinstance(data, tuple):
         data = (data,)
     if isinstance(indices, basestring):
         indices = data[0][indices]
@@ -170,7 +169,7 @@ def splitter(data, indices, method=None,
             sects = [np.split(datum, i[1:]) for datum in data]
         ret = [dict(it.izip(u, sect)) if ret_dict else it.izip(u, sect)
                for sect in sects]
-    return ret if multi else ret[0]
+    return ret[0] if len(ret) == 1 else ret
 
 
 def is_sorted(a):
@@ -1598,36 +1597,33 @@ def circle_click(im):
 
     print ("Please click three points on circumference of the boundary, "
            "then close the figure")
+    clicks = []
+    center = []
     if isinstance(im, basestring):
         im = plt.imread(im)
-    xs = []
-    ys = []
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(111)
+    fig, ax = plt.subplots(figsize=(12, 12))
     ax.imshow(im)
 
     def circle_click_connector(click):
         """receive and save clicks. when there are three, calculate the circle
 
          * swap x, y to convert image coordinates to cartesian
-         * the return value cannot be saved, so modify a global variable
+         * the return value cannot be saved, so modify a mutable variable
+           (center) from an outer scope
         """
-        x, y = click.ydata, click.xdata
-        xs.append(x)
-        ys.append(y)
-        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(xs), x, y)
-        if len(xs) == 3:
-            print 'got three points'
-            global xo, yo, r
-            xo, yo, r = circle_three_points(xs, ys)
-            cpatch = matplotlib.patches.Circle([yo, xo], r, linewidth=3,
-                                               color='g', fill=False)
+        clicks.append([click.ydata, click.xdata])
+        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(clicks), *clicks[-1])
+        if len(clicks) == 3:
+            center.extend(circle_three_points(clicks))
+            print 'center {:.2f}, {:.2f}, radius {:.2f}'.format(*center)
+            cpatch = matplotlib.patches.Circle(
+                center[1::-1], center[2], linewidth=3, color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
 
     fig.canvas.mpl_connect('button_press_event', circle_click_connector)
     plt.show()
-    return xo, yo, r
+    return center
 
 
 def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
