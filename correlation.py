@@ -475,7 +475,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
             g = g - g.mean(0)
         elif cumulant[0]:
             f = f - f.mean(0)
-        elif cumulant[1]:
+        elif cumulant[-1]:
             g = g - g.mean(0)
 
     correlator = convolve if reverse else correlate
