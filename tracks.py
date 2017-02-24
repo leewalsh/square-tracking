@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    import os.path
+    import os
     relprefix = args.prefix
     absprefix = os.path.abspath(relprefix)
     readprefix = absprefix

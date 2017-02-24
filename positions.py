@@ -15,7 +15,7 @@ from collections import namedtuple
 from itertools import izip
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
+from scipy import ndimage
 
 # skimage (scikit-image) changed the location, names, and api of several
 # functions at versions 0.10 and 0.11 (at leaste), but they still have
@@ -112,23 +112,24 @@ def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
     """
     from skimage.segmentation import random_walker
     if sigma > 0:
-        im = gaussian_filter(im, sigma)
+        im = ndimage.gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
     labels[im < min_thresh*im.max()] = 1
     labels[im > max_thresh*im.max()] = 2
     return random_walker(im, labels)
 
 
-def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
+def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
     """ Segment image using convolution with gaussian kernel and threshold
 
         parameters
         ----------
         im : the original image to be labeled
-        thresh : the threshold above which pixels are included in units of
-            intensity std dev
-        rmv : if given, the positions at which to remove large dots
         kern : kernel size
+        thresh : the threshold above which pixels are included
+            if integer, in units of intensity std dev
+            if float, in absolute units of intensity
+        rmv : if given, the positions at which to remove large dots
 
         returns
         -------
@@ -137,21 +138,21 @@ def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
     """
     if rmv is not None:
         im = remove_disks(im, *rmv)
-    if kern == 0:
-        raise ValueError('kernel size `kern` not set')
     kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
-    convolved = convolve(im, kernel)
+    convolved = ndimage.convolve(im, kernel)
+    convolved -= convolved.min()
+    convolved /= convolved.max()
 
     if args.plot > 2:
         snapshot('kern', kernel)
         snapshot('convolved', convolved)
 
-    convolved -= convolved.min()
-    convolved /= convolved.max()
+    if isinstance(thresh, int):
+        if rmv is not None:
+            thresh -= 1  # smaller threshold for corners
+        thresh = thresh*convolved.std() + convolved.mean()
+    threshed = convolved > thresh
 
-    if rmv is not None:
-        thresh -= 1  # smaller threshold for corners
-    threshed = convolved > convolved.mean() + thresh*convolved.std()
     labels = sklabel(threshed, connectivity=1)
 
     if args.plot > 2:
@@ -214,7 +215,7 @@ def filter_segments(labels, max_ecc, min_area, max_area, keep=False,
     return pts
 
 
-def prep_image(imfile):
+def prep_image(imfile, width=2):
     """ Open an image from file, clip, normalize it, and return it as an array.
 
         parameters
@@ -228,16 +229,16 @@ def prep_image(imfile):
     """
     if args.verbose:
         print "opening", imfile
-    im = imread(imfile).astype(float)
+    im = ndimage.imread(imfile).astype(float)
     if args.plot > 2:
         snapshot('orig', im)
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
         im = im[..., 1]
 
-    # clip to two standard deviations about the mean
+    # clip to `width` times the standard deviation about the mean
     # and normalize to [0, 1]
-    s = 2*im.std()
+    s = width*im.std()
     m = im.mean()
     im -= m - s
     im /= 2*s
@@ -327,16 +328,17 @@ def remove_segments(orig, particles, labels):
     return
 
 
-def remove_disks(orig, particles, dsk, replace='sign', out=None):
+def remove_disks(orig, particles, removal_mask, replace='sign', out=None):
     """ remove a patch of given shape centered at each dot location
 
         parameters
         ----------
         orig : input image as ndarray or PIL Image
         particles : list of particles (namedtuple Segment)
-        dsk : either a mask array that defines the shape of a patch to
-            remove at the site of each particle, or the radius to create a disk
-            using disk(dsk), a square array of size 2*dsk+1
+        removal_mask : shape or size of patch to remove at site of each particle
+            given as either a mask array that defines the patch
+            or a scalar (int or float) that gives radius to create a disk using
+            disk(r), which is a square array of size 2*r+1
         replace : value to replace disks with. Generally should be one of:
             - a float between 0 and 1 such as 0, 0.5, 1, or the image mean
             - 'mean', to calculate the mean
@@ -347,9 +349,9 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
         -------
         out : the original image with big dots replaced with `replace`
     """
-    if np.isscalar(dsk):
-        sign = np.sign(dsk)
-        dsk = disk(abs(dsk))
+    if np.isscalar(removal_mask):
+        sign = np.sign(removal_mask)
+        removal_mask = disk(abs(removal_mask))
     else:
         sign = 1
     if replace == 'mean':
@@ -363,7 +365,7 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
         xys = tuple([np.round(particles[x]).astype(int) for x in 'XY'])
     disks = np.zeros(orig.shape, bool)
     disks[xys] = True
-    disks = binary_dilation(disks, dsk)
+    disks = ndimage.binary_dilation(disks, removal_mask)
     if out is None:
         out = orig.copy()
     out[disks] = replace
@@ -373,16 +375,17 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     return out
 
 if __name__ == '__main__':
+    import os
+    import sys
+
     if args.noplot:
         args.plot = 0
     if args.plot:
         if helpy.gethost() == 'foppl':
             import matplotlib
             matplotlib.use('Agg')
-        import matplotlib.pyplot as pl
+        import matplotlib.pyplot as plt
     from multiprocessing import Pool, cpu_count
-    from os import path, makedirs
-    import sys
 
     first = args.files[0]
     if len(args.files) > 1:
@@ -391,7 +394,7 @@ if __name__ == '__main__':
         i = sys.argv.index(first)
         argv = filter(lambda s: s not in filenames, sys.argv)
         argv.insert(i, filepattern)
-        argv[0] = path.basename(argv[0])
+        argv[0] = os.path.basename(argv[0])
         argv = ' '.join(argv)
     else:
         from glob import glob
@@ -409,29 +412,28 @@ if __name__ == '__main__':
             args.plot -= not helpy.bool_input()
 
     suffix = '_POSITIONS'
-    output = args.output
-    outdir = path.abspath(path.dirname(output))
-    if not path.exists(outdir):
+    outdir = os.path.abspath(os.path.dirname(args.output))
+    if not os.path.exists(outdir):
         print "Creating new directory", outdir
-        makedirs(outdir)
-    if output.endswith('.gz'):
+        os.makedirs(outdir)
+    if args.output.endswith('.gz'):
         args.gz = 1
-        output = output[:-3]
-    if output.endswith('.txt'):
-        output = output[:-4]
-    if output.endswith(suffix):
-        prefix = output[:-len(suffix)]
+        args.output = args.output[:-3]
+    if args.output.endswith('.txt'):
+        args.output = args.output[:-4]
+    if args.output.endswith(suffix):
+        prefix = args.output[:-len(suffix)]
     else:
-        prefix = output
-        output += suffix
-    outs = output, prefix + '_CORNER' + suffix
+        prefix = args.output
+        args.output += suffix
+    outputs = args.output, prefix + '_CORNER' + suffix
 
     helpy.save_log_entry(prefix, argv)
     meta = helpy.load_meta(prefix)
 
     imdir = prefix + '_detection'
-    if not path.isdir(imdir):
-        makedirs(imdir)
+    if not os.path.isdir(imdir):
+        os.makedirs(imdir)
 
     kern_area = np.pi*args.kern**2
     sizes = {'center': {'max_ecc': args.ecc,
@@ -458,16 +460,16 @@ if __name__ == '__main__':
         global snapshot_num, imprefix
         if args.save:
             fname = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, desc)
-            pl.imsave(fname, im, **kwargs)
+            plt.imsave(fname, im, **kwargs)
         else:
-            fig, ax = pl.subplots()
-            ax.imshow(im, title=path.basename(imprefix)+'_'+desc, **kwargs)
+            fig, ax = plt.subplots()
+            ax.imshow(im, title=os.path.basename(imprefix)+'_'+desc, **kwargs)
         snapshot_num += 1
 
     def plot_points(pts, img, name='', s=10, c='r', cm=None,
                     vmin=None, vmax=None, cbar=False):
         global snapshot_num, imprefix
-        fig, ax = pl.subplots(figsize=(8, 8))
+        fig, ax = plt.subplots(figsize=(8, 8))
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
         # pixels per inch, and use integer multiples of that for dpi
@@ -493,7 +495,7 @@ if __name__ == '__main__':
             savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, name)
             fig.savefig(savename, dpi=dpi)
             snapshot_num += 1
-            pl.close(fig)
+            plt.close(fig)
 
     def plot_positions(segments, labels, convolved=None, **kwargs):
         Segment_dtype = np.dtype({'names': Segment._fields,
@@ -526,8 +528,8 @@ if __name__ == '__main__':
     def get_positions((n, filename)):
         global snapshot_num, imprefix
         snapshot_num = 0
-        filebase = path.splitext(path.basename(filename))[0]
-        imbase = path.join(imdir, filebase)
+        filebase = os.path.splitext(os.path.basename(filename))[0]
+        imbase = os.path.join(imdir, filebase)
         imprefix = imbase
         image = prep_image(filename)
         ret = []
@@ -557,7 +559,7 @@ if __name__ == '__main__':
             ret.append(centers)
         if not n % print_freq:
             fmt = '{:3d} {}s'.format
-            print path.basename(filename).rjust(20), 'Found',
+            print os.path.basename(filename).rjust(20), 'Found',
             print ', '.join([fmt(len(r), d) for r, d in zip(ret, dots)])
         return ret if args.both else ret[0]
 
@@ -579,7 +581,7 @@ if __name__ == '__main__':
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
     if args.plot:
-        fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+        fig, axes = plt.subplots(nrows=len(dots), ncols=2, sharey='row')
         axes = np.atleast_2d(axes)
     else:
         axes = [None, None]
@@ -591,7 +593,7 @@ if __name__ == '__main__':
         txtfmt = ['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d']
         ext = '.txt'+'.gz'*args.gz
 
-    for dot, point, out, axis in zip(dots, points, outs, axes):
+    for dot, point, out, axis in zip(dots, points, outputs, axes):
         size = sizes[dot]
         if args.plot:
             eax, aax = axis
@@ -620,10 +622,11 @@ if __name__ == '__main__':
             helpy.txt_to_npz(out+ext, verbose=args.verbose, compress=args.gz)
     if args.save:
         from shutil import copy
-        copy(first, prefix+'_'+path.basename(first))
-        helpy.save_meta(prefix, meta, path_to_tiffs=path.abspath(filepattern),
+        copy(first, prefix+'_'+os.path.basename(first))
+        helpy.save_meta(prefix, meta,
+                        path_to_tiffs=os.path.abspath(filepattern),
                         detect_thresh=args.thresh, detect_removed=args.remove)
         if args.plot:
             fig.savefig(prefix+'_SEGMENTSTATS.pdf')
     elif args.plot:
-        pl.show()
+        plt.show()

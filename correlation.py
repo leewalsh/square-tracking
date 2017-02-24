@@ -9,25 +9,21 @@ Massachusetts; all rights reserved.
 
 from __future__ import division
 
-from math import sqrt
+from math import sqrt, pi
 from cmath import phase
 from itertools import combinations
 
 import numpy as np
-from scipy.spatial.distance import pdist, cdist
-from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
-from scipy.ndimage import gaussian_filter
-from scipy.signal import hilbert, correlate, convolve
-from scipy.stats import rv_continuous, vonmises
+from scipy import ndimage, signal, stats
+from scipy.spatial import distance, Voronoi, Delaunay, cKDTree as KDTree
 from scipy.optimize import curve_fit
-from skimage.morphology import disk, binary_dilation
+from skimage.morphology import binary_dilation, disk as skdisk
 
 import helpy
 
 ss = helpy.S_slr  # side length of square in pixels
 rr = helpy.R_slr  # radius of disk in pixels
 
-pi = np.pi
 tau = 2*pi
 
 
@@ -51,9 +47,10 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
         margin *= ss
     d = helpy.dist(positions, center)   # distances to center
     if radius is None:
-        n_pts = len(positions)
-        max_sep = 0 if n_pts > 1e4 else cdist(positions, positions).max()
-        radius = max(max_sep/2, d.max()) + ss/2
+        max_sep = 0
+        if len(positions) < 1e4:
+            max_sep = distance.cdist(positions, positions).max()/2
+        radius = max(max_sep, d.max()) + ss/2
     elif radius < ss:
         radius *= ss
     dmax = radius - margin
@@ -117,8 +114,8 @@ def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
     """
     center = 0.5*(positions.max(0) + positions.min(0))
     d = helpy.dist(positions, center)   # distances to center
-    # faster than squareform(pdist(positions)) wtf
-    r = cdist(positions, positions)
+    # faster than squareform(distance.pdist(positions)) wtf
+    r = distance.cdist(positions, positions)
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
         rmax = 2*radius     # this will have terrible statistics at large r
@@ -179,7 +176,7 @@ def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
     center = 0.5*(positions.max(0) + positions.min(0))
     d = helpy.dist(positions, center)   # distances to center
     dmask = d < d.max() - margin
-    r = cdist(positions, positions[dmask])  # .ravel()
+    r = distance.cdist(positions, positions[dmask])  # .ravel()
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
@@ -308,7 +305,7 @@ def structure_factor(positions, m=4, margin=0):
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)
     f[inds[:, 0], inds[:, 1]] = 1
-    f = binary_dilation(f, disk(ss/2))
+    f = binary_dilation(f, skdisk(ss/2))
     return fft2(f, overwrite_x=True)
 
 
@@ -478,7 +475,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         elif cumulant[-1]:
             g = g - g.mean(0)
 
-    correlator = convolve if reverse else correlate
+    correlator = signal.convolve if reverse else signal.correlate
     if f.ndim == g.ndim == 2:
         # apply the correlator function to each pair of columns in f, g
         c = np.stack([correlator(*fgi, mode=mode) for fgi in zip(f.T, g.T)])
@@ -494,7 +491,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
     # divide by overlap
     n = np.concatenate([np.arange(l - m, l), np.arange(l, m - (L - l), -1)])
     if verbose:
-        overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
+        overlap = correlator(np.ones(l), np.ones(l), mode=mode).astype(int)
         if verbose > 1:
             print n
             print '      n: {}\noverlap: {}'.format(n, overlap)
@@ -630,7 +627,7 @@ def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     if margin < ss:
         margin *= ss
     loc_mask = d < d.max() - margin
-    r = pdist(positions[loc_mask])
+    r = distance.pdist(positions[loc_mask])
     ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
@@ -713,7 +710,7 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     if need_dist:
         ix = np.arange(len(positions))[:, None]
         neighbors, mask = helpy.pad_uneven(neighbors, ix, True, int)
-        distances = cdist(positions, positions)[ix, neighbors]
+        distances = distance.cdist(positions, positions)[ix, neighbors]
         distances[mask] = np.inf
         sort = distances.argsort(1)
         distances, neighbors = distances[ix, sort], neighbors[ix, sort]
@@ -779,7 +776,7 @@ def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):
     dens[indices] = unit_length*unit_length
     if scale is None:
         scale = 2*unit_length
-    gaussian_filter(dens, scale, mode='constant')
+    ndimage.gaussian_filter(dens, scale, mode='constant')
 
 
 def voronoi_density(pos_or_vor):
@@ -936,7 +933,7 @@ def radial_correlation(positions, values, bins=10, correland='*', do_avg=True):
     assert n == len(values[0] if multi else values), "lengths do not match"
 
     i, j = pair_indices(n)
-    rij = pdist(positions)
+    rij = distance.pdist(positions)
     if correland == '*':
         correland = np.multiply
     if multi:
@@ -970,7 +967,7 @@ def site_mean(positions, values, bins=10, coord='xy'):
     return bin_average(positions, values, bins)
 
 
-class vonmises_m(rv_continuous):
+class vonmises_m(stats.rv_continuous):
     """generate von Mises distribution for any m"""
 
     def __init__(self, m):
@@ -978,7 +975,7 @@ class vonmises_m(rv_continuous):
         for i in range(m):
             self.shapes += 'k%d,l%d' % (i, i)
         self.shapes += ',scale'
-        rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
+        stats.rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
         self.numargs = 2*m
 
     def _pdf(self, x, *lks):
@@ -988,29 +985,29 @@ class vonmises_m(rv_continuous):
         print 'x', x
         print 'locs', locs
         print 'kapps', kappas
-        # return np.sum([vonmises.pdf(x, l, k)
+        # return np.sum([stats.vonmises.pdf(x, l, k)
         #                for l, k in zip(locs, kappas)], 0)
         ret = np.zeros_like(x)
         for l, k in zip(locs, kappas):
-            ret += vonmises.pdf(x, l, k)
+            ret += stats.vonmises.pdf(x, l, k)
         return ret / len(locs)
 
 
-class vonmises_4(rv_continuous):
+class vonmises_4(stats.rv_continuous):
     """generate von Mises distribution for m = 4"""
 
     def __init__(self):
-        rv_continuous.__init__(self, a=-np.inf, b=np.inf)
+        stats.rv_continuous.__init__(self, a=-np.inf, b=np.inf)
 
     def _pdf(self, x,
              l1, l2, l3, l4,
              k1, k2, k3, k4,
              a1, a2, a3, a4, c):
         """probability distribution function"""
-        return a1*vonmises.pdf(x, k1, l1) + \
-               a2*vonmises.pdf(x, k2, l2) + \
-               a3*vonmises.pdf(x, k3, l3) + \
-               a4*vonmises.pdf(x, k4, l4) + c
+        return a1*stats.vonmises.pdf(x, k1, l1) + \
+               a2*stats.vonmises.pdf(x, k2, l2) + \
+               a3*stats.vonmises.pdf(x, k3, l3) + \
+               a4*stats.vonmises.pdf(x, k4, l4) + c
 
 
 def vm4_pdf(x,
@@ -1018,10 +1015,10 @@ def vm4_pdf(x,
             k1, k2, k3, k4,
             a1, a2, a3, a4, c):
     """calculate the probability distribution function for m = 4 von Mises"""
-    return a1*vonmises.pdf(x, k1, l1) + \
-           a2*vonmises.pdf(x, k2, l2) + \
-           a3*vonmises.pdf(x, k3, l3) + \
-           a4*vonmises.pdf(x, k4, l4) + c
+    return a1*stats.vonmises.pdf(x, k1, l1) + \
+           a2*stats.vonmises.pdf(x, k2, l2) + \
+           a3*stats.vonmises.pdf(x, k3, l3) + \
+           a4*stats.vonmises.pdf(x, k4, l4) + c
 
 
 def primary_angles(angles, m=4, bins=720, ret_hist=False):
@@ -1126,10 +1123,10 @@ def apply_hilbert(a, sig=None, full=False):
     if sig is None:
         sig = a.size/10.
     if sig:
-        a_smoothed = gaussian_filter(a, sig, mode='reflect')
+        a_smoothed = ndimage.gaussian_filter(a, sig, mode='reflect')
     else:
         a_smoothed = a.mean()
-    h = hilbert(a - a_smoothed)
+    h = signal.hilbert(a - a_smoothed)
     if full:
         return h, a_smoothed
     else:
