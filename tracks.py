@@ -1849,10 +1849,12 @@ if __name__ == '__main__':
         if readprefix == 'simulate':
             import simulate as sim
             spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
-                    'fps': args.fps, 'side': args.side, 'size': 1000}
+                    'fps': args.fps, 'side': args.side}
             print spar
-            sdata = [sim.SimTrack(num=i, **spar)
-                     for i in xrange(1, 1001)]
+            sdata = [
+                sim.SimTrack(num=i, size=int(s), **spar)
+                for i, s in enumerate(np.random.exponential(args.stub, 200))
+            ]
             data = np.concatenate([sdatum.track for sdatum in sdata])
             data['id'] = np.arange(len(data))
         else:
