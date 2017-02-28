@@ -1172,12 +1172,96 @@ def consecutive_fields_view(arr, fields, careful=False):
 
 
 def add_self_view(arr, fields, name):
+    """ Add new field to structured array as view of existing consecutive fields
+
+        Does not copy array data:
+        original and new fields are views of the data of the input array.
+
+        Warning! Do not save the resulting array as numpy formatted file. The
+        file will fail to load due to a size mismatch (the twice-viewed data
+        will be double-counted). Save the orginal array first, or remove the
+        self-viewing fields using remove_self_views before saving. Or (not
+        recommended) save as text with np.savetxt, which will duplicate the
+        self-viewing fields.
+
+        parameters
+        ----------
+        arr : a structured array to which to add a self-viewing field
+        fields : the target fields to be viewed by the new field
+        name : name for the new field
+
+        returns
+        -------
+        with_view : new (not copied) array with original fields plus new view
+
+        example
+        -------
+        create an array with 'x' and 'y' fields, add to it a new field 'xy'
+        that views both 'x' and 'y' as a single (N, 2) view by calling:
+
+            arr = np.empty(10, dtype=[('x', float), ('y', float)])
+            with_view = add_self_view(arr, ('x', 'y'), 'xy')
+    """
     dtype = dict(arr.dtype.fields)
     dt, off = dtype[fields[0]]
     dtype[name] = np.dtype((dt, (len(fields),))), off
     return np.ndarray(arr.shape, dtype, arr, 0, arr.strides)
 
 
+def find_self_views(arr_or_dtype):
+    """ Find fields that view other fields in a structured array or its dtype
+
+        Assume self-viewing fields have a larger itemsize than each viewed field
+
+        parameters
+        ----------
+        arr_or_dtype : a structured array or complex dtype with multiple fields
+
+        returns
+        -------
+        self_views : a list of field names that are views onto other fields. If
+            none are found, an empty list.
+    """
+    if hasattr(arr_or_dtype, 'dtype'):
+        dtype = arr_or_dtype.dtype
+    else:
+        dtype = arr_or_dtype
+
+    # sort by offset, then itemsize, then fieldname:
+    fields = sorted((offset, dt.itemsize, field)
+                    for field, (dt, offset) in dtype.fields.iteritems())
+    last_offset = -1
+    self_views = []
+    for field in fields:
+        if field[0] == last_offset:
+            self_views.append(field[2])
+        last_offset = field[0]
+    return self_views
+
+
+def remove_self_views(arr, self_views=None):
+    """ Remove fields from a structured array that view other fields
+
+        Required for the array to be saved with np.save[z]
+
+        parameters
+        ----------
+        arr : a structured array or a complex dtype with multiple fields
+        self_views : if known, the names of the fields to remove. If not
+            provided, they will be determined by find_self_views
+
+        returns
+        -------
+        arr_single : view of arr with no self views
+    """
+    if self_views is None:
+        self_views = find_self_views(arr)
+    dtype = {f: dt for f, dt in arr.dtype.fields.iteritems()
+             if f not in self_views}
+    return np.ndarray(arr.shape, dtype, arr, 0, arr.strides)
+
+
+# dtypes for the tracks, positions, and velocity structured arrays
 track_dtype = np.dtype({'names': '  id f  t  x  y  o'.split(),
                         'formats': 'u4 u2 i4 f4 f4 f4'.split()})
 pos_dtype = np.dtype({'names': '    f  x  y  lab ecc area id'.split(),
@@ -1187,6 +1271,9 @@ vel_dtype = np.dtype({'names': 'o v x y par perp eta etax etay etapar'.split(),
 
 
 def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
+    """ initialize track data from positions data,
+        optionally with given trackids and orientations
+    """
     if pdata.dtype == track_dtype:
         data = pdata
     else:
@@ -1202,8 +1289,9 @@ def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
 
 
 def dtype_info(dtype='all'):
+    """print some information about the given dtype"""
     if dtype == 'all':
-        [dtype_info(s+b) for s in 'ui' for b in '1248']
+        map(dtype_info, (s+b for s in 'ui' for b in '1248'))
         return
     dt = np.dtype(dtype)
     bits = 8*dt.itemsize
@@ -1257,6 +1345,7 @@ def txt_to_npz(datapath, verbose=False, compress=True):
 
 
 def compress_existing_npz(path, overwrite=False, careful=False):
+    """load an npz and resave it as compressed"""
     orig = np.load(path)
     amtime = os.path.getatime(path), os.path.getmtime(path)
     arrs = {n: orig[n] for n in orig.files}
@@ -1374,6 +1463,7 @@ def bool_input(question='', default=None):
 
 
 def farange(start, stop, factor):
+    """generate a log-spaced range array"""
     start_power = log(start, factor)
     stop_power = log(stop, factor)
     dt = np.result_type(start, stop, factor)
