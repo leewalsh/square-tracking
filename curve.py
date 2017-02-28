@@ -326,6 +326,54 @@ def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
     return (f, x) + ret_gaps
 
 
+def der_test(f, dx=None, x=None, fprime=None, **kwargs):
+    """run der(f, **kwargs) with some different options and plot"""
+
+    if dx is None and x is None:
+        dx = 1
+        x = np.arange(len(f))
+    elif x is None:
+        x = dx * np.arange(len(f))
+    elif dx is None:
+        dx = x[1] - x[0]
+
+    if f == 'step':
+        f = np.ones_like(x)
+        f[:len(f)//2] = 0
+        fprime = np.zeros_like(f)
+        fprime[len(f)//2] = 1/dx
+    elif f == 'lin':
+        f = x
+        fprime = np.ones_like(f)
+
+    widths = (1, 2) + tuple(np.arange(.5, 1.3, .1))# 0.5, 2/np.e, 0.99, 1.01, 1.5, 1.99, 2.01)
+    df = {width: der(f, x=x, iwidth=width) for width in widths}
+
+    f_cumsum = {width : np.cumsum(df[width])*dx
+                for width in df}
+    f_trapz = {width : np.array([np.trapz(df[width][:i], x[:i])
+                                 for i in xrange(len(x))])
+               for width in df}
+
+    fig, ax = plt.subplots()
+    ax.plot(x, f - f.mean(), '-', lw=4, c='k', label='f')
+    if fprime is not None:
+        ax.plot(x, fprime, '*', c='k', ms=10, label="f'")
+
+    colors = map('C{}'.format, xrange(len(widths)))
+    for width, color in zip(widths, colors):
+        label = '(width={})'.format(width)
+        print 'width:', width
+        print df[width]
+        ax.plot(x, df[width], '.-', c=color, label='der' + label)
+        ax.plot(x, f_cumsum[width] - f_cumsum[width].mean(),
+                ':', c=color, label='np.cumsum' + label)
+        ax.plot(x[:-1], f_trapz[width][1:] - f_trapz[width][1:].mean(),
+                '--', c=color, label='np.trapz' + label)
+    ax.legend(loc='best')
+    fig.tight_layout()
+
+
 def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     """ Take a finite derivative of f(x) using convolution with gaussian
 
@@ -343,7 +391,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     xwidth or iwidth : smoothing width (sigma) for gaussian.
         use iwidth for index units, (simple array index width)
         use xwidth for the physical units of x (x array is required)
-        use 0 for no smoothing. Gives an array shorter by 1.
+        use 0 for no smoothing.
     x or dx : required for normalization
         if x is provided, dx = np.diff(x)
         otherwise, a scalar dx is presumed
@@ -364,6 +412,8 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         assert dx[:-1].min() > 1e-6, ("Non-increasing independent variable "
                                       "(min step {})".format(dx[:-1].min()))
         dx[-1] = dx[-2]
+        if np.allclose(dx, dx[0]):
+            dx = dx[0]
 
     if xwidth is None and iwidth is None:
         if x is None:
@@ -373,7 +423,8 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
     if iwidth is None:
         iwidth = xwidth / dx
 
-    if iwidth == 0:
+    if iwidth == 0 or iwidth is 1:
+        print 'using np.diff'
         if order == 1:
             df = f.copy()
             df[:-1] = df[1:] - df[:-1]
@@ -382,7 +433,11 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
             df = np.diff(f, n=order)
             beg, end = order//2, (order+1)//2
             df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
+    elif iwidth is 2 and order == 1:
+        print 'using np.gradient'
+        return np.gradient(f, dx)
     else:
+        print 'using gaussian_filter'
         min_iwidth = 0.5
         if iwidth < min_iwidth:
             msg = "Width of {} too small for reliable results using {}"
@@ -390,6 +445,7 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         from scipy.ndimage import gaussian_filter1d
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
+        print 'truncate', truncate
         df = gaussian_filter1d(f, iwidth, order=order, truncate=truncate)
 
     return df/dx**order
