@@ -453,13 +453,12 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         return np.gradient(f, dx)
     else:
         from scipy.ndimage import correlate1d
-        min_iwidth = 0.5
+        min_iwidth = 0.25
         if iwidth < min_iwidth:
             msg = "Width of {} too small for reliable results using {}"
             raise UserWarning(msg.format(iwidth, min_iwidth))
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
-        print 'truncate', truncate
         kern = gaussian_kernel(iwidth, order=order, truncate=truncate)
         df = correlate1d(f, kern, mode='nearest')
 

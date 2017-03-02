@@ -72,7 +72,7 @@ pi = np.pi
 
 ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '--', 'perp': '-.', 'etapar': ':'}
 marker = {'o': 'o', 'x': '-', 'y': '|', 'par': '^', 'perp': 'v', 'etapar': '^'}
-cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
+cs = {'mean': 'r', 'var': 'g', 'D': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
       'o': plt.cm.PRGn(0.9), 'x': plt.cm.PRGn(0.1), 'y': plt.cm.PRGn(0.1),
       'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.8),
       'perp': plt.cm.RdBu(0.2)}
@@ -114,7 +114,7 @@ def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     v['etapar'] = v['par'] - v0
     v = helpy.add_self_view(v, ('x', 'y'), 'xy')
     v = helpy.add_self_view(v, ('par', 'perp'), 'nt')
-    return v
+    return v.T
 
 
 def compile_noise(tracksets, width=(0.65,), cat=True, side=1, fps=1):
@@ -150,33 +150,37 @@ def get_stats(a):
     SK_t = skewtest(a, -1, nan_policy='omit')
     KU_t = kurtosistest(a, -1, nan_policy='omit')
     if keepdims:
-        SK = SK[..., None]
-        KU = KU[..., None]
+        SK = np.array(SK)[..., None]
+        KU = np.array(KU)[..., None]
     else:
         SK = float(SK)
         KU = float(KU)
     stat = {'mean': M, 'var': variance, 'D': D, 'std': SE,
-            'skew': SK, 'skew_test': float(SK_t.statistic),
-            'kurt': KU, 'kurt_test': float(KU_t.statistic)}
-    print '\n'.join(['{:>10}: {: .4f}'.format(k, v) for k, v in stat.items()])
+            'skew': SK, 'skew_test': np.array(SK_t.statistic),
+            'kurt': KU, 'kurt_test': np.array(KU_t.statistic)}
+    if not keepdims:
+        print '\n'.join(['{:>10}: {: .4f}'.format(k, v)
+                         for k, v in stat.items()])
     return stat
 
 
-def compile_widths(tracksets, widths, side=1, fps=1):
+def compile_widths(tracksets, widths, side=1, fps=1, **kwargs):
     vs = compile_noise(tracksets, widths, cat=True, side=side, fps=fps)
-    stats = {v: get_stats(np.concatenate(pvs.values()))
-             for v, pvs in helpy.transpose_dict(vs).items()}
+    stats = {v: get_stats(vs[v].T)
+             for v in ('o', 'par', 'perp', 'etapar')}
     return stats
 
 
 def plot_widths(widths, stats, fig, normalize=False):
-    for i, s in enumerate(stats['o']):
-        ax = fig.add_subplot(len(stats['o']), 1, i+1)
+    statistics = 'mean var D skew kurt'.split()
+    for i, s in enumerate(statistics):
+        ax = fig.add_subplot(len(statistics), 1, i+1)
         for v in stats:
             val = stats[v][s]
             if normalize:
                 sign = np.sign(val.sum())
                 val = sign*val
+                #val = val - val.mean()
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
             ax.plot(widths, val, '.'+ls[v]+cs[s], label=texlabel[v])
@@ -298,7 +302,8 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
 
 
 def command_widths(tsets, compile_args, args, fig=None):
-    stats = compile_widths(tsets, **compile_args)
+    args.width = np.arange(.25, 1, .05)
+    stats = compile_widths(tsets, args.width, **compile_args)
     if fig is None:
         fig = plt.figure(figsize=(8, 12))
     plot_widths(args.width, stats, fig, normalize=args.normalize)
@@ -484,6 +489,7 @@ if __name__ == '__main__':
                 if args.do_translation:
                     command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
 
+        fig.tight_layout()
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
