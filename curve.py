@@ -424,7 +424,6 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         iwidth = xwidth / dx
 
     if iwidth == 0 or iwidth is 1:
-        print 'using np.diff'
         if order == 1:
             df = f.copy()
             df[:-1] = df[1:] - df[:-1]
@@ -434,21 +433,66 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
             beg, end = order//2, (order+1)//2
             df = np.concatenate([[df[0]]*beg, df, [df[-1]]*end])
     elif iwidth is 2 and order == 1:
-        print 'using np.gradient'
         return np.gradient(f, dx)
     else:
-        print 'using gaussian_filter'
+        from scipy.ndimage import correlate1d
         min_iwidth = 0.5
         if iwidth < min_iwidth:
             msg = "Width of {} too small for reliable results using {}"
             raise UserWarning(msg.format(iwidth, min_iwidth))
-        from scipy.ndimage import gaussian_filter1d
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
         print 'truncate', truncate
-        df = gaussian_filter1d(f, iwidth, order=order, truncate=truncate)
+        kern = gaussian_kernel(iwidth, order=order, truncate=truncate)
+        df = correlate1d(f, kern, mode='nearest')
 
     return df/dx**order
+
+
+def gaussian_kernel(sigma, order=0, truncate=4.0):
+    """ mostly copied from scipy.ndimage.gaussian_filter1d """
+    if order not in range(4):
+        raise ValueError('Order outside 0..3 not implemented')
+    sd = float(sigma)
+    # make the radius of the filter equal to truncate standard deviations
+    lw = int(truncate * sd + 0.5)
+    weights = [0.0] * (2 * lw + 1)
+    weights[lw] = 1.0
+    sd = sd * sd
+    # calculate the kernel:
+    for ii in range(1, lw + 1):
+        tmp = np.exp(-0.5 * float(ii * ii) / sd)
+        weights[lw + ii] = tmp
+        weights[lw - ii] = tmp
+    # implement first, second and third order derivatives:
+    if order == 1:  # first derivative
+        weights[lw] = 0.0
+        for ii in range(1, lw + 1):
+            x = float(ii)
+            tmp = -x / sd * weights[lw + ii]
+            weights[lw + ii] = -tmp
+            weights[lw - ii] = tmp
+    elif order == 2:  # second derivative
+        weights[lw] *= -1.0 / sd
+        for ii in range(1, lw + 1):
+            x = float(ii)
+            tmp = (x * x / sd - 1.0) * weights[lw + ii] / sd
+            weights[lw + ii] = tmp
+            weights[lw - ii] = tmp
+    elif order == 3:  # third derivative
+        weights[lw] = 0.0
+        sd2 = sd * sd
+        for ii in range(1, lw + 1):
+            x = float(ii)
+            tmp = (3.0 - x * x / sd) * x * weights[lw + ii] / sd2
+            weights[lw + ii] = -tmp
+            weights[lw - ii] = tmp
+    if order:
+        s = np.arange(-lw, lw+1)**order / np.prod(np.arange(1, order + 1))
+        s = np.dot(weights, s)
+    else:
+        s = np.sum(weights)
+    return np.array(weights) / s
 
 
 def flip(f, x=None):
