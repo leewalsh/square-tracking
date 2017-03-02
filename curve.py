@@ -482,29 +482,18 @@ def gaussian_kernel(sigma, order=0, truncate=4.0):
         weights[lw + ii] = tmp
         weights[lw - ii] = tmp
     # implement first, second and third order derivatives:
-    if order == 1:  # first derivative
-        weights[lw] = 0.0
-        for ii in range(1, lw + 1):
-            x = float(ii)
-            tmp = -x / sd * weights[lw + ii]
-            weights[lw + ii] = -tmp
-            weights[lw - ii] = tmp
-    elif order == 2:  # second derivative
-        weights[lw] *= -1.0 / sd
-        for ii in range(1, lw + 1):
-            x = float(ii)
-            tmp = (x * x / sd - 1.0) * weights[lw + ii] / sd
-            weights[lw + ii] = tmp
-            weights[lw - ii] = tmp
-    elif order == 3:  # third derivative
-        weights[lw] = 0.0
-        sd2 = sd * sd
-        for ii in range(1, lw + 1):
-            x = float(ii)
-            tmp = (3.0 - x * x / sd) * x * weights[lw + ii] / sd2
-            weights[lw + ii] = -tmp
-            weights[lw - ii] = tmp
     if order:
+        weights[lw] *= -1.0 / sd if order == 2 else 0.0
+        for ii in range(1, lw + 1):
+            x = float(ii)
+            if order == 1:  # first derivative
+                tmp = -x / sd * weights[lw + ii]
+            elif order == 2:  # second derivative
+                tmp = (x * x / sd - 1.0) * weights[lw + ii] / sd
+            elif order == 3:  # third derivative
+                tmp = (3.0 - x * x / sd) * x * weights[lw + ii] / (sd * sd)
+            weights[lw + ii] = tmp * (1.0 if order == 2 else -1.0)
+            weights[lw - ii] = tmp
         s = np.arange(-lw, lw+1)**order / np.prod(np.arange(1, order + 1))
         s = np.dot(weights, s)
     else:
