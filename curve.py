@@ -326,50 +326,67 @@ def fill_gaps(f, x, max_gap=10, ret_gaps=False, verbose=False):
     return (f, x) + ret_gaps
 
 
+def cumtrapz(y, x=None, dx=None, axis=-1):
+    if x is None:
+        x = np.arange(len(y)) * dx
+    elif dx is None:
+        dx = x[1:] - x[:-1]
+    out = np.cumsum(dx * (y[1:] + y[:-1])/2)
+    return np.concatenate([[0], out])
+
+
 def der_test(f, dx=None, x=None, fprime=None, **kwargs):
     """run der(f, **kwargs) with some different options and plot"""
 
+    np.random.seed(5829)
     if dx is None and x is None:
         dx = 1
-        x = np.arange(len(f))
+        x = np.arange(10 if isinstance(f, basestring) else len(f))
     elif x is None:
-        x = dx * np.arange(len(f))
+        x = dx * np.arange(10/dx if isinstance(f, basestring) else len(f))
     elif dx is None:
         dx = x[1] - x[0]
 
+    fig, ax = plt.subplots(figsize=(12, 9))
     if f == 'step':
         f = np.ones_like(x)
         f[:len(f)//2] = 0
         fprime = np.zeros_like(f)
         fprime[len(f)//2] = 1/dx
     elif f == 'lin':
-        f = x
-        fprime = np.ones_like(f)
+        f, fprime = x, np.ones_like(x)
+    elif f == 'kicks':
+        N = 10
+        tkick = np.arange(N + 1)
+        t = np.arange(0, N, dx)
+        vkick = np.random.normal(loc=0, scale=1, size=N)
+        xkick = np.concatenate([[0], np.cumsum(vkick)])
+        x = np.interp(t, tkick, xkick)
+        x, f = t, x
+        ax.plot(tkick, xkick, '-',
+                lw=4, c='gray', label='f')
+        ax.step(tkick, np.append(vkick, [None]), where='post',
+                marker='*', ls='--', c='gray', ms=16, label="f'")
 
-    widths = (1, 2) + tuple(np.arange(.5, 1.3, .1))# 0.5, 2/np.e, 0.99, 1.01, 1.5, 1.99, 2.01)
-    df = {width: der(f, x=x, iwidth=width) for width in widths}
+    widths = (1, 2) + tuple(np.arange(.5, 1.3, .1)[::-1])
 
-    f_cumsum = {width : np.cumsum(df[width])*dx
-                for width in df}
-    f_trapz = {width : np.array([np.trapz(df[width][:i], x[:i])
-                                 for i in xrange(len(x))])
-               for width in df}
-
-    fig, ax = plt.subplots()
-    ax.plot(x, f - f.mean(), '-', lw=4, c='k', label='f')
+    ax.plot(x, f - f[0], '-', lw=4, c='k', label='f')
     if fprime is not None:
-        ax.plot(x, fprime, '*', c='k', ms=10, label="f'")
+        if fprime.ndim == 2:
+            xprime, fprime = fprime
+        else:
+            xprime = x
+        ax.plot(xprime, fprime, '*--', c='k', ms=16, label="f'")
 
     colors = map('C{}'.format, xrange(len(widths)))
     for width, color in zip(widths, colors):
-        label = '(width={})'.format(width)
         print 'width:', width
-        print df[width]
-        ax.plot(x, df[width], '.-', c=color, label='der' + label)
-        ax.plot(x, f_cumsum[width] - f_cumsum[width].mean(),
-                ':', c=color, label='np.cumsum' + label)
-        ax.plot(x[:-1], f_trapz[width][1:] - f_trapz[width][1:].mean(),
-                '--', c=color, label='np.trapz' + label)
+        df = der(f, x=x, iwidth=width)
+        idf = cumtrapz(df, x, dx)
+        label = '({})'.format(width)
+        ax.plot(x, df, ('o' if isinstance(width, float) else ' x+'[width])+':',
+                c=color, label='der' + label)
+        ax.plot(x, idf, '--', c=color, label='np.trapz' + label)
     ax.legend(loc='best')
     fig.tight_layout()
 
