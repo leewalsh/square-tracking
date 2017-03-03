@@ -1972,7 +1972,7 @@ if __name__ == '__main__':
         print "====== <rr> ======"
         rr_result, fits, rr_ax = rr_plot(msds, msdids, data, fits, args)
 
-    if args.save:
+    if args.save and args.nn or args.rn or args.rr:
         helpy.save_fits(saveprefix, fits)
 
     if need_plt:
