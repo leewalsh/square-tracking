@@ -344,14 +344,29 @@ def orient_op(orientations, m=4, positions=None, margin=0,
 
 
 def dtheta(i, j=None, m=1, sign=False):
-    """ given two angles or one array (N, 2) of pairs
-        returns the smallest angle between them, modulo m
-        if sign is True, retuns a negative angle for i<j, else abs
+    """ Find the smallest m-fold difference between angles (in radians)
+
+        parameters
+        ----------
+        i, j : one or two arrays of angles. If a single array, take difference
+            along last axis. If two arrays, difference is between the two.
+        m : degree of rotational symmetry. That is, the branch cut will be taken
+            at 2*pi/m. Default is 1. If m = 0, simply returns the difference.
+        sign : whether to keep negative sign when i < j, or take absolute value
+
+        returns
+        -------
+        diffs : array of m-fold differences. If two arrays are given, shape is
+            unchanged, otherwise shape is reduced by one in last dimension.
     """
-    ma = tau/m
-    if j is None:
+    if j is None and i.shape[-1] == 2:
         i, j = i.T
-    diff = (j - i + ma/2) % ma - ma/2
+    diff = np.diff(i, axis=1) if j is None else j - i
+
+    if m == 0:
+        return diff
+    m = tau/m
+    diff = (diff + m/2) % m - m/2
     return diff if sign else np.abs(diff)
 
 
