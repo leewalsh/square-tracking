@@ -586,7 +586,8 @@ def msd(xs, ret_taus=False, ret_vector=False):
     # x0avg = np.cumsum(x2)[::-1] / ntau
     # xavg = np.cumsum(x2[::-1])[::-1] / ntau
     # we'll only ever combine these, which can be done with one call:
-    # x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
+    # np.cumsum(a) + np.cumsum(b) == np.cumsum(a + b)
+    # therefore, x0avg + xavg == x2s
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
     out = x2s - 2*xx0
