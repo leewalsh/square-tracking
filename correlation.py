@@ -547,6 +547,71 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         return c[m:]
 
 
+def limited_mean(f, end, side='centered'):
+    """ Mean at single point of some correlation function
+
+    Say we want to calculate the correlation of a difference in f vs initial g:
+
+        C(x) = <[f(x₀ + x) - f(x₀)] g(x₀)>
+             = <f(x₀ + x) g(x₀)> - <f(x₀) g(x₀)>
+
+    The first term is a simple cross-correlation and can be calculated by the
+    function `crosscorr`. While the second term appears to be independent of x,
+    and looks just like the mean of the product of the arrays, or the first term
+    evaluated at x=0, it is in fact distinct. It is the mean only of a limited
+    part of the array, constrained by the limits of the first term. Consider the
+    following sum:
+        C(x) = Σx₀ {f(x₀ + x) g(x₀) - f(x₀) g(x₀)}
+    As finite arrays, f and g are only defined on the domain [0, L), so the
+    evaluation points of f and g over the domain of the sum over x₀ must obey
+        0 ≤ x₀ + x < L
+        0 ≤ x₀ < L
+    so for the sum, x₀ must range over
+        [ 0, L - x) for x ≥ 0
+        [-x, L)     for x < 0
+
+
+    parameters
+    ----------
+    f : single array to average over first axis
+    end : a string, which end of limit to average over
+        'initial' average over first n elements, <f(x₀)>
+        'final' average over last n elements, <f(x₀ + x)>
+        'both' do both, stacked along axis 1, [[<f(x₀)>, <f(x₀ + x)>]]
+        'sum' do both and add them, <f(x₀)> + <f(x₀ + x)>
+    side : a string, direction of correlation (see `crosscorr`)
+        'right' positive side (0 ≤ x < L)
+        'left' negative side (-L < x ≤ 0)
+        'center' center at 0 (-L/2 ≤ x < L/2)
+    """
+    f = np.asarray(f)
+    L = len(f)
+    r = slice(None, None, -1)
+    if end.startswith('s'):
+        f = f + f[r]
+    elif side.startswith('c') or end.startswith('b'):
+        f = np.stack([f[r], f] if side.startswith('l') else [f, f[r]], 1)
+    elif side.startswith('r') and end.startswith('f'):
+        f = f[r]
+    elif side.startswith('l') and end.startswith('i'):
+        f = f[r]
+    n = np.arange(1, L + 1).reshape(L, *[-1]*(f.ndim-1))
+    m = np.cumsum(f, 0) / n
+    if side.startswith('r'):
+        return m[r]
+    elif side.startswith('l'):
+        return m
+    elif side.startswith('c'):
+        s = (slice(L//2-1, -1), slice(None, -L//2-1, -1))
+        if end.startswith('init'):
+            s = zip(s, [1, 0])
+        elif end.startswith('both'):
+            s = zip(s, [r, slice(None)])
+        elif end.startswith('fin'):
+            s = zip(s, [0, 1])
+        return np.concatenate([m[s[0]], m[s[1]]])
+
+
 def msd(xs, ret_taus=False, ret_vector=False):
     """ calculate the mean squared displacement
 
