@@ -615,15 +615,14 @@ def limited_mean(f, end, side='centered'):
 def msd(xs, ret_taus=False, ret_vector=False):
     """ calculate the mean squared displacement
 
-        msd = < [x(t0 + tau) - x(t0)]**2 >
-            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0 + tau) x(t0) >
-            = <xx> + <x0x0> - 2*<xx0>
+        msd = < [x(t₀ + ) - x(t₀)]**2 >
+            = < x(t₀ + tau)**2 > + < x(t₀)**2 > - 2 * < x(t₀ + tau) x(t₀) >
+            = <xx> + <x₀x₀> - 2*<xx₀>
 
-        The first two terms are averaged over all values of t0 that are valid
-        for the current value of tau. Thus, we have sums of x(t0) and x(t0+tau)
-        for all values of t0 in [0, T - tau). For small values of tau, nearly
-        all values of t0 are valid, and vice versa. The averages for increasing
-        values of tau is the reverse of cumsum(x)/range(T-tau)
+        The first two terms are, respectively, the average over all initial and
+        final values of x² for valid t₀ given tau. That is, terms at t = t₀ and
+        t = t₀ + tau are valid for t₀ ∈ [0, T - tau). The mean over these limits
+        are given by `limited_mean`
 
         Note:
         * only accepts the positions in 1 or 2d array (no data structure)
@@ -646,28 +645,22 @@ def msd(xs, ret_taus=False, ret_vector=False):
     xx0 = autocorr(xs, side='right', cumulant=False, norm=False, mode='full',
                    verbose=False, reverse=False, ret_dx=False)
 
-    ntau = np.arange(T, 0, -1)  # = T - tau
-    x2 = xs * xs
-    # x0avg = np.cumsum(x2)[::-1] / ntau
-    # xavg = np.cumsum(x2[::-1])[::-1] / ntau
-    # we'll only ever combine these, which can be done with one call:
-    # np.cumsum(a) + np.cumsum(b) == np.cumsum(a + b)
-    # therefore, x0avg + xavg == x2s
-    x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
+    # First terms are the initial mean and final mean of x²
+    x2s = limited_mean(xs*xs, end='sum', side='right')
 
     out = x2s - 2*xx0
     if not ret_vector or ret_vector.startswith('disp'):
-        out = out.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
+        out = out.sum(1)  # straight sum over dimensions (x² + y² + ...)
 
     return np.column_stack([np.arange(T), out]) if ret_taus else out
 
 
-def msd_correlate(x, y, n, corr_args, nt):
+def msd_correlate(x, y, n, corr_args):
     """calculate the various terms in the msd correlation"""
     xy = x * y
     x_yn = crosscorr(x, y*n, **corr_args)
     xy_n = crosscorr(xy, n, **corr_args)
-    xyn_ = np.cumsum(xy*n, 0)[::-1]/nt
+    xyn_ = limited_mean(xy*n, end='init', side=corr_args['side'])
     return xy_n - 2*x_yn + xyn_
 
 
@@ -685,13 +678,12 @@ def msd_body(xs, os, ret_taus=False):
         raise ValueError(msg.format(xs.shape))
 
     corr_args = {'side': 'right', 'cumulant': False, 'mode': 'full'}
-    nt = np.arange(T, 0, -1)[:, None]  # = T - tau
     ns = np.column_stack([np.cos(os), np.sin(os)])
     ps = ns[:, ::-1]
     ys = xs[:, ::-1]
-    progress = msd_correlate(xs, xs, ns*ns, corr_args, nt)
-    diversion = msd_correlate(xs, xs, ps*ps, corr_args, nt)
-    crossterms = msd_correlate(xs, ys, ns*ps, corr_args, nt)
+    progress = msd_correlate(xs, xs, ns*ns, corr_args)
+    diversion = msd_correlate(xs, xs, ps*ps, corr_args)
+    crossterms = msd_correlate(xs, ys, ns*ps, corr_args)
     progress += crossterms
     diversion -= crossterms
     taus = [np.arange(T)] if ret_taus else []
