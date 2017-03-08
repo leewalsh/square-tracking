@@ -425,20 +425,20 @@ def bin_average(r, f, bins=10):
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
              verbose=False, reverse=False, ret_dx=False):
-    """ autocorr(f, side='right', cumulant=True, norm=1, mode='same',
-                 verbose=False, reverse=False, ret_dx=False)
+    """ autocorrelate f with itself
 
-        The auto-correlation of function f
-        returns the auto-correlation function
-            <f(x) f(x - dx)> averaged over x
+        The auto-correlation of function f returns
+            <f(x) f(x - dx)>
+        averaged over x, as a function of dx
 
         See also `crosscorr(f, g, ...)`
 
         f:      1d array, as function of x
         side:   'right' returns only dx > 0, (x' < x)
                 'left'  returns only dx < 0, (x < x')
-                'both'  returns entire correlation
-        cumulant: if True, subtracts mean of the function before correlation
+                'center' or 'both'  returns entire correlation
+        cumulant: 'initial' or 'mean' to subtract initial value or mean
+        norm:   normalize by the correlation at no shift, i.e. <f(x) g(x) >
         mode:   passed to scipy.signal.correlate, has little effect here, but
                 returns shorter correlation array
     """
@@ -448,28 +448,26 @@ def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
 
 def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
               verbose=False, reverse=False, ret_dx=False):
-    """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
-                  verbose=False, reverse=False, ret_dx=False)
+    """ cross correlate functions f and g
 
-        The cross-correlation of f and g
-        returns the cross-correlation function
-            <f(x) g(x - dx)> averaged over x
+        The cross-correlation of f and g returns
+            <f(x) g(x - dx)>
+        averaged over x, as function of dx
 
+        parameters
+        ----------
         f, g:       1d arrays, as function of x, with same lengths
         side:       'right' returns only dx > 0, (x' < x)
                     'left'  returns only dx < 0, (x < x')
-                    'both' or 'center' returns entire correlation
-        cumulant:   if True, subtracts mean of the function before correlation
+                    'center' or 'both' returns entire correlation
+        cumulant:   'initial' to subtract initial value (of f) or
+                    'mean' to subtract mean (of both, same as one or the other)
+        norm:       normalize by the correlation at no shift, i.e. <f(x) g(x) >
         mode:       passed to scipy.signal.correlate, has little effect here.
-        norm:       normalize by the correlation at no shift,
-                        that is, by <f(x) g(x) >
-                    if 1, divide
-                    if 0, subtract
-        ret_dx:     if True, return the dx shift between f and g
-                        that is, if we are looking at <f(x) g(x')>
-                        then dx = x - x'
+        ret_dx:     if True, return the dx shift between f and g, that is,
+                    if we are looking at <f(x) g(x')> then dx = x - x'
         reverse:    if True, flip g relative to f, that is, use convolve
-                        instead of correlate, which calculates <f(x) g(dx - x)>
+                    instead of correlate, which calculates <f(x) g(dx - x)>
         verbose:    if True or 1, be careful but not very verbose
                     if 2 or greater, be careful and verbose
     """
@@ -480,15 +478,6 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
         print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
     msg = "len(f): {}, len(g): {}\nlengths must match for proper normalization"
     assert l == len(g), msg.format(l, len(g))
-
-    if cumulant:
-        if cumulant is True:
-            f = f - f.mean(0)
-            g = g - g.mean(0)
-        elif cumulant[0]:
-            f = f - f.mean(0)
-        elif cumulant[-1]:
-            g = g - g.mean(0)
 
     correlator = signal.convolve if reverse else signal.correlate
     if f.ndim == g.ndim == 2:
@@ -525,11 +514,16 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
 
     if side == 'both':
         side = 'center'
+    if isinstance(cumulant, bool):
+        cumulant = 'mean'*cumulant  # cumulant=True --> 'mean'
 
-    if norm is 1:
+    if cumulant.startswith('init'):
+        c -= limited_mean(f*g, 'init', side)
+    elif cumulant.startswith('mean'):
+        c -= limited_mean(f, 'final', side) * limited_mean(g, 'init', side)
+
+    if norm:
         c /= c[m]
-    elif norm is 0:
-        c -= c[m]
     elif verbose > 1:
         print 'central value:', c[m]
 
