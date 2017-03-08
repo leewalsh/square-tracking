@@ -458,7 +458,7 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
         f, g:       1d arrays, as function of x, with same lengths
         side:       'right' returns only dx > 0, (x' < x)
                     'left'  returns only dx < 0, (x < x')
-                    'both'  returns entire correlation
+                    'both' or 'center' returns entire correlation
         cumulant:   if True, subtracts mean of the function before correlation
         mode:       passed to scipy.signal.correlate, has little effect here.
         norm:       normalize by the correlation at no shift,
@@ -523,6 +523,9 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
             print ("subtracting", "normalizing by")[norm], "scaler:", fgs[0]
         assert np.allclose(fgs[0], fgs), msg.format(*fgs)
 
+    if side == 'both':
+        side = 'center'
+
     if norm is 1:
         c /= c[m]
     elif norm is 0:
@@ -531,7 +534,7 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
         print 'central value:', c[m]
 
     if ret_dx:
-        if side == 'both':
+        if side == 'center':
             return np.arange(-m, L-m), c
         elif side == 'left':
             # return np.arange(0, -m-1, -1), c[m::-1]
@@ -539,7 +542,7 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
         elif side == 'right':
             return np.arange(0, L-m), c[m:]
 
-    if side == 'both':
+    if side == 'center':
         return c
     elif side == 'left':
         return c[m::-1]
