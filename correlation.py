@@ -446,7 +446,7 @@ def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
                      verbose=verbose, reverse=reverse, ret_dx=ret_dx)
 
 
-def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
               verbose=False, reverse=False, ret_dx=False):
     """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
                   verbose=False, reverse=False, ret_dx=False)
