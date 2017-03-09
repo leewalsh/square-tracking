@@ -599,7 +599,7 @@ def limited_mean(f, end, side='centered'):
     elif side.startswith('l'):
         return m
     elif side.startswith('c'):
-        s = (slice(L//2-1, -1), slice(None, -L//2-1, -1))
+        s = (slice(-1 - L//2, -1), slice(None, -L//2 - 1, -1))
         if end.startswith('init'):
             s = zip(s, [1, 0])
         elif end.startswith('both'):
