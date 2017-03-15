@@ -327,8 +327,18 @@ def nan_info(arr, verbose=False):
 
 
 def transpose_list_of_dicts(*lod, **kwargs):
-    """transpose a list of dicts, return dict of lists."""
+    """transpose a list of dicts, return dict of lists.
+
+    parameters
+    ----------
+    list_of_dicts : dicts, as single list or separate arguments.
+    missing : Fill value for keys missing from some dicts. If False, those keys
+        are dropped entirely.
+    collapse : if True, values that are equal in all dicts will not be listed
+        individually, but returned as single value
+    """
     missing = kwargs.pop('missing', None)
+    collapse = kwargs.pop('collapse', False)
     if kwargs:
         nkw = len(kwargs)
         err = ('{}.{} got{} unexpected keyword argument{}' + ' {!r}'*nkw).format
@@ -342,7 +352,15 @@ def transpose_list_of_dicts(*lod, **kwargs):
 
     ks = map(set, lod)
     ks = (set.intersection if missing is False else set.union)(*ks)
-    return {k: [d.get(k, missing) for d in lod] for k in ks}
+    dol = {k: [d.get(k, missing) for d in lod] for k in ks}
+    if collapse:
+        for k in dol:
+            try:
+                if len(set(dol[k])) == 1:
+                    dol[k] = dol[k][0]
+            except TypeError:
+                continue
+    return dol
 
 
 def transpose_dict_of_lists(dol=None, missing=None, **lists):
