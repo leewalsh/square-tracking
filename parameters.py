@@ -74,6 +74,7 @@ def colors(fit, default='k'):
                                       'Tm_Rn_La': 'purple',
              'Tf': 'brown', 'Tn_Rn': 'brown',
                         'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
+                                      'Tm_Rn_Lb': 'b',
                                       'Tm_Rn_Lf': 'green',
             }
 
@@ -272,6 +273,8 @@ pargs['DT'] = dict(
             'r0_Tm_Rn_La_Df',
         ],
         'maybe':[
+            'r0_Tm_Rn_Lb_Df',
+            'r0_Tm_Rn_Lq_Df',
         ],
         'bad': [
             'r0_Tm_Rn_Lr_Df',
