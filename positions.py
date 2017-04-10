@@ -138,7 +138,7 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
     """
     if rmv is not None:
         im = remove_disks(im, *rmv)
-    kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
+    kernel = np.sign(kern)*gdisk(abs(kern)/4, abs(kern))
     convolved = ndimage.convolve(im, kernel)
     convolved -= convolved.min()
     convolved /= convolved.max()
@@ -307,16 +307,16 @@ def gdisk(width, inner=0, outer=None):
                     \ 0 for r > outer
             min and max are set so that the sum of the array is 0 and std is 1
     """
-    outer = outer or inner + 2*width
+    outer = outer or inner + 4*width
     circ = disk(outer)
     incirc = circ.nonzero()
 
     x = np.arange(-outer, outer+1, dtype=float)
     x, y = np.meshgrid(x, x)
-    r = x**2 + y**2 - inner**2
+    r = np.hypot(x, y) - inner
     np.clip(r, 0, None, r)
 
-    g = np.exp(-0.5*r/width**2)
+    g = np.exp(-0.5*(r/width)**2)
     g -= g[incirc].mean()
     g /= g[incirc].std()
     g *= circ
@@ -466,7 +466,7 @@ if __name__ == '__main__':
             ax.imshow(im, title=os.path.basename(imprefix)+'_'+desc, **kwargs)
         snapshot_num += 1
 
-    def plot_points(pts, img, name='', s=10, c='r', cm=None,
+    def plot_points(pts, img, name='', s=10, c='r', cmap=None,
                     vmin=None, vmax=None, cbar=False):
         global snapshot_num, imprefix
         fig, ax = plt.subplots(figsize=(8, 8))
@@ -476,9 +476,10 @@ if __name__ == '__main__':
         # PPI = 112.14 if figsize (8, 6)
         PPI = 84.638  # if figsize (8, 8)
         dpi = 4*PPI
-        axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax,
+        axim = ax.imshow(img, cmap=cmap, vmin=vmin, vmax=vmax,
                          interpolation='nearest')
         if cbar:
+            fig.tight_layout()
             cb_height = 4
             cax = fig.add_axes(np.array([10, 99-cb_height, 80, cb_height])/100)
             fig.colorbar(axim, cax=cax, orientation='horizontal')
@@ -490,10 +491,12 @@ if __name__ == '__main__':
             ax.scatter(pts['y'], pts['x'], s, c, '+')
         ax.set_xlim(xl)
         ax.set_ylim(yl)
+        ax.set_xticks([])
+        ax.set_yticks([])
 
         if args.save:
             savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, name)
-            fig.savefig(savename, dpi=dpi)
+            fig.savefig(savename, dpi=dpi, bbox_inches='tight', pad_inches=0)
             snapshot_num += 1
             plt.close(fig)
 
@@ -507,22 +510,22 @@ if __name__ == '__main__':
         pts = pts[segments[1]]
 
         plot_points(pts, convolved, name='CONVOLVED',
-                    s=kwargs['kern'], c='r', cm='gray')
+                    s=kwargs['kern'], c='r', cmap='gray')
 
         labels_mask = np.where(labels, labels, np.nan)
         plot_points(pts, labels_mask, name='SEGMENTS',
-                    s=kwargs['kern'], c='k', cm='prism_r')
+                    s=kwargs['kern'], c='k', cmap='prism_r')
 
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
         plot_points(pts, ecc_map, name='ECCEN',
-                    s=kwargs['kern'], c='k', cm='Accent',
+                    s=kwargs['kern'], c='k', cmap='Set3',
                     vmin=0, vmax=1, cbar=True)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
         plot_points(pts, area_map, name='AREA',
-                    s=kwargs['kern'], c='k', cm='Accent',
+                    s=kwargs['kern'], c='k', cmap='Set3',
                     vmin=0, vmax=1.2*kwargs['max_area'], cbar=True)
 
     def get_positions((n, filename)):
