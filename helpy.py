@@ -257,15 +257,16 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
         origshape = (len(lol),)
     if dtype is None:
         dtype = np.result_type(fill, np.array(lol[0][0]))
-    lengths = np.array(map(len, lol), int)
-    lengths[lengths < shortest] = 0
-    shape = \
-        (len(lol), min(longest or np.inf, lengths.max())) + np.shape(lol[0][0])
     if align is None:
         align = it.repeat(0)
     else:
         align = np.asarray(align, int).flatten()
         align = align.max() - align
+    lengths = np.array(map(len, lol), int)
+    lengths[lengths < shortest] = 0
+    shape = (len(lol),
+             min(longest or np.inf, np.max(lengths + align))
+             ) + np.shape(lol[0][0])
     result = np.empty(shape, dtype)
     result[:] = fill  # this allows broadcasting unlike np.full
     if return_mask:
