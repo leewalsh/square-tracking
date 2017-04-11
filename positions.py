@@ -15,6 +15,7 @@ from collections import namedtuple
 from itertools import izip
 
 import numpy as np
+from numpy.lib.function_base import _hist_bin_auto as hist_bin_auto
 from scipy import ndimage
 
 # skimage (scikit-image) changed the location, names, and api of several
@@ -616,17 +617,17 @@ if __name__ == '__main__':
             eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
             eax.set_xlim(0, 1)
             eax.set_xticks(np.arange(0, 1.1, .1))
+            eax.set_xticklabels(map('.{:d}'.format, np.arange(10)) + ['1'])
             eax.legend(loc='best', fontsize='small')
 
             areas = point[:, 5]
             amin, amax = size['min_area'], size['max_area']
-            s = 1 + (amax-amin) // 40
+            s = np.ceil(hist_bin_auto(areas))
             bins = np.arange(amin, amax+s, s)
             label = "{} area ({} - {})".format(dot, amin, amax)
             aax.hist(areas, bins, alpha=0.5, color='g', label=label)
             aax.axvline(size['min_area'], c='g', lw=2)
             aax.set_xlim(0, bins[-1])
-            aax.set_xticks(bins[::1+len(bins)//10])
             aax.legend(loc='best', fontsize='small')
         if args.save:
             print savenotice(dot, out, ext)
