@@ -148,7 +148,7 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
 
     if args.plot > 2:
         snapshot('kern', kernel)
-        snapshot('convolved', convolved)
+        snapshot('convolved', convolved, cmap='gray')
 
     if thresh >= 1:
         if rmv is not None:
@@ -234,7 +234,7 @@ def prep_image(imfile, width=2):
         print "opening", imfile
     im = ndimage.imread(imfile).astype(float)
     if args.plot > 2:
-        snapshot('orig', im)
+        snapshot('orig', im, cmap='gray')
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
         im = im[..., 1]
@@ -247,7 +247,7 @@ def prep_image(imfile, width=2):
     im /= 2*s
     np.clip(im, 0, 1, out=im)
     if args.plot > 2:
-        snapshot('clip', im)
+        snapshot('clip', im, cmap='gray')
     return im
 
 
@@ -520,7 +520,7 @@ if __name__ == '__main__':
         pts = pts[segments[1]]
 
         plot_points(pts, convolved, name='CONVOLVED',
-                    s=kwargs['kern'], c='r', cmap='gray')
+                    s=kwargs['kern'], c='r', cmap='viridis')
 
         labels_mask = np.where(labels, labels, np.nan)
         plot_points(pts, labels_mask, name='SEGMENTS',
@@ -529,13 +529,13 @@ if __name__ == '__main__':
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
         plot_points(pts, ecc_map, name='ECCEN',
-                    s=kwargs['kern'], c='k', cmap='Set3',
+                    s=kwargs['kern'], c='k', cmap='Paired',
                     vmin=0, vmax=1, cbar=True)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
         plot_points(pts, area_map, name='AREA',
-                    s=kwargs['kern'], c='k', cmap='Set3',
+                    s=kwargs['kern'], c='k', cmap='Paired',
                     vmin=0, vmax=1.2*kwargs['max_area'], cbar=True)
 
     def get_positions((n, filename)):
