@@ -40,6 +40,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('files', metavar='FILE', nargs='+', help='Images to process')
+    arg('-i', '--slice', nargs='?', const=True, help='Slice to limit frames')
     arg('-o', '--output', help='Output filename prefix.')
     arg('-p', '--plot', action='count', default=1,
         help="Produce plots for each image. Two p's gives lots more")
@@ -398,7 +399,12 @@ if __name__ == '__main__':
         argv = ' '.join(argv)
     else:
         from glob import glob
+        if first.endswith(']'):
+            first, _, args.slice = first[:-1].rpartition('[')
         filenames = sorted(glob(first))
+        if args.slice:
+            args.slice = helpy.parse_slice(args.slice, len(filenames))
+            filenames = filenames[args.slice]
         filepattern = first
         first = filenames[0]
         argv = 'argv'
