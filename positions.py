@@ -127,8 +127,8 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
         im : the original image to be labeled
         kern : kernel size
         thresh : the threshold above which pixels are included
-            if integer, in units of intensity std dev
-            if float, in absolute units of intensity
+            if thresh >= 1, in units of intensity std dev
+            if thresh < 1, in absolute units of intensity
         rmv : if given, the positions at which to remove large dots
 
         returns
@@ -147,7 +147,7 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
         snapshot('kern', kernel)
         snapshot('convolved', convolved)
 
-    if isinstance(thresh, int):
+    if thresh >= 1:
         if rmv is not None:
             thresh -= 1  # smaller threshold for corners
         thresh = thresh*convolved.std() + convolved.mean()
@@ -570,7 +570,7 @@ if __name__ == '__main__':
     threads = args.threads
     if threads < 1:
         cpus = cpu_count()
-        if threads is None:
+        if threads is None and args.plot <= 1:
             print "How many cpu threads to use? [{}] ".format(cpus),
             threads = int(raw_input() or cpus)
     threads = (args.plot > 1) or threads or cpus
