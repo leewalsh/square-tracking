@@ -57,6 +57,8 @@ if __name__ == '__main__':
         help='Remove large-dot masks before small-dot convolution')
     arg('--thresh', type=float, default=3, help='Binary threshold '
         'for defining segments, in units of standard deviation')
+    arg('--cthresh', type=float, default=2, help='Binary threshold '
+        'for defining segments, in units of standard deviation')
     arg('-k', '--kern', type=float, required=True,
         help='Kernel size for convolution')
     arg('--min', type=int, help='Minimum area')
@@ -445,7 +447,8 @@ if __name__ == '__main__':
     sizes = {'center': {'max_ecc': args.ecc,
                         'min_area': args.min or int(kern_area//2),
                         'max_area': args.max or int(kern_area*2 + 1),
-                        'kern': args.kern}}
+                        'kern': args.kern,
+                        'thresh': args.thresh}}
     if args.ckern:
         args.both = True
     if args.both:
@@ -453,7 +456,8 @@ if __name__ == '__main__':
         sizes.update({'corner': {'max_ecc': args.cecc,
                                  'min_area': args.cmin or int(ckern_area//2),
                                  'max_area': args.cmax or int(ckern_area*2 + 1),
-                                 'kern': args.ckern}})
+                                 'kern': args.ckern,
+                                 'thresh': args.cthresh}})
     dots = sorted(sizes)
     meta.update({dot + '_' + k: v
                  for dot in dots for k, v in sizes[dot].iteritems()})
@@ -554,7 +558,7 @@ if __name__ == '__main__':
             else:
                 rmv = None
             out = find_particles(image, method='convolve', circ=args.boundary,
-                                 rmv=rmv, thresh=args.thresh, **sizes[dot])
+                                 rmv=rmv, **sizes[dot])
             segments = out[0]
             if args.plot > 1:
                 plot_positions(*out, **sizes[dot])
