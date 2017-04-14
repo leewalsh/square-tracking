@@ -258,7 +258,7 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
     if dtype is None:
         dtype = np.result_type(fill, np.array(lol[0][0]))
     if align is None:
-        align = it.repeat(0)
+        align = np.broadcast_to(0, len(lol))
     else:
         align = np.asarray(align, int).flatten()
         align = align.max() - align
