@@ -68,7 +68,7 @@ def getuser():
     return USER
 
 
-def getcommit():
+def getcommit(ret_object=False):
     """return git commit hash. Cached as global."""
     global COMMIT
     if not COMMIT:
@@ -80,7 +80,7 @@ def getcommit():
             import git
             repo = git.Repo(gitdir)
             dirty = repo.is_dirty()
-            commit = repo.commit().hexsha[:7]
+            commit = repo.commit()
             if repo.head.is_detached:
                 branch = 'detached'
             else:
@@ -102,8 +102,8 @@ def getcommit():
         except git.GitCommandNotFound:
             COMMIT = 'unknown'
             return COMMIT
-        COMMIT = '{}({}{})'.format(commit, branch, '+'*dirty)
-    return COMMIT
+        COMMIT = '{:.7s}({}{})'.format(commit, branch, '+'*dirty)
+    return (COMMIT, commit) if ret_object else COMMIT
 
 
 def splitter(data, indices, method=None,
