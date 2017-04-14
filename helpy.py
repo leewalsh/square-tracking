@@ -1752,11 +1752,12 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
     if not ax.get_xlim()[0] < x < ax.get_xlim()[1]:
         return
     if method == 'vline':
-        line = dict(dict(color='k', linestyle='--', linewidth=0.5, zorder=0.1),
-                    **(line or {}))
+        line_default = dict(color='gray', linestyle='--', linewidth=0.5,
+                            zorder=0.1, start=0, stop=0.68)
         annotate_default = dict(ha='left', va='center',
                                 xytext=(4, 0), textcoords='offset points',
                                 xy=(x, 0.1), xycoords=('data', 'axes fraction'))
+        line = dict(line_default, **(line or {}))
         l = axline(ax, 'v', x, **line)
     elif method == 'corner':
         x, y = x
