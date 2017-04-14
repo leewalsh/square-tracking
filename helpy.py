@@ -1735,6 +1735,50 @@ def circle_click(im):
     return center
 
 
+def axline(ax, orient, x, start=0, stop=1, coords='ax', **kwargs):
+    f = ax.__getattribute__(
+        {'ax': 'ax{}line', 'data': '{}lines'}[coords].format(orient)
+    )
+    if coords == 'data':
+        ks = {'c': 'colors', 'color': 'colors',
+              'ls': 'linestyles', 'linestyle': 'linestyles'}
+        for k, v in ks.items():
+            if k in kwargs:
+                kwargs[v] = kwargs.pop(k)
+    return f(x, start, stop, **kwargs)
+
+
+def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
+    if not ax.get_xlim()[0] < x < ax.get_xlim()[1]:
+        return
+    if method == 'vline':
+        line = dict(dict(color='k', linestyle='--', linewidth=0.5, zorder=0.1),
+                    **(line or {}))
+        annotate_default = dict(ha='left', va='center',
+                                xytext=(4, 0), textcoords='offset points',
+                                xy=(x, 0.1), xycoords=('data', 'axes fraction'))
+        l = axline(ax, 'v', x, **line)
+    elif method == 'corner':
+        x, y = x
+        line = dict(dict(color='k', linestyle=':', linewidth=1, zorder=0.1),
+                    **(line or {}))
+        annotate_default = dict(xytext=(11, 11), textcoords='offset points',
+                                xy=(x, y), xycoords='data',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+        l = [axline(ax, 'v', x, ax.get_ylim()[0], y, coords='data', **line),
+             axline(ax, 'h', y, ax.get_xlim()[0], x, coords='data', **line)]
+    elif method == 'axis':
+        annotate_default = dict(xy=(x, 0), xycoords=('data', 'axes fraction'),
+                                xytext=(0, 9), textcoords='offset points',
+                                ha='center', va='baseline',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+    else:
+        raise ValueError("Unknown method " + method)
+
+    a = ax.annotate(label, **dict(annotate_default, **(annotate or {})))
+    return l, a
+
+
 def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
     """draw circles on an axis
 
