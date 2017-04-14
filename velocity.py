@@ -205,22 +205,22 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
                            r'$\ \gamma_1 = {skew:.5f}$',
                            r'$\ \gamma_2 = {kurt:.5f}$',
                            r'$\sigma/\sqrt{{N}} = {std:.5f}$']).format(**label)
-    if label == 'longitudinal':
-        xlim = bins[0]
+    if label.startswith('long'):
+        xlim = bins[1]
         bins = bins + stats['mean']/2
-        xlim = xlim, bins[-1]
+        xlim = xlim, bins[-2]
     else:
-        xlim = bins[0], bins[-1]
+        xlim = bins[1], bins[-2]
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
                               log=log, alpha=1 if histtype == 'step' else 0.6,
-                              color=c, histtype=histtype)
-    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax, orient)
+                              color=c, histtype=histtype, lw=1.5)
+    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     #ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
-    ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0.1)
+    #ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0)
 
     leg_handles, leg_labels = ax.get_legend_handles_labels()
-    ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.05),
+    ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.02),
               loc='upper left', fontsize='small', frameon=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
@@ -236,23 +236,19 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \, f$'
         ax.set_ylabel(r'$N(\xi)$', labelpad=2)
-    elif label == 'longitudinal':
-        helpy.mark_value(
-            ax, stats['mean'], r'$v_0$',
-            line=dict(color=cs['par'], coords='data', start=0,
-                      stop=counts[np.searchsorted(bins, stats['mean'])]),
-            annotate=dict(xy=(stats['mean'], ax.get_ylim()[0]), xytext=(0, 9),
-                          ha='center', arrowprops=dict(arrowstyle='->', lw=1)))
-        #xticks = np.linspace(np.round(l, 1), np.round(r, 1), 3)
-        #xticks = [-0.5, 0, 0.5]
-        #ax.set_xticks(xticks)
+    helpy.mark_value(
+        ax, stats['mean'], r'$v_o$' if label.startswith('long') else '',
+        line=dict(color=c, coords='data', linestyle='-',
+                  start=0, stop=counts[np.searchsorted(bins, stats['mean'])]),
+        annotate=dict(xy=(stats['mean'], 0), xytext=(0, 9), ha='center')
+    )
     if log:
-        ypowb, ypowt = 0, int(1.9 + np.log10(counts.max()))
-        ax.set_ylim(10**ypowb, 10**ypowt - 1)
-        yticks = 10**np.arange(ypowb, ypowt)
-        yticks_minor = yticks * np.arange(2, 10)[:, None]
-        ax.set_yticks(yticks)
-        ax.set_yticks(yticks_minor.flatten(), minor=True)
+        ypowb, ypowt = 0.5, int(1.9 + np.log10(counts.max()))
+        ylim = ax.set_ylim(10**ypowb, 10**ypowt - 1)
+        yticks = 10**np.arange(int(ypowb), ypowt)
+        yticks_minor = (yticks * np.arange(2, 10)[:, None]).flatten()
+        ax.set_yticks(yticks[yticks >= ylim[0]])
+        ax.set_yticks(yticks_minor[yticks_minor >= ylim[0]], minor=True)
     ax.set_xlabel(xlabel, labelpad=2)
     title = " ".join(filter(None, [title, subtitle]))
     if title:
@@ -330,7 +326,7 @@ def command_widths(tsets, compile_args, args, fig=None):
     return fig
 
 
-def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
+def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
     width = helpy.parse_slice(args.width, index_array=True)
     vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
@@ -344,20 +340,21 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        final = 0#vv[v][n:2*n].mean()
-        vvtime = curve.decay_scale((vv[v][:2*n]-final)/(1-final),
-                                   np.arange(2*n)/args.fps,
-                                   method='thresh', smooth='', rectify=False)
-        print v, 'autocorr time:', vvtime, final
-        guidelinestyle = dict(lw=1, colors=cs[v], linestyles=':', zorder=0.1)
-        ax.vlines(vvtime, ax.get_ylim()[0], 1/np.e, **guidelinestyle)
-        ax.hlines(1/np.e, ax.get_xlim()[0], vvtime, **guidelinestyle)
-        if v == 'o':
-            ax.annotate(r'$\tau$', xy=(vvtime, vv[v][0]/np.e),
-                        xytext=(11, 11), textcoords='offset points',
-                        arrowprops=dict(arrowstyle='->', lw=0.5))
-        tfine = np.linspace(t[0], t[-1])
-        ax.plot(tfine, np.exp(-tfine/vvtime), c='k', ls='-', lw=1, zorder=0.1)
+        if markt:
+            final = 0#vv[v][n:2*n].mean()
+            vvtime = curve.decay_scale((vv[v][:2*n]-final)/(1-final),
+                                    np.arange(2*n)/args.fps,
+                                    method='thresh', smooth='', rectify=False)
+            print v, 'autocorr time:', vvtime, final
+            markstyle = dict(lw=1, colors=cs[v], linestyles=':', zorder=0.1)
+            ax.vlines(vvtime, ax.get_ylim()[0], 1/np.e, **markstyle)
+            ax.hlines(1/np.e, ax.get_xlim()[0], vvtime, **markstyle)
+            if v == 'o':
+                ax.annotate(r'$\tau$', xy=(vvtime, vv[v][0]/np.e),
+                            xytext=(11, 11), textcoords='offset points',
+                            arrowprops=dict(arrowstyle='->', lw=0.5))
+            tfine = np.linspace(t[0], t[-1])
+            ax.plot(tfine, np.exp(-tfine/vvtime), c='k', ls='-', lw=1, zorder=0)
     ax.set_xlim(-0.2, t[-1])
     ax.set_ylim(-0.05, 1.05)
 
@@ -420,7 +417,7 @@ def command_hist(args, meta, compile_args, axes=None):
         title = ''#Parallel & Transverse'
         for icol in range(ncols):
             v = 'perp'
-            label = englabel[v]
+            label = englabel[v] + r' $\perp$'
             if args.verbose:
                 label = {'val': label, 'sub': r'\perp'}
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
@@ -431,7 +428,7 @@ def command_hist(args, meta, compile_args, axes=None):
                          'KU': stats['kurt'], 'SK': stats['skew'],
                          'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             v = 'par'
-            label = englabel[v]
+            label = englabel[v] + r' $\parallel$'
             if args.verbose:
                 label = {'val': label, 'sub': r'\parallel'}
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
