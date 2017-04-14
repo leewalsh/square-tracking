@@ -1603,6 +1603,9 @@ def nn_plot(tracksets, fits, args, ax=None):
     fig, ax = plot_fit(result, tex_fits, args,
                        ax=ax, plt_kwargs=plt_kwargs)
 
+    helpy.mark_value(ax, result.params['TR'], r'$\tau$')
+    helpy.mark_value(ax, 1/result.params['DR'], r'$1/D_R$')
+
     if args.save:
         save_corr_plot(fig, fitname)
 
@@ -1690,19 +1693,14 @@ def rn_plot(tracksets, fits, args, ax=None):
     #ax.plot(sym.x, sym.symmetric, '--r', label="symmetric part")
     ax.plot(sym.x, sym.antisymmetric, '-', c=args.ncol,
             linewidth=1, label="anti-symmetric", zorder=2.1)
-    ax.axhline(y=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
-    ax.axvline(x=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
+    ax.axhline(y=0, color='grey', linestyle='-', linewidth=0.5, zorder=0.1)
+    ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0.1)
 
     if args.rn == 'max':
         ax.scatter(sym.x[[t_max, -t_max]], sym.antisymmetric[[t_max, -t_max]],
                    marker='o', c=args.pcol)
 
-    DR_time = 1/result.params['DR']
-    if ax.get_xlim()[0] < DR_time < ax.get_xlim()[1]:
-        ax.axvline(DR_time, 0, 0.4, ls='--', c='k')
-        ax.annotate(r'$1/D_R$',
-                    xy=(DR_time, 0.2), xycoords=('data', 'axes fraction'),
-                    xytext=(6, 0), textcoords='offset points')
+    helpy.mark_value(ax, 1/result.params['DR'], r'$1/D_R$')
 
     if args.save:
         save_corr_plot(fig, fitname)
@@ -1850,7 +1848,7 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     ax.plot(taus, result.best_fit, c=args.pcol, lw=1, label=fitlabel)
 
     ax.set_ylim(min(result.best_fit[0], msd[0]), result.best_fit[-1])
-    xlim = ax.set_xlim(taus[0], tmax)
+    xlim = ax.set_xlim(.9*taus[0], tmax)
     if verbose > 1:
         rrerrax.set_xlim(taus[0], taus[-1])
         map(rrerrax.axvline, xlim)
@@ -1867,18 +1865,10 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
             xy=xy, xycoords='data', xytext=(0, 6), textcoords='offset points',
             rotation=rotation, rotation_mode='anchor', ha='left', va='bottom')
 
-    DT_time = result.params['DT']/(result.params['lp']*result.params['DR'])**2
-    DR_time = 1/result.params['DR']
-    if xlim[0] < DT_time < xlim[1]:
-        ax.axvline(DT_time, 0, 0.2, ls='--', c='k')
-        ax.annotate(r'$D_T/v_0^2$', fontsize='small', ha='left', va='center',
-                    xy=(DT_time, 0.1), xycoords=('data', 'axes fraction'),
-                    xytext=(6, 0), textcoords='offset points')
-    if xlim[0] < DR_time < xlim[1]:
-        ax.axvline(DR_time, 0, 0.4, ls='--', c='k')
-        ax.annotate(r'$1/D_R$', fontsize='small', ha='left', va='center',
-                    xy=(DR_time, 0.2), xycoords=('data', 'axes fraction'),
-                    xytext=(6, 0), textcoords='offset points')
+    helpy.mark_value(
+        ax, result.params['DT']/(result.params['lp']*result.params['DR'])**2,
+        r'$D_T/v_0^2$')
+    helpy.mark_value(ax, 1/result.params['DR'], r'$1/D_R$')
 
     return fitname, result
 
