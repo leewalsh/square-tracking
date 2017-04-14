@@ -194,7 +194,7 @@ def plot_widths(widths, stats, fig, normalize=False):
 
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
-              label='v', title='', subtitle='', c=cs['o']):
+              label='v', title='', subtitle='', c=cs['o'], histtype='step'):
     if args.verbose:
         print title + subtitle + str(label)
     stats = get_stats(a)
@@ -212,14 +212,15 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     else:
         xlim = bins[0], bins[-1]
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
-                              log=log, alpha=0.6, color=c, lw=0.5)
-    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
+                              log=log, alpha=1 if histtype == 'step' else 0.6,
+                              color=c, histtype=histtype)
+    plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax, orient)
     #ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
-    ax.axvline(x=0, color='grey', linestyle='--', linewidth=0.5, zorder=0.1)
+    ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0.1)
 
     leg_handles, leg_labels = ax.get_legend_handles_labels()
-    ax.legend(leg_handles[::-1], leg_labels[::-1],
+    ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.05),
               loc='upper left', fontsize='small', frameon=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
@@ -235,8 +236,13 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \, f$'
         ax.set_ylabel(r'$N(\xi)$', labelpad=2)
-    else:
-        pass
+    elif label == 'longitudinal':
+        helpy.mark_value(
+            ax, stats['mean'], r'$v_0$',
+            line=dict(color=cs['par'], coords='data', start=0,
+                      stop=counts[np.searchsorted(bins, stats['mean'])]),
+            annotate=dict(xy=(stats['mean'], ax.get_ylim()[0]), xytext=(0, 9),
+                          ha='center', arrowprops=dict(arrowstyle='->', lw=1)))
         #xticks = np.linspace(np.round(l, 1), np.round(r, 1), 3)
         #xticks = [-0.5, 0, 0.5]
         #ax.set_xticks(xticks)
@@ -254,11 +260,24 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     return stats
 
 
-def plot_gaussian(M, var, bins, count=1, ax=None):
+def plot_gaussian(M, var, bins, count=1, ax=None, show_var=False):
     ax = ax or plt.gca()
     dx = bins[1] - bins[0]
     g = np.exp(-0.5 * (bins-M)**2 / var)
-    g /= sqrt(2*pi*var) / (dx*count)
+    a = sqrt(2*pi*var) / (dx*count)
+    g /= a
+    if show_var:
+        varx, vary = sqrt(var), np.exp(-0.5)/a
+        print 'variance arrow', varx, vary
+        ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
+                    xy=(M-varx, vary),
+                    arrowprops=dict(arrowstyle="->"),
+                    )
+        ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
+                    xy=(M+varx, vary),
+                    arrowprops=dict(arrowstyle="->"),
+                    )
+
     ax.plot(bins, g, c=cs['fit'], lw=1, zorder=0.5)
 
 
@@ -324,6 +343,20 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
+        final = 0#vv[v][n:2*n].mean()
+        vvtime = curve.decay_scale((vv[v][:2*n]-final)/(1-final),
+                                   np.arange(2*n)/args.fps,
+                                   method='thresh', smooth='', rectify=False)
+        print v, 'autocorr time:', vvtime, final
+        guidelinestyle = dict(lw=1, colors=cs[v], linestyles=':', zorder=0.1)
+        ax.vlines(vvtime, ax.get_ylim()[0], 1/np.e, **guidelinestyle)
+        ax.hlines(1/np.e, ax.get_xlim()[0], vvtime, **guidelinestyle)
+        if v == 'o':
+            ax.annotate(r'$\tau$', xy=(vvtime, vv[v][0]/np.e),
+                        xytext=(11, 11), textcoords='offset points',
+                        arrowprops=dict(arrowstyle='->', lw=0.5))
+        tfine = np.linspace(t[0], t[-1])
+        ax.plot(tfine, np.exp(-tfine/vvtime), c='k', ls='-', lw=1, zorder=0.1)
     ax.set_xlim(-0.2, t[-1])
     ax.set_ylim(-0.05, 1.05)
 
