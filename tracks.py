@@ -146,7 +146,7 @@ if __name__ == '__main__':
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
-    warnlevel = {0: 'ignore', None: 'ignore', 1: 'warn', 2: 'warn', 3: 'raise'}
+    warnlevel = {0: 'ignore', None: 'ignore', 1: 'print', 2: 'warn', 3: 'raise'}
     np.seterr(divide=warnlevel[verbose], invalid=warnlevel[verbose])
 else:
     verbose = False
