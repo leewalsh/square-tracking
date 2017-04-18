@@ -731,39 +731,38 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
     return tracksets
 
 
-def plot_tracks(data, trackids=None, bgimage=None, mask=None,
-                fignum=None, save=True, show=True):
+def plot_tracks(data, bgimage=None, style='t', slice=None,
+                save=True, show=True, ax=None):
     """ Plots the tracks of particles in 2D
 
     parameters
     ----------
-    data : the main data array of points
-    trackids : the array of track ids
+    data : tracksets or framesets to plot trackwise or framewise
     bgimage : a background image to plot on top of (the first frame tif, e.g.)
-    mask : a boolean mask to filter the data (to show certain frames or tracks)
-    fignum : a pyplot figure number to add the plot to
     save : where to save the figure
     show : whether to show the figure
+    ax : provide an axes to plot in
     """
-    fig = plt.figure(fignum)
-    ax = fig.gca()
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    k = data.keys()[0]
+    assert np.allclose(k, data[k][style])
     if bgimage is not None:
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap='gray', origin='upper')
-    if trackids is None:
-        trackids = data['t']
-    if mask is None:
-        mask = np.where(trackids >= 0)
-    data = data[mask]
-    trackids = trackids[mask]
-    cmap = plt.get_cmap('Dark2')
-    ax.scatter(data['y'], data['x'], c=trackids % cmap.N,
-               marker='o', cmap=cmap, lw=0)
+        ax.imshow(bgimage, cmap='gray', origin='lower')
+    cmap = plt.get_cmap('Set3')
+    slice = helpy.parse_slice(slice)
+    for k, d in data.iteritems():
+        x, y = d['xy'][slice].T
+        if style == 'f':
+            ax.scatter(y, x, c=d['t'] % cmap.N, marker='o', cmap=cmap, lw=0)
+        elif style == 't':
+            ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
     ax.set_aspect('equal')
-    ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
-    ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
-    ax.set_title(prefix)
+    fig.tight_layout()
     if save:
         save = save + '_tracks.png'
         print "saving tracks image to",
@@ -771,6 +770,8 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
         fig.savefig(save, frameon=False, dpi=300)
     if show:
         plt.show()
+
+    return fig, ax
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -1933,26 +1934,16 @@ if __name__ == '__main__':
     if args.plottracks and not args.check:
         if verbose:
             print 'plotting tracks now!'
-        if args.slice:
-            allframes = data['f']
-            nframes = allframes.max()+1
-            frames = helpy.parse_slice(args.slice, index_array=True)
-            mask = np.in1d(allframes, frames)
-            bgind = frames[0]
-        else:
-            bgind = 1
-            mask = None
-        bgimage = helpy.find_tiffs(prefix=relprefix, frames=bgind,
+        ind = helpy.parse_slice(args.slice)
+        bgimage = helpy.find_tiffs(prefix=relprefix, frames=ind.start or 1,
                                    single=True, load=True)[1]
-        if not args.singletracks:
-            tracksets = helpy.load_tracksets(data, min_length=args.stub,
-                                             run_repair=args.gaps,
-                                             verbose=args.verbose)
-            args.singletracks = tracksets.keys()
-        if trackids is None:
-            trackids = data['t']
-        mask &= np.in1d(trackids, args.singletracks)
-        plot_tracks(data, trackids, bgimage, mask=mask,
+        tracksets = helpy.load_tracksets(data, min_length=args.stub,
+                                         run_repair=args.gaps,
+                                         frame_slice=ind,
+                                         verbose=args.verbose)
+        if args.singletracks:
+            tracksets = {t: tracksets[t] for t in args.singletracks}
+        plot_tracks(tracksets, bgimage, style='t',
                     save=saveprefix*args.save, show=args.show)
 
     if args.save:
