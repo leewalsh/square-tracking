@@ -485,9 +485,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     actualsize = np.array([w, h]) / ppi
     fig, ax = plt.subplots(figsize=actualsize*1.02)
     p = ax.imshow(imstack[0], cmap='gray')
-    xlim, ylim = (0, w), (0, h)
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
+    xlim = ax.set_xlim(0, w)
+    ylim = ax.set_ylim(0, h)
     if actualsize is not None:
         print 'plotting actual size {:.2f}x{:.2f} in'.format(*actualsize)
         print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
@@ -537,25 +536,23 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
+        ts = helpy.quick_field_view(fsets[f_num], 't')
+        tracked = ts >= 0
 
         p.set_data(imstack[f_idx])
         remove = []
 
         # plot the detected dots
-        ts = helpy.quick_field_view(fsets[f_num], 't')
-        tracked = ts >= 0
-        if args.plottracks:
-            cmap = plt.get_cmap('Set3')
-            colors = cmap(ts[tracked] % cmap.N)**3  # cube to darken
-            ax.scatter(y[tracked], x[tracked],
-                       s=3, c=colors,
-                       zorder=0.1*f_idx/f_max,  # later tracks on top
-                      )
-        else:
-            colors = 'white'
-        ps = ax.scatter(y[tracked], x[tracked], s=64, c=colors,
+        dot_color = 'white'
+        ps = ax.scatter(y[tracked], x[tracked], s=64, c=dot_color,
                         marker='o', edgecolors='black')
         remove.append(ps)
+        if args.plottracks:
+            cmap = plt.get_cmap('Set3')
+            dot_color = cmap(ts[tracked] % cmap.N)**3  # cube to darken
+            ax.scatter(y[tracked], x[tracked], s=3, c=dot_color,
+                       zorder=0.1*f_idx/f_max,  # later tracks on top
+                      )
         if not clean:
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
@@ -564,6 +561,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 ph = helpy.draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
                                         lw=.5, color='k', fill=False, zorder=.6)
                 remove.extend(ph)
+            for dr in (-drc, 0, drc):
+                pc = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax,
+                                        lw=.5, color='g', fill=False, zorder=.5)
+                remove.extend(pc)
 
         # plot the orientations
         omask = np.isfinite(o)
@@ -571,9 +572,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         to = ts[omask]
         xo, yo, oo = xyoo.T
         so, co = np.sin(oo), np.cos(oo)
-        q = ax.quiver(yo, xo, so, co, angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=10/side, zorder=.4,
-                      edgecolor='white', facecolor='black', linewidth=0.75)
+        quiver_args = dict(angles='xy', units='xy', scale_units='xy',
+                           width=side/8, scale=10/side, linewidth=0.75,
+                           facecolor='black', edgecolor='white', zorder=0.4)
+        q = ax.quiver(yo, xo, so, co, **quiver_args)
         remove.append(q)
 
         # label n-hat
@@ -589,13 +591,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             for nhat_i in nhat_is]
         remove.extend(nhats)
 
-        if not clean:
-            for dr in [-drc, 0, drc]:
-                patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
-                                             color='g', fill=False, zorder=.5)
-                remove.extend(patches)
         if fisets is not None and f_num in fisets:
-            xyi, oi, tsi = [fisets[f_num][fld] for fld in ['xy', 'o', 't']]
+            xyi = helpy.quick_field_view(fisets[f_num], 'xy')
+            oi = helpy.quick_field_view(fisets[f_num], 'o')
+            tsi = helpy.quick_field_view(fisets[f_num], 't')
             pim = fisets[f_num]['id'] == 0
             if np.any(pim):
                 ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
@@ -606,11 +605,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                                     tsi[pim].astype('S'), color='pink',
                                     zorder=.9, horizontalalignment='center')
                     remove.extend(itxt)
+            quiver_args['facecolor'] = 'black' if clean else 'gray'
+            quiver_args['scale'] *= 0.1
+            quiver_args['zorder'] -= 0.1
             iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
-                           angles='xy', units='xy', width=side/8,
-                           scale_units='xy', scale=1/side, zorder=.3,
-                           facecolor='black' if clean else 'gray',
-                           edgecolor='white', linewidth=0.75)
+                           **quiver_args)
             remove.append(iq)
 
         if fosets is not None:
@@ -621,13 +620,13 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                           markeredgecolor='black', markersize=4, zorder=1)
             remove.extend(ocs)
 
-            # corner displacements has shape (n_particles, n_corners, n_dim)
-            cdisp = oc[omask] - xyoo[:, None, :2]
-            cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
-            deg_str = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
-            cx, cy = oc[omask].mean(1).T
             if not clean:
-                ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9,
+                # corner displacements has shape (n_particles, n_corners, n_dim)
+                cdisp = oc[omask] - xyoo[:, None, :2]
+                cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
+                cang_s = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
+                cx, cy = oc[omask].mean(1).T
+                ctxt = plt_text(cy, cx, cang_s, color='orange', zorder=.9,
                                 horizontalalignment='center',
                                 verticalalignment='center')
                 remove.extend(ctxt)
@@ -646,7 +645,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         if need_legend:
             need_legend = False
             if rc > 0:
-                patches[0].set_label('r to corner')
+                pc[0].set_label('r to corner')
             q.set_label('orientation')
             ps.set_label('centers')
             if fosets is None:
