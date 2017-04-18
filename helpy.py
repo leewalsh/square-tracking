@@ -1041,7 +1041,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
 
 
 def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
-                   verbose=False, run_remove_dupes=False,
+                   frame_slice=None, verbose=False, run_remove_dupes=False,
                    run_repair=False, run_track_orient=False):
     """Build a dict of slices into data based on trackid
 
@@ -1057,6 +1057,10 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
     returns:
         tracksets:          a dict of {trackid: subset of `data`}
     """
+    if frame_slice is not None:
+        fslice = parse_slice(frame_slice)
+        fsets = load_framesets(data, ret_dict=False)
+        data = np.concatenate(fsets[fslice])
     if trackids is None:
         # copy actually speeds it up by a factor of two
         trackids = data['t'].copy()
