@@ -670,6 +670,49 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         print 'loop broken'
 
 
+def plot_tracks(data, bgimage=None, style='t', slice=None,
+                save=False, show=True, ax=None):
+    """ Plots the tracks of particles in 2D
+
+    parameters
+    ----------
+    data : tracksets or framesets to plot trackwise or framewise
+    bgimage : a background image to plot on top of (the first frame tif, e.g.)
+    save : where to save the figure
+    show : whether to show the figure
+    ax : provide an axes to plot in
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    k = data.keys()[0]
+    assert np.allclose(k, data[k][style])
+    if bgimage is not None:
+        if isinstance(bgimage, basestring):
+            bgimage = plt.imread(bgimage)
+        ax.imshow(bgimage, cmap='gray', origin='lower')
+    cmap = plt.get_cmap('Set3')
+    slice = helpy.parse_slice(slice)
+    for k, d in data.iteritems():
+        x, y = d['xy'][slice].T
+        if style == 'f':
+            ax.scatter(y, x, c=d['t'] % cmap.N, marker='o', cmap=cmap, lw=0)
+        elif style == 't':
+            ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
+    ax.set_aspect('equal')
+    fig.tight_layout()
+    if save:
+        save = save + '_tracks.png'
+        print "saving tracks image to",
+        print save if verbose else os.path.basename(save)
+        fig.savefig(save, frameon=False, dpi=300)
+    if show:
+        plt.show()
+
+    return fig, ax
+
+
 def gapsize_distro(tracksetses, fields='fo', title=''):
     fig, ax = plt.subplots()
     for field in fields:
@@ -730,48 +773,6 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
         print
     return tracksets
 
-
-def plot_tracks(data, bgimage=None, style='t', slice=None,
-                save=True, show=True, ax=None):
-    """ Plots the tracks of particles in 2D
-
-    parameters
-    ----------
-    data : tracksets or framesets to plot trackwise or framewise
-    bgimage : a background image to plot on top of (the first frame tif, e.g.)
-    save : where to save the figure
-    show : whether to show the figure
-    ax : provide an axes to plot in
-    """
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
-    k = data.keys()[0]
-    assert np.allclose(k, data[k][style])
-    if bgimage is not None:
-        if isinstance(bgimage, basestring):
-            bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap='gray', origin='lower')
-    cmap = plt.get_cmap('Set3')
-    slice = helpy.parse_slice(slice)
-    for k, d in data.iteritems():
-        x, y = d['xy'][slice].T
-        if style == 'f':
-            ax.scatter(y, x, c=d['t'] % cmap.N, marker='o', cmap=cmap, lw=0)
-        elif style == 't':
-            ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
-    ax.set_aspect('equal')
-    fig.tight_layout()
-    if save:
-        save = save + '_tracks.png'
-        print "saving tracks image to",
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save, frameon=False, dpi=300)
-    if show:
-        plt.show()
-
-    return fig, ax
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
