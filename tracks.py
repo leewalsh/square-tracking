@@ -471,16 +471,19 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 print 'will exit'
             sys.stdout.flush()
 
+    # Prep images
     #imstack = (imstack.astype('f8')**2 / 4096.0).round().astype('u2')
     imstack = imstack - np.median(imstack, axis=0)
 
+    # Access dataset parameters
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
+    # Plot background image and set figure size
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
-    ppi = meta['boundary'][-1]/4
+    ppi = meta['boundary'][-1]/4 # pixels per inch, assuming R = 4 inches.
     h, w = imstack[0].shape
     actualsize = np.array([w, h]) / ppi
     fig, ax = plt.subplots(figsize=actualsize*1.02)
@@ -494,8 +497,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     else:
         ax.set_title(title.format(-1, 0, 0, 0))
         fig.tight_layout()
+
     need_legend = not clean
 
+    # Plot boundary circle
     if meta.get('track_cut', False):
         bndx, bndy, bndr = meta['boundary']
         cutr = bndr - meta['track_cut_margin']
@@ -504,6 +509,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                                                 color='r', fill=False, zorder=1)
         cutpatch.set_label('cut margin')
 
+    # Calcuate which frames to loop through
     lengths = map(len, [imstack, fsets, fcsets])
     f_max = min(lengths)
     assert f_max, 'Lengths imstack: {}, fsets: {}, fcsets: {}'.format(*lengths)
@@ -521,6 +527,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     f_num = f_nums[f_idx]
 
     while 0 <= f_idx < f_max:
+        # Check frame number
         if repeat > 5:
             if verbose:
                 print 'stuck on frame {} ({})'.format(f_idx, f_num),
@@ -533,20 +540,26 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         assert f_num == f_nums[f_idx], "f_num != f_nums[f_idx]"
         if verbose:
             print 'showing frame {} ({})'.format(f_idx, f_num),
+
+        # Load the data for this frame
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
+
         ts = helpy.quick_field_view(fsets[f_num], 't')
         tracked = ts >= 0
 
+        # Change background image
         p.set_data(imstack[f_idx])
         remove = []
 
-        # plot the detected dots
+        # plot the detected and tracked center dots
         dot_color = 'white'
         ps = ax.scatter(y[tracked], x[tracked], s=64, c=dot_color,
                         marker='o', edgecolors='black')
         remove.append(ps)
+
+        # plot the tracks
         if args.plottracks:
             cmap = plt.get_cmap('Set3')
             dot_color = cmap(ts[tracked] % cmap.N)**3  # cube to darken
@@ -554,26 +567,32 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                        zorder=0.1*f_idx/f_max,  # later tracks on top
                       )
         if not clean:
+            # plot untracked center dots
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
+            # plot all corner dots
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
             remove.extend([us, cs])
+            # plot center and corner dots as circles
             for dot, xy in zip(('center', 'corner'), (xyo, xyc)):
                 ph = helpy.draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
                                         lw=.5, color='k', fill=False, zorder=.6)
                 remove.extend(ph)
+            # plot valid corner distance circles
             for dr in (-drc, 0, drc):
                 pc = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax,
                                         lw=.5, color='g', fill=False, zorder=.5)
                 remove.extend(pc)
 
-        # plot the orientations
+        # mask the orientation data
         omask = np.isfinite(o)
         xyoo = xyo[omask]
         to = ts[omask]
         xo, yo, oo = xyoo.T
         so, co = np.sin(oo), np.cos(oo)
+
+        # plot n-hat orientation arrows
         quiver_args = dict(angles='xy', units='xy', scale_units='xy',
-                           width=side/8, scale=10/side, linewidth=0.75,
+                           width=side/8, scale=1/side, linewidth=0.75,
                            facecolor='black', edgecolor='white', zorder=0.4)
         q = ax.quiver(yo, xo, so, co, **quiver_args)
         remove.append(q)
@@ -591,75 +610,91 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             for nhat_i in nhat_is]
         remove.extend(nhats)
 
+        # interpolated framesets
         if fisets is not None and f_num in fisets:
             xyi = helpy.quick_field_view(fisets[f_num], 'xy')
             oi = helpy.quick_field_view(fisets[f_num], 'o')
             tsi = helpy.quick_field_view(fisets[f_num], 't')
+            # interpolated point mask
             pim = fisets[f_num]['id'] == 0
             if np.any(pim):
+                # plot interpolated center dots
                 ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
                                  c=['pink', 'r'][clean], zorder=.7)
                 remove.append(ips)
                 if not clean:
+                    # label interpolated track number
                     itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
                                     tsi[pim].astype('S'), color='pink',
                                     zorder=.9, horizontalalignment='center')
                     remove.extend(itxt)
+
+            # plot interpolated n-hat orientation arrows
+            # orient may be interpolated, whether or not point is, so plot all
             quiver_args['facecolor'] = 'black' if clean else 'gray'
-            quiver_args['scale'] *= 0.1
             quiver_args['zorder'] -= 0.1
             iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
                            **quiver_args)
             remove.append(iq)
 
+        # extended orientation data
         if fosets is not None:
+            # load corners shape (n_particles, n_corners_per_particle, n_dim)
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
-            oca = oc.reshape(-1, 2)
+            oca = oc.reshape(-1, 2) # flatten
+
+            # plot all corners
             ocs = ax.plot(oca[:, 1], oca[:, 0], linestyle='', marker='o',
                           color='white' if clean else 'black',
                           markeredgecolor='black', markersize=4, zorder=1)
             remove.extend(ocs)
 
             if not clean:
-                # corner displacements has shape (n_particles, n_corners, n_dim)
+                # print corner separation angle
                 cdisp = oc[omask] - xyoo[:, None, :2]
                 cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
                 cang_s = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
-                cx, cy = oc[omask].mean(1).T
+                cx, cy = oc[omask].mean(1).T # mean per particle
                 ctxt = plt_text(cy, cx, cang_s, color='orange', zorder=.9,
                                 horizontalalignment='center',
                                 verticalalignment='center')
                 remove.extend(ctxt)
 
         if not clean:
+            # label track number
             txt = plt_text(y[tracked], x[tracked]+txtoff,
                            ts[tracked].astype('S'),
                            color='r', zorder=.9, horizontalalignment='center')
             remove.extend(txt)
 
+        # count statistics for frame, print in title
         nts = np.count_nonzero(tracked)
         nos = np.count_nonzero(omask)
         ncs = len(o)
         ax.set_title(title.format(f_num, nos, nts, ncs))
 
+        # generate legend (only once)
         if need_legend:
             need_legend = False
             if rc > 0:
-                pc[0].set_label('r to corner')
-            q.set_label('orientation')
-            ps.set_label('centers')
+                pc[0].set_label('r to corner')      # patch corner
+            q.set_label('orientation')              # quiver
+            ps.set_label('centers')                 # point scatter
             if fosets is None:
-                cs.set_label('corners')
+                cs.set_label('corners')             # corner scatter
             else:
-                cs.set_label('unused corner')
-                ocs[0].set_label('used corners')
+                cs.set_label('unused corner')       # corner scatter
+                ocs[0].set_label('used corners')    # oriented corner scatter
             if len(txt):
                 txt[0].set_label('track id')
             ax.legend(fontsize='small')
 
+        # update the figure and wait for instructions
         fig.canvas.draw()
         fig.canvas.mpl_connect('key_press_event', advance)
         plt.waitforbuttonpress()
+
+        # clean up this frame before moving to next
         for rem in remove:
             rem.remove()
         if verbose:
