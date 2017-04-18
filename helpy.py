@@ -1643,7 +1643,7 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
             path = os.path.join(path, '*.tif')
         if glob.has_magic(path):
             if verbose:
-                print 'seeking matches to', path
+                print 'seeking matches to\n\t"{}"'.format(path)
             fnames = glob.glob(path)
         elif os.path.isfile(path):
             fnames = [path]
@@ -1652,9 +1652,10 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
     if fnames:
         nfound = len(fnames)
         if verbose or frames is True:
-            print 'found {} images'.format(nfound)
+            print '\tfound {} matches'.format(nfound)
         if single:
             frames = slice(int(frames), int(frames)+1)
+            path = fnames[0]
         else:
             frames = parse_slice(frames, nfound)
         fnames.sort()
@@ -1662,10 +1663,12 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         if load:
             from scipy.ndimage import imread
             if verbose:
-                print '. . .',
+                print '\tloading {} images'.format(len(fnames)),
             batchsize = 50
             ims = []
             for batch_i in xrange(0, len(fnames), batchsize):
+                if verbose:
+                    print '.',
                 batch = fnames[batch_i:batch_i+batchsize]
                 if tar:
                     batch = map(tar.extractfile, batch)
