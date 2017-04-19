@@ -559,7 +559,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                         marker='o', edgecolors='black')
         remove.append(ps)
 
-        # plot the tracks
+        # plot the tracks as smaller center dot that remains
         if args.plottracks:
             cmap = plt.get_cmap('Set3')
             dot_color = cmap(ts[tracked] % cmap.N)**3  # cube to darken
@@ -611,31 +611,34 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         remove.extend(nhats)
 
         # interpolated framesets
-        if fisets is not None and f_num in fisets:
-            xyi = helpy.quick_field_view(fisets[f_num], 'xy')
-            oi = helpy.quick_field_view(fisets[f_num], 'o')
-            tsi = helpy.quick_field_view(fisets[f_num], 't')
-            # interpolated point mask
-            pim = fisets[f_num]['id'] == 0
-            if np.any(pim):
+        if fisets is not None and f_num > 0:
+            # interpolated points have id = 0, so nonzero gives non-interpolated
+            fiset = np.sort(fisets[f_num], order='id')
+            ini = np.nonzero(helpy.quick_field_view(fiset, 'id'))[0]
+            if len(ini) < len(fiset):
+                fipset = np.delete(fiset, ini)
+                xi, yi = helpy.quick_field_view(fipset, 'xy').T
+                tsi = helpy.quick_field_view(fipset, 't')
                 # plot interpolated center dots
-                ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
-                                 c=['pink', 'r'][clean], zorder=.7)
+                ips = ax.scatter(yi, xi, c='r' if clean else 'pink', zorder=.7)
                 remove.append(ips)
                 if not clean:
                     # label interpolated track number
-                    itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
-                                    tsi[pim].astype('S'), color='pink',
-                                    zorder=.9, horizontalalignment='center')
+                    itxt = plt_text(yi, xi + txtoff, tsi.astype('S'),
+                                    color='pink', zorder=.9, ha='center')
                     remove.extend(itxt)
 
             # plot interpolated n-hat orientation arrows
-            # orient may be interpolated, whether or not point is, so plot all
-            quiver_args['facecolor'] = 'black' if clean else 'gray'
-            quiver_args['zorder'] -= 0.1
-            iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
-                           **quiver_args)
-            remove.append(iq)
+            # orient may be interpolated, whether or not point is
+            ioi = ini[omask[tracked]]
+            if len(ioi) < len(fiset):
+                fioset = np.delete(fiset, ioi)
+                oi = helpy.quick_field_view(fioset, 'o')
+                xoi, yoi = helpy.quick_field_view(fioset, 'xy').T
+                quiver_args['facecolor'] = 'black' if clean else 'gray'
+                quiver_args['zorder'] -= 0.1
+                iq = ax.quiver(yoi, xoi, np.sin(oi), np.cos(oi), **quiver_args)
+                remove.append(iq)
 
         # extended orientation data
         if fosets is not None:
