@@ -673,6 +673,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
 
 def plot_background(bgimage, ppi=None):
     """plot the background image and size appropriately"""
+    if isinstance(bgimage, basestring):
+        bgimage = plt.imread(bgimage)
     h, w = bgimage.shape
     if ppi is None:
         figsize = np.array([w, h]) / 72
@@ -683,15 +685,15 @@ def plot_background(bgimage, ppi=None):
             print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
 
     fig, ax = plt.subplots(figsize=figsize*1.02)
-    p = ax.imshow(bgimage, cmap='gray', zorder=0)
+    p = ax.imshow(bgimage, cmap='gray', origin='lower', zorder=0)
     xlim = ax.set_xlim(0, w)
     ylim = ax.set_ylim(0, h)
     set_axes_size_inches(ax, figsize, clear=['title', 'ticks'], tight=0)
     return fig, ax, p
 
 
-
-def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1, ax=None, **kwargs):
+def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
+                      ax=None, **kwargs):
     """plot orientation normals as arrows, some can be labeled with nhat"""
     if ax is None:
         fig, ax = plt.subplots()
@@ -710,8 +712,6 @@ def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1, ax=None, **
                        facecolor='black', edgecolor='white', zorder=0.4)
     quiver_args.update(kwargs)
     q = ax.quiver(yo, xo, so, co, **quiver_args)
-    print 'plotted arrows at'
-    print np.column_stack([yo, xo])
 
     if ts is None:
         return [q]
@@ -731,7 +731,7 @@ def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1, ax=None, **
 
     return [q] + nhats
 
-def plot_tracks(data, bgimage=None, style='t', slice=None,
+def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
                 save=False, show=True, ax=None):
     """ Plots the tracks of particles in 2D
 
@@ -753,23 +753,26 @@ def plot_tracks(data, bgimage=None, style='t', slice=None,
         if isinstance(bgimage, basestring):
             bgimage = plt.imread(bgimage)
         ax.imshow(bgimage, cmap='gray', origin='lower')
-    cmap = plt.get_cmap('Set3')
+    cmap = plt.get_cmap(cmap)
     slice = helpy.parse_slice(slice)
+
     for k, d in data.iteritems():
         x, y = d['xy'][slice].T
         if style == 'f':
-            ax.scatter(y, x, c=d['t'] % cmap.N, marker='o', cmap=cmap, lw=0)
+            p = ax.scatter(y, x, c=cmap(d['t'] % cmap.N), marker='o', lw=0)
         elif style == 't':
-            ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
+            p = ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
+
     ax.set_aspect('equal')
     fig.tight_layout()
+
     if save:
         save = save + '_tracks.png'
         print "saving tracks image to",
         print save if verbose else os.path.basename(save)
         fig.savefig(save, frameon=False, dpi=300)
 
-    return fig, ax
+    return p
 
 
 def gapsize_distro(tracksetses, fields='fo', title=''):
