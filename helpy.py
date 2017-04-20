@@ -1596,10 +1596,13 @@ def parse_slice(desc, shape=0, index_array=False):
         slice_obj = desc
     else:
         if isinstance(desc, basestring):
-            args = [int(s) if s else None for s in desc.split(':')]
+            args = [float(s) if '.' in s else int(s) if s else None
+                    for s in desc.split(':')]
         else:
             args = np.atleast_1d(desc)
-        if len(args) <= 3:
+        if len(args) == 1 and isinstance(args[0], float):
+            slice_obj = args[0] if index_array else slice(*args)
+        elif len(args) <= 3:
             slice_obj = slice(*args)
         elif index_array:
             return args

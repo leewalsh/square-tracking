@@ -39,7 +39,7 @@ if __name__ == '__main__':
         dest='do_orientation', help='Only translational noise?')
     arg('--sets', type=int, default=0, metavar='N', nargs='?', const=1,
         help='Number of sets')
-    arg('--width', type=float, default=(0.65,), metavar='W', nargs='*',
+    arg('--width', metavar='W',
         help='Smoothing width for derivative, may give several')
     arg('--particle', type=str, default='', help='Particle name')
     arg('--noshow', action='store_false', dest='show',
@@ -288,12 +288,14 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
 
 
 def command_widths(tsets, compile_args, args):
-    stats = compile_widths(tsets, **compile_args)
-    fig = plot_widths(args.width, stats, normalize=args.normalize)
+    widths = helpy.parse_slice(args.width, index_array=True)
+    stats = compile_widths(tsets, widths, **compile_args)
+    fig = plot_widths(width, stats, normalize=args.normalize)
 
 
 def command_autocorr(tsets, args):
-    vs = compile_noise(tsets, args.width, cat=False,
+    width = helpy.parse_slice(args.width, index_array=True)
+    vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
     vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
     fig, ax = plt.subplots()
@@ -306,15 +308,14 @@ def command_autocorr(tsets, args):
 
 
 def command_hist(args, meta, compile_args):
-    args.width = args.width[0]
     helpy.sync_args_meta(args, meta,
                          ['stub', 'gaps', 'width'],
                          ['vel_stub', 'vel_gaps', 'vel_dx_width'],
                          [10, 'interp', 0.65])
     fits = {}
-    args.width = [args.width]
+    width = helpy.parse_slice(args.width, index_array=True)
     compile_args.update(args.__dict__)
-    vs = compile_noise(tsets, args.width, cat=True,
+    vs = compile_noise(tsets, width, cat=True,
                        side=args.side, fps=args.fps)
     if not (args.log or args.lin):
         args.log = args.lin = True
