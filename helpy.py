@@ -1800,10 +1800,11 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
         patches:    a list of the patch objects
     """
     from matplotlib.patches import Circle
-    if np.isscalar(rs):
-        rs = it.repeat(rs)
-    centers = np.atleast_2d(centers)
-    patches = [Circle(c, abs(r), **kwargs) for c, r in it.izip(centers, rs)]
+    cs = np.atleast_2d(centers)
+    rs = np.atleast_1d(np.abs(rs))
+    n = max(map(len, (cs, rs)))
+    b = np.broadcast_to(cs, (n, 2)), np.broadcast_to(rs, (n,))
+    patches = [Circle(c, r, **kwargs) for c, r in it.izip(*b)]
     if ax is None:
         if fig is None:
             from matplotlib.pyplot import gca

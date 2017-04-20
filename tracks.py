@@ -481,20 +481,13 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
-    fig, ax, p = plot_background(imstack[0], ppi=meta['boundary'][-1]/4)
+    fig, ax, (p, bnds) = plot_background(
+        imstack[0], ppi=meta['boundary'][-1]/4,
+        boundary=meta['boundary'], cut_margin=meta.get('track_cut_margin'))
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     ax.set_title(title.format(-1, 0, 0, 0))
     need_legend = not clean
-
-    # Plot boundary circle
-    if meta.get('track_cut', False):
-        bndx, bndy, bndr = meta['boundary']
-        cutr = bndr - meta['track_cut_margin']
-        bndc = [[bndy, bndx]]*2
-        bndpatch, cutpatch = helpy.draw_circles(bndc, [bndr, cutr], ax=ax,
-                                                color='r', fill=False, zorder=1)
-        cutpatch.set_label('cut margin')
 
     # Calcuate which frames to loop through
     lengths = map(len, [imstack, fsets, fcsets])
@@ -671,7 +664,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         print 'loop broken'
 
 
-def plot_background(bgimage, ppi=None):
+def plot_background(bgimage, ppi=None, boundary=None, cut_margin=None, ax=None):
     """plot the background image and size appropriately"""
     if isinstance(bgimage, basestring):
         bgimage = plt.imread(bgimage)
@@ -684,12 +677,29 @@ def plot_background(bgimage, ppi=None):
             print 'plotting actual size {:.2f}x{:.2f} in'.format(*figsize)
             print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
 
-    fig, ax = plt.subplots(figsize=figsize*1.02)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize*1.02)
+    else:
+        fig = ax.figure
+        fig.set_size_inches(figsize*1.02)
+
     p = ax.imshow(bgimage, cmap='gray', origin='lower', zorder=0)
     xlim = ax.set_xlim(0, w)
     ylim = ax.set_ylim(0, h)
     set_axes_size_inches(ax, figsize, clear=['title', 'ticks'], tight=0)
-    return fig, ax, p
+
+    if boundary is None:
+        return fig, ax, p
+
+    bndc = boundary[1::-1]
+    bndr = boundary[2]
+    if cut_margin is not None:
+        bndr = [bndr, bndr - cut_margin]
+    bnds = helpy.draw_circles(bndc, bndr, ax=ax,
+                              color='tab:red', fill=False, zorder=1)
+    if cut_margin is not None:
+        bnds[1].set_label('cut margin')
+    return fig, ax, (p, bnds)
 
 
 def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
@@ -715,24 +725,25 @@ def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
 
     if ts is None:
         return [q]
+    else:
+        out = [q]
 
     # label n-hat
     t = 3
     to = ts[omask]
     nhat_offsets = side * np.stack([(so - co*2/3), (co + so*2/3)], axis=1)
-    nhat_is = np.where(to == t)[0] if clean else xrange(len(to))
-    nhats = [ax.annotate(
-        r'$\hat n$',
-        xy=(yo[nhat_i], xo[nhat_i]),
-        xytext=nhat_offsets[nhat_i],
-        textcoords='offset points', ha='center', va='center',
-        fontsize='large')
-        for nhat_i in nhat_is]
 
-    return [q] + nhats
+    for i in np.where(to == t)[0] if clean else xrange(len(to)):
+        a = ax.annotate(r'$\hat n$', xy=(yo[i], xo[i]),
+                        xytext=nhat_offsets[i], textcoords='offset points',
+                        ha='center', va='center', fontsize='large')
+        out.append(a)
+
+    return out
+
 
 def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
-                save=False, show=True, ax=None):
+                save=False, ax=None):
     """ Plots the tracks of particles in 2D
 
     parameters
@@ -740,7 +751,6 @@ def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
     data : tracksets or framesets to plot trackwise or framewise
     bgimage : a background image to plot on top of (the first frame tif, e.g.)
     save : where to save the figure
-    show : whether to show the figure
     ax : provide an axes to plot in
     """
     if ax is None:
@@ -749,10 +759,10 @@ def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
         fig = ax.figure
     k = data.keys()[0]
     assert np.allclose(k, data[k][style])
+
     if bgimage is not None:
-        if isinstance(bgimage, basestring):
-            bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap='gray', origin='lower')
+        plot_background(bgimage)
+
     cmap = plt.get_cmap(cmap)
     slice = helpy.parse_slice(slice)
 
