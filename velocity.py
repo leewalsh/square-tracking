@@ -355,8 +355,9 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
                             arrowprops=dict(arrowstyle='->', lw=0.5))
             tfine = np.linspace(t[0], t[-1])
             ax.plot(tfine, np.exp(-tfine/vvtime), c='k', ls='-', lw=1, zorder=0)
+    vmax = args.normalize or max(vv[v][0] for v in comps.split())
+    ax.set_ylim(-0.05*vmax, 1.05*vmax)
     ax.set_xlim(-0.2, t[-1])
-    ax.set_ylim(-0.05, 1.05)
 
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(int(t[-1] + 1)))
