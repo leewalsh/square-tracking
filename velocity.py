@@ -171,10 +171,11 @@ def compile_widths(tracksets, widths, side=1, fps=1, **kwargs):
     return stats
 
 
-def plot_widths(widths, stats, fig, normalize=False):
-    statistics = 'mean var D skew kurt'.split()
-    for i, s in enumerate(statistics):
-        ax = fig.add_subplot(len(statistics), 1, i+1)
+def plot_widths(widths, stats, normalize=False):
+    statnames = 'mean var D skew kurt'.split()
+    naxs = len(statnames)
+    fig, axs = plt.subplots(figsize=(6, 2*naxs), nrows=naxs, sharex=True)
+    for s, ax in zip(statnames, axs):
         for v in stats:
             val = stats[v][s]
             if normalize:
@@ -184,13 +185,19 @@ def plot_widths(widths, stats, fig, normalize=False):
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
             ax.plot(widths, val, '.'+ls[v]+cs[s], label=texlabel[v])
-        ax.set_title(s)
         ax.margins(y=0.1)
         ax.minorticks_on()
         ax.grid(axis='x', which='both')
+        ax.grid(axis='y', which='major')
         if normalize:
             ax.set_ylim(-0.1, 1.1)
-        ax.legend(loc='best')
+        ax.legend(title=s, loc='best', ncol=2)
+    ax.set_xlabel('derivative kernel width (frames)')
+    top = axs[0].twiny()
+    top.set_xlabel('derivative kernel width (vibration period)')
+    fig.tight_layout(h_pad=0)
+    top.set_xlim([l/args.fps for l in ax.get_xlim()])
+    return fig
 
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
@@ -317,13 +324,10 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
     return vv_radial / vv_counts, bins
 
 
-def command_widths(tsets, compile_args, args, fig=None):
+def command_widths(tsets, compile_args, args):
     widths = helpy.parse_slice(args.width or (.25, 1, .05), index_array=True)
     stats = compile_widths(tsets, widths, **compile_args)
-    if fig is None:
-        fig = plt.figure(figsize=(8, 12))
-    plot_widths(widths, stats, fig, normalize=args.normalize)
-    return fig
+    return plot_widths(widths, stats, normalize=args.normalize)
 
 
 def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
