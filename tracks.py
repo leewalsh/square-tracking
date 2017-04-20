@@ -481,23 +481,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
-    # Plot background image and set figure size
-    title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
-    ppi = meta['boundary'][-1]/4 # pixels per inch, assuming R = 4 inches.
-    h, w = imstack[0].shape
-    actualsize = np.array([w, h]) / ppi
-    fig, ax = plt.subplots(figsize=actualsize*1.02)
-    p = ax.imshow(imstack[0], cmap='gray')
-    xlim = ax.set_xlim(0, w)
-    ylim = ax.set_ylim(0, h)
-    if actualsize is not None:
-        print 'plotting actual size {:.2f}x{:.2f} in'.format(*actualsize)
-        print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
-        set_axes_size_inches(ax, actualsize, clear=['title', 'ticks'], tight=0)
-    else:
-        ax.set_title(title.format(-1, 0, 0, 0))
-        fig.tight_layout()
+    fig, ax, p = plot_background(imstack[0], ppi=meta['boundary'][-1]/4)
 
+    title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
+    ax.set_title(title.format(-1, 0, 0, 0))
     need_legend = not clean
 
     # Plot boundary circle
@@ -545,6 +532,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
+        omask = np.isfinite(o)
 
         ts = helpy.quick_field_view(fsets[f_num], 't')
         tracked = ts >= 0
@@ -583,32 +571,9 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                                         lw=.5, color='g', fill=False, zorder=.5)
                 remove.extend(pc)
 
-        # mask the orientation data
-        omask = np.isfinite(o)
-        xyoo = xyo[omask]
-        to = ts[omask]
-        xo, yo, oo = xyoo.T
-        so, co = np.sin(oo), np.cos(oo)
+        q = plot_orientations(xyo, ts, omask, clean=clean, side=side, ax=ax)
+        remove.extend(q)
 
-        # plot n-hat orientation arrows
-        quiver_args = dict(angles='xy', units='xy', scale_units='xy',
-                           width=side/8, scale=1/side, linewidth=0.75,
-                           facecolor='black', edgecolor='white', zorder=0.4)
-        q = ax.quiver(yo, xo, so, co, **quiver_args)
-        remove.append(q)
-
-        # label n-hat
-        t, d = 3, 10
-        nhat_offsets = d * np.stack([(1.5*so - co), (1.5*co + so)], axis=1)
-        nhat_is = np.where(to == t)[0] if clean else xrange(len(to))
-        nhats = [ax.annotate(
-            r'$\hat n$',
-            xy=(yo[nhat_i], xo[nhat_i]),
-            xytext=nhat_offsets[nhat_i],
-            textcoords='offset points', ha='center', va='center',
-            fontsize='large')
-            for nhat_i in nhat_is]
-        remove.extend(nhats)
 
         # interpolated framesets
         if fisets is not None and f_num > 0:
@@ -633,12 +598,11 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             ioi = ini[omask[tracked]]
             if len(ioi) < len(fiset):
                 fioset = np.delete(fiset, ioi)
-                oi = helpy.quick_field_view(fioset, 'o')
-                xoi, yoi = helpy.quick_field_view(fioset, 'xy').T
-                quiver_args['facecolor'] = 'black' if clean else 'gray'
-                quiver_args['zorder'] -= 0.1
-                iq = ax.quiver(yoi, xoi, np.sin(oi), np.cos(oi), **quiver_args)
-                remove.append(iq)
+                xyoi = helpy.consecutive_fields_view(fioset, 'xyo')
+                iq = plot_orientations(xyoi, clean=clean, side=side, ax=ax,
+                                       zorder=0.3,
+                                       facecolor='black' if clean else 'gray')
+                remove.extend(iq)
 
         # extended orientation data
         if fosets is not None:
@@ -654,7 +618,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
 
             if not clean:
                 # print corner separation angle
-                cdisp = oc[omask] - xyoo[:, None, :2]
+                cdisp = oc[omask] - xyo[omask, None, :2]
                 cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
                 cang_s = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
                 cx, cy = oc[omask].mean(1).T # mean per particle
@@ -681,7 +645,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             need_legend = False
             if rc > 0:
                 pc[0].set_label('r to corner')      # patch corner
-            q.set_label('orientation')              # quiver
+            q[0].set_label('orientation')           # quiver
             ps.set_label('centers')                 # point scatter
             if fosets is None:
                 cs.set_label('corners')             # corner scatter
@@ -706,6 +670,66 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     if verbose:
         print 'loop broken'
 
+
+def plot_background(bgimage, ppi=None):
+    """plot the background image and size appropriately"""
+    h, w = bgimage.shape
+    if ppi is None:
+        figsize = np.array([w, h]) / 72
+    else:
+        figsize = np.array([w, h]) / ppi
+        if verbose:
+            print 'plotting actual size {:.2f}x{:.2f} in'.format(*figsize)
+            print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
+
+    fig, ax = plt.subplots(figsize=figsize*1.02)
+    p = ax.imshow(bgimage, cmap='gray', zorder=0)
+    xlim = ax.set_xlim(0, w)
+    ylim = ax.set_ylim(0, h)
+    set_axes_size_inches(ax, figsize, clear=['title', 'ticks'], tight=0)
+    return fig, ax, p
+
+
+
+def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1, ax=None, **kwargs):
+    """plot orientation normals as arrows, some can be labeled with nhat"""
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    # mask the orientation data
+    if omask is not None:
+        xyo = xyo[omask]
+    xo, yo, oo = xyo.T
+    so, co = np.sin(oo), np.cos(oo)
+
+    # plot n-hat orientation arrows
+    quiver_args = dict(angles='xy', units='xy', scale_units='xy',
+                       width=side/8, scale=1/side, linewidth=0.75,
+                       facecolor='black', edgecolor='white', zorder=0.4)
+    quiver_args.update(kwargs)
+    q = ax.quiver(yo, xo, so, co, **quiver_args)
+    print 'plotted arrows at'
+    print np.column_stack([yo, xo])
+
+    if ts is None:
+        return [q]
+
+    # label n-hat
+    t = 3
+    to = ts[omask]
+    nhat_offsets = side * np.stack([(so - co*2/3), (co + so*2/3)], axis=1)
+    nhat_is = np.where(to == t)[0] if clean else xrange(len(to))
+    nhats = [ax.annotate(
+        r'$\hat n$',
+        xy=(yo[nhat_i], xo[nhat_i]),
+        xytext=nhat_offsets[nhat_i],
+        textcoords='offset points', ha='center', va='center',
+        fontsize='large')
+        for nhat_i in nhat_is]
+
+    return [q] + nhats
 
 def plot_tracks(data, bgimage=None, style='t', slice=None,
                 save=False, show=True, ax=None):
@@ -744,8 +768,6 @@ def plot_tracks(data, bgimage=None, style='t', slice=None,
         print "saving tracks image to",
         print save if verbose else os.path.basename(save)
         fig.savefig(save, frameon=False, dpi=300)
-    if show:
-        plt.show()
 
     return fig, ax
 
