@@ -743,7 +743,7 @@ def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
 
 
 def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
-                save=False, ax=None):
+                save=False, ax=None, **kwargs):
     """ Plots the tracks of particles in 2D
 
     parameters
@@ -769,9 +769,9 @@ def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
     for k, d in data.iteritems():
         x, y = d['xy'][slice].T
         if style == 'f':
-            p = ax.scatter(y, x, c=cmap(d['t'] % cmap.N), marker='o', lw=0)
+            p = ax.scatter(y, x, c=cmap(d['t'] % cmap.N), marker='o', **kwargs)
         elif style == 't':
-            p = ax.plot(y, x, ls='-', c=cmap(k % cmap.N))
+            p = ax.plot(y, x, ls='-', c=cmap(k % cmap.N), **kwargs)
 
     ax.set_aspect('equal')
     fig.tight_layout()
