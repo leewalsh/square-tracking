@@ -383,7 +383,7 @@ def command_widths(tsets, compile_args, args):
     return stats, f_width, f_smooth
 
 
-def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
+def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     width = helpy.parse_slice(args.width, index_array=True)
     vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
@@ -394,30 +394,37 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
         fig = ax.figure
     n = 12
     t = np.arange(n)/args.fps
-    for v in comps.split():
-        ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
-                    linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        if markt:
-            final = 0#vv[v][n:2*n].mean()
-            vvtime = curve.decay_scale((vv[v][:2*n]-final)/(1-final),
-                                    np.arange(2*n)/args.fps,
-                                    method='thresh', smooth='', rectify=False)
-            print v, 'autocorr time:', vvtime, final
-            markstyle = dict(lw=1, colors=cs[v], linestyles=':', zorder=0.1)
-            ax.vlines(vvtime, ax.get_ylim()[0], 1/np.e, **markstyle)
-            ax.hlines(1/np.e, ax.get_xlim()[0], vvtime, **markstyle)
-            if v == 'o':
-                ax.annotate(r'$\tau$', xy=(vvtime, vv[v][0]/np.e),
-                            xytext=(11, 11), textcoords='offset points',
-                            arrowprops=dict(arrowstyle='->', lw=0.5))
-            tfine = np.linspace(t[0], t[-1])
-            ax.plot(tfine, np.exp(-tfine/vvtime), c='k', ls='-', lw=1, zorder=0)
     vmax = args.normalize or max(vv[v][0] for v in comps.split())
     ax.set_ylim(-0.05*vmax, 1.05*vmax)
     ax.set_xlim(-0.2, t[-1])
+    for v in comps.split():
+        ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
+                    linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
+        methods = "thresh mean int inv fit".split() if v in markt else ()
+        for method in methods:
+            final = 0#vv[v][n:2*n].mean()
+            vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
+            tlong = np.arange(2*n)/args.fps
+            vvtime = curve.decay_scale(
+                vvnormed, tlong,
+                method=method, smooth='', rectify=False)
+            print v, 'autocorr time:', vvtime, final
+            markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
+            vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
+            ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
+            ax.hlines(vv_at_time, ax.get_xlim()[0], vvtime, **markstyle)
+            ax.annotate(r'$\tau_\mathrm{{{}}} = {:.2f}$'.format(method, vvtime),
+                        xy=(vvtime, vv_at_time),
+                        xytext=(10, 20), textcoords='offset points',
+                        ha='left', va='baseline',
+                        arrowprops=dict(arrowstyle='->', lw=0.5))
+            if method == 'thresh':
+                tfine = np.linspace(t[0], t[-1])
+                ax.plot(tfine, (vv[v][0] - final)*np.exp(-tfine/vvtime) + final,
+                        c='k', ls='-', lw=1, zorder=0)
 
     ax.tick_params(direction='in', which='both')
-    ax.set_xticks(np.arange(int(t[-1] + 1)))
+    ax.set_xticks(np.arange(0, t[-1], t[-1]//10 + 1).astype(int))
 
     ax.set_xlabel(r'$t \, f$', labelpad=2)
     ylabel = r'$\langle {0}(t) \, {0}(0) \rangle$'.format(
