@@ -194,6 +194,8 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     l = len(f)
     if x is None:
         x = np.arange(l)
+    elif np.isscalar(x):
+        x = np.arange(l)*x
 
     if smooth == 'fit':
         p, _ = curve_fit(poly_exp, x, f, [1, 1, 1])
@@ -208,14 +210,17 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
 
     method = method.lower()
     if method.startswith('mean'):
-        return np.dot(x, f) / f.sum()
+        return np.trapz(f*x, x) / np.trapz(f, x)
     elif method.startswith('int'):
-        return f.sum()
+        return np.trapz(f, x)
     elif method.startswith('inv'):
-        return f.sum() / np.dot(1/(x+1), f)
+        return np.trapz(f, x) / np.trapz(f/(x+1), x)
     elif method.startswith('thresh'):
         i = f.argsort()
         return np.interp(f[0]/np.e, f[i], x[i])
+    elif method.startswith('fit'):
+        popt, _ = curve_fit(exp_decay, x, f, p0=[1, 1, 0])
+        return popt[0]
 
 
 def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
