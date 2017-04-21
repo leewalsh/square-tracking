@@ -39,8 +39,11 @@ if __name__ == '__main__':
         dest='do_orientation', help='Only translational noise?')
     arg('--sets', type=int, default=0, metavar='N', nargs='?', const=1,
         help='Number of sets')
-    arg('--width', metavar='W',
-        help='Smoothing width for derivative, may give several')
+    arg('--width', metavar='WID',
+        help='Width (in frames) for derivative kernel, may give slice')
+    arg('--smooth', metavar='SIG',
+        help='Smoothing width (in frames) of velocities, may give slice. '
+        'Differs from --width in that this smoothing happens after derivative.')
     arg('--particle', type=str, default='', help='Particle name')
     arg('--noshow', action='store_false', dest='show',
         help="Don't show figures (just save them)")
@@ -83,7 +86,7 @@ englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
             'par': 'longitudinal', 'perp': 'transverse', 'etapar': 'longitudinal'}
 labels = 0
 
-def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
+def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
     """calculate angular and positional derivatives in lab & particle frames.
 
     Returns the derivatives in structured array with dtype having fields
@@ -112,15 +115,25 @@ def noise_derivatives(tdata, width=(0.65,), side=1, fps=1):
     v['etay'] = v['y'] - v0*sin
     v['eta'] = np.hypot(v['etax'], v['etay'])
     v['etapar'] = v['par'] - v0
+    if smooth is not None:
+        from scipy.ndimage import correlate1d
+        smooth = np.atleast_1d(smooth)
+        vsmooth = np.empty((len(smooth),) + shape, v.dtype)
+        for si, s in enumerate(smooth):
+            kern = curve.gaussian_kernel(s)
+            for f in v.dtype.names:
+                vsmooth[si][f] = correlate1d(v[f], kern, mode='nearest')
+        v = vsmooth
+
     v = helpy.add_self_view(v, ('x', 'y'), 'xy')
     v = helpy.add_self_view(v, ('par', 'perp'), 'nt')
     return v.T
 
 
-def compile_noise(tracksets, width=(0.65,), cat=True, side=1, fps=1):
+def compile_noise(tracksets, width=(0.65,), smooth=None, cat=True, side=1, fps=1):
     vs = {}
     for prefix, tsets in tracksets.iteritems():
-        vsets = {t: noise_derivatives(ts, width=width, side=side, fps=fps)
+        vsets = {t: noise_derivatives(ts, width, smooth, side=side, fps=fps)
                  for t, ts in tsets.iteritems()}
         if cat:
             fsets, fvsets = helpy.load_framesets((tsets, vsets))
@@ -133,48 +146,55 @@ def compile_noise(tracksets, width=(0.65,), cat=True, side=1, fps=1):
     return np.concatenate(vs.values()) if cat else vs
 
 
-def get_stats(a):
-    """Computes mean, D_T or D_R, and standard error for a list.
+def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit'):
+    """Compute mean, D_T or D_R, and standard error for a list.
     """
     a = np.asarray(a)
-    n = a.shape[-1]
-    keepdims = a.ndim > 1
-    M = np.nanmean(a, -1, keepdims=keepdims)
-    # c = a - M
-    # variance = np.einsum('...j,...j->...', c, c)/n
-    variance = np.nanvar(a, -1, keepdims=keepdims, ddof=1)
+    n = a.shape[stat_axis]
+    if keepdims is None:
+        keepdims = a.ndim > 1
+    M = np.nanmean(a, stat_axis, keepdims=keepdims)
+    variance = np.nanvar(a, stat_axis, keepdims=keepdims, ddof=1)
     D = 0.5*variance*args.fps
     SE = np.sqrt(variance)/sqrt(n - 1)
-    SK = skew(a, -1, nan_policy='omit')
-    KU = kurtosis(a, -1, nan_policy='omit')
-    SK_t = skewtest(a, -1, nan_policy='omit')
-    KU_t = kurtosistest(a, -1, nan_policy='omit')
+    SK = skew(a, stat_axis, nan_policy=nan_policy)
+    KU = kurtosis(a, stat_axis, nan_policy=nan_policy)
+    SK_t = skewtest(a, stat_axis, nan_policy=nan_policy)
+    KU_t = kurtosistest(a, stat_axis, nan_policy=nan_policy)
     if keepdims:
         SK = np.array(SK)[..., None]
         KU = np.array(KU)[..., None]
+        SK_t = np.array(SK_t.statistic)[..., None]
+        KU_t = np.array(KU_t.statistic)[..., None]
     else:
-        SK = float(SK)
-        KU = float(KU)
+        SK = np.array(SK)
+        KU = np.array(KU)
+        SK_t = np.array(SK_t.statistic)
+        KU_t = np.array(KU_t.statistic)
     stat = {'mean': M, 'var': variance, 'D': D, 'std': SE,
-            'skew': SK, 'skew_test': np.array(SK_t.statistic),
-            'kurt': KU, 'kurt_test': np.array(KU_t.statistic)}
+            'skew': SK, 'skew_test': SK_t, 'kurt': KU, 'kurt_test': KU_t}
     if not keepdims:
         print '\n'.join(['{:>10}: {: .4f}'.format(k, float(v))
                          for k, v in stat.items()])
     return stat
 
 
-def compile_widths(tracksets, widths, side=1, fps=1, **kwargs):
-    vs = compile_noise(tracksets, widths, cat=True, side=side, fps=fps)
-    stats = {v: get_stats(vs[v].T)
-             for v in ('o', 'par', 'perp', 'etapar')}
+def compile_widths(tracksets, widths, smooths, side=1, fps=1, **kwargs):
+    """collect various statistics as a function of derivative kernel width"""
+    vs = compile_noise(tracksets, widths, smooths, cat=True, side=side, fps=fps)
+    stats = {v: get_stats(vs[v].T) for v in 'o par perp etapar'.split()}
     return stats
 
 
-def plot_widths(widths, stats, normalize=False):
+def plot_widths(widths, stats, normalize=False, ax=None):
+    """plot various statistics as a function of derivative kernel width"""
     statnames = 'mean var D skew kurt'.split()
     naxs = len(statnames)
-    fig, axs = plt.subplots(figsize=(6, 2*naxs), nrows=naxs, sharex=True)
+    if ax is None:
+        fig, axs = plt.subplots(figsize=(6, 2*naxs), nrows=naxs, sharex=True)
+    else:
+        axs = ax
+        fig = axs[0].figure
     for s, ax in zip(statnames, axs):
         for v in stats:
             val = stats[v][s]
@@ -192,9 +212,9 @@ def plot_widths(widths, stats, normalize=False):
         if normalize:
             ax.set_ylim(-0.1, 1.1)
         ax.legend(title=s, loc='best', ncol=2)
-    ax.set_xlabel('derivative kernel width (frames)')
+    ax.set_xlabel('kernel width (frames)')
     top = axs[0].twiny()
-    top.set_xlabel('derivative kernel width (vibration period)')
+    top.set_xlabel('kernel width (vibrations)')
     fig.tight_layout(h_pad=0)
     top.set_xlim([l/args.fps for l in ax.get_xlim()])
     return fig
@@ -202,6 +222,7 @@ def plot_widths(widths, stats, normalize=False):
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
               label='v', title='', subtitle='', c=cs['o'], histtype='step'):
+    """plot a histogram of a given distribution of velocities"""
     if args.verbose:
         print title + subtitle + str(label)
     stats = get_stats(a)
@@ -326,8 +347,40 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
 
 def command_widths(tsets, compile_args, args):
     widths = helpy.parse_slice(args.width or (.25, 1, .05), index_array=True)
-    stats = compile_widths(tsets, widths, **compile_args)
-    return plot_widths(widths, stats, normalize=args.normalize)
+    smooths = helpy.parse_slice(args.smooth or (.25, 1, .05), index_array=True)
+    nwidth, nsmooth = len(widths), len(smooths)
+    stats = compile_widths(tsets, widths, smooths, **compile_args)
+    # stats is a nested dict of stats arrays
+    #     stats[vcomp][statname].shape == (nsmooth, nwidth, 1)
+    # for vcomp in ('par', 'perp', 'o', ...)
+    # and statname in ('mean', 'var', 'D', ...)
+    vcomps = stats.keys()
+    statnames = stats[vcomps[0]].keys()
+
+    if nwidth > 1 and nsmooth > 1:
+        fig, axs = plt.subplots(figsize=(4.8, 6.4), ncols=2, nrows=5,
+                                sharex='col', sharey='row')
+        axl, axr = axs.T
+    else:
+        axl, axr = None, None
+    # slice the array at the middle smoothing value to plot vs width:
+    stats_width = {v: {s: stats[v][s][nsmooth//2, :, 0]
+                       for s in statnames} for v in vcomps}
+    print "Plot vs derivative width, with smoothing", smooths[nsmooth//2]
+    f_width = plot_widths(widths, stats_width, normalize=args.normalize, ax=axl)
+    f_width.suptitle('Various derivative widths, smoothing at: {}'.format(
+        smooths[nsmooth//2]))
+    f_width.tight_layout()
+
+    # slice the array at the middle width value to plot vs smoothing:
+    stats_smooth = {v: {s: stats[v][s][:, nwidth//2, 0]
+                        for s in statnames} for v in vcomps}
+    print "Plot vs smoothing width, with derivative width", widths[nwidth//2]
+    f_smooth = plot_widths(smooths, stats_smooth, normalize=args.normalize, ax=axr)
+    f_smooth.suptitle('Various smoothing widths, derivative kernel: {}'.format(
+        widths[nwidth//2]))
+    f_smooth.tight_layout()
+    return stats, f_width, f_smooth
 
 
 def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=0):
@@ -505,7 +558,7 @@ if __name__ == '__main__':
     with plt.rc_context(rc=rcParams_for_context):
         print rcParams_for_context
         if 'widths' in args.command:
-            fig = command_widths(tsets, compile_args, args)
+            stats, f_width, f_smooth = command_widths(tsets, compile_args, args)
         else:
             nrows = args.do_orientation + args.do_translation*(args.subtract+1)
             ncols = len(args.command)
