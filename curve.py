@@ -212,14 +212,14 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     if method.startswith('mean'):
         return np.trapz(f*x, x) / np.trapz(f, x)
     elif method.startswith('int'):
-        return np.trapz(f, x)
+        return np.trapz(f, x) / f[0]
     elif method.startswith('inv'):
         return np.trapz(f, x) / np.trapz(f/(x+1), x)
     elif method.startswith('thresh'):
         i = f.argsort()
         return np.interp(f[0]/np.e, f[i], x[i])
     elif method.startswith('fit'):
-        popt, _ = curve_fit(exp_decay, x, f, p0=[1, 1, 0])
+        popt, _ = curve_fit(exp_decay, x, f, p0=[x[1], f[0], f[-1]])
         return popt[0]
 
 
