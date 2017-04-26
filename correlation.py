@@ -1004,6 +1004,8 @@ def radial_correlation(positions, values, bins=10, correland='*', do_avg=True):
 
     ij = pair_indices(n, True).T
     rij = distance.pdist(positions)
+    if not np.isscalar(bins) and rij.min() > np.max(bins):
+        return 0, 0, bins
     if correland == '*':
         correland = np.multiply
     if multi:
