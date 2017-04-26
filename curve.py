@@ -469,6 +469,11 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
         print 'truncate', truncate
         kern = gaussian_kernel(iwidth, order=order, truncate=truncate)
+        # TODO: avoid spreading nans
+        # correlate f(nan-->0) and norm by correlation of x * isfinite(f)
+        # df = correlate1d(np.nan_to_num(f), kern, mode='nearest')
+        # df /= correlate1d(x * np.isfinite(f).astype(float), kern, mode='nearest')
+        # but the above is not properly tested.
         df = correlate1d(f, kern, mode='nearest')
 
     return df/dx**order
@@ -590,6 +595,23 @@ def symmetry(f, x=None, parity=None, integrate=False):
         total = np.nanmean(normed[..., x0:], -1)
     sym = namedtuple('sym', 'x i symmetric antisymmetric symmetry'.split())
     return sym(x, i, *parts, symmetry=(total if integrate else normed))
+
+
+def bin_mid(bins):
+    """Return the midpoints of an array of bin edges"""
+    return (bins[1:] + bins[:-1])/2
+
+
+def bin_plot(bins, counts, ax=None, outside=None, **kwargs):
+    """Plot a step function given bin edges"""
+    if outside is None:
+        counts = np.concatenate((counts[:1], counts))
+    else:
+        counts = np.concatenate(([outside], counts, [outside]))
+        bins = np.concatenate((bins, bins[-1:]))
+    if ax is None:
+        _, ax = plt.subplots()
+    return ax.step(bins, counts, **kwargs)
 
 
 def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):
