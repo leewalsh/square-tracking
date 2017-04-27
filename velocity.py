@@ -75,9 +75,10 @@ pi = np.pi
 
 ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '--', 'perp': '-.', 'etapar': ':'}
 marker = {'o': 'o', 'x': '-', 'y': '|', 'par': '^', 'perp': 'v', 'etapar': '^'}
-cs = {'mean': 'r', 'var': 'g', 'D': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
+cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k',
+      'fit': 'k', 'D': 'g',
       'o': plt.cm.PRGn(0.9), 'x': plt.cm.PRGn(0.1), 'y': plt.cm.PRGn(0.1),
-      'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.2),
+      'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.8),
       'perp': plt.cm.RdBu(0.2)}
 
 texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
@@ -292,16 +293,14 @@ def plot_gaussian(M, var, bins, count=1, ax=None, show_var=False):
     if show_var:
         varx, vary = sqrt(var), np.exp(-0.5)/a
         print 'variance arrow', varx, vary
-        ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
-                    xy=(M-varx, vary), arrowprops=dict(arrowstyle="->"))
-        ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
-                    xy=(M+varx, vary), arrowprops=dict(arrowstyle="->"))
+        for x in (M-varx, M+varx):
+            ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
+                        xy=(x, vary), arrowprops=dict(arrowstyle="->"))
 
     ax.plot(bins, g, c=cs['fit'], lw=1, zorder=0.5)
 
 
 def vv_autocorr(vs, normalize=False):
-    normalize = normalize and 1
     fields = helpy.vel_dtype.names
     vvs = [corr.autocorr(helpy.consecutive_fields_view(tv, fields),
                          norm=normalize, cumulant=True)
@@ -487,14 +486,12 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     n = 12
     t = np.arange(n)/args.fps
     vmax = args.normalize or max(vv[v][0] for v in comps.split())
-    if not args.normalize:
-        print 'mag', vmax
     ax.set_ylim(-0.05*vmax, 1.05*vmax)
     ax.set_xlim(-0.2, t[-1])
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        methods = "thresh mean int inv fit".split() if v in markt else ()
+        methods = "thresh mean int fit".split() if v in markt else ()
         for method in methods:
             final = vv[v][n:2*n].mean()
             vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
@@ -516,6 +513,13 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
                 tfine = np.linspace(t[0], t[-1])
                 ax.plot(tfine, (vv[v][0] - final)*np.exp(-tfine/vvtime) + final,
                         c='k', ls='-', lw=1, zorder=0)
+            if method == 'int' and not args.normalize:
+                print 'D = mag*integral =', vmax, '*', vvtime, '=', vvtime*vmax
+                ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(vmax),
+                            xy=(0, vmax),
+                            xytext=(10, 0), textcoords='offset points',
+                            ha='left', va='center',
+                            arrowprops=dict(arrowstyle='->', lw=0.5))
 
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(0, t[-1], t[-1]//10 + 1).astype(int))
