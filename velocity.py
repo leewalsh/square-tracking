@@ -251,7 +251,7 @@ def vv_autocorr(vs, normalize=False):
     normalize = normalize and 1
     fields = helpy.vel_dtype.names
     vvs = [corr.autocorr(helpy.consecutive_fields_view(tv, fields),
-                         norm=normalize, cumulant=False)
+                         norm=normalize, cumulant=True)
            for pvs in vs.itervalues() for tv in pvs.itervalues()]
     vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
     return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
