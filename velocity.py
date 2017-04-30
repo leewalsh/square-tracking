@@ -305,7 +305,7 @@ def vv_autocorr(vs, normalize=False):
     vvs = [corr.autocorr(helpy.consecutive_fields_view(tv, fields),
                          norm=normalize, cumulant=True)
            for pvs in vs.itervalues() for tv in pvs.itervalues()]
-    vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
+    vvs, vv, dvvn, dvv, vvn, vvi = helpy.avg_uneven(vvs, weight=True, ret_all=1)
     return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
             for a in vvs, vv, dvv]
 
@@ -336,7 +336,12 @@ def vv_rad_corr(fpsets, fvsets, bins=10, comps='o x y etapar perp'):
     if isinstance(comps, basestring):
         comps = comps.split()
 
-    # split the components into groups based on which mask must be used
+    # Masking is a pain because each component is valid over a different range.
+    # - Positional-only velocities are valid everywhere,
+    # - body-frame translational velocities are valid wherever orientation is
+    # - orientational velocity is valid only where orientation is known, with a
+    #   buffer the width of the derivative kernel (which spreads out the nans).
+    # So we split the components into groups based on which mask must be used.
     vmasks = {vm: cs for vm, cs in
               [(None, [c for c in comps if c in 'xyv']),
                ('v', [c for c in comps if c in 'o']),
@@ -378,7 +383,8 @@ def vv_rad_corr(fpsets, fvsets, bins=10, comps='o x y etapar perp'):
     return vv_rad, counts, bins
 
 
-def command_spatial(tsets, args, do_absolute=False, do_separation=False):
+def command_spatial(tsets, args, do_absolute=False, do_radial=False):
+    """Run spatial velocity autocorrelation plotting script"""
     fig, ax = plt.subplots(figsize=(3.5, 2.675))
     vv_self_sq = []
     vv_self_mn = []
@@ -410,7 +416,7 @@ def command_spatial(tsets, args, do_absolute=False, do_separation=False):
                       for k in helpy.vel_dtype.names}
             v_means.append(v_mean)
 
-        if do_separation:
+        if do_radial:
             vv_rad, cnt, bins = vv_rad_corr(fsets, fvsets, side*sbins[None])
             vv_rads.append(vv_rad)
             vv_counts.append(cnt)
@@ -458,7 +464,8 @@ def command_widths(tsets, compile_args, args):
     stats_width = {v: {s: stats[v][s][nsmooth//2, :, 0]
                        for s in statnames} for v in vcomps}
     print "Plot vs derivative width, with smoothing", smooths[nsmooth//2]
-    f_width = plot_widths(widths, stats_width, normalize=args.normalize, ax=axl)
+    f_width = plot_widths(widths, stats_width,
+                          normalize=args.normalize, ax=axl)
     f_width.suptitle('Various derivative widths, smoothing at: {}'.format(
         smooths[nsmooth//2]))
     f_width.tight_layout()
@@ -467,7 +474,8 @@ def command_widths(tsets, compile_args, args):
     stats_smooth = {v: {s: stats[v][s][:, nwidth//2, 0]
                         for s in statnames} for v in vcomps}
     print "Plot vs smoothing width, with derivative width", widths[nwidth//2]
-    f_smooth = plot_widths(smooths, stats_smooth, normalize=args.normalize, ax=axr)
+    f_smooth = plot_widths(smooths, stats_smooth,
+                           normalize=args.normalize, ax=axr)
     f_smooth.suptitle('Various smoothing widths, derivative kernel: {}'.format(
         widths[nwidth//2]))
     f_smooth.tight_layout()
@@ -475,6 +483,7 @@ def command_widths(tsets, compile_args, args):
 
 
 def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
+    """Run the velocity autocorrelation plotting script"""
     width = helpy.parse_slice(args.width, index_array=True)
     vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
@@ -491,35 +500,29 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        methods = "thresh mean int fit".split() if v in markt else ()
-        for method in methods:
-            final = vv[v][n:2*n].mean()
-            vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
-            tlong = np.arange(2*n)/args.fps
-            vvtime = curve.decay_scale(
-                vvnormed, tlong,
-                method=method, smooth='', rectify=False)
-            print v, 'autocorr time ({}):'.format(method), vvtime, final
-            markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
-            vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
-            ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
-            ax.hlines(vv_at_time, ax.get_xlim()[0], vvtime, **markstyle)
-            ax.annotate(r'$\tau_\mathrm{{{}}} = {:.2f}$'.format(method, vvtime),
-                        xy=(vvtime, vv_at_time),
-                        xytext=(10, 20), textcoords='offset points',
-                        ha='left', va='baseline',
-                        arrowprops=dict(arrowstyle='->', lw=0.5))
-            if method == 'thresh':
-                tfine = np.linspace(t[0], t[-1])
-                ax.plot(tfine, (vv[v][0] - final)*np.exp(-tfine/vvtime) + final,
-                        c='k', ls='-', lw=1, zorder=0)
-            if method == 'int' and not args.normalize:
+        final = vv[v][n:2*n].mean()
+        vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
+        tlong = np.arange(2*n)/args.fps
+        vvtime = curve.decay_scale(vvnormed, tlong, method='int',
+                                   smooth='', rectify=False)
+        print v, 'autocorr time:', vvtime, final
+        if v in markt:
+            if not args.normalize:
                 print 'D = mag*integral =', vmax, '*', vvtime, '=', vvtime*vmax
                 ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(vmax),
                             xy=(0, vmax),
                             xytext=(10, 0), textcoords='offset points',
                             ha='left', va='center',
                             arrowprops=dict(arrowstyle='->', lw=0.5))
+            markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
+            vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
+            ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
+            ax.hlines(vv_at_time, ax.get_xlim()[0], vvtime, **markstyle)
+            ax.annotate(r'$\tau = {:.2f}$'.format(vvtime),
+                        xy=(vvtime, vv_at_time),
+                        xytext=(10, 20), textcoords='offset points',
+                        ha='left', va='baseline',
+                        arrowprops=dict(arrowstyle='->', lw=0.5))
 
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(0, t[-1], t[-1]//10 + 1).astype(int))
@@ -538,12 +541,14 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     # remove errorbars (has_yerr=False), lines (handlelength=0) from legend keys
     for leg_handle in leg_handles:
         leg_handle.has_yerr = False
-    ax.legend(leg_handles, leg_labels, title=leg_title, loc='best', numpoints=1,
-              markerfirst=False, fontsize='small', handlelength=0, frameon=False)
+    ax.legend(leg_handles, leg_labels, title=leg_title, loc='best',
+              numpoints=1, markerfirst=False, handlelength=0,
+              frameon=False, fontsize='small')
     return fig, ax
 
 
 def command_hist(args, meta, compile_args, axes=None):
+    """Run the velocity histogram plotting script"""
     helpy.sync_args_meta(args, meta,
                          ['stub', 'gaps', 'width'],
                          ['vel_stub', 'vel_gaps', 'vel_dx_width'],
@@ -559,7 +564,7 @@ def command_hist(args, meta, compile_args, axes=None):
     ncols = args.log + args.lin
     if axes is None:
         fig, axes = plt.subplots(nrows, ncols, squeeze=False,
-                                figsize=(5*ncols, 2.5*nrows))
+                                 figsize=(5*ncols, 2.5*nrows))
     else:
         fig = axes[0, 0].figure
     irow = 0
@@ -573,9 +578,10 @@ def command_hist(args, meta, compile_args, axes=None):
             label = englabel[v]
             if args.verbose:
                 label = {'val': label, 'sub': 'R'}
-            stats = plot_hist(vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
-                              log=args.log and icol or not args.lin, label=label,
-                              orient=True, title=title, subtitle=subtitle)
+            stats = plot_hist(
+                vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
+                log=args.log and icol or not args.lin, label=label,
+                orient=True, title=title, subtitle=subtitle)
             D_R = 0.5*float(stats['var'])*dt
             fit = helpy.make_fit(func='vo', TR=None, DR='var*dt', w0='mean')
             hist_fits[fit] = {
@@ -590,9 +596,10 @@ def command_hist(args, meta, compile_args, axes=None):
             label = englabel[v] + r' $\perp$'
             if args.verbose:
                 label = {'val': label, 'sub': r'\perp'}
-            stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
-                              log=args.log and icol or not args.lin, label=label,
-                              title=title, subtitle=subtitle, c=cs[v])
+            stats = plot_hist(
+                vs[v], axes[irow, icol], bins=bins*brange,
+                log=args.log and icol or not args.lin,
+                label=label, title=title, subtitle=subtitle, c=cs[v])
             fit = helpy.make_fit(func='vt', DT='var')
             hist_fits[fit] = {
                 'DT': 0.5*float(stats['var'])*dt, 'vt': float(stats['mean']),
@@ -626,20 +633,30 @@ def command_hist(args, meta, compile_args, axes=None):
     return fig, hist_fits
 
 
-def find_data(args):
+def find_data(prefix, verbose=False):
+    """load data for one or more prefixes into a dict"""
+    if prefix == 'simulate':
+        import simulate as sim
+        spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+                'fps': args.fps, 'side': args.side, 'size': 1000}
+        print spar
+        sdata = [sim.SimTrack(num=t, **spar) for t in xrange(1, 1001)]
+        sdata = np.concatenate([sdatum.track for sdatum in sdata])
+        sdata['id'] = np.arange(len(sdata))
+        return {'simulate': sdata}
+
     suf = '_TRACKS.npz'
-    if '*' in args.prefix or '?' in args.prefix:
-        fs = iglob(args.prefix+suf)
+    if '*' in prefix or '?' in prefix:
+        fs = iglob(prefix+suf)
     else:
-        dirname, prefix = os.path.split(args.prefix)
-        dirm = (dirname or '*') + (prefix + '*/')
-        basm = prefix.strip('/._')
+        dirname, basename = os.path.split(prefix)
+        dirm = (dirname or '*') + (basename + '*/')
+        basm = basename.strip('/._')
         fs = iglob(dirm + basm + '*' + suf)
-    prefixes = [s[:-len(suf)] for s in fs] or [args.prefix]
-    if args.verbose:
+    prefixes = [s[:-len(suf)] for s in fs] or [prefix]
+    if verbose:
         print 'prefixes:',
         print '\n          '.join(prefixes)
-
     return {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
 
 if __name__ == '__main__':
@@ -650,23 +667,13 @@ if __name__ == '__main__':
     if not (args.log or args.lin):
         args.log = args.lin = True
     compile_args = dict(args.__dict__)
-    if args.prefix == 'simulate':
-        import simulate as sim
-        spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
-                'fps': args.fps, 'side': args.side, 'size': 1000}
-        print spar
-        sdata = [sim.SimTrack(num=i, **spar)
-                 for i in xrange(1, 1001)]
-        data = np.concatenate([sdatum.track for sdatum in sdata])
-        data['id'] = np.arange(len(data))
-        data = {'simulate': data}
-    else:
-        data = find_data(args)
-    tsets = {prefix: helpy.load_tracksets(
-                data[prefix], min_length=args.stub, verbose=args.verbose,
-                run_remove_dupes=args.dupes, run_repair=args.gaps,
-                run_track_orient=args.torient)
-             for prefix in data}
+    data = find_data(args.prefix, args.verbose)
+    tsets = {
+        prefix: helpy.load_tracksets(
+            data[prefix], min_length=args.stub, verbose=args.verbose,
+            run_remove_dupes=args.dupes, run_repair=args.gaps,
+            run_track_orient=args.torient)
+        for prefix in data}
 
     rcParams_for_context = {'text.usetex': args.save or args.show}
     with plt.rc_context(rc=rcParams_for_context):
@@ -675,7 +682,7 @@ if __name__ == '__main__':
             stats, f_width, f_smooth = command_widths(tsets, compile_args, args)
         elif 'spatial' in args.command:
             fig, ax, vv_rad = command_spatial(
-                tsets, args, do_absolute=False, do_separation=True)
+                tsets, args, do_absolute=False, do_radial=True)
         else:
             nrows = args.do_orientation + args.do_translation*(args.subtract+1)
             ncols = len(args.command)
