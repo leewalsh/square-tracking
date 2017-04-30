@@ -58,6 +58,7 @@ markersizes = {4        : markersize,
                'v'      : markersize,
                'o'      : markersize,
                's'      : markersize - 0.5,
+               'x'      : markersize,
                (4, 1, 0): markersize,
                (5, 1, 0): markersize,
                (6, 1, 0): markersize,
@@ -160,6 +161,8 @@ pargs['DR'] = dict(
     ys={
         'good': [
             'nn_Tm_Rf',
+            'oo_Ds',
+            'oo_DR',
         ],
         'maybe': [
             'nn_Tf_Rf',

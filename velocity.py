@@ -443,6 +443,7 @@ def command_spatial(tsets, args, do_absolute=False, do_radial=False):
 
 
 def command_widths(tsets, compile_args, args):
+    """Run width-comparison plotting script"""
     widths = helpy.parse_slice(args.width or (.25, 1, .05), index_array=True)
     smooths = helpy.parse_slice(args.smooth or (.25, 1, .05), index_array=True)
     nwidth, nsmooth = len(widths), len(smooths)
@@ -488,11 +489,12 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
     vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
+    fits = {}
     if ax is None:
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
-    n = 12
+    n = 18
     t = np.arange(n)/args.fps
     vmax = args.normalize or max(vv[v][0] for v in comps.split())
     ax.set_ylim(-0.05*vmax, 1.05*vmax)
@@ -506,14 +508,21 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
         vvtime = curve.decay_scale(vvnormed, tlong, method='int',
                                    smooth='', rectify=False)
         print v, 'autocorr time:', vvtime, final
-        if v in markt:
-            if not args.normalize:
+        if v == 'o':
+            source = 'vac-final' if final else 'vac'
+            if args.normalize:
+                fit = helpy.make_fit(func='oo', TR=source)
+                fits[fit] = {'TR': vvtime}
+            else:
+                fit = helpy.make_fit(func='oo', DR=source)
+                fits[fit] = {'DR': vvtime*vmax}
                 print 'D = mag*integral =', vmax, '*', vvtime, '=', vvtime*vmax
                 ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(vmax),
                             xy=(0, vmax),
                             xytext=(10, 0), textcoords='offset points',
                             ha='left', va='center',
                             arrowprops=dict(arrowstyle='->', lw=0.5))
+        if markt:
             markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
             vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
             ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
@@ -544,7 +553,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     ax.legend(leg_handles, leg_labels, title=leg_title, loc='best',
               numpoints=1, markerfirst=False, handlelength=0,
               frameon=False, fontsize='small')
-    return fig, ax
+    return fig, fits
 
 
 def command_hist(args, meta, compile_args, axes=None):
@@ -675,6 +684,7 @@ if __name__ == '__main__':
             run_track_orient=args.torient)
         for prefix in data}
 
+    fits = {}
     rcParams_for_context = {'text.usetex': args.save or args.show}
     with plt.rc_context(rc=rcParams_for_context):
         print rcParams_for_context
@@ -694,19 +704,26 @@ if __name__ == '__main__':
                 else (3.5, 3.0*nrows/ncols),
                 gridspec_kw={'wspace': 0.2, 'hspace': 0.4})
             if 'hist' in args.command:
-                fig, fits = command_hist(args, meta, compile_args, axes)
+                fig, new_fits = command_hist(args, meta, compile_args, axes)
+                fits.update(new_fits)
             if 'autocorr' in args.command:
                 i = 0
                 if args.do_orientation:
-                    command_autocorr(tsets, args, 'o', axes[i, -1])
+                    fig, new_fits = command_autocorr(tsets, args,
+                                                     'o', axes[i, -1])
+                    fits.update(new_fits)
                     i += 1
                 if args.do_translation:
-                    command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
+                    fig, new_fits = command_autocorr(tsets, args,
+                                                     'etapar perp', axes[i, -1])
+                    fits.update(new_fits)
 
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
-            if 'hist' in args.command:
+            if fits:
+                print 'saving fits'
+                print fits
                 helpy.save_fits(savename, fits)
             savename += '_velocity_' + '_'.join(args.command)
             if args.suffix:
