@@ -4,6 +4,7 @@ from __future__ import division
 
 import sys
 from functools import partial
+from collections import defaultdict
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -12,9 +13,7 @@ import helpy
 import tracks
 
 
-
 save_figs = False
-
 
 prefixes = sys.argv[1:]
 pres = tuple([p.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
@@ -22,13 +21,13 @@ pres = tuple([p.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
 print '\n'.join([p.replace('/Users/leewalsh', '~') for p in pres])
 fits = helpy.gather_fits(prefixes)
 
-
 fit_config, fit_desc = tracks.make_fitnames()
-
 
 all_colors = 'rgkbmyc'
 
+
 def markers(fit, default='x'):
+    """Set marker for fit"""
     if isinstance(fit, basestring):
         d = {'nn': 'o',
              'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
@@ -48,27 +47,16 @@ def markers(fit, default='x'):
 # marker can be a tuple: (`numsides`, `style`, `angle`)
 #       where `style` is {0: polygon, 1: star, 2: asterisk}
 
-markersize = 2.0    # default is 6.0
-markersizes = {4        : markersize,
-               5        : markersize,
-               '>'      : markersize,
-               '<'      : markersize,
-               'D'      : markersize - 1,
-               '^'      : markersize,
-               'v'      : markersize,
-               'o'      : markersize,
-               's'      : markersize - 0.5,
-               'x'      : markersize,
-               (4, 1, 0): markersize,
-               (5, 1, 0): markersize,
-               (6, 1, 0): markersize,
-               (7, 1, 0): markersize,
-              }
+markersize = 4.0    # default is 6.0
+markersizes = defaultdict(lambda: markersize)
+markersizes['D'] -= 1
+markersizes['s'] -= 0.5
 
 colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
 colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
 
 def colors(fit, default='k'):
+    """Set color for fit"""
     if isinstance(fit, basestring):
         d = {'T0': 'k',
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
@@ -77,14 +65,9 @@ def colors(fit, default='k'):
                         'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
                                       'Tm_Rn_Lb': 'b',
                                       'Tm_Rn_Lf': 'green',
+             'oo': 'brown',
             }
 
-        o = {
-            'Tn_Rn': 'b',
-            'Tm': 'r', 'Tm_Rn': 'orange',
-            'Tn_Rf': 'green',
-            'Tm_Rn_Lf': 'green', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
-            }
         mpl2 = {'b': 'b',       # blue -> blue
                 'brown': 'c',   # brown(c)
                 'r': 'r',       # red -> red
@@ -106,6 +89,7 @@ def colors(fit, default='k'):
 
 
 def labels(fit, default=None, fancy=True):
+    """Set label for fit"""
     if isinstance(fit, basestring):
         dot = r'\langle {} \cdot {} \rangle'.format
         ms = r'\langle \left[ {} \right]^2 \rangle'.format
@@ -161,8 +145,6 @@ pargs['DR'] = dict(
     ys={
         'good': [
             'nn_Tm_Rf',
-            'oo_Ds',
-            'oo_DR',
         ],
         'maybe': [
             'nn_Tf_Rf',
@@ -181,6 +163,10 @@ pargs['DR'] = dict(
     legend={'loc':'lower right'},
 )
 
+for p in ('DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da'):
+    pargs[p] = pargs[p[:2]].copy()
+    pargs[p]['xs'] = p[3:]
+    pargs[p]['color'] = colors(p)
 
 pargs['lp'] = dict(
     param='lp',
@@ -322,6 +308,25 @@ pargs[p]['ys'] = [
 ]
 pargs[p]['label'] = [l.replace('_', ' ') for l in pargs[p]['ys']]
 
+for p in pargs:
+    ys = pargs[p]['ys']
+    new = {
+        'figsize': (5, 5),
+        'color': colors(ys),
+        'marker': markers(ys),
+        'label': labels(ys, fancy=False),
+        'linestyle': '',
+    }
+    new['markersize'] = [markersizes[m] for m in new['marker']]
+    for k in new:
+        pargs[p].setdefault(k, new[k])
+
+
+param_xs = {
+    'DR': ['DR', 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da'],
+    'lp': ['lp'],
+    'DT': ['DT'],
+}
 
 def trendline(xvals, yvals):
     slope = np.mean(yvals/xvals)
@@ -415,21 +420,6 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
                           'parametric_{}.pdf'.format(savename))
     return ax
 
-
-for p in pargs:
-    ys = pargs[p]['ys']
-    new = {
-        'figsize': (5, 5),
-        'color': colors(ys),
-        'marker': markers(ys),
-        'label': labels(ys, fancy=False),
-        'linestyle': '',
-    }
-    new['markersize'] = [markersizes[m] + markersize for m in new['marker']]
-    for k in new:
-        pargs[p].setdefault(k, new[k])
-
-
 rcParams_for_context = {'text.usetex': True}
 with plt.rc_context(rc=rcParams_for_context):
     fig, axes = plt.subplots(ncols=3, figsize=(7, 3))
@@ -438,8 +428,9 @@ with plt.rc_context(rc=rcParams_for_context):
 
     params = ['DR', 'lp', 'DT']
     for p, ax in zip(params, axes):
-        kwargs = dict(pargs[p], **overrides)
-        plot_parametric(fits, ax=ax, **kwargs)
+        for px in param_xs[p]:
+            kwargs = dict(pargs[px], **overrides)
+            plot_parametric(fits, ax=ax, **kwargs)
 
     axes[0].set_ylabel('Fits to correlation functions')
     axes[1].set_xlabel('Noise statistics')

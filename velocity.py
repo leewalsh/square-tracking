@@ -503,9 +503,10 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
         final = vv[v][n:2*n].mean()
-        vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
-        tlong = np.arange(2*n)/args.fps
-        vvtime = curve.decay_scale(vvnormed, tlong, method='int',
+        #init = vv[v][0]
+        vvnormed = (vv[v][:n] - final)#/(1 - final/init)
+        init = vvnormed[0]
+        vvtime = curve.decay_scale(vvnormed, t, method='int',
                                    smooth='', rectify=False)
         print v, 'autocorr time:', vvtime, final
         if v == 'o':
@@ -515,16 +516,16 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
                 fits[fit] = {'TR': vvtime}
             else:
                 fit = helpy.make_fit(func='oo', DR=source)
-                fits[fit] = {'DR': vvtime*vmax}
-                print 'D = mag*integral =', vmax, '*', vvtime, '=', vvtime*vmax
-                ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(vmax),
-                            xy=(0, vmax),
+                fits[fit] = {'DR': vvtime*init}
+                print 'D = mag*integral =', init, '*', vvtime, '=', vvtime*init
+                ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(init),
+                            xy=(0, init),
                             xytext=(10, 0), textcoords='offset points',
                             ha='left', va='center',
                             arrowprops=dict(arrowstyle='->', lw=0.5))
         if markt:
             markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
-            vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
+            vv_at_time = np.interp(vvtime, t, vv[v][:n])
             ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
             ax.hlines(vv_at_time, ax.get_xlim()[0], vvtime, **markstyle)
             ax.annotate(r'$\tau = {:.2f}$'.format(vvtime),

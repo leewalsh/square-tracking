@@ -1196,10 +1196,12 @@ def make_fitnames():
         'vn': mkf(func='vn', v0='mean', DT='var'),
         'vt': mkf(func='vt', DT='var'),
         'vo': mkf(func='vo', DR='var', w0='mean'),
-        'oo_Ts' : mkf(func='oo', TR='vac-final'),
         'oo_TR' : mkf(func='oo', TR='vac'),
-        'oo_Ds' : mkf(func='oo', DR='vac-final'),
+        'oo_Ts' : mkf(func='oo', TR='vac-final'),
+        'oo_Ta' : mkf(func='oo', TR='vac-final*origamp'),
         'oo_DR' : mkf(func='oo', DR='vac'),
+        'oo_Ds' : mkf(func='oo', DR='vac-final'),
+        'oo_Da' : mkf(func='oo', DR='vac-final*origamp'),
     })
 
     # from orientation autocorrelation: nn
