@@ -429,6 +429,8 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     n = 12
     t = np.arange(n)/args.fps
     vmax = args.normalize or max(vv[v][0] for v in comps.split())
+    if not args.normalize:
+        print 'mag', vmax
     ax.set_ylim(-0.05*vmax, 1.05*vmax)
     ax.set_xlim(-0.2, t[-1])
     for v in comps.split():
@@ -463,7 +465,11 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     ax.set_xlabel(r'$t \, f$', labelpad=2)
     ylabel = r'$\langle {0}(t) \, {0}(0) \rangle$'.format(
         texlabel.get(comps, r'\eta').strip('$'))
-    ax.set_ylabel(ylabel, labelpad=2)
+    ylabelpad = 2
+    if args.normalize and not markt:
+        ax.set_yticks([0., 1.])
+        ylabelpad = -4
+    ax.set_ylabel(ylabel, labelpad=ylabelpad)
 
     leg_title = r"Velocity Autocorrelation"*labels
     leg_handles, leg_labels = ax.get_legend_handles_labels()
@@ -616,7 +622,7 @@ if __name__ == '__main__':
                 nrows, ncols, squeeze=False,
                 figsize=(3.5*ncols, 3.0*nrows) if labels
                 else (3.5, 3.0*nrows/ncols),
-                gridspec_kw={'wspace': 0.4, 'hspace': 0.4})
+                gridspec_kw={'wspace': 0.2, 'hspace': 0.4})
             if 'hist' in args.command:
                 fig, fits = command_hist(args, meta, compile_args, axes)
             if 'autocorr' in args.command:
