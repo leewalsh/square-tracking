@@ -293,13 +293,9 @@ def plot_gaussian(M, var, bins, count=1, ax=None, show_var=False):
         varx, vary = sqrt(var), np.exp(-0.5)/a
         print 'variance arrow', varx, vary
         ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
-                    xy=(M-varx, vary),
-                    arrowprops=dict(arrowstyle="->"),
-                    )
+                    xy=(M-varx, vary), arrowprops=dict(arrowstyle="->"))
         ax.annotate(r'$\sigma$', xytext=(M, vary), ha='center', va='center',
-                    xy=(M+varx, vary),
-                    arrowprops=dict(arrowstyle="->"),
-                    )
+                    xy=(M+varx, vary), arrowprops=dict(arrowstyle="->"))
 
     ax.plot(bins, g, c=cs['fit'], lw=1, zorder=0.5)
 
@@ -323,22 +319,24 @@ def dot_or_multiply(a, b):
         return out
 
 
-def radial_vv_correlation(fpsets, fvsets, side=1, bins=10):
-    components = 'o', 'v', 'eta', 'xy'  # 'nt'
+def radial_vv_correlation(fpsets, fvsets, side=1, bins=10,
+                          components='o x y etapar perp'):
+    if isinstance(components, basestring):
+        components = components.split()
     try:
-        nbins = len(bins) - 1
+        nbins = len(bins) - 1 or len(bins[0]) - 1
     except TypeError:
         nbins = bins
+    corr_args = dict(bins=bins, correland=dot_or_multiply, do_avg=False)
+
     vv_radial = np.zeros((len(components), nbins), dtype=float)
     vv_counts = np.zeros(nbins, dtype=int)
-    correlator = partial(corr.radial_correlation,
-                         bins=bins, corrland=dot_or_multiply, do_avg=False)
     for f in fpsets:
+        if len(fpsets[f]) < 2:
+            continue
         pos = fpsets[f]['xy']/side
         vels = tuple([fvsets[f][k] for k in components])
-        if len(pos) < 2:
-            continue
-        total, counts, bins = correlator(pos, vels)
+        total, counts, bins = corr.radial_correlation(pos, vels, **corr_args)
         vv_radial += total
         vv_counts += counts
     return vv_radial / vv_counts, bins
@@ -401,13 +399,13 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
         methods = "thresh mean int inv fit".split() if v in markt else ()
         for method in methods:
-            final = 0#vv[v][n:2*n].mean()
+            final = vv[v][n:2*n].mean()
             vvnormed = (vv[v][:2*n] - final)/(1 - final/vv[v][0])
             tlong = np.arange(2*n)/args.fps
             vvtime = curve.decay_scale(
                 vvnormed, tlong,
                 method=method, smooth='', rectify=False)
-            print v, 'autocorr time:', vvtime, final
+            print v, 'autocorr time ({}):'.format(method), vvtime, final
             markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
             vv_at_time = np.interp(vvtime, tlong, vv[v][:2*n])
             ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
