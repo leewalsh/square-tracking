@@ -66,6 +66,7 @@ def colors(fit, default='k'):
                                       'Tm_Rn_Lb': 'b',
                                       'Tm_Rn_Lf': 'green',
              'oo': 'brown',
+             'vo': 'orange',
             }
 
         mpl2 = {'b': 'b',       # blue -> blue
@@ -163,10 +164,11 @@ pargs['DR'] = dict(
     legend={'loc':'lower right'},
 )
 
-for p in ('DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da'):
+for p in ('DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'):
     pargs[p] = pargs[p[:2]].copy()
     pargs[p]['xs'] = p[3:]
     pargs[p]['color'] = colors(p)
+pargs['DR_vo_tR']['convert'] = 'a'
 
 pargs['lp'] = dict(
     param='lp',
@@ -323,7 +325,7 @@ for p in pargs:
 
 
 param_xs = {
-    'DR': ['DR', 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da'],
+    'DR': ['DR', 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'],
     'lp': ['lp'],
     'DT': ['DT'],
 }
@@ -348,26 +350,32 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
         valx, valy = resx[param], resy[param]
     except KeyError as err:
         fitc = {'x': fitx, 'y': fity,
-                'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
+                'v': helpy.make_fit(func='vo', DR='var', w0='mean'),
+                'a': helpy.make_fit(func='oo', TR='vac')}
         fitc = fitc.get(convert, convert)
-        if param not in resx:
-            print 'Convert: {} = {}.v0 / ({}.DR = {})'.format(
-                param, fit_desc[fitx], fit_desc[fitc],
-                fit_desc.get(fitc.DR, fitc.DR))
-        elif param not in resy:
-            print 'Convert: {} = {}.lp * ({}.DR = {})'.format(
-                param, fit_desc[fity], fit_desc[fitc],
-                fit_desc.get(fitc.DR, fitc.DR))
-        else:
-            print 'um Converting using D_R from', convert, fit_desc[fitc]
-        if fitc is None:
-            raise err
-        #label += ' {}DR({}, {})'.format(
-            #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
-            #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
-        DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
-        valx = resx.get(param) or resx['v0']/DR
-        valy = resy.get(param) or resy['lp']*DR
+        if param in ['v0', 'lp']:
+            if param not in resx:
+                print 'Convert: {} = {}.v0 / ({}.DR = {})'.format(
+                    param, fit_desc[fitx], fit_desc[fitc],
+                    fit_desc.get(fitc.DR, fitc.DR))
+            elif param not in resy:
+                print 'Convert: {} = {}.lp * ({}.DR = {})'.format(
+                    param, fit_desc[fity], fit_desc[fitc],
+                    fit_desc.get(fitc.DR, fitc.DR))
+            else:
+                print 'um Converting using D_R from', convert, fit_desc[fitc]
+            if fitc is None:
+                raise err
+            #label += ' {}DR({}, {})'.format(
+                #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
+                #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
+            DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
+            valx = resx.get(param) or resx['v0']/DR
+            valy = resy.get(param) or resy['lp']*DR
+        elif param in ['DR', 'var']:
+            tau = np.array(fits[fitc]['TR'])
+            valx = resx.get(param) or resx['var'] * tau
+            valy = resy.get(param) or resy['DR'] / tau
     valx, valy = np.array(valx), np.array(valy)
     ax.plot(valx, valy, **kws)
     ax.plot(*trendline(valx, valy), color=kws['color'], linewidth=0.5, zorder=1)

@@ -1196,6 +1196,8 @@ def make_fitnames():
         'vn': mkf(func='vn', v0='mean', DT='var'),
         'vt': mkf(func='vt', DT='var'),
         'vo': mkf(func='vo', DR='var', w0='mean'),
+        'vo_dt': mkf(func='vo', DR='var*dt', w0='mean'),
+        'vo_tR': mkf(func='vo', DR='var*tau', w0='mean'),
         'oo_TR' : mkf(func='oo', TR='vac'),
         'oo_Ts' : mkf(func='oo', TR='vac-final'),
         'oo_Ta' : mkf(func='oo', TR='vac-final*origamp'),
