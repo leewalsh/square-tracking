@@ -77,7 +77,7 @@ ls = {'o': '-', 'x': '-.', 'y': ':', 'par': '--', 'perp': '-.', 'etapar': ':'}
 marker = {'o': 'o', 'x': '-', 'y': '|', 'par': '^', 'perp': 'v', 'etapar': '^'}
 cs = {'mean': 'r', 'var': 'g', 'D': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k', 'fit': 'k',
       'o': plt.cm.PRGn(0.9), 'x': plt.cm.PRGn(0.1), 'y': plt.cm.PRGn(0.1),
-      'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.8),
+      'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.2),
       'perp': plt.cm.RdBu(0.2)}
 
 texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
@@ -110,7 +110,7 @@ def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
     v['v'] = np.hypot(v['x'], v['y'])
     v['par'] = v['x']*cos + v['y']*sin
     v['perp'] = v['x']*sin - v['y']*cos
-    v0 = v['par'].mean(-1, keepdims=len(shape) > 1)
+    v0 = np.nanmean(v['par'], -1, keepdims=len(shape) > 1)
     v['etax'] = v['x'] - v0*cos
     v['etay'] = v['y'] - v0*sin
     v['eta'] = np.hypot(v['etax'], v['etay'])
@@ -319,35 +319,76 @@ def dot_or_multiply(a, b):
         return out
 
 
-def radial_vv_correlation(fpsets, fvsets, side=1, bins=10,
-                          components='o x y etapar perp'):
-    if isinstance(components, basestring):
-        components = components.split()
+def vv_rad_corr(fpsets, fvsets, bins=10, comps='o x y etapar perp'):
+    """Autocorrelate the spatial velocity "field"
+
+    Parameters
+        fpsets: framesets of positional (track) data
+        fvsets: framesets of velocity data
+        bins:   number of bins or bin edges
+        comps:  list of strings or single space-separated string
+                of fields from helpy.vel_dtype to calculate.
+
+    Returns
+        vv_rad: the autocorrelations as a function of radial separation
+            shape is (N comps, N bins)
+        bins:   bin edges
+    """
+    if isinstance(comps, basestring):
+        comps = comps.split()
+
+    # split the components into groups based on which mask must be used
+    vmasks = {vm: cs for vm, cs in
+              [(None, [c for c in comps if c in 'xyv']),
+               ('v', [c for c in comps if c in 'o']),
+               ('p', [c for c in comps if c in 'par perp eta etax etay etapar'])
+               ] if cs}
+    vmask_arr = {'p': fpsets, 'v': fvsets}
     try:
         nbins = len(bins) - 1 or len(bins[0]) - 1
     except TypeError:
         nbins = bins
     corr_args = dict(bins=bins, correland=dot_or_multiply, do_avg=False)
 
-    vv_radial = np.zeros((len(components), nbins), dtype=float)
-    vv_counts = np.zeros(nbins, dtype=int)
+    vv_tot = {vm: np.zeros((len(vmasks[vm]), nbins), dtype=float)
+              for vm in vmasks}
+    vv_count = {vm: np.zeros(nbins, dtype=int)
+                for vm in vmasks}
     for f in fpsets:
         if len(fpsets[f]) < 2:
             continue
-        pos = fpsets[f]['xy']/side
-        vels = tuple([fvsets[f][k] for k in components])
-        total, counts, bins = corr.radial_correlation(pos, vels, **corr_args)
-        vv_radial += total
-        vv_counts += counts
-    return vv_radial / vv_counts, bins
+        for vm, cs in vmasks.iteritems():
+            if vm is None:
+                xy = fpsets[f]['xy']
+                fvset = fvsets[f]
+            else:
+                vmi = np.where(np.isfinite(vmask_arr[vm][f]['o']))
+                xy = fpsets[f][vmi]['xy']
+                fvset = fvsets[f][vmi]
+            if len(fvset) < 2:
+                continue
+            vel = tuple([fvset[c] for c in cs])
+            total, counts, bins = corr.radial_correlation(xy, vel, **corr_args)
+            vv_tot[vm] += total
+            vv_count[vm] += counts
+    # divide by counts to get mean, store as dict by component
+    vv_rad_comps = {c: (v, vv_count[vm]) for vm, cs in vmasks.iteritems()
+                    for c, v in zip(cs, vv_tot[vm]/vv_count[vm])}
+    # restore order from comps
+    vv_rad, counts = zip(*[vv_rad_comps[c] for c in comps])
+    return vv_rad, counts, bins
 
 
-def command_spatial(tsets, args):
-    fig, ax = plt.subplots()
-    vv_rads = {}
-    vv_rad_means = {}
-    v_means = {}
-    components = 'o x y etapar perp'.split()
+def command_spatial(tsets, args, do_absolute=False, do_separation=False):
+    fig, ax = plt.subplots(figsize=(3.5, 2.675))
+    vv_self_sq = []
+    vv_self_mn = []
+    vv_rads = []
+    v_means = []
+    vv_counts = []
+    comps = 'o x y etapar perp'.split()
+    binsize, rmax = sqrt(2)/3, 5*sqrt(2)
+    sbins = np.arange(sqrt(2) - 2*binsize, rmax + binsize, binsize)
     for p in tsets:
         meta = helpy.load_meta(p)
         side = meta['sidelength']
@@ -358,25 +399,42 @@ def command_spatial(tsets, args):
         tdata = np.concatenate([fsets[f] for f in sorted(fsets)])
         vdata = np.concatenate([fvsets[f] for f in sorted(fvsets)])
 
-        xy = tdata['xy'] - meta['boundary'][:2]
-        xycount, bins = np.histogramdd(xy, bins=50)
-        # extent = bins[1][0], bins[1][-1], bins[0][0], bins[0][-1]
-        v_mean = {k: np.histogramdd(xy, bins, weights=vdata[k])[0]/xycount
-                  for k in helpy.vel_dtype.names}
+        vdata_plain = vdata.view((helpy.vel_dtype[0], len(helpy.vel_dtype)))
+        vv_self_sq.append(np.nanmean(vdata_plain**2, 0).view(helpy.vel_dtype))
+        vv_self_mn.append(np.nanmean(vdata_plain, 0).view(helpy.vel_dtype))
 
-        rbins = np.arange(0.8, 2.6, .1)
-        vv_rad, bins = radial_vv_correlation(fsets, fvsets,
-                                             side=side, bins=[rbins])
+        if do_absolute:
+            xy = tdata['xy'] - meta['boundary'][:2]
+            xycount, bins = np.histogramdd(xy, bins=50)
+            # extent = bins[1][0], bins[1][-1], bins[0][0], bins[0][-1]
+            v_mean = {k: np.histogramdd(xy, bins, weights=vdata[k])[0]/xycount
+                      for k in helpy.vel_dtype.names}
+            v_means.append(v_mean)
 
-        v_means[p] = v_mean
-        vv_rads[p] = vv_rad
-        print vv_rad.shape
-        bin_mid = (bins[:-1] + bins[1:])/2
-    vv_rad_all = np.nanmean(vv_rads.values(), 0)
-    for vv_rad_comp, comp in zip(vv_rad_all, components):
-        ax.plot(bin_mid, vv_rad_comp, label=comp)
-    ax.legend(loc='best')
-    return vv_rads
+        if do_separation:
+            vv_rad, cnt, bins = vv_rad_corr(fsets, fvsets, side*sbins[None])
+            vv_rads.append(vv_rad)
+            vv_counts.append(cnt)
+
+    vv_self_sq = np.concatenate(vv_self_sq)
+    vv_self_mn = np.concatenate(vv_self_mn)
+    vv_counts = np.array(vv_counts)
+    vv_rads = np.array(vv_rads)
+    vv_rad_mean = np.nansum(vv_rads*vv_counts, 0)/np.nansum(vv_counts, 0)
+    for vv_rad_comp, comp in zip(vv_rad_mean, comps):
+        print comp,
+        print 'self magnitude, squared:', np.nanmean(vv_self_sq[comp]),
+        print 'mean:', np.nanmean(vv_self_mn[comp])
+        curve.bin_plot(sbins, vv_rad_comp/np.nanmean(vv_self_sq[comp]), ax,
+                       label=texlabel[comp], linestyle=ls[comp], c=cs[comp])
+    helpy.mark_value(ax, sqrt(2), 'steric\ncontact',
+                     annotate=dict(xy=(sqrt(2), 0.68)))
+    ax.legend(loc='best', frameon=False)
+    ax.set_xlabel(r'$|\vec r_i - \vec r_j| / s$')
+    ax.set_ylabel(r'$\langle v(\vec r_i) \, v(\vec r_j) \rangle'
+                  r'/ \langle v^2 \rangle$')
+    ax.set_ylim(None, ax.get_ylim()[1]*1.4)
+    return fig, ax, vv_rad_mean
 
 
 def command_widths(tsets, compile_args, args):
@@ -612,7 +670,8 @@ if __name__ == '__main__':
         if 'widths' in args.command:
             stats, f_width, f_smooth = command_widths(tsets, compile_args, args)
         elif 'spatial' in args.command:
-            vv_rads = command_spatial(tsets, args)
+            fig, ax, vv_rad = command_spatial(
+                tsets, args, do_absolute=False, do_separation=True)
         else:
             nrows = args.do_orientation + args.do_translation*(args.subtract+1)
             ncols = len(args.command)
