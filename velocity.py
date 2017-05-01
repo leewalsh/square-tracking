@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('prefix', help='Prefix without trial number')
-    arg('command', nargs='+', choices=['widths', 'hist', 'autocorr'],
+    arg('command', nargs='+', choices=['widths', 'hist', 'autocorr', 'spatial'],
         help=('Which command to run: '
               '`widths`: plot several derivative widths, '
               '`hist`: plot velocity histograms, '
@@ -342,6 +342,43 @@ def radial_vv_correlation(fpsets, fvsets, side=1, bins=10,
     return vv_radial / vv_counts, bins
 
 
+def command_spatial(tsets, args):
+    fig, ax = plt.subplots()
+    vv_rads = {}
+    vv_rad_means = {}
+    v_means = {}
+    components = 'o x y etapar perp'.split()
+    for p in tsets:
+        meta = helpy.load_meta(p)
+        side = meta['sidelength']
+        fps = meta['fps']
+
+        vsets = compile_noise({p: tsets[p]}, cat=False, side=side, fps=fps)
+        fsets, fvsets = helpy.load_framesets((tsets[p], vsets[p]))
+        tdata = np.concatenate([fsets[f] for f in sorted(fsets)])
+        vdata = np.concatenate([fvsets[f] for f in sorted(fvsets)])
+
+        xy = tdata['xy'] - meta['boundary'][:2]
+        xycount, bins = np.histogramdd(xy, bins=50)
+        # extent = bins[1][0], bins[1][-1], bins[0][0], bins[0][-1]
+        v_mean = {k: np.histogramdd(xy, bins, weights=vdata[k])[0]/xycount
+                  for k in helpy.vel_dtype.names}
+
+        rbins = np.arange(0.8, 2.6, .1)
+        vv_rad, bins = radial_vv_correlation(fsets, fvsets,
+                                             side=side, bins=[rbins])
+
+        v_means[p] = v_mean
+        vv_rads[p] = vv_rad
+        print vv_rad.shape
+        bin_mid = (bins[:-1] + bins[1:])/2
+    vv_rad_all = np.nanmean(vv_rads.values(), 0)
+    for vv_rad_comp, comp in zip(vv_rad_all, components):
+        ax.plot(bin_mid, vv_rad_comp, label=comp)
+    ax.legend(loc='best')
+    return vv_rads
+
+
 def command_widths(tsets, compile_args, args):
     widths = helpy.parse_slice(args.width or (.25, 1, .05), index_array=True)
     smooths = helpy.parse_slice(args.smooth or (.25, 1, .05), index_array=True)
@@ -568,6 +605,8 @@ if __name__ == '__main__':
         print rcParams_for_context
         if 'widths' in args.command:
             stats, f_width, f_smooth = command_widths(tsets, compile_args, args)
+        elif 'spatial' in args.command:
+            vv_rads = command_spatial(tsets, args)
         else:
             nrows = args.do_orientation + args.do_translation*(args.subtract+1)
             ncols = len(args.command)
