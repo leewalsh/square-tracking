@@ -402,7 +402,7 @@ def bin_sum(r, f, bins=10):
         total = np.histogramdd(r, bins, weights=f)[0]
     if len(bins) == 1:
         bins = bins[0]
-    return total, count, bins
+    return total, count.astype(int), bins
 
 
 def bin_average(r, f, bins=10):
@@ -1002,14 +1002,14 @@ def radial_correlation(positions, values, bins=10, correland='*', do_avg=True):
     multi = isinstance(values, tuple)
     assert n == len(values[0] if multi else values), "lengths do not match"
 
-    i, j = pair_indices(n)
+    ij = pair_indices(n, True).T
     rij = distance.pdist(positions)
     if correland == '*':
         correland = np.multiply
     if multi:
-        vij = tuple([correland(v[i], v[j]) for v in values])
+        vij = tuple([correland(*v[ij]) for v in values])
     else:
-        vij = correland(values[i], values[j])
+        vij = correland(*values[ij])
     bin_func = bin_average if do_avg else bin_sum
     return bin_func(rij, vij, bins)
 
