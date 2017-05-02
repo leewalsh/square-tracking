@@ -204,7 +204,7 @@ def plot_widths(widths, stats, normalize=False, ax=None):
                 #val = val - val.mean()
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
-            ax.plot(widths, val, '.'+ls[v]+cs[s], label=texlabel[v])
+            ax.plot(widths, val, marker[v]+ls[v]+cs[s], label=texlabel[v])
         ax.margins(y=0.1)
         ax.minorticks_on()
         ax.grid(axis='x', which='both')
