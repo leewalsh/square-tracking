@@ -188,10 +188,10 @@ def compile_widths(tracksets, widths, smooths, side=1, fps=1, **kwargs):
 
 def plot_widths(widths, stats, normalize=False, ax=None):
     """plot various statistics as a function of derivative kernel width"""
-    statnames = 'mean var D skew kurt'.split()
+    statnames = 'mean var skew kurt'.split()
     naxs = len(statnames)
     if ax is None:
-        fig, axs = plt.subplots(figsize=(6, 2*naxs), nrows=naxs, sharex=True)
+        fig, axs = plt.subplots(figsize=(6.4, 2.4*naxs), nrows=naxs, sharex=True)
     else:
         axs = ax
         fig = axs[0].figure
@@ -456,29 +456,31 @@ def command_widths(tsets, compile_args, args):
     statnames = stats[vcomps[0]].keys()
 
     if nwidth > 1 and nsmooth > 1:
-        fig, axs = plt.subplots(figsize=(4.8, 6.4), ncols=2, nrows=5,
+        fig, axs = plt.subplots(figsize=(6.4, 4.8*2), ncols=2, nrows=4,
                                 sharex='col', sharey='row')
         axl, axr = axs.T
     else:
         axl, axr = None, None
     # slice the array at the middle smoothing value to plot vs width:
-    stats_width = {v: {s: stats[v][s][nsmooth//2, :, 0]
+    ismooth = 0#nsmooth//2
+    stats_width = {v: {s: stats[v][s][ismooth, :, 0]
                        for s in statnames} for v in vcomps}
-    print "Plot vs derivative width, with smoothing", smooths[nsmooth//2]
+    print "Plot vs derivative width, with smoothing", smooths[ismooth]
     f_width = plot_widths(widths, stats_width,
                           normalize=args.normalize, ax=axl)
     f_width.suptitle('Various derivative widths, smoothing at: {}'.format(
-        smooths[nsmooth//2]))
+        smooths[ismooth]))
     f_width.tight_layout()
 
     # slice the array at the middle width value to plot vs smoothing:
-    stats_smooth = {v: {s: stats[v][s][:, nwidth//2, 0]
+    iwidth = 0#nwidth//2
+    stats_smooth = {v: {s: stats[v][s][:, iwidth, 0]
                         for s in statnames} for v in vcomps}
-    print "Plot vs smoothing width, with derivative width", widths[nwidth//2]
+    print "Plot vs smoothing width, with derivative width", widths[iwidth]
     f_smooth = plot_widths(smooths, stats_smooth,
                            normalize=args.normalize, ax=axr)
     f_smooth.suptitle('Various smoothing widths, derivative kernel: {}'.format(
-        widths[nwidth//2]))
+        widths[iwidth]))
     f_smooth.tight_layout()
     return stats, f_width, f_smooth
 
