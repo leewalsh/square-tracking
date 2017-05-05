@@ -602,8 +602,17 @@ def bin_mid(bins):
     return (bins[1:] + bins[:-1])/2
 
 
+def bin_edges(mids):
+    """Return the edges of an array of bin midpoints"""
+    bins = (mids[1:] + mids[:-1])/2
+    return np.concatenate([2*mids[:1] - bins[0], bins, 2*mids[-1:] - bins[-1]])
+
+
 def bin_plot(bins, counts, ax=None, outside=None, **kwargs):
     """Plot a step function given bin edges"""
+    if len(bins) == len(counts):
+        bins = bin_edges(bins)
+    assert len(bins) == len(counts) + 1, 'length mismatch'
     if outside is None:
         counts = np.concatenate((counts[:1], counts))
     else:
