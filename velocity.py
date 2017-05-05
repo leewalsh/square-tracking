@@ -392,7 +392,7 @@ def command_spatial(tsets, args, do_absolute=False, do_radial=False):
     v_means = []
     vv_counts = []
     comps = 'o x y etapar perp'.split()
-    binsize, rmax = sqrt(2)/3, 5*sqrt(2)
+    binsize, rmax = sqrt(2)/4, 5*sqrt(2)
     sbins = np.arange(sqrt(2) - 2*binsize, rmax + binsize, binsize)
     for p in tsets:
         meta = helpy.load_meta(p)
@@ -430,15 +430,20 @@ def command_spatial(tsets, args, do_absolute=False, do_radial=False):
         print comp,
         print 'self magnitude, squared:', np.nanmean(vv_self_sq[comp]),
         print 'mean:', np.nanmean(vv_self_mn[comp])
-        curve.bin_plot(sbins, vv_rad_comp/np.nanmean(vv_self_sq[comp]), ax,
-                       label=texlabel[comp], linestyle=ls[comp], c=cs[comp])
+        if args.normalize:
+            vv_rad_comp /= np.nanmean(vv_self_sq[comp])
+        curve.bin_plot(sbins, vv_rad_comp, ax,
+                       label=texlabel[comp], linestyle=ls[comp],
+                       c=cs['perp' if comp =='etapar' else comp])
     helpy.mark_value(ax, sqrt(2), 'steric\ncontact',
                      annotate=dict(xy=(sqrt(2), 0.68)))
     ax.legend(loc='best', frameon=False)
     ax.set_xlabel(r'$|\vec r_i - \vec r_j| / s$')
-    ax.set_ylabel(r'$\langle v(\vec r_i) \, v(\vec r_j) \rangle'
-                  r'/ \langle v^2 \rangle$')
+    ax.set_ylabel(r'$\langle v(\vec r_i) \, v(\vec r_j) \rangle' +
+                  r'/ \langle v^2 \rangle'*args.normalize + '$')
+    ax.set_xlim(sbins[0] - binsize, sbins[-1] + binsize)
     ax.set_ylim(None, ax.get_ylim()[1]*1.4)
+    ax.set_xticks(range(1, int(sbins[-1] + binsize)))
     return fig, ax, vv_rad_mean
 
 
