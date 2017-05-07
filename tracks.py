@@ -1348,7 +1348,7 @@ def plot_fit(result, tex_fits, args, t=None, data=None,
                markerfacecolor='none', capthick=0, elinewidth=1, errorevery=3)
     kws.update(plt_kwargs.get('errorbar', {}))
     ax.errorbar(t, data, 1/result.weights, None, zorder=2, **kws)
-    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
+    fitlabel = '\n'.join(tex_fits[:None if labels else args.fig==0])
     ax.plot(t, result.best_fit, c=args.pcol, lw=1, label=fitlabel, zorder=2.5)
 
     axes_setter(ax, **plt_kwargs.get('axes', {}))
@@ -1929,7 +1929,7 @@ def rr_comp(taus, msd, msd_err, ax, fits, args, msdvec=0):
     else:
         fitname = ', '.join(fit_desc.get(f, str(f)) for f in fit if f)
 
-    fitlabel = '\n'.join(tex_fits[:None if labels else 1])
+    fitlabel = '\n'.join(tex_fits[:None if labels else args.fig==0])
     ax.plot(taus, result.best_fit, c=args.pcol, lw=1, label=fitlabel)
 
     ax.set_ylim(min(result.best_fit[0], msd[0]), result.best_fit[-1])
@@ -2141,13 +2141,15 @@ if __name__ == '__main__':
         }
 
         with plt.rc_context(rc=rcParams_for_context):
+            widths = np.array([2.5, 3.0, 4.0])
             if args.fig == 0:
                 fig, axs = plt.subplots(
                     ncols=3,
                     figsize=(7.0, 2.0),
-                    gridspec_kw={'width_ratios': [2.5, 3, 4]})
+                    gridspec_kw={'width_ratios': widths})
             else:
-                axs = [None]*3
+                figs, axs = zip(*[plt.subplots(figsize=(w, 2.0))
+                                  for w in 7*widths/widths.sum()])
 
             if args.nn or args.colored:
                 print "====== <nn> ======"
