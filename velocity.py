@@ -266,7 +266,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         ax.set_ylabel(r'$N(\xi)$', labelpad=2)
     helpy.mark_value(
         ax, stats['mean'], r'$v_o$' if label.startswith('long') else '',
-        line=dict(color=c, coords='data', linestyle='-',
+        line=dict(color=c, coords='data', linestyle='-', linewidth=1,
                   start=0, stop=counts[np.searchsorted(bins, stats['mean'])]),
         annotate=dict(xy=(stats['mean'], 0), xytext=(0, 9), ha='center')
     )
@@ -501,7 +501,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
-    n = 18
+    n = 12
     t = np.arange(n)/args.fps
     vmax = args.normalize or max(vv[v][0] for v in comps.split())
     ax.set_ylim(-0.05*vmax, 1.05*vmax)

@@ -60,7 +60,7 @@ def colors(fit, default='k'):
     if isinstance(fit, basestring):
         d = {'T0': 'k',
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
-                                      'Tm_Rn_La': 'purple',
+                                      'Tm_Rn_La': 'r',
              'Tf': 'brown', 'Tn_Rn': 'brown',
                         'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
                                       'Tm_Rn_Lb': 'b',
@@ -178,10 +178,10 @@ pargs['lp'] = dict(
     ys={
         'good': [
             'r0_Tm_Rn_Lf_Df',
-            'ra_Tm_Rf_Lf',
             'ra_Tm_Rn_Lf',
         ],
         'maybe': [
+            'ra_Tm_Rf_Lf',
         ],
         'bad': [
             'ra_Tn_Rf_Lf',
@@ -260,10 +260,10 @@ pargs['DT'] = dict(
     ys={
         'good': [
             'r0_Tm_Rn_Lf_Df',
-            'r0_Tm_Rn_Ln_Df',
             'r0_Tm_Rn_La_Df',
         ],
         'maybe':[
+            'r0_Tm_Rn_Ln_Df',
             'r0_Tm_Rn_Lb_Df',
             'r0_Tm_Rn_Lq_Df',
         ],
@@ -325,7 +325,7 @@ for p in pargs:
 
 
 param_xs = {
-    'DR': ['DR', 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'],
+    'DR': ['DR',],# 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'],
     'lp': ['lp'],
     'DT': ['DT'],
 }
