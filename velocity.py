@@ -603,6 +603,7 @@ def command_hist(args, meta, compile_args, axes=None):
             fit = helpy.make_fit(func='vo', TR=None, DR='var*dt', w0='mean')
             hist_fits[fit] = {
                 'DR': D_R, 'w0': float(stats['mean']),
+                'VAR': float(stats['var']), 'MN': float(stats['mean']),
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
@@ -620,6 +621,7 @@ def command_hist(args, meta, compile_args, axes=None):
             fit = helpy.make_fit(func='vt', DT='var')
             hist_fits[fit] = {
                 'DT': 0.5*float(stats['var'])*dt, 'vt': float(stats['mean']),
+                'VAR': float(stats['var']), 'MN': float(stats['mean']),
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             v = 'par'
@@ -632,6 +634,7 @@ def command_hist(args, meta, compile_args, axes=None):
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
             hist_fits[fit] = {
                 'v0': float(stats['mean']), 'DT': 0.5*float(stats['var'])*dt,
+                'VAR': float(stats['var']), 'MN': float(stats['mean']),
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
