@@ -27,7 +27,7 @@ all_colors = 'rgkbmyc'
 
 
 def markers(fit, default='x'):
-    """Set marker for fit"""
+    """Set marker for fit based on fitting function"""
     if isinstance(fit, basestring):
         d = {'nn': 'o',
              'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
@@ -56,7 +56,7 @@ colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
 colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
 
 def colors(fit, default='k'):
-    """Set color for fit"""
+    """Set color for fit based on free parameters"""
     if isinstance(fit, basestring):
         d = {'T0': 'k',
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
@@ -65,8 +65,8 @@ def colors(fit, default='k'):
                         'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
                                       'Tm_Rn_Lb': 'b',
                                       'Tm_Rn_Lf': 'green',
-             'oo': 'brown',
-             'vo': 'orange',
+             'oo': 'brown', #'oo_DR', 'oo_Ds', 'oo_Da'
+             'vo_T0': 'orange', 'vo_Tv': 'r', #'vo_T0_Dt', 'vo_Tv_Dt'
             }
 
         mpl2 = {'b': 'b',       # blue -> blue
@@ -142,7 +142,7 @@ pargs['DR'] = dict(
     param='DR',
     title='$D_R$',
     convert=None,
-    xs='vo',
+    xs='vo_Tv_Dt',
     ys={
         'good': [
             'nn_Tm_Rf',
@@ -164,11 +164,11 @@ pargs['DR'] = dict(
     legend={'loc':'lower right'},
 )
 
-for p in ('DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'):
-    pargs[p] = pargs[p[:2]].copy()
-    pargs[p]['xs'] = p[3:]
-    pargs[p]['color'] = colors(p)
-pargs['DR_vo_tR']['convert'] = 'a'
+for p in ('oo_DR', 'oo_Ds', 'oo_Da', 'vo_T0_Dt', 'vo_Tv_Dt'):
+    pargs['DR_'+p] = pargs['DR'].copy()
+    pargs['DR_'+p]['xs'] = p
+    pargs['DR_'+p]['color'] = colors('DR_'+p)
+#pargs['DR_vo_Tv_Dt']['convert'] = 'a' # no longer needed, done in velocity.py
 
 pargs['lp'] = dict(
     param='lp',
@@ -276,7 +276,7 @@ pargs['DT'] = dict(
             'rr_Tn_Rn_Ln_Df',
         ],
     }[scope],
-    lims=(0, .023),
+    lims=(0, .013),
 )
 
 
@@ -325,7 +325,10 @@ for p in pargs:
 
 
 param_xs = {
-    'DR': ['DR',],# 'DR_oo_DR', 'DR_oo_Ds', 'DR_oo_Da', 'DR_vo_dt', 'DR_vo_tR'],
+    'DR': ['DR',
+           'DR_oo_DR',# 'DR_oo_Ds', 'DR_oo_Da',
+           'DR_vo_T0_Dt', 'DR_vo_Tv_Dt', #'DR_vo_T0_DT',
+           ],
     'lp': ['lp'],
     'DT': ['DT'],
 }

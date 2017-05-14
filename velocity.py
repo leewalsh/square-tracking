@@ -54,6 +54,7 @@ if __name__ == '__main__':
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
+    arg('--colored', action='store_true', help='Use tau to calculate D_R')
     arg('--frame', choices=['lab', 'self'], default='self',
         help='Correlations in "lab" or "self" frame?')
     arg('--untrackorient', action='store_false', dest='torient',
@@ -147,7 +148,7 @@ def compile_noise(tracksets, width=(0.65,), smooth=None, cat=True, side=1, fps=1
     return np.concatenate(vs.values()) if cat else vs
 
 
-def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit'):
+def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit', widths=None):
     """Compute mean, D_T or D_R, and standard error for a list.
     """
     a = np.asarray(a)
@@ -496,7 +497,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     vs = compile_noise(tsets, width, cat=False,
                        side=args.side, fps=args.fps)
     vvs, vv, dvv = vv_autocorr(vs, normalize=args.normalize)
-    fits = {}
+    vac_fits = {}
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -509,7 +510,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        final = vv[v][n:2*n].mean()
+        final = 0#vv[v][n:2*n].mean()
         #init = vv[v][0]
         vvnormed = (vv[v][:n] - final)#/(1 - final/init)
         init = vvnormed[0]
@@ -520,10 +521,10 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
             source = 'vac-final' if final else 'vac'
             if args.normalize:
                 fit = helpy.make_fit(func='oo', TR=source)
-                fits[fit] = {'TR': vvtime}
+                vac_fits[fit] = {'TR': vvtime}
             else:
                 fit = helpy.make_fit(func='oo', DR=source)
-                fits[fit] = {'DR': vvtime*init}
+                vac_fits[fit] = {'DR': vvtime*init}
                 print 'D = mag*integral =', init, '*', vvtime, '=', vvtime*init
                 ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(init),
                             xy=(0, init),
@@ -561,7 +562,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     ax.legend(leg_handles, leg_labels, title=leg_title, loc='best',
               numpoints=1, markerfirst=False, handlelength=0,
               frameon=False, fontsize='small')
-    return fig, fits
+    return fig, vac_fits
 
 
 def command_hist(args, meta, compile_args, axes=None):
@@ -600,7 +601,14 @@ def command_hist(args, meta, compile_args, axes=None):
                 log=args.log and icol or not args.lin, label=label,
                 orient=True, title=title, subtitle=subtitle)
             D_R = 0.5*float(stats['var'])*dt
-            fit = helpy.make_fit(func='vo', TR=None, DR='var*dt', w0='mean')
+            if args.colored:
+                (TR_source, TR_fit), = fits.items()
+                dt_tau = dt / TR_fit['TR']
+                D_R /= 1 - (1 - exp(-dt_tau)) / dt_tau
+            else:
+                TR_source = None
+            fit = helpy.make_fit(func='vo', TR=TR_source, DR='var*dt', w0='mean')
+
             hist_fits[fit] = {
                 'DR': D_R, 'w0': float(stats['mean']),
                 'VAR': float(stats['var']), 'MN': float(stats['mean']),
@@ -714,9 +722,6 @@ if __name__ == '__main__':
                 figsize=(3.5*ncols, 3.0*nrows) if labels
                 else (3.5, 3.0*nrows/ncols),
                 gridspec_kw={'wspace': 0.2, 'hspace': 0.4})
-            if 'hist' in args.command:
-                fig, new_fits = command_hist(args, meta, compile_args, axes)
-                fits.update(new_fits)
             if 'autocorr' in args.command:
                 i = 0
                 if args.do_orientation:
@@ -728,13 +733,18 @@ if __name__ == '__main__':
                     fig, new_fits = command_autocorr(tsets, args,
                                                      'etapar perp', axes[i, -1])
                     fits.update(new_fits)
+            if 'hist' in args.command:
+                fig, new_fits = command_hist(args, meta, compile_args, axes)
+                fits.update(new_fits)
 
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
             if fits:
                 print 'saving fits'
-                print fits
+                for fit, fitval in fits.iteritems():
+                    print helpy.fit_str(fit, True, False)
+                    print fitval
                 helpy.save_fits(savename, fits)
             savename += '_velocity_' + '_'.join(args.command)
             if args.suffix:

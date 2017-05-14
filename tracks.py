@@ -1193,17 +1193,19 @@ def make_fitnames():
     mkf = helpy.make_fit
     cf = {'free': 'free', None: None}
     cf.update({
-        'vn': mkf(func='vn', v0='mean', DT='var'),
-        'vt': mkf(func='vt', DT='var'),
-        'vo': mkf(func='vo', DR='var', w0='mean'),
-        'vo_dt': mkf(func='vo', DR='var*dt', w0='mean'),
-        'vo_tR': mkf(func='vo', DR='var*tau', w0='mean'),
         'oo_TR' : mkf(func='oo', TR='vac'),
         'oo_Ts' : mkf(func='oo', TR='vac-final'),
         'oo_Ta' : mkf(func='oo', TR='vac-final*origamp'),
         'oo_DR' : mkf(func='oo', DR='vac'),
         'oo_Ds' : mkf(func='oo', DR='vac-final'),
         'oo_Da' : mkf(func='oo', DR='vac-final*origamp'),
+    })
+    cf.update({
+        'vn': mkf(func='vn', v0='mean', DT='var'),
+        'vt': mkf(func='vt', DT='var'),
+        'vo_T0_DT': mkf(func='vo', DR='var/dt', w0='mean'),
+        'vo_T0_Dt': mkf(func='vo', DR='var*dt', w0='mean'),
+        'vo_Tv_Dt': mkf(func='vo', TR=cf['oo_TR'], DR='var*dt', w0='mean'),
     })
 
     # from orientation autocorrelation: nn
