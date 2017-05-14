@@ -12,7 +12,7 @@ from __future__ import division
 import os
 from glob import iglob
 from functools import partial
-from math import sqrt
+from math import sqrt, exp
 
 import numpy as np
 from scipy.stats import skew, kurtosis, skewtest, kurtosistest
@@ -137,7 +137,6 @@ def get_stats(a):
     # c = a - M
     # variance = np.einsum('...j,...j->...', c, c)/n
     variance = np.nanvar(a, -1, keepdims=keepdims, ddof=1)
-    D = 0.5*variance*args.fps
     SE = np.sqrt(variance)/sqrt(n - 1)
     SK = skew(a, -1, nan_policy='omit')
     KU = kurtosis(a, -1, nan_policy='omit')
@@ -149,7 +148,7 @@ def get_stats(a):
     else:
         SK = float(SK)
         KU = float(KU)
-    stat = {'mean': M, 'var': variance, 'D': D, 'std': SE,
+    stat = {'mean': M, 'var': variance, 'std': SE,
             'skew': SK, 'skew_test': float(SK_t.statistic),
             'kurt': KU, 'kurt_test': float(KU_t.statistic)}
     print '\n'.join(['{:>10}: {: .4f}'.format(k, v) for k, v in stat.items()])
@@ -312,7 +311,7 @@ def command_hist(args, meta, compile_args):
                          ['stub', 'gaps', 'width'],
                          ['vel_stub', 'vel_gaps', 'vel_dx_width'],
                          [10, 'interp', 0.65])
-    fits = {}
+    hist_fits = {}
     width = helpy.parse_slice(args.width, index_array=True)
     compile_args.update(args.__dict__)
     vs = compile_noise(tsets, width, cat=True,
@@ -320,6 +319,7 @@ def command_hist(args, meta, compile_args):
     if not (args.log or args.lin):
         args.log = args.lin = True
 
+    dt = 2 * sqrt(3) * width / args.fps
     nax = (args.do_orientation + args.do_translation*(args.subtract + 1),
            args.log + args.lin)
     plt.figure(figsize=(5*nax[1], 2.5*nax[0]))
@@ -333,10 +333,12 @@ def command_hist(args, meta, compile_args):
         stats, axes = plot_hist(vs['o'], nax, axi, bins=bins*pi/2, c=ncol,
                                 lin=args.lin, log=args.log, label=label,
                                 orient=True, title=title, subtitle=subtitle)
-        fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-        fits[fit] = {'DR': float(stats['D']), 'w0': float(stats['mean']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        D_R = 0.5*float(stats['var'])*dt
+        fit = helpy.make_fit(func='vo', TR=None, DR='var*dt', w0='mean')
+        hist_fits[fit] = {
+            'DR': D_R, 'w0': float(stats['mean']),
+            'KU': stats['kurt'], 'SK': stats['skew'],
+            'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         axi += 1
     if args.do_translation:
         title = 'Parallel & Transverse'
@@ -345,16 +347,18 @@ def command_hist(args, meta, compile_args):
                                 lin=args.lin, log=args.log, label=label,
                                 title=title, subtitle=subtitle, c=ncol)
         fit = helpy.make_fit(func='vt', DT='var')
-        fits[fit] = {'DT': float(stats['D']), 'vt': float(stats['mean']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        hist_fits[fit] = {
+            'DT': 0.5*float(stats['var'])*dt, 'vt': float(stats['mean']),
+            'KU': stats['kurt'], 'SK': stats['skew'],
+            'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         label = {'val': r'v_\parallel', 'sub': r'\parallel'}
         stats, axes = plot_hist(vs['par'], nax, axes, bins=bins*brange,
                                 lin=args.lin, log=args.log, label=label)
         fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-        fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['D']),
-                     'KU': stats['kurt'], 'SK': stats['skew'],
-                     'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+        hist_fits[fit] = {
+            'v0': float(stats['mean']), 'DT': 0.5*float(stats['var'])*dt,
+            'KU': stats['kurt'], 'SK': stats['skew'],
+            'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         axi += 1
         if args.subtract:
             label = {'val': r'\eta_\alpha', 'sub': r'\alpha'}
@@ -363,7 +367,7 @@ def command_hist(args, meta, compile_args):
                       bins=bins, title='$v_0$ subtracted',
                       subtitle=subtitle)
             axi += 1
-    return fits
+    return hist_fits
 
 def find_data(args):
     suf = '_TRACKS.npz'
