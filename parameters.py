@@ -58,7 +58,7 @@ colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
 def colors(fit, default='k'):
     """Set color for fit based on free parameters"""
     if isinstance(fit, basestring):
-        d = {'T0': 'k',
+        d = {'T0': 'r',
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
                                       'Tm_Rn_La': 'r',
              'Tf': 'brown', 'Tn_Rn': 'brown',
@@ -137,7 +137,6 @@ def labels(fit, default=None, fancy=True):
 pargs = {}
 scope = 'good'
 
-
 pargs['DR'] = dict(
     param='DR',
     title='$D_R$',
@@ -153,7 +152,6 @@ pargs['DR'] = dict(
             'ra_Tm_Rf_Lf',
         ],
         'bad': [
-            'nn_T0_Rf',
             'rn_Tn_Rf_Lf',
             'rp_Tn_Rf_Lf',
             'rp_Tm_Rf_Lf',
@@ -164,11 +162,17 @@ pargs['DR'] = dict(
     legend={'loc':'lower right'},
 )
 
-for p in ('oo_DR', 'oo_Ds', 'oo_Da', 'vo_T0_Dt', 'vo_Tv_Dt'):
+pargs['DR_white'] = pargs['DR'].copy()
+pargs['DR_white'].update(
+    xs='vo_T0_Dt',
+    ys=['nn_T0_Rf'],
+    markerfacecolor='white',
+)
+
+for p in ('oo_DR', 'oo_Ds', 'oo_Da'):
     pargs['DR_'+p] = pargs['DR'].copy()
     pargs['DR_'+p]['xs'] = p
     pargs['DR_'+p]['color'] = colors('DR_'+p)
-#pargs['DR_vo_Tv_Dt']['convert'] = 'a' # no longer needed, done in velocity.py
 
 pargs['lp'] = dict(
     param='lp',
@@ -326,8 +330,8 @@ for p in pargs:
 
 param_xs = {
     'DR': ['DR',
-           'DR_oo_DR',# 'DR_oo_Ds', 'DR_oo_Da',
-           'DR_vo_T0_Dt', 'DR_vo_Tv_Dt', #'DR_vo_T0_DT',
+           'DR_white',
+           #'DR_oo_DR',# 'DR_oo_Ds', 'DR_oo_Da',
            ],
     'lp': ['lp'],
     'DT': ['DT'],
