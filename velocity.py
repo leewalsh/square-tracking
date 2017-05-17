@@ -721,7 +721,7 @@ if __name__ == '__main__':
                 nrows, ncols, squeeze=False,
                 figsize=(3.5*ncols, 3.0*nrows) if labels
                 else (3.5, 3.0*nrows/ncols),
-                gridspec_kw={'wspace': 0.2, 'hspace': 0.4})
+                gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
             if 'autocorr' in args.command:
                 i = 0
                 if args.do_orientation:
@@ -737,6 +737,13 @@ if __name__ == '__main__':
                 fig, new_fits = command_hist(args, meta, compile_args, axes)
                 fits.update(new_fits)
 
+        for i, ax in enumerate(fig.axes):
+            ax.annotate('({})'.format('acbd'[i]),
+                        xy=(-.1, 1), verticalalignment='baseline',  # upper
+                        #xy=(-.05, -.05), verticalalignment='top', # lower
+                        xycoords='axes fraction',
+                        horizontalalignment='right',
+                       )
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)

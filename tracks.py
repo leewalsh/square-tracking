@@ -2170,7 +2170,13 @@ if __name__ == '__main__':
 
             if args.fig == 0:
                 fig.tight_layout(pad=0, w_pad=0, h_pad=0)
-                for ax in axs:
+                for i, ax in enumerate(axs):
+                    ax.annotate('({})'.format('abc'[i]),
+                                xy=(-0.05, 0),
+                                xycoords=('axes fraction', 'figure fraction'),
+                                verticalalignment='bottom',
+                                horizontalalignment='right',
+                                )
                     move_axis_label(ax, 'y', x=None, y=2/3,
                                     ha='center', va='bottom')
             if args.save:
