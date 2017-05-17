@@ -443,8 +443,8 @@ with plt.rc_context(rc=rcParams_for_context):
             kwargs = dict(pargs[px], **overrides)
             plot_parametric(fits, ax=ax, **kwargs)
 
-    axes[0].set_ylabel('Fits to correlation functions')
-    axes[1].set_xlabel('Noise statistics')
+    axes[0].set_ylabel('from correlation functions')
+    axes[1].set_xlabel('from noise statistics')
     fig.tight_layout(w_pad=0.8)
     if save_figs:
         fig.savefig('parametric.pdf')
