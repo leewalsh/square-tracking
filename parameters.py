@@ -62,11 +62,11 @@ def colors(fit, default='k'):
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
                                       'Tm_Rn_La': 'r',
              'Tf': 'brown', 'Tn_Rn': 'brown',
-                        'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
-                                      'Tm_Rn_Lb': 'b',
-                                      'Tm_Rn_Lf': 'green',
+                        'Tm_Rf': 'green', 'Tm_Rn_Lr': 'green',
+                                      'Tm_Rn_Lb': 'green',
+                                      'Tm_Rn_Lf': 'b',
              'oo': 'brown', #'oo_DR', 'oo_Ds', 'oo_Da'
-             'vo_T0': 'orange', 'vo_Tv': 'r', #'vo_T0_Dt', 'vo_Tv_Dt'
+             'vo_T0': 'green', 'vo_Tv': 'r', #'vo_T0_Dt', 'vo_Tv_Dt'
             }
 
         mpl2 = {'b': 'b',       # blue -> blue
@@ -167,6 +167,7 @@ pargs['DR_white'].update(
     xs='vo_T0_Dt',
     ys=['nn_T0_Rf'],
     markerfacecolor='white',
+    title='',
 )
 
 for p in ('oo_DR', 'oo_Ds', 'oo_Da'):
