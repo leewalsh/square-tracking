@@ -440,8 +440,8 @@ def command_spatial(tsets, args, do_absolute=False, do_radial=False):
                      annotate=dict(xy=(sqrt(2), 0.68)))
     ax.legend(loc='best', frameon=False)
     ax.set_xlabel(r'$|\vec r_i - \vec r_j| / s$')
-    ax.set_ylabel(r'$\langle v(\vec r_i) \, v(\vec r_j) \rangle' +
-                  r'/ \langle v^2 \rangle'*args.normalize + '$')
+    ax.set_ylabel(r'$\langle \dot{\vec r_i} \, \dot{\vec r_j} \rangle' +
+                  r'/ \langle \dot{r}^2 \rangle'*args.normalize + '$')
     ax.set_xlim(sbins[0] - binsize, sbins[-1] + binsize)
     ax.set_ylim(None, ax.get_ylim()[1]*1.4)
     ax.set_xticks(range(1, int(sbins[-1] + binsize)))
