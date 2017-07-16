@@ -94,12 +94,12 @@ def pair_indices(n, asarray=False):
     assert n >= 2, "Cannot have pairs inside list of 1"
     if n < 7:
         ind = combinations(xrange(n), 2)
-        return np.array(tuple(ind)).T if asarray else map(list, zip(*ind))
+        return np.array(tuple(ind)) if asarray else zip(*ind)
     rng = np.arange(1, n)
     i = np.repeat(rng - 1, rng[::-1])
     j = np.arange(n*(n-1)//2) + np.repeat(n - np.cumsum(rng[::-1]), rng[::-1])
     ind = i, j
-    return np.array(ind) if asarray else ind
+    return np.array(ind).T if asarray else ind
 
 
 def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
@@ -338,12 +338,13 @@ def orient_op(orientations, m=4, positions=None, margin=0,
 
 def dtheta(i, j=None, m=1, sign=False):
     """ given two angles or one array (N, 2) of pairs
-        returns the _smallest angle between them, modulo m
+        returns the smallest angle between them, modulo m
         if sign is True, retuns a negative angle for i<j, else abs
     """
     ma = tau/m
-    diff = np.diff(i, axis=1) if j is None else i - j
-    diff = (diff + ma/2) % ma - ma/2
+    if j is None:
+        i, j = i.T
+    diff = (j - i + ma/2) % ma - ma/2
     return diff if sign else np.abs(diff)
 
 

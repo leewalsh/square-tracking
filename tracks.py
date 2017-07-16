@@ -124,6 +124,8 @@ if __name__ == '__main__':
         saveprefix += '_' + args.suffix.strip('_')
     locdir, prefix = os.path.split(absprefix)
     locdir += os.path.sep
+    if args.prefix == 'simulate':
+        relprefix = absprefix = readprefix = prefix = saveprefix = 'simulate'
 
     need_plt = any([args.plottracks, args.plotmsd, args.check,
                     args.nn, args.rn, args.rr])
@@ -133,7 +135,7 @@ if __name__ == '__main__':
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
-    warnlevel = {0: 'ignore', None: 'ignore', 1: 'once', 2: 'once', 3: 'error'}
+    warnlevel = {0: 'ignore', None: 'ignore', 1: 'warn', 2: 'warn', 3: 'raise'}
     np.seterr(divide=warnlevel[verbose], invalid=warnlevel[verbose])
 else:
     verbose = False
@@ -395,6 +397,30 @@ def plt_text(*args, **kwargs):
     return [plt.text(*arg, **kwargs) for arg in zip(*args)]
 
 
+def set_axes_size_inches(ax, axsize, clear=None, tight=None):
+    """Resize figure to control size of axes in inches"""
+    if clear is not None:
+        properties = {'ticks': {'xticks': [], 'yticks': []},
+                      'labels': {'xlabel': '', 'ylabel': ''},
+                      'title': {'title': ''}}
+        ax.set(**{k: v for c in clear for (k, v) in properties[c].iteritems()})
+    if isinstance(tight, dict):
+        ax.figure.tight_layout(**tight)
+    elif tight is True:
+        ax.figure.tight_layout()
+    elif tight is None or tight is False:
+        pass
+    elif np.isscalar(tight):
+        ax.figure.tight_layout(pad=tight)
+    else:
+        raise ValueError('unexpected value `{}` for tight'.format(tight))
+
+    portion_of_fig = np.diff(ax.get_position(), axis=0)[0]
+    ax.figure.set_size_inches(axsize / portion_of_fig, forward=True)
+
+    return ax.figure.get_size_inches()
+
+
 def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                       meta={}, f_nums=None, verbose=False, clean=0):
 
@@ -420,6 +446,16 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             f_idx = 0
         elif key == 'e':
             f_idx = f_max - 1
+        elif key == 's':
+            savename = raw_input('save pdf to '+os.getcwd()+'/')
+            if savename:
+                ax.set(title='', xticks=[], yticks=[])
+                if not savename.endswith('.pdf'):
+                    savename += '.pdf'
+                fig.savefig(savename)#, bbox_inches='tight', pad_inches=0)
+                print "saved to", savename
+        elif key == 'i':
+            print title.format(f_num, nos, nts, ncs)
         else:
             plt.close()
             f_idx = -1
@@ -431,6 +467,8 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 print 'will exit'
             sys.stdout.flush()
 
+    #imstack = (imstack.astype('f8')**2 / 4096.0).round().astype('u2')
+    imstack = imstack - np.median(imstack, axis=0)
 
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
@@ -438,12 +476,21 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     txtoff = min(rc, side/2)/2
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
-    fig, ax = plt.subplots(figsize=(12, 12))
-    p = ax.imshow(imstack[0], cmap='gray')
+    ppi = meta['boundary'][-1]/4
     h, w = imstack[0].shape
+    actualsize = np.array([w, h]) / ppi
+    fig, ax = plt.subplots(figsize=actualsize*1.02)
+    p = ax.imshow(imstack[0], cmap='gray')
     xlim, ylim = (0, w), (0, h)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
+    if actualsize is not None:
+        print 'plotting actual size {:.2f}x{:.2f} in'.format(*actualsize)
+        print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
+        set_axes_size_inches(ax, actualsize, clear=['title', 'ticks'], tight=0)
+    else:
+        ax.set_title(title.format(-1, 0, 0, 0))
+        fig.tight_layout()
     need_legend = not clean
 
     if meta.get('track_cut', False):
@@ -493,10 +540,18 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         # plot the detected dots
         ts = helpy.quick_field_view(fsets[f_num], 't')
         tracked = ts >= 0
-        c = ts[tracked] % 12 if args.plottracks else 'r'
-        ps = ax.scatter(y[tracked], x[tracked], c=c, cmap='Dark2', zorder=.8)
-        if not args.plottracks:
-            remove.append(ps)
+        if args.plottracks:
+            cmap = plt.get_cmap('Set3')
+            colors = cmap(ts[tracked] % cmap.N)**3  # cube to darken
+            ax.scatter(y[tracked], x[tracked],
+                       s=3, c=colors,
+                       zorder=0.1*f_idx/f_max,  # later tracks on top
+                      )
+        else:
+            colors = 'white'
+        ps = ax.scatter(y[tracked], x[tracked], s=64, c=colors,
+                        marker='o', edgecolors='black')
+        remove.append(ps)
         if not clean:
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
@@ -509,10 +564,27 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         # plot the orientations
         omask = np.isfinite(o)
         xyoo = xyo[omask]
+        to = ts[omask]
         xo, yo, oo = xyoo.T
-        q = ax.quiver(yo, xo, np.sin(oo), np.cos(oo), angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=10/side, zorder=.4)
+        so, co = np.sin(oo), np.cos(oo)
+        q = ax.quiver(yo, xo, so, co, angles='xy', units='xy',
+                      width=side/8, scale_units='xy', scale=10/side, zorder=.4,
+                      edgecolor='white', facecolor='black', linewidth=0.75)
         remove.append(q)
+
+        # label n-hat
+        t, d = 3, 10
+        nhat_offsets = d * np.stack([(1.5*so - co), (1.5*co + so)], axis=1)
+        nhat_is = np.where(to == t)[0] if clean else xrange(len(to))
+        nhats = [ax.annotate(
+            r'$\hat n$',
+            xy=(yo[nhat_i], xo[nhat_i]),
+            xytext=nhat_offsets[nhat_i],
+            textcoords='offset points', ha='center', va='center',
+            fontsize='large')
+            for nhat_i in nhat_is]
+        remove.extend(nhats)
+
         if not clean:
             for dr in [-drc, 0, drc]:
                 patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
@@ -524,36 +596,43 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             if np.any(pim):
                 ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
                                  c=['pink', 'r'][clean], zorder=.7)
-                itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
-                                tsi[pim].astype('S'), color='pink',
-                                zorder=.9-clean, horizontalalignment='center')
-                remove.extend(itxt)
                 remove.append(ips)
+                if not clean:
+                    itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
+                                    tsi[pim].astype('S'), color='pink',
+                                    zorder=.9, horizontalalignment='center')
+                    remove.extend(itxt)
             iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
                            angles='xy', units='xy', width=side/8,
                            scale_units='xy', scale=1/side, zorder=.3,
-                           color=(.3*(1-clean),)*3)
+                           facecolor='black' if clean else 'gray',
+                           edgecolor='white', linewidth=0.75)
             remove.append(iq)
 
         if fosets is not None:
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
             oca = oc.reshape(-1, 2)
-            ocs = ax.scatter(oca[:, 1], oca[:, 0], c='orange', s=10, zorder=1)
-            remove.append(ocs)
+            ocs = ax.plot(oca[:, 1], oca[:, 0], linestyle='', marker='o',
+                          color='white' if clean else 'black',
+                          markeredgecolor='black', markersize=4, zorder=1)
+            remove.extend(ocs)
 
             # corner displacements has shape (n_particles, n_corners, n_dim)
             cdisp = oc[omask] - xyoo[:, None, :2]
             cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
             deg_str = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
             cx, cy = oc[omask].mean(1).T
-            ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9-clean,
-                            horizontalalignment='center',
-                            verticalalignment='center')
-            remove.extend(ctxt)
+            if not clean:
+                ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9,
+                                horizontalalignment='center',
+                                verticalalignment='center')
+                remove.extend(ctxt)
 
-        txt = plt_text(y[tracked], x[tracked]+txtoff, ts[tracked].astype('S'),
-                       color='r', zorder=.9-clean, horizontalalignment='center')
-        remove.extend(txt)
+        if not clean:
+            txt = plt_text(y[tracked], x[tracked]+txtoff,
+                           ts[tracked].astype('S'),
+                           color='r', zorder=.9, horizontalalignment='center')
+            remove.extend(txt)
 
         nts = np.count_nonzero(tracked)
         nos = np.count_nonzero(omask)
@@ -570,7 +649,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 cs.set_label('corners')
             else:
                 cs.set_label('unused corner')
-                ocs.set_label('used corners')
+                ocs[0].set_label('used corners')
             if len(txt):
                 txt[0].set_label('track id')
             ax.legend(fontsize='small')
@@ -674,8 +753,9 @@ def plot_tracks(data, trackids=None, bgimage=None, mask=None,
         mask = np.where(trackids >= 0)
     data = data[mask]
     trackids = trackids[mask]
-    ax.scatter(data['y'], data['x'], c=trackids % 12,
-               marker='o', cmap='Dark2', lw=0)
+    cmap = plt.get_cmap('Dark2')
+    ax.scatter(data['y'], data['x'], c=trackids % cmap.N,
+               marker='o', cmap=cmap, lw=0)
     ax.set_aspect('equal')
     ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
     ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
@@ -1859,12 +1939,22 @@ if __name__ == '__main__':
             print save if verbose else os.path.basename(save)
             np.savez_compressed(save, data=data)
     else:
-        data = helpy.load_data(readprefix, 'track')
+        if readprefix == 'simulate':
+            import simulate as sim
+            spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+                    'fps': args.fps, 'side': args.side, 'size': 1000}
+            print spar
+            sdata = [sim.SimTrack(num=i, **spar)
+                     for i in xrange(1, 1001)]
+            data = np.concatenate([sdatum.track for sdatum in sdata])
+            data['id'] = np.arange(len(data))
+        else:
+            data = helpy.load_data(readprefix, 'track')
 
     if args.check:
         path_to_tiffs, imstack, frames = helpy.find_tiffs(
             prefix=relprefix, frames=args.slice,
-            load=True, verbose=args.verbose)
+            load=True, verbose=args.verbose, maxsize=200e6)
         meta.update(path_to_tiffs=path_to_tiffs)
         tdata, cdata, odata = helpy.load_data(readprefix, 't c o')
         fisets = helpy.load_framesets(tdata, run_repair='interp')

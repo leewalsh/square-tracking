@@ -274,6 +274,8 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
     if pad:
         # could return_mask=True and isfin = ~mask, but that misses input nans
         arrs = pad_uneven(arrs, np.nan, return_mask=False, align=align)
+    else:
+        arrs = np.asarray(arrs)
     isfin = np.isfinite(arrs)
     added = isfin.sum(0)
     enough = (added >= min_added).all(tuple(range(1, added.ndim))).nonzero()[0]
@@ -1399,13 +1401,16 @@ def dist(a, b):
     return np.hypot(*(a - b).T)
 
 
-def rotate(v, theta, out=None):
+def rotate(v, theta, out=None, angle=False):
     """rotate a 2-d vector into the basis defined by theta
 
     parameters
     ----------
     v:      vector(s) with shape (2, ...)
     theta:  angle(s) with shape (...,)
+            or, normal vector(s) with shape `v.shape`
+    out:    (optional) array in which to save rotated output
+    angle:  (default False) whether to rotate _away_ from theta's basis by angle
 
     returns
     -------
@@ -1417,10 +1422,14 @@ def rotate(v, theta, out=None):
     """
     if out is None:
         out = np.empty_like(v)
-    cos, sin = np.cos(theta), np.sin(theta)
+    if theta.shape == v.shape:
+        cos, sin = theta
+    else:
+        cos, sin = np.cos(theta), np.sin(theta)
     rot = np.array([[cos, sin],
                     [-sin, cos]])
-    return np.einsum('ij...,...j', rot, v, out=out)
+    ein_ind = 'ij..., {}...->{}...'.format(*('ij' if angle else 'ji'))
+    return np.einsum(ein_ind, rot, v, out=out)
 
 
 def circle_three_points(*xs):
@@ -1472,7 +1481,7 @@ def parse_slice(desc, shape=0, index_array=False):
 
 
 def find_tiffs(path='', prefix='', meta='', frames='', single=False,
-               load=False, verbose=False):
+               load=False, verbose=False, maxsize=100e6):
     meta = meta or load_meta(prefix)
     path = path or meta.get('path_to_tiffs', prefix)
     path = drive_path(path, both=True)
@@ -1518,11 +1527,21 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         fnames = fnames[frames]
         if load:
             from scipy.ndimage import imread
-            fnames = fnames[:100]
             if verbose:
                 print '. . .',
-            imfiles = map(tar.extractfile, fnames) if tar else fnames
-            fnames = np.squeeze(map(imread, imfiles))
+            batchsize = 50
+            ims = []
+            for batch_i in xrange(0, len(fnames), batchsize):
+                batch = fnames[batch_i:batch_i+batchsize]
+                if tar:
+                    batch = map(tar.extractfile, batch)
+                imbatch = map(imread, batch)
+                im = imbatch[0]
+                if im.itemsize*im.size*(batch_i + len(imbatch)) > maxsize:
+                    break
+                else:
+                    ims.extend(imbatch)
+            fnames = np.squeeze(ims)
             if verbose:
                 print 'loaded'
         if tar:

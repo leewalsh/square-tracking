@@ -25,13 +25,14 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
     ----------
     particle:   is particle position as [x, y] array of shape (2,)
     corners:    is shape (N, 2) array of positions of corner dots as x, y pairs
-    tree:       a KDTree of the `corners`, if available
     nc:         number of corner dots
     rc:         is the expected distance to corner from particle position
     drc:        delta rc is the tolerance on rc, defaults to sqrt(rc)
     ang:        angular separation between corners (if nc > 1)
     dang:       tolerance for ang (if None, ang is ignored if nfound == nc, but
                 is uses to choose best nc of nfound if nfound > nc)
+    rank_by:    whether to narrow down excess corners by closest to rc or to ang
+    tree:       a KDTree of the `corners`, if available
     do_average: whether to average the nc corners to one value for return
 
     Returns
@@ -44,70 +45,58 @@ def find_corner(particle, corners, nc, rc, drc=0, ang=None, dang=None,
     if drc <= 0:
         drc = sqrt(rc)
 
-    # displacements from center to corners
     if tree:
         # if kdtree is available, only consider nearby corners
         icnear = tree.query_ball_point(particle, rc + drc)
         corners = corners[icnear]
 
+    # displacements from particle center to corners
     cdisps = corners - particle
     cdists = np.hypot(*cdisps.T)
     cdiffs = np.abs(cdists - rc)
-    legal = np.where(cdiffs < drc)[0]
-    nfound = len(legal)
-    if nfound < nc:
+    legal_dist = np.where(cdiffs < drc)[0]
+    if len(legal_dist) < nc:
         # too few, skip.
         return (None,)*3
+
+    if ang:
+        if dang is None:
+            rank_by = 'ang'
+            dang = np.inf
+        # check the angle between corner displacements
+        corients = np.arctan2(cdisps[:, 1], cdisps[:, 0])[legal_dist]
+        pairs = corr.pair_indices(len(corients), asarray=True)
+        cangles = corr.dtheta(corients[pairs])
+        dcangles = np.abs(cangles - ang)
+        legal_pairs = np.where(dcangles < dang)[0]
+        npairs = len(legal_pairs)
+        if npairs < nc-1:
+            # not enough pairs
+            return (None,)*3
+        legal_ang = np.unique(pairs[legal_pairs])
+        legal = legal_dist[legal_ang]
+    else:
+        legal = legal_dist
+
+    if len(legal) > nc:
+        if rank_by == 'rc':
+            # keep corners with the distance from particle center
+            legal = legal[cdiffs[legal].argsort()[:nc]]
+        elif rank_by == 'ang':
+            # keep pair with the best angular separation
+            best_pairs = legal_pairs[dcangles[legal_pairs].argsort()[:nc-1]]
+            if dang and np.any(dcangles[best_pairs] > dang):
+                # best not good enough
+                return (None,)*3
+            legal = np.unique(pairs[best_pairs])
+            if len(legal) > nc:
+                #best separation angles are disjoint (don't share a corner)
+                return (None,)*3
 
     pcorner = corners[legal]
     cdisp = cdisps[legal]
     cdist = cdists[legal]
     cdiffs = cdiffs[legal]
-
-    if ang:
-        # check the angle between corner displacements
-        corients = np.arctan2(cdisp[:, 1], cdisp[:, 0])
-        pairs = corr.pair_indices(nfound, True)
-        cangles = corr.dtheta(corients[pairs])
-        dcangles = np.abs(cangles - ang)
-        legal = pairs[np.where(dcangles < dang)]
-        nfound = len(set(legal.flat))
-        if nfound < nc:
-            return (None,)*3
-        elif nfound == nc:
-            legal = legal[0]
-        elif nfound > nc:
-            # too many, how to rank?
-            if rank_by == 'ang':
-                # keep pair with the best angular separation
-                if nc == 2:
-                    ibest = dcangles.argmin()
-                    best = dcangles[ibest]
-                    if dang and best > dang:
-                        # best not good enough
-                        return (None,)*3
-                    legal = pairs[ibest]
-                elif nc == 3:
-                    best = dcangles.argsort()[:2]
-                    if dang and np.any(dcangles[best] > dang):
-                        # best not good enough
-                        return (None,)*3
-                    legal = np.unique(pairs[best])
-                    if len(legal) > nc:
-                        # not trivial to pick best 3 if the two best separation
-                        # angles don't share a corner
-                        return (None,)*3
-            elif rank_by == 'rc':
-                # keep only the nc closest to rc away
-                legal = legal[np.argmin(cdiffs[legal].sum(-1))]
-    elif nfound > nc:
-        legal = cdiffs.argsort()[:nc]
-    else:
-        legal = slice(None)
-
-    pcorner = pcorner[legal]
-    cdisp = cdisp[legal]
-    cdist = cdist[legal]
 
     if do_average and nc > 1:
         # average the angle by finding angle of mean vector displacement
@@ -149,19 +138,16 @@ def get_angles(pdata, cdata, pfsets, cfsets, cftrees, nc, rc, drc=None,
             'orient' for orientation of particles
             'cdisp' for the corner - center displacement
     """
-    if do_average or nc == 1:
-        dt = [('corner', float, (nc, 2)),
-              ('orient', float),
-              ('cdisp', float, (nc,))]
-    elif nc > 1:
-        dt = [('corner', float, (nc, 2,)),
-              ('orient', float, (nc,)),
-              ('cdisp', float, (nc,))]
+    dt = [('corner', float, (nc, 2)),
+          ('orient', float),
+          ('cdisp', float, (nc,))]
+    if nc > 1 and not do_average:
+        dt[1] += ((nc,),)   # give the 'orient' field a shape of (nc,)
+    odata = np.full(len(pdata), np.nan, dtype=dt)
     if ang > pi:
         ang = np.radians(ang)
         if dang:
             dang = np.radians(dang)
-    odata = np.full(len(pdata), np.nan, dtype=dt)
     odata_corner = odata['corner']
     odata_orient = odata['orient']
     odata_cdisp = odata['cdisp']

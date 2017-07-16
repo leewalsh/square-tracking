@@ -149,7 +149,7 @@ def get_stats(a):
     # c = a - M
     # variance = np.einsum('...j,...j->...', c, c)/n
     variance = np.nanvar(a, -1, keepdims=keepdims, ddof=1)
-    D = 0.5*variance
+    D = 0.5*variance*args.fps
     SE = np.sqrt(variance)/sqrt(n - 1)
     SK = skew(a, -1, nan_policy='omit')
     KU = kurtosis(a, -1, nan_policy='omit')
@@ -161,11 +161,11 @@ def get_stats(a):
     else:
         SK = float(SK)
         KU = float(KU)
-        print 'skewness: {:.3f}'.format(SK),# SK_t
-        print 'kurtosis: {:.3f}'.format(KU)#, KU_t
-    return {'mean': M, 'var': D, 'std': SE,
+    stat = {'mean': M, 'var': variance, 'D': D, 'std': SE,
             'skew': SK, 'skew_test': float(SK_t.statistic),
             'kurt': KU, 'kurt_test': float(KU_t.statistic)}
+    print '\n'.join(['{:>10}: {: .4f}'.format(k, v) for k, v in stat.items()])
+    return stat
 
 
 def compile_widths(tracksets, widths, side=1, fps=1):
@@ -203,7 +203,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     if isinstance(label, dict):
         label.update(stats)
         label = '\n'.join([r'$\langle {val} \rangle = {mean:.5f}$',
-                           r'$\ D_{sub}\  = {var:.5f}$',
+                           r'$\ D_{sub}\  = {D:.5f}$',
                            r'$\ \gamma_1 = {skew:.5f}$',
                            r'$\ \gamma_2 = {kurt:.5f}$',
                            r'$\sigma/\sqrt{{N}} = {std:.5f}$']).format(**label)
@@ -251,10 +251,9 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     return stats
 
 
-def plot_gaussian(M, D, bins, count=1, ax=None):
+def plot_gaussian(M, var, bins, count=1, ax=None):
     ax = ax or plt.gca()
     dx = bins[1] - bins[0]
-    var = 2*D
     g = np.exp(-0.5 * (bins-M)**2 / var)
     g /= sqrt(2*pi*var) / (dx*count)
     ax.plot(bins, g, c=cs['fit'], lw=1, zorder=0.5)
@@ -372,7 +371,7 @@ def command_hist(args, meta, compile_args, axes=None):
                               log=args.log and icol or not args.lin, label=label,
                               orient=True, title=title, subtitle=subtitle)
             fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-            fits[fit] = {'DR': float(stats['var']), 'w0': float(stats['mean']),
+            fits[fit] = {'DR': float(stats['D']), 'w0': float(stats['mean']),
                          'KU': stats['kurt'], 'SK': stats['skew'],
                          'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
@@ -387,7 +386,7 @@ def command_hist(args, meta, compile_args, axes=None):
                               log=args.log and icol or not args.lin, label=label,
                               title=title, subtitle=subtitle, c=cs[v])
             fit = helpy.make_fit(func='vt', DT='var')
-            fits[fit] = {'DT': float(stats['var']), 'vt': float(stats['mean']),
+            fits[fit] = {'DT': float(stats['D']), 'vt': float(stats['mean']),
                          'KU': stats['kurt'], 'SK': stats['skew'],
                          'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             v = 'par'
@@ -398,7 +397,7 @@ def command_hist(args, meta, compile_args, axes=None):
                               log=args.log and icol or not args.lin,
                               label=label, title=title, c=cs[v])
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['var']),
+            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['D']),
                          'KU': stats['kurt'], 'SK': stats['skew'],
                          'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
@@ -417,7 +416,7 @@ def command_hist(args, meta, compile_args, axes=None):
     return fig, fits
 
 
-if __name__ == '__main__':
+def find_data(args):
     suf = '_TRACKS.npz'
     if '*' in args.prefix or '?' in args.prefix:
         fs = iglob(args.prefix+suf)
@@ -427,24 +426,37 @@ if __name__ == '__main__':
         basm = prefix.strip('/._')
         fs = iglob(dirm + basm + '*' + suf)
     prefixes = [s[:-len(suf)] for s in fs] or [args.prefix]
-
-    if not (args.log or args.lin):
-        args.log = args.lin = True
-    helpy.save_log_entry(args.prefix, 'argv')
-    meta = helpy.load_meta(args.prefix)
     if args.verbose:
         print 'prefixes:',
         print '\n          '.join(prefixes)
+
+    return {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
+
+if __name__ == '__main__':
+    helpy.save_log_entry(args.prefix, 'argv')
+    meta = helpy.load_meta(args.prefix)
     helpy.sync_args_meta(args, meta,
                          ['side', 'fps'], ['sidelength', 'fps'], [1, 1])
+    if not (args.log or args.lin):
+        args.log = args.lin = True
     compile_args = dict(args.__dict__)
-
-    data = {prefix: helpy.load_data(prefix, 'tracks') for prefix in prefixes}
+    if args.prefix == 'simulate':
+        import simulate as sim
+        spar = {'DR': 1/21, 'v0': 0.3678, 'DT': 0.01,
+                'fps': args.fps, 'side': args.side, 'size': 1000}
+        print spar
+        sdata = [sim.SimTrack(num=i, **spar)
+                 for i in xrange(1, 1001)]
+        data = np.concatenate([sdatum.track for sdatum in sdata])
+        data['id'] = np.arange(len(data))
+        data = {'simulate': data}
+    else:
+        data = find_data(args)
     tsets = {prefix: helpy.load_tracksets(
                 data[prefix], min_length=args.stub, verbose=args.verbose,
                 run_remove_dupes=args.dupes, run_repair=args.gaps,
                 run_track_orient=args.torient)
-             for prefix in prefixes}
+             for prefix in data}
 
     if 'widths' in args.command:
         fig = command_widths(tsets, compile_args, args)
