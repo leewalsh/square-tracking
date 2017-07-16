@@ -159,7 +159,7 @@ def get_stats(a):
             'skew': SK, 'skew_test': np.array(SK_t.statistic),
             'kurt': KU, 'kurt_test': np.array(KU_t.statistic)}
     if not keepdims:
-        print '\n'.join(['{:>10}: {: .4f}'.format(k, v)
+        print '\n'.join(['{:>10}: {: .4f}'.format(k, float(v))
                          for k, v in stat.items()])
     return stat
 
@@ -223,8 +223,8 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
               loc='upper left', fontsize='small', frameon=False,
               handlelength=1, handletextpad=0.5, labelspacing=.1,
               borderaxespad=0.2)
-    ax.set_ylabel('$N$', labelpad=2)
-    xlabel = r'$\Delta r \enspace f/\ell$'
+    ax.set_ylabel(r'$N(\eta)$', labelpad=2)
+    xlabel = r'$\Delta r \, f/s$'
     l, r = ax.set_xlim(xlim)
     if orient:
         #xticks = np.linspace(l, r, 3)
@@ -233,7 +233,8 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         #xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         xticklabels = [r'$-\pi/4$', r'$0$', r'$\pi/4$']
         ax.set_xticklabels(xticklabels, fontsize='small')
-        xlabel = r'$\Delta\theta \enspace f$'
+        xlabel = r'$\Delta\theta \, f$'
+        ax.set_ylabel(r'$N(\xi)$', labelpad=2)
     else:
         pass
         #xticks = np.linspace(np.round(l, 1), np.round(r, 1), 3)
@@ -329,8 +330,8 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None):
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(int(t[-1] + 1)))
 
-    ax.set_xlabel(r'$t \enspace f$', labelpad=2)
-    ylabel = r'$\langle {0}(t) \enspace {0}(0) \rangle$'.format(
+    ax.set_xlabel(r'$t \, f$', labelpad=2)
+    ylabel = r'$\langle {0}(t) \, {0}(0) \rangle$'.format(
         texlabel.get(comps, r'\eta').strip('$'))
     ax.set_ylabel(ylabel, labelpad=2)
 
@@ -467,6 +468,7 @@ if __name__ == '__main__':
 
     rcParams_for_context = {'text.usetex': args.save or args.show}
     with plt.rc_context(rc=rcParams_for_context):
+        print rcParams_for_context
         if 'widths' in args.command:
             fig = command_widths(tsets, compile_args, args)
         else:
@@ -489,7 +491,6 @@ if __name__ == '__main__':
                 if args.do_translation:
                     command_autocorr(tsets, args, 'etapar perp', axes[i, -1])
 
-        fig.tight_layout()
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
@@ -500,7 +501,7 @@ if __name__ == '__main__':
                 savename += '_' + args.suffix.strip('_')
             savename += '.pdf'
             print 'Saving plot to {}'.format(savename)
-            fig.savefig(savename)
+            fig.savefig(savename, bbox_inches='tight', pad_inches=0.05)
 
         if args.show:
             plt.show()

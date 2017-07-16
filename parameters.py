@@ -71,24 +71,27 @@ def colors(fit, default='k'):
     if isinstance(fit, basestring):
         d = {'T0': 'k',
              'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
-             'Tf': 'g', 'Tn_Rn': 'g',
+                                      'Tm_Rn_La': 'purple',
+             'Tf': 'brown', 'Tn_Rn': 'brown',
                         'Tm_Rf': 'b', 'Tm_Rn_Lr': 'b',
-                                      'Tm_Rn_Lf': 'm',
+                                      'Tm_Rn_Lf': 'green',
             }
 
         o = {
             'Tn_Rn': 'b',
-            'Tm': 'r', 'Tm_Rn': 'c',
-            'Tn_Rf': 'm',
-            'Tm_Rn_Lf': 'm', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
+            'Tm': 'r', 'Tm_Rn': 'orange',
+            'Tn_Rf': 'green',
+            'Tm_Rn_Lf': 'green', 'Tm_Rn_Ln': 'b', 'Tm_Rn_Lr':'c',
             }
-        mpl2 = {'b': 'b', # blue -> blue
-                'g': 'c', # green -> brown(c)
-                'r': 'r', # red -> red
-                'c': 'o', # cyan -> orange
-                'm': 'g', # magenta -> green
-                'k': 'k', # black -> grey(k)
-                'y': 'y', # yellow -> yellow
+        mpl2 = {'b': 'b',       # blue -> blue
+                'brown': 'c',   # brown(c)
+                'r': 'r',       # red -> red
+                'orange': 'o',  # cyan -> orange
+                'green': 'g',   # green
+                'k': 'k',       # black -> grey(k)
+                'y': 'y',       # yellow -> yellow
+                'pink': 'p',    # pink
+                'purple': 'm',  # purple
                }
         return colorbrewer[mpl2[d.get(fit[3:-3], default)]]
     elif hasattr(fit, 'func'):
@@ -100,7 +103,7 @@ def colors(fit, default='k'):
         raise TypeError(msg(type(fit), fit))
 
 
-def labels(fit, default=None):
+def labels(fit, default=None, fancy=True):
     if isinstance(fit, basestring):
         dot = r'\langle {} \cdot {} \rangle'.format
         ms = r'\langle \left[ {} \right]^2 \rangle'.format
@@ -131,11 +134,14 @@ def labels(fit, default=None):
              'd0': f['dr'],
             })
         ks = fit.split('_')
-        return '$' + '$, $'.join(f[k] for k in ks) + '$'
+        if fancy:
+            return '$' + '$, $'.join(f[k] for k in ks) + '$'
+        else:
+            return ' '.join(ks)
     elif hasattr(fit, 'func'):
-        return labels(fit_desc.get(fit), default)
+        return labels(fit_desc.get(fit), default, fancy)
     elif isinstance(fit, list):
-        return map(partial(labels, default=default), fit)
+        return map(partial(labels, default=default, fancy=fancy), fit)
     else:
         msg = 'Unknown fit {} {}'.format
         raise TypeError(msg(type(fit), fit))
@@ -263,6 +269,7 @@ pargs['DT'] = dict(
         'good': [
             'r0_Tm_Rn_Lf_Df',
             'r0_Tm_Rn_Ln_Df',
+            'r0_Tm_Rn_La_Df',
         ],
         'maybe':[
         ],
@@ -333,9 +340,13 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
                 'v': helpy.make_fit(func='vo', DR='var', w0='mean')}
         fitc = fitc.get(convert, convert)
         if param not in resx:
-            print 'Convert: {} = {}.v0 / {}.DR'.format(param, fit_desc[fitx], fit_desc[fitc])
+            print 'Convert: {} = {}.v0 / ({}.DR = {})'.format(
+                param, fit_desc[fitx], fit_desc[fitc],
+                fit_desc.get(fitc.DR, fitc.DR))
         elif param not in resy:
-            print 'Convert: {} = {}.lp * {}.DR'.format(param, fit_desc[fity], fit_desc[fitc])
+            print 'Convert: {} = {}.lp * ({}.DR = {})'.format(
+                param, fit_desc[fity], fit_desc[fitc],
+                fit_desc.get(fitc.DR, fitc.DR))
         else:
             print 'um Converting using D_R from', convert, fit_desc[fitc]
         if fitc is None:
@@ -405,7 +416,7 @@ for p in pargs:
         'figsize': (5, 5),
         'color': colors(ys),
         'marker': markers(ys),
-        'label': labels(ys),
+        'label': labels(ys, fancy=False),
         'linestyle': '',
     }
     new['markersize'] = [markersizes[m] + markersize for m in new['marker']]

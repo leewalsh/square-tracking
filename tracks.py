@@ -1063,10 +1063,10 @@ def plot_msd(taus, msd, msd_err, S=1, ang=False, errorbars=False,
     if title is None:
         title = "Mean Sq {}Disp".format("Angular " if ang else "")
     ax.set_title(title)
-    xlabel = r'$t \enspace f$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
+    xlabel = r'$t \, f$' if 1 < fps < 60 else 'Time ({}s)'.format('frame'*(fps == 1))
     ax.set_xlabel(xlabel)
     ylabel = (r"${}\langle\left[\vec r(t) -".format('' if args.clean else r'\left')
-              + r"\vec r(0)\right]^2{}\rangle / \ell^2$".format(
+              + r"\vec r(0)\right]^2{}\rangle / s^2$".format(
                   '' if args.clean else r'\right'))
     ax.set_ylabel(ylabel, labelpad=-2, fontsize='large')
     if xlim is not None:
@@ -1222,7 +1222,8 @@ def format_fit(result, model_name=None, sources=None):
 
     tex_eqn = result.model.func.func_doc.replace('\n', '')
     if args.clean:
-        tex_eqn= tex_eqn.replace('(v_0/D_R)', r'\ell_p')
+        tex_eqn = tex_eqn.replace('(v_0/D_R)', r'\ell_p')
+        tex_eqn = tex_eqn.replace(r'\frac{v_0}{D_R}', r'\ell_p')
     for_tex = [tex_eqn,
                'fixed: ' + tex_fmt(fixed),
                'free: ' + tex_fmt(free)]
@@ -1590,7 +1591,7 @@ def nn_plot(tracksets, fits, args, ax=None):
                  'yscale': 'log',
                  'ylabel': (r"$\langle \hat n(t) \cdot \hat n(0) \rangle$",
                             {'labelpad': -16, 'fontsize': 'large'}),
-                 'xlabel': r"$t \enspace f$",
+                 'xlabel': r"$t \, f$",
                 },
         'legend': {'loc': 'upper right' if args.zoom <= 1 else 'lower left',
                    'markerfirst': False},
@@ -1674,8 +1675,8 @@ def rn_plot(tracksets, fits, args, ax=None):
         'axes': {'xlim': (-tmax, tmax),
                  'ylim': (ylim_pad*result.best_fit.min(),
                           ylim_pad*result.best_fit.max()),
-                 'xlabel': r"$t \enspace f$",
-                 'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/\ell$",
+                 'xlabel': r"$t \, f$",
+                 'ylabel': (r"$\langle \vec r(t) \cdot \hat n(0) \rangle/s$",
                             {'labelpad': -2, 'fontsize': 'large'}),
                 },
         'legend': {'loc': 'upper left',},
