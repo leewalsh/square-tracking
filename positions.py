@@ -15,6 +15,7 @@ from collections import namedtuple
 from itertools import izip
 
 import numpy as np
+from numpy.lib.function_base import _hist_bin_auto as hist_bin_auto
 from scipy import ndimage
 
 # skimage (scikit-image) changed the location, names, and api of several
@@ -40,6 +41,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('files', metavar='FILE', nargs='+', help='Images to process')
+    arg('-i', '--slice', nargs='?', const=True, help='Slice to limit frames')
     arg('-o', '--output', help='Output filename prefix.')
     arg('-p', '--plot', action='count', default=1,
         help="Produce plots for each image. Two p's gives lots more")
@@ -55,6 +57,8 @@ if __name__ == '__main__':
     arg('--remove', action='store_true',
         help='Remove large-dot masks before small-dot convolution')
     arg('--thresh', type=float, default=3, help='Binary threshold '
+        'for defining segments, in units of standard deviation')
+    arg('--cthresh', type=float, default=2, help='Binary threshold '
         'for defining segments, in units of standard deviation')
     arg('-k', '--kern', type=float, required=True,
         help='Kernel size for convolution')
@@ -127,8 +131,8 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
         im : the original image to be labeled
         kern : kernel size
         thresh : the threshold above which pixels are included
-            if integer, in units of intensity std dev
-            if float, in absolute units of intensity
+            if thresh >= 1, in units of intensity std dev
+            if thresh < 1, in absolute units of intensity
         rmv : if given, the positions at which to remove large dots
 
         returns
@@ -138,16 +142,16 @@ def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
     """
     if rmv is not None:
         im = remove_disks(im, *rmv)
-    kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
+    kernel = np.sign(kern)*gdisk(abs(kern)/4, abs(kern))
     convolved = ndimage.convolve(im, kernel)
     convolved -= convolved.min()
     convolved /= convolved.max()
 
     if args.plot > 2:
         snapshot('kern', kernel)
-        snapshot('convolved', convolved)
+        snapshot('convolved', convolved, cmap='gray')
 
-    if isinstance(thresh, int):
+    if thresh >= 1:
         if rmv is not None:
             thresh -= 1  # smaller threshold for corners
         thresh = thresh*convolved.std() + convolved.mean()
@@ -231,7 +235,7 @@ def prep_image(imfile, width=2):
         print "opening", imfile
     im = ndimage.imread(imfile).astype(float)
     if args.plot > 2:
-        snapshot('orig', im)
+        snapshot('orig', im, cmap='gray')
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
         im = im[..., 1]
@@ -244,7 +248,7 @@ def prep_image(imfile, width=2):
     im /= 2*s
     np.clip(im, 0, 1, out=im)
     if args.plot > 2:
-        snapshot('clip', im)
+        snapshot('clip', im, cmap='gray')
     return im
 
 
@@ -307,16 +311,16 @@ def gdisk(width, inner=0, outer=None):
                     \ 0 for r > outer
             min and max are set so that the sum of the array is 0 and std is 1
     """
-    outer = outer or inner + 2*width
+    outer = outer or inner + 4*width
     circ = disk(outer)
     incirc = circ.nonzero()
 
     x = np.arange(-outer, outer+1, dtype=float)
     x, y = np.meshgrid(x, x)
-    r = x**2 + y**2 - inner**2
+    r = np.hypot(x, y) - inner
     np.clip(r, 0, None, r)
 
-    g = np.exp(-0.5*r/width**2)
+    g = np.exp(-0.5*(r/width)**2)
     g -= g[incirc].mean()
     g /= g[incirc].std()
     g *= circ
@@ -398,7 +402,12 @@ if __name__ == '__main__':
         argv = ' '.join(argv)
     else:
         from glob import glob
+        if first.endswith(']'):
+            first, _, args.slice = first[:-1].rpartition('[')
         filenames = sorted(glob(first))
+        if args.slice:
+            args.slice = helpy.parse_slice(args.slice, len(filenames))
+            filenames = filenames[args.slice]
         filepattern = first
         first = filenames[0]
         argv = 'argv'
@@ -439,7 +448,8 @@ if __name__ == '__main__':
     sizes = {'center': {'max_ecc': args.ecc,
                         'min_area': args.min or int(kern_area//2),
                         'max_area': args.max or int(kern_area*2 + 1),
-                        'kern': args.kern}}
+                        'kern': args.kern,
+                        'thresh': args.thresh}}
     if args.ckern:
         args.both = True
     if args.both:
@@ -447,7 +457,8 @@ if __name__ == '__main__':
         sizes.update({'corner': {'max_ecc': args.cecc,
                                  'min_area': args.cmin or int(ckern_area//2),
                                  'max_area': args.cmax or int(ckern_area*2 + 1),
-                                 'kern': args.ckern}})
+                                 'kern': args.ckern,
+                                 'thresh': args.cthresh}})
     dots = sorted(sizes)
     meta.update({dot + '_' + k: v
                  for dot in dots for k, v in sizes[dot].iteritems()})
@@ -466,7 +477,7 @@ if __name__ == '__main__':
             ax.imshow(im, title=os.path.basename(imprefix)+'_'+desc, **kwargs)
         snapshot_num += 1
 
-    def plot_points(pts, img, name='', s=10, c='r', cm=None,
+    def plot_points(pts, img, name='', s=10, c='r', cmap=None,
                     vmin=None, vmax=None, cbar=False):
         global snapshot_num, imprefix
         fig, ax = plt.subplots(figsize=(8, 8))
@@ -476,9 +487,10 @@ if __name__ == '__main__':
         # PPI = 112.14 if figsize (8, 6)
         PPI = 84.638  # if figsize (8, 8)
         dpi = 4*PPI
-        axim = ax.imshow(img, cmap=cm, vmin=vmin, vmax=vmax,
+        axim = ax.imshow(img, cmap=cmap, vmin=vmin, vmax=vmax,
                          interpolation='nearest')
         if cbar:
+            fig.tight_layout()
             cb_height = 4
             cax = fig.add_axes(np.array([10, 99-cb_height, 80, cb_height])/100)
             fig.colorbar(axim, cax=cax, orientation='horizontal')
@@ -490,10 +502,12 @@ if __name__ == '__main__':
             ax.scatter(pts['y'], pts['x'], s, c, '+')
         ax.set_xlim(xl)
         ax.set_ylim(yl)
+        ax.set_xticks([])
+        ax.set_yticks([])
 
         if args.save:
             savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, name)
-            fig.savefig(savename, dpi=dpi)
+            fig.savefig(savename, dpi=dpi, bbox_inches='tight', pad_inches=0)
             snapshot_num += 1
             plt.close(fig)
 
@@ -507,22 +521,22 @@ if __name__ == '__main__':
         pts = pts[segments[1]]
 
         plot_points(pts, convolved, name='CONVOLVED',
-                    s=kwargs['kern'], c='r', cm='gray')
+                    s=kwargs['kern'], c='r', cmap='viridis')
 
         labels_mask = np.where(labels, labels, np.nan)
         plot_points(pts, labels_mask, name='SEGMENTS',
-                    s=kwargs['kern'], c='k', cm='prism_r')
+                    s=kwargs['kern'], c='k', cmap='prism_r')
 
         ecc_map = labels_mask*0
         ecc_map.flat = pts_by_label[labels.flat]['ecc']
         plot_points(pts, ecc_map, name='ECCEN',
-                    s=kwargs['kern'], c='k', cm='Accent',
+                    s=kwargs['kern'], c='k', cmap='Paired',
                     vmin=0, vmax=1, cbar=True)
 
         area_map = labels_mask*0
         area_map.flat = pts_by_label[labels.flat]['area']
         plot_points(pts, area_map, name='AREA',
-                    s=kwargs['kern'], c='k', cm='Accent',
+                    s=kwargs['kern'], c='k', cmap='Paired',
                     vmin=0, vmax=1.2*kwargs['max_area'], cbar=True)
 
     def get_positions((n, filename)):
@@ -545,7 +559,7 @@ if __name__ == '__main__':
             else:
                 rmv = None
             out = find_particles(image, method='convolve', circ=args.boundary,
-                                 rmv=rmv, thresh=args.thresh, **sizes[dot])
+                                 rmv=rmv, **sizes[dot])
             segments = out[0]
             if args.plot > 1:
                 plot_positions(*out, **sizes[dot])
@@ -567,7 +581,7 @@ if __name__ == '__main__':
     threads = args.threads
     if threads < 1:
         cpus = cpu_count()
-        if threads is None:
+        if threads is None and args.plot <= 1:
             print "How many cpu threads to use? [{}] ".format(cpus),
             threads = int(raw_input() or cpus)
     threads = (args.plot > 1) or threads or cpus
@@ -603,17 +617,17 @@ if __name__ == '__main__':
             eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
             eax.set_xlim(0, 1)
             eax.set_xticks(np.arange(0, 1.1, .1))
+            eax.set_xticklabels(map('.{:d}'.format, np.arange(10)) + ['1'])
             eax.legend(loc='best', fontsize='small')
 
             areas = point[:, 5]
             amin, amax = size['min_area'], size['max_area']
-            s = 1 + (amax-amin) // 40
+            s = np.ceil(hist_bin_auto(areas))
             bins = np.arange(amin, amax+s, s)
             label = "{} area ({} - {})".format(dot, amin, amax)
             aax.hist(areas, bins, alpha=0.5, color='g', label=label)
             aax.axvline(size['min_area'], c='g', lw=2)
             aax.set_xlim(0, bins[-1])
-            aax.set_xticks(bins[::1+len(bins)//10])
             aax.legend(loc='best', fontsize='small')
         if args.save:
             print savenotice(dot, out, ext)
