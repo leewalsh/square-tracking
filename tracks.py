@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Track and orient granular particles detected in images. Track the unique
+identity of particles over time. Orient particles by connecting center marks
+with orientation marks. Handle missing positions or orientations in some image
+frames via a choice of cutting or interpolating the track. Plot a plethora of
+analyses of the particle behavior.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
@@ -7,7 +16,7 @@ import sys
 import itertools as it
 from functools import partial
 from collections import defaultdict
-from math import sqrt, log, exp
+from math import sqrt, exp
 
 import numpy as np
 from lmfit import Model
@@ -19,7 +28,7 @@ import curve
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('prefix', metavar='PRE', help="Filename prefix with full or relative "
         "path (<prefix>_POSITIONS.npz, <prefix>_CORNER_POSITIONS.npz, etc)")
@@ -115,7 +124,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    import os.path
+    import os
     relprefix = args.prefix
     absprefix = os.path.abspath(relprefix)
     readprefix = absprefix
@@ -1285,8 +1294,7 @@ def nn_corr(tracksets, args):
 def rn_corr(tracksets, args):
     """Calculate the <rn> correlation for all the tracks in a given dataset
     """
-    correlate_rn = partial(corr.crosscorr, side='both', ret_dx=True,
-                           cumulant=(True, False), norm=0)
+    correlate_rn = partial(corr.crosscorr, cumulant=False, norm=0, ret_dx=True)
 
     # shape (track, x_or_y, time_or_correlation, time)
     rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
@@ -1945,10 +1953,12 @@ if __name__ == '__main__':
         if readprefix == 'simulate':
             import simulate as sim
             spar = {'DR': 1/20, 'v0': 0.10, 'DT': 0.01,
-                    'fps': args.fps, 'side': args.side, 'size': 1000}
+                    'fps': args.fps, 'side': args.side}
             print spar
-            sdata = [sim.SimTrack(num=i, **spar)
-                     for i in xrange(1, 1001)]
+            sdata = [
+                sim.SimTrack(num=i, size=int(s), **spar)
+                for i, s in enumerate(np.random.exponential(args.stub, 200))
+            ]
             data = np.concatenate([sdatum.track for sdatum in sdata])
             data['id'] = np.arange(len(data))
         else:

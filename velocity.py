@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Calculate and analyze the velocity noise in granular particle motion. Plot
+noise distribution and autocorrelation.
+
+Copyright (c) 2015--2017 Lee Walsh, 2015 Sarah Schlossberg, Department of
+Physics, University of Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
@@ -16,16 +22,10 @@ import helpy
 import correlation as corr
 import curve
 
-description = """This script plots a histogram of the velocity noise for one or
-several data sets. Includes option to subtract v_0 from translational noise.
-The histogram figure is optionally saved to file prefix.plothist[orient].pdf
-Run from the folder containing the positions file.
-Copyright (c) 2015 Sarah Schlossberg, Lee Walsh; all rights reserved.
-"""
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    parser = ArgumentParser(description=description)
+    parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('prefix', help='Prefix without trial number')
     arg('command', nargs='+', choices=['widths', 'hist', 'autocorr'],

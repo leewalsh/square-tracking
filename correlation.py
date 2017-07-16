@@ -1,27 +1,29 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Various statistical correlation functions for use in analyzing granular
+particle dynamics and collective structure.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
-from math import sqrt
+from math import sqrt, pi
 from cmath import phase
 from itertools import combinations
 
 import numpy as np
-from scipy.spatial.distance import pdist, cdist
-from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
-from scipy.ndimage import gaussian_filter
-from scipy.signal import hilbert, correlate, convolve
-from scipy.stats import rv_continuous, vonmises
+from scipy import ndimage, signal, stats
+from scipy.spatial import distance, Voronoi, Delaunay, cKDTree as KDTree
 from scipy.optimize import curve_fit
-from skimage.morphology import disk, binary_dilation
+from skimage.morphology import binary_dilation, disk as skdisk
 
 import helpy
 
 ss = helpy.S_slr  # side length of square in pixels
 rr = helpy.R_slr  # radius of disk in pixels
 
-pi = np.pi
 tau = 2*pi
 
 
@@ -45,9 +47,10 @@ def bulk(positions, margin=0, full_N=None, center=None, radius=None, ss=ss,
         margin *= ss
     d = helpy.dist(positions, center)   # distances to center
     if radius is None:
-        n_pts = len(positions)
-        max_sep = 0 if n_pts > 1e4 else cdist(positions, positions).max()
-        radius = max(max_sep/2, d.max()) + ss/2
+        max_sep = 0
+        if len(positions) < 1e4:
+            max_sep = distance.cdist(positions, positions).max()/2
+        radius = max(max_sep, d.max()) + ss/2
     elif radius < ss:
         radius *= ss
     dmax = radius - margin
@@ -111,8 +114,8 @@ def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
     """
     center = 0.5*(positions.max(0) + positions.min(0))
     d = helpy.dist(positions, center)   # distances to center
-    # faster than squareform(pdist(positions)) wtf
-    r = cdist(positions, positions)
+    # faster than squareform(distance.pdist(positions)) wtf
+    r = distance.cdist(positions, positions)
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     if rmax is None:
         rmax = 2*radius     # this will have terrible statistics at large r
@@ -149,6 +152,7 @@ def radial_distribution(positions, dr=ss/5, nbins=None, dmax=None, rmax=None,
 
 
 def rectify(positions, margin=0, dangonly=False):
+    """determine and rotate reference frame by the primary angles"""
     angles, nmask, dmask = pair_angles(positions, margin=margin)
     try:
         # find four modal angles and gaps
@@ -166,12 +170,13 @@ def rectify(positions, margin=0, dangonly=False):
 
 
 def distribution(positions, rmax=10, bins=10, margin=0, rectang=0):
+    """calculate the 2d pair distribution function g(x, y)"""
     if margin < ss:
         margin *= ss
     center = 0.5*(positions.max(0) + positions.min(0))
     d = helpy.dist(positions, center)   # distances to center
     dmask = d < d.max() - margin
-    r = cdist(positions, positions[dmask])  # .ravel()
+    r = distance.cdist(positions, positions[dmask])  # .ravel()
     radius = np.maximum(r.max()/2, d.max()) + ss/2
     cosalpha = 0.5 * (r**2 + d[dmask]**2 - radius**2) / (r * d[dmask])
     alpha = 2 * np.arccos(np.clip(cosalpha, -1, None))
@@ -300,14 +305,16 @@ def structure_factor(positions, m=4, margin=0):
     inds = np.round(positions - positions.min()).astype(int)
     f = np.zeros(inds.max(0)+1)
     f[inds[:, 0], inds[:, 1]] = 1
-    f = binary_dilation(f, disk(ss/2))
+    f = binary_dilation(f, skdisk(ss/2))
     return fft2(f, overwrite_x=True)
 
 
 def orient_op(orientations, m=4, positions=None, margin=0,
               ret_complex=True, do_err=False, globl=False, locl=False):
-    """ orient_op(orientations, m=4)
-        Returns the global m-fold particle orientational order parameter
+    """orient_op(orientations, m=4, positions=None, margin=0,
+                 ret_complex=True, do_err=False, globl=False, locl=False)
+
+       calculate the global m-fold particle orientational order parameter
 
                 1   N    i m theta
         Phi  = --- SUM e          j
@@ -316,7 +323,7 @@ def orient_op(orientations, m=4, positions=None, margin=0,
     if not (globl or locl):
         globl = True
         locl = orientations.ndim == 2
-    np.mod(orientations, tau/m, orientations) # what's this for? (was tau/4 not tau/m)
+    np.mod(orientations, tau/m, orientations)
     if margin:
         if margin < ss:
             margin *= ss
@@ -337,14 +344,29 @@ def orient_op(orientations, m=4, positions=None, margin=0,
 
 
 def dtheta(i, j=None, m=1, sign=False):
-    """ given two angles or one array (N, 2) of pairs
-        returns the smallest angle between them, modulo m
-        if sign is True, retuns a negative angle for i<j, else abs
+    """ Find the smallest m-fold difference between angles (in radians)
+
+        parameters
+        ----------
+        i, j : one or two arrays of angles. If a single array, take difference
+            along last axis. If two arrays, difference is between the two.
+        m : degree of rotational symmetry. That is, the branch cut will be taken
+            at 2*pi/m. Default is 1. If m = 0, simply returns the difference.
+        sign : whether to keep negative sign when i < j, or take absolute value
+
+        returns
+        -------
+        diffs : array of m-fold differences. If two arrays are given, shape is
+            unchanged, otherwise shape is reduced by one in last dimension.
     """
-    ma = tau/m
-    if j is None:
+    if j is None and i.shape[-1] == 2:
         i, j = i.T
-    diff = (j - i + ma/2) % ma - ma/2
+    diff = np.diff(i, axis=1) if j is None else j - i
+
+    if m == 0:
+        return diff
+    m = tau/m
+    diff = (diff + m/2) % m - m/2
     return diff if sign else np.abs(diff)
 
 
@@ -465,10 +487,10 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
             g = g - g.mean(0)
         elif cumulant[0]:
             f = f - f.mean(0)
-        elif cumulant[1]:
+        elif cumulant[-1]:
             g = g - g.mean(0)
 
-    correlator = convolve if reverse else correlate
+    correlator = signal.convolve if reverse else signal.correlate
     if f.ndim == g.ndim == 2:
         # apply the correlator function to each pair of columns in f, g
         c = np.stack([correlator(*fgi, mode=mode) for fgi in zip(f.T, g.T)])
@@ -482,13 +504,11 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
                            "max ({}) not at m ({})").format(maxi, m)
 
     # divide by overlap
-    nl = np.arange(l - m, l)
-    nr = np.arange(l, m - (L - l), -1)
-    n = np.concatenate([nl, nr])
+    n = np.concatenate([np.arange(l - m, l), np.arange(l, m - (L - l), -1)])
     if verbose:
-        overlap = correlate(np.ones(l), np.ones(l), mode=mode).astype(int)
+        overlap = correlator(np.ones(l), np.ones(l), mode=mode).astype(int)
         if verbose > 1:
-            print nl, nr
+            print n
             print '      n: {}\noverlap: {}'.format(n, overlap)
         msg = "overlap miscalculated:\n\t{}\n\t{}"
         assert np.allclose(n, overlap), msg.format(n, overlap)
@@ -528,9 +548,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
 
 
 def msd(xs, ret_taus=False, ret_vector=False):
-    """ So far:
-          - only accepts the positions in 1 or 2d array (no data structure)
-          - can only do dt0 = dtau = 1
+    """ calculate the mean squared displacement
 
         msd = < [x(t0 + tau) - x(t0)]**2 >
             = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0 + tau) x(t0) >
@@ -542,7 +560,10 @@ def msd(xs, ret_taus=False, ret_vector=False):
         all values of t0 are valid, and vice versa. The averages for increasing
         values of tau is the reverse of cumsum(x)/range(T-tau)
 
-        Time must be axis 0, but any number of dimensions is allowed (along axis 1)
+        Note:
+        * only accepts the positions in 1 or 2d array (no data structure)
+        * time must be axis 0, but any number of dimensions is allowed (axis 1)
+        * can only do dt0 = dtau = 1
     """
 
     xs = np.asarray(xs)
@@ -568,20 +589,24 @@ def msd(xs, ret_taus=False, ret_vector=False):
     # x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
     x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
 
-    msd = x2s - 2*xx0
+    out = x2s - 2*xx0
     if not ret_vector or ret_vector.startswith('disp'):
-        msd = msd.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
+        out = out.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
 
-    return np.column_stack([np.arange(T), msd]) if ret_taus else msd
+    return np.column_stack([np.arange(T), out]) if ret_taus else out
 
 
 def msd_correlate(x, y, n, corr_args, nt):
+    """calculate the various terms in the msd correlation"""
     xy = x * y
-    return (crosscorr(xy, n, **corr_args) - 2*crosscorr(x, y*n, **corr_args) +
-            np.cumsum(xy*n, 0)[::-1]/nt)
+    x_yn = crosscorr(x, y*n, **corr_args)
+    xy_n = crosscorr(xy, n, **corr_args)
+    xyn_ = np.cumsum(xy*n, 0)[::-1]/nt
+    return xy_n - 2*x_yn + xyn_
 
 
 def msd_body(xs, os, ret_taus=False):
+    """calculate mean squared displacement in body frame"""
     xs = np.asarray(xs)
     d = xs.ndim
     if d == 1:
@@ -617,7 +642,7 @@ def orient_corr(positions, orientations, m=4, margin=0, bins=10):
     if margin < ss:
         margin *= ss
     loc_mask = d < d.max() - margin
-    r = pdist(positions[loc_mask])
+    r = distance.pdist(positions[loc_mask])
     ind = np.column_stack(pair_indices(np.count_nonzero(loc_mask)))
     pairs = orientations[loc_mask][ind]
     diffs = np.cos(m*dtheta(pairs, m=m))
@@ -700,7 +725,7 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     if need_dist:
         ix = np.arange(len(positions))[:, None]
         neighbors, mask = helpy.pad_uneven(neighbors, ix, True, int)
-        distances = cdist(positions, positions)[ix, neighbors]
+        distances = distance.cdist(positions, positions)[ix, neighbors]
         distances[mask] = np.inf
         sort = distances.argsort(1)
         distances, neighbors = distances[ix, sort], neighbors[ix, sort]
@@ -728,7 +753,7 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
 
 
 def poly_area(corners):
-    # calculate area of polygon
+    """calculate area of polygon"""
     area = 0.0
     n = len(corners)
     for i in xrange(n):
@@ -739,6 +764,7 @@ def poly_area(corners):
 
 
 def density(positions, method, vor=None, **neigh):
+    """calculste density by various methods: ('vor', 'dist', 'inv')"""
     if method == 'vor':
         return voronoi_density(vor or positions)
     if 'dist' in method or 'inv' in method:
@@ -759,15 +785,17 @@ def density(positions, method, vor=None, **neigh):
 
 
 def gaussian_density(positions, scale=None, unit_length=1, extent=(600, 608)):
+    """calculate density by gaussian kernel"""
     dens = np.zeros(extent, float)
     indices = np.around(positions).astype('u4').T
     dens[indices] = unit_length*unit_length
     if scale is None:
         scale = 2*unit_length
-    gaussian_filter(dens, scale, mode='constant')
+    ndimage.gaussian_filter(dens, scale, mode='constant')
 
 
 def voronoi_density(pos_or_vor):
+    """calculate density by voronoi area"""
     vor = pos_or_vor if isinstance(pos_or_vor, Voronoi) else Voronoi(pos_or_vor)
     regions = (vor.regions[regi] for regi in vor.point_region)
     return np.array([0 if -1 in reg else 1/poly_area(vor.vertices[reg])
@@ -895,6 +923,7 @@ def conjmul(a, b):
 
 
 def pair_angle_corr(positions, psims, rbins=10):
+    """calculate pair-angle correlation"""
     return radial_correlation(positions, psims, rbins, correland=conjmul)
 
 
@@ -916,10 +945,10 @@ def radial_correlation(positions, values, bins=10, correland='*', do_avg=True):
     n = len(positions)
     assert n >= 2, "must have at least two items"
     multi = isinstance(values, tuple)
-    assert n == len(values[0] if multi else values), "positions do not match values"
+    assert n == len(values[0] if multi else values), "lengths do not match"
 
     i, j = pair_indices(n)
-    rij = pdist(positions)
+    rij = distance.pdist(positions)
     if correland == '*':
         correland = np.multiply
     if multi:
@@ -953,54 +982,62 @@ def site_mean(positions, values, bins=10, coord='xy'):
     return bin_average(positions, values, bins)
 
 
-class vonmises_m(rv_continuous):
+class vonmises_m(stats.rv_continuous):
+    """generate von Mises distribution for any m"""
+
     def __init__(self, m):
         self.shapes = ''
         for i in range(m):
             self.shapes += 'k%d,l%d' % (i, i)
         self.shapes += ',scale'
-        rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
+        stats.rv_continuous.__init__(self, a=-np.inf, b=np.inf, shapes=self.shapes)
         self.numargs = 2*m
 
     def _pdf(self, x, *lks):
+        """probability distribution function"""
         print 'lks', lks
         locs, kappas = lks[:len(lks)/2], lks[len(lks)/2:]
         print 'x', x
         print 'locs', locs
         print 'kapps', kappas
-        # return np.sum([vonmises.pdf(x, l, k)
+        # return np.sum([stats.vonmises.pdf(x, l, k)
         #                for l, k in zip(locs, kappas)], 0)
         ret = np.zeros_like(x)
         for l, k in zip(locs, kappas):
-            ret += vonmises.pdf(x, l, k)
+            ret += stats.vonmises.pdf(x, l, k)
         return ret / len(locs)
 
 
-class vonmises_4(rv_continuous):
+class vonmises_4(stats.rv_continuous):
+    """generate von Mises distribution for m = 4"""
+
     def __init__(self):
-        rv_continuous.__init__(self, a=-np.inf, b=np.inf)
+        stats.rv_continuous.__init__(self, a=-np.inf, b=np.inf)
 
     def _pdf(self, x,
              l1, l2, l3, l4,
              k1, k2, k3, k4,
              a1, a2, a3, a4, c):
-        return a1*vonmises.pdf(x, k1, l1) + \
-               a2*vonmises.pdf(x, k2, l2) + \
-               a3*vonmises.pdf(x, k3, l3) + \
-               a4*vonmises.pdf(x, k4, l4) + c
+        """probability distribution function"""
+        return a1*stats.vonmises.pdf(x, k1, l1) + \
+               a2*stats.vonmises.pdf(x, k2, l2) + \
+               a3*stats.vonmises.pdf(x, k3, l3) + \
+               a4*stats.vonmises.pdf(x, k4, l4) + c
 
 
 def vm4_pdf(x,
             l1, l2, l3, l4,
             k1, k2, k3, k4,
             a1, a2, a3, a4, c):
-    return a1*vonmises.pdf(x, k1, l1) + \
-           a2*vonmises.pdf(x, k2, l2) + \
-           a3*vonmises.pdf(x, k3, l3) + \
-           a4*vonmises.pdf(x, k4, l4) + c
+    """calculate the probability distribution function for m = 4 von Mises"""
+    return a1*stats.vonmises.pdf(x, k1, l1) + \
+           a2*stats.vonmises.pdf(x, k2, l2) + \
+           a3*stats.vonmises.pdf(x, k3, l3) + \
+           a4*stats.vonmises.pdf(x, k4, l4) + c
 
 
 def primary_angles(angles, m=4, bins=720, ret_hist=False):
+    """estimate the m primary orientation angles from all angles"""
     angles = angles[angles != 0].ravel()
     h, t = np.histogram(angles, bins, (0, tau), True)
     t = 0.5*(t[1:] + t[:-1])
@@ -1021,6 +1058,7 @@ def primary_angles(angles, m=4, bins=720, ret_hist=False):
 
 
 def get_gdata(locdir, ns):
+    """load a saved g(r) array"""
     return {'n'+str(n): np.load(locdir+'n'+str(n)+'_GR.npz') for n in ns}
 
 
@@ -1100,10 +1138,10 @@ def apply_hilbert(a, sig=None, full=False):
     if sig is None:
         sig = a.size/10.
     if sig:
-        a_smoothed = gaussian_filter(a, sig, mode='reflect')
+        a_smoothed = ndimage.gaussian_filter(a, sig, mode='reflect')
     else:
         a_smoothed = a.mean()
-    h = hilbert(a - a_smoothed)
+    h = signal.hilbert(a - a_smoothed)
     if full:
         return h, a_smoothed
     else:

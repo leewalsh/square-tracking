@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Helpful python functions, types, and classes for use in various analysis.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
@@ -24,10 +29,13 @@ COMMIT = None
 
 
 def replace_all(s, old, new=''):
+    """str.replace all characters or strings in `old` that appear `s` with `new`
+    equivalent to `s.replace(old[0], new).replace(old[1], new)...`"""
     return reduce(lambda a, b: a.replace(b, new), old, s)
 
 
 def getsystem():
+    """return system name (Darwin, Windows, Linux, etc). Cached as global."""
     global SYSTEM
     if not SYSTEM:
         SYSTEM = platform.system()
@@ -35,6 +43,7 @@ def getsystem():
 
 
 def gethost():
+    """return host name. Cached as global."""
     getsystem()
     global HOST
     if not HOST:
@@ -52,6 +61,7 @@ def gethost():
 
 
 def getuser():
+    """return user name. Cached as global."""
     global USER
     if not USER:
         USER = getpass.getuser().replace(' ', '_')
@@ -59,6 +69,7 @@ def getuser():
 
 
 def getcommit():
+    """return git commit hash. Cached as global."""
     global COMMIT
     if not COMMIT:
         gitdir = os.path.dirname(__file__) or os.curdir
@@ -134,8 +145,7 @@ def splitter(data, indices, method=None,
         tracksets = splitter(data, 't', noncontiguous=True, ret_dict=True)
         trackset = tracksets[trackid]
     """
-    multi = isinstance(data, tuple)
-    if not multi:
+    if not isinstance(data, tuple):
         data = (data,)
     if isinstance(indices, basestring):
         indices = data[0][indices]
@@ -159,10 +169,11 @@ def splitter(data, indices, method=None,
             sects = [np.split(datum, i[1:]) for datum in data]
         ret = [dict(it.izip(u, sect)) if ret_dict else it.izip(u, sect)
                for sect in sects]
-    return ret if multi else ret[0]
+    return ret[0] if len(ret) == 1 else ret
 
 
 def is_sorted(a):
+    """check whether a numerical array is non-decreasing"""
     return np.all(np.diff(a) >= 0)
 
 
@@ -248,8 +259,8 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
         dtype = np.result_type(fill, np.array(lol[0][0]))
     lengths = np.array(map(len, lol), int)
     lengths[lengths < shortest] = 0
-    length = min(longest or np.inf, lengths.max())
-    shape = (len(lol), length) + np.shape(lol[0][0])
+    shape = \
+        (len(lol), min(longest or np.inf, lengths.max())) + np.shape(lol[0][0])
     if align is None:
         align = it.repeat(0)
     else:
@@ -269,6 +280,7 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
 
 def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
                ret_all=False):
+    """calculate mean along a cross dimension of an uneven list of lists"""
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
@@ -297,6 +309,7 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
 
 
 def nan_info(arr, verbose=False):
+    """return (and print if verbose) some info on the nan contents of arr"""
     isnan = np.isnan(arr)
     nnan = np.count_nonzero(isnan)
     if nnan:
@@ -384,6 +397,13 @@ def dmap(f, d):
 
 
 def dfilter(d, f=None, by='k'):
+    """filter a dict through function f
+
+    f:  filtering function. if None, then filter by the key or value itself
+    by: filter by the key or the value
+
+    return subset of `d` with only items where f(key or value) is true
+    """
     if by.startswith('k'):
         return {k: d[k] for k in it.ifilter(f, d)}
     elif by.startswith('v'):
@@ -408,6 +428,7 @@ def dict_to_arr(d, fields=None):
 
 
 def str_union(a, b=None):
+    """attempt to find a common substring of two strings or a list of strings"""
     if b is None:
         return reduce(str_union, a)
     if a == b:
@@ -1151,12 +1172,96 @@ def consecutive_fields_view(arr, fields, careful=False):
 
 
 def add_self_view(arr, fields, name):
+    """ Add new field to structured array as view of existing consecutive fields
+
+        Does not copy array data:
+        original and new fields are views of the data of the input array.
+
+        Warning! Do not save the resulting array as numpy formatted file. The
+        file will fail to load due to a size mismatch (the twice-viewed data
+        will be double-counted). Save the orginal array first, or remove the
+        self-viewing fields using remove_self_views before saving. Or (not
+        recommended) save as text with np.savetxt, which will duplicate the
+        self-viewing fields.
+
+        parameters
+        ----------
+        arr : a structured array to which to add a self-viewing field
+        fields : the target fields to be viewed by the new field
+        name : name for the new field
+
+        returns
+        -------
+        with_view : new (not copied) array with original fields plus new view
+
+        example
+        -------
+        create an array with 'x' and 'y' fields, add to it a new field 'xy'
+        that views both 'x' and 'y' as a single (N, 2) view by calling:
+
+            arr = np.empty(10, dtype=[('x', float), ('y', float)])
+            with_view = add_self_view(arr, ('x', 'y'), 'xy')
+    """
     dtype = dict(arr.dtype.fields)
     dt, off = dtype[fields[0]]
     dtype[name] = np.dtype((dt, (len(fields),))), off
     return np.ndarray(arr.shape, dtype, arr, 0, arr.strides)
 
 
+def find_self_views(arr_or_dtype):
+    """ Find fields that view other fields in a structured array or its dtype
+
+        Assume self-viewing fields have a larger itemsize than each viewed field
+
+        parameters
+        ----------
+        arr_or_dtype : a structured array or complex dtype with multiple fields
+
+        returns
+        -------
+        self_views : a list of field names that are views onto other fields. If
+            none are found, an empty list.
+    """
+    if hasattr(arr_or_dtype, 'dtype'):
+        dtype = arr_or_dtype.dtype
+    else:
+        dtype = arr_or_dtype
+
+    # sort by offset, then itemsize, then fieldname:
+    fields = sorted((offset, dt.itemsize, field)
+                    for field, (dt, offset) in dtype.fields.iteritems())
+    last_offset = -1
+    self_views = []
+    for field in fields:
+        if field[0] == last_offset:
+            self_views.append(field[2])
+        last_offset = field[0]
+    return self_views
+
+
+def remove_self_views(arr, self_views=None):
+    """ Remove fields from a structured array that view other fields
+
+        Required for the array to be saved with np.save[z]
+
+        parameters
+        ----------
+        arr : a structured array or a complex dtype with multiple fields
+        self_views : if known, the names of the fields to remove. If not
+            provided, they will be determined by find_self_views
+
+        returns
+        -------
+        arr_single : view of arr with no self views
+    """
+    if self_views is None:
+        self_views = find_self_views(arr)
+    dtype = {f: dt for f, dt in arr.dtype.fields.iteritems()
+             if f not in self_views}
+    return np.ndarray(arr.shape, dtype, arr, 0, arr.strides)
+
+
+# dtypes for the tracks, positions, and velocity structured arrays
 track_dtype = np.dtype({'names': '  id f  t  x  y  o'.split(),
                         'formats': 'u4 u2 i4 f4 f4 f4'.split()})
 pos_dtype = np.dtype({'names': '    f  x  y  lab ecc area id'.split(),
@@ -1166,6 +1271,9 @@ vel_dtype = np.dtype({'names': 'o v x y par perp eta etax etay etapar'.split(),
 
 
 def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
+    """ initialize track data from positions data,
+        optionally with given trackids and orientations
+    """
     if pdata.dtype == track_dtype:
         data = pdata
     else:
@@ -1181,8 +1289,9 @@ def initialize_tdata(pdata, trackids=-1, orientations=np.nan):
 
 
 def dtype_info(dtype='all'):
+    """print some information about the given dtype"""
     if dtype == 'all':
-        [dtype_info(s+b) for s in 'ui' for b in '1248']
+        map(dtype_info, (s+b for s in 'ui' for b in '1248'))
         return
     dt = np.dtype(dtype)
     bits = 8*dt.itemsize
@@ -1236,6 +1345,7 @@ def txt_to_npz(datapath, verbose=False, compress=True):
 
 
 def compress_existing_npz(path, overwrite=False, careful=False):
+    """load an npz and resave it as compressed"""
     orig = np.load(path)
     amtime = os.path.getatime(path), os.path.getmtime(path)
     arrs = {n: orig[n] for n in orig.files}
@@ -1353,6 +1463,7 @@ def bool_input(question='', default=None):
 
 
 def farange(start, stop, factor):
+    """generate a log-spaced range array"""
     start_power = log(start, factor)
     stop_power = log(stop, factor)
     dt = np.result_type(start, stop, factor)
@@ -1572,37 +1683,37 @@ def circle_click(im):
     import matplotlib
     if matplotlib.is_interactive():
         raise RuntimeError("Cannot do circle_click in interactive/pylab mode")
-    from matplotlib import pyplot as plt
+    import matplotlib.pyplot as plt
 
     print ("Please click three points on circumference of the boundary, "
            "then close the figure")
+    clicks = []
+    center = []
     if isinstance(im, basestring):
         im = plt.imread(im)
-    xs = []
-    ys = []
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(111)
+    fig, ax = plt.subplots(figsize=(12, 12))
     ax.imshow(im)
 
     def circle_click_connector(click):
-        # convert to image coordinates from cartesian
-        x, y = click.ydata, click.xdata
-        xs.append(x)
-        ys.append(y)
-        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(xs), x, y)
-        if len(xs) == 3:
-            # With three points, calculate circle
-            print 'got three points'
-            global xo, yo, r  # can't access connector function's returned value
-            xo, yo, r = circle_three_points(xs, ys)
-            cpatch = matplotlib.patches.Circle([yo, xo], r, linewidth=3,
-                                               color='g', fill=False)
+        """receive and save clicks. when there are three, calculate the circle
+
+         * swap x, y to convert image coordinates to cartesian
+         * the return value cannot be saved, so modify a mutable variable
+           (center) from an outer scope
+        """
+        clicks.append([click.ydata, click.xdata])
+        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(clicks), *clicks[-1])
+        if len(clicks) == 3:
+            center.extend(circle_three_points(clicks))
+            print 'center {:.2f}, {:.2f}, radius {:.2f}'.format(*center)
+            cpatch = matplotlib.patches.Circle(
+                center[1::-1], center[2], linewidth=3, color='g', fill=False)
             ax.add_patch(cpatch)
             fig.canvas.draw()
 
     fig.canvas.mpl_connect('button_press_event', circle_click_connector)
     plt.show()
-    return xo, yo, r
+    return center
 
 
 def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
@@ -1634,6 +1745,7 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
 
 
 def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
+    """interactively display neighbors defined by corr.neighborhoods to check"""
     import matplotlib.pyplot as plt
     from correlation import neighborhoods
     fig, ax = plt.subplots()
@@ -1664,6 +1776,7 @@ def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
 
 
 def derivwidths(w, dx, sigmas, order):
+    """testing function to explore effect of numerical derivatives widths"""
     from scipy.ndimage import gaussian_filter1d
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
@@ -1689,6 +1802,8 @@ def derivwidths(w, dx, sigmas, order):
 
 
 class SciFormatter(Formatter):
+    """subclass string.Formatter that recognizes `e` format for sci notation"""
+
     def format_field(self, value, format_spec):
         if format_spec.endswith('T'):
             s = format(value, format_spec[:-1])

@@ -1,36 +1,49 @@
 #!/usr/bin/env python
 # encoding: utf-8
+"""Detect the positions in images of marked granular particles and save them to
+be tracked. Primary input is a sequence (or single) image file, and output is a
+formatted list of the positions of the centers and orientation marks of the
+particles.
+
+Copyright (c) 2012--2017 Lee Walsh, Department of Physics, University of
+Massachusetts; all rights reserved.
+"""
 
 from __future__ import division
 
 from collections import namedtuple
 from itertools import izip
-from distutils.version import StrictVersion as version
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, binary_dilation, convolve, imread
+from scipy import ndimage
 
-import helpy
-
+# skimage (scikit-image) changed the location, names, and api of several
+# functions at versions 0.10 and 0.11 (at leaste), but they still have
+# effectively the same functionality. to run with old versions of skimage (from
+# enthought or conda), we must check for the version and import them from the
+# proper module and use them with the appropriate api syntax:
+from distutils.version import StrictVersion
 import skimage
-from skimage.morphology import disk as _disk
-skversion = version(skimage.__version__)
-if skversion < version('0.10'):
+skimage_version = StrictVersion(skimage.__version__)
+from skimage.morphology import disk as skdisk
+if skimage_version < StrictVersion('0.10'):
     from skimage.morphology import label as sklabel
     from skimage.measure import regionprops
 else:
     from skimage.measure import regionprops, label as sklabel
 
+import helpy
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('files', metavar='FILE', nargs='+', help='Images to process')
+    arg('-o', '--output', help='Output filename prefix.')
     arg('-p', '--plot', action='count', default=1,
         help="Produce plots for each image. Two p's gives lots more")
     arg('-v', '--verbose', action='count', help="Control verbosity")
-    arg('-o', '--output', help='Output filename prefix.')
     arg('-z', '--nozip', action='store_false', dest='gz', help="Don't compress")
     arg('--nosave', action='store_false', dest='save', help="Don't save output")
     arg('--noplot', action='store_true', help="Don't depend on matplotlib")
@@ -56,17 +69,20 @@ if __name__ == '__main__':
 
 
 def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
-    """ label_particles_edge(image, sigma=3, closing_size=3)
-        Returns the labels for an image.
-        Segments using Canny edge-finding filter.
+    """ Segment image using Canny edge-finding filter.
 
-        keyword arguments:
-        image        -- The image in which to find particles
-        sigma        -- The size of the Canny filter
-        closing_size -- The size of the closing filter
+        parameters
+        ----------
+        im : image in which to find particles
+        sigma : size of the Canny filter
+        closing_size : size of the closing filter
+
+        returns
+        -------
+        labels : an image array of uniquely labeled segments
     """
     from skimage.morphology import square, binary_closing, skeletonize
-    if skversion < version('0.11'):
+    if skimage_version < StrictVersion('0.11'):
         from skimage.filter import canny
     else:
         from skimage.filters import canny
@@ -82,58 +98,67 @@ def label_particles_edge(im, sigma=2, closing_size=0, **extra_args):
 
 
 def label_particles_walker(im, min_thresh=0.3, max_thresh=0.5, sigma=3):
-    """ label_particles_walker(image, min_thresh=0.3, max_thresh=0.5)
-        Returns the labels for an image.
-        Segments using random_walker method.
+    """ Segment image using random_walker method.
 
-        keyword arguments:
-        image        -- The image in which to find particles
-        min_thresh   -- The lower limit for binary threshold
-        max_thresh   -- The upper limit for binary threshold
+        parameters
+        ----------
+        image : image in which to find particles
+        min_thresh : lower limit for binary threshold
+        max_thresh : upper limit for binary threshold
+
+        returns
+        -------
+        labels : an image array of uniquely labeled segments
     """
     from skimage.segmentation import random_walker
     if sigma > 0:
-        im = gaussian_filter(im, sigma)
+        im = ndimage.gaussian_filter(im, sigma)
     labels = np.zeros_like(im)
     labels[im < min_thresh*im.max()] = 1
     labels[im > max_thresh*im.max()] = 2
     return random_walker(im, labels)
 
 
-def label_particles_convolve(im, thresh=3, rmv=None, kern=0, **extra_args):
-    """ label_particles_convolve(im, thresh=2)
-        Returns the labels for an image
-        Segments using a threshold after convolution with proper gaussian kernel
-        Uses center of mass from original image to find centroid of segments
+def label_particles_convolve(im, kern, thresh=3, rmv=None, **extra_args):
+    """ Segment image using convolution with gaussian kernel and threshold
 
-        Input:
-            image   the original image
-            thresh  the threshold above which pixels are included
-                        if integer, in units of intensity std dev
-                        if float, in absolute units of intensity
-            rmv     if given, the positions at which to remove large dots
-            kern   kernel size
+        parameters
+        ----------
+        im : the original image to be labeled
+        kern : kernel size
+        thresh : the threshold above which pixels are included
+            if integer, in units of intensity std dev
+            if float, in absolute units of intensity
+        rmv : if given, the positions at which to remove large dots
+
+        returns
+        -------
+        labels : an image array of uniquely labeled segments
+        convolved : the convolved image before thresholding and segementation
     """
     if rmv is not None:
         im = remove_disks(im, *rmv)
-    if kern == 0:
-        raise ValueError('kernel size `kern` not set')
     kernel = np.sign(kern)*gdisk(abs(kern)/2, abs(kern))
-    convolved = convolve(im, kernel)
+    convolved = ndimage.convolve(im, kernel)
+    convolved -= convolved.min()
+    convolved /= convolved.max()
+
     if args.plot > 2:
         snapshot('kern', kernel)
         snapshot('convolved', convolved)
 
-    convolved -= convolved.min()
-    convolved /= convolved.max()
+    if isinstance(thresh, int):
+        if rmv is not None:
+            thresh -= 1  # smaller threshold for corners
+        thresh = thresh*convolved.std() + convolved.mean()
+    threshed = convolved > thresh
 
-    if rmv is not None:
-        thresh -= 1  # smaller threshold for corners
-    threshed = convolved > convolved.mean() + thresh*convolved.std()
     labels = sklabel(threshed, connectivity=1)
+
     if args.plot > 2:
         snapshot('threshed', threshed)
         snapshot('labeled', np.where(labels, labels, np.nan), cmap='prism_r')
+
     return labels, convolved
 
 Segment = namedtuple('Segment', 'x y label ecc area'.split())
@@ -141,15 +166,30 @@ Segment = namedtuple('Segment', 'x y label ecc area'.split())
 
 def filter_segments(labels, max_ecc, min_area, max_area, keep=False,
                     circ=None, intensity=None, **extra_args):
-    """filter_segments(labels, max_ecc, min_area, max_area) -> [Segment]
+    """ filter out non-particle segments of an image based on shape criteria
 
-    Returns a list of Particles and masks out labels for
-    particles not meeting acceptance criteria.
+        parameters
+        ----------
+        labels : an image array of uniquely labeled segments
+        max_ecc : upper limit for segment eccentricity
+        min_area : lower limit for segment size in pixels
+        max_area : upper limit for segment size in pixels
+        keep : whether to keep bad segments as well and return a mask
+        circ : tuple of (x0, y0, r). accept only segments centered within a
+            distrance r from center x0, y0.
+        intensity : an image array of the same shape as `labels` used as the
+            weighting to determine the centroid of each segment.
+
+        returns
+        -------
+        pts : list of `Segment`s that meet criteria (or all of them if `keep`)
+        pts_mask : if `keep`, also return a boolean array matching `pts` that is
+            True where the segment meets acceptance criteria and False where not
     """
     pts = []
     pts_mask = []
     centroid = 'Centroid' if intensity is None else 'WeightedCentroid'
-    if skversion < version('0.10'):
+    if skimage_version < StrictVersion('0.10'):
         rpropargs = labels, ['Area', 'Eccentricity', centroid], intensity
     else:
         rpropargs = labels, intensity
@@ -175,19 +215,30 @@ def filter_segments(labels, max_ecc, min_area, max_area, keep=False,
     return pts
 
 
-def prep_image(imfile):
+def prep_image(imfile, width=2):
+    """ Open an image from file, clip, normalize it, and return it as an array.
+
+        parameters
+        ----------
+        imfile : a file or filename
+        width : factor times std deviation to clip about mean
+
+        returns
+        -------
+        im : 2-d image array as float, normalized to [0, 1]
+    """
     if args.verbose:
         print "opening", imfile
-    im = imread(imfile).astype(float)
+    im = ndimage.imread(imfile).astype(float)
     if args.plot > 2:
         snapshot('orig', im)
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
         # use just the green channel from color slr images
         im = im[..., 1]
 
-    # clip to two standard deviations about the mean
+    # clip to `width` times the standard deviation about the mean
     # and normalize to [0, 1]
-    s = 2*im.std()
+    s = width*im.std()
     m = im.mean()
     im -= m - s
     im /= 2*s
@@ -198,12 +249,21 @@ def prep_image(imfile):
 
 
 def find_particles(im, method, **kwargs):
-    """find_particles(im, method, **kwargs) -> [Segment], labels
+    """ Find the particles in an image via a certain method.
 
-    Find the particles in image im. The arguments in kwargs is
-    passed to label_particles and filter_segments.
+        parameters
+        ----------
+        im : image array, assumed normalized to [0, 1]
+        method : one of 'walker', 'edge', or 'convolve'. The method to use to
+            identify candidate particles before filtering.
+        kwargs : arguments passed to label_particles and filter_segments.
 
-    Returns the list of found particles and the label image.
+        returns
+        -------
+        pts : list of `Segments` determined to be particles
+        labels : an image with the same shape as im, with segments uniquely
+            labled by sequential integers
+        convolved : an image with same shape as im,
     """
     intensity = None
     if method == 'walker':
@@ -214,7 +274,7 @@ def find_particles(im, method, **kwargs):
         labels, convolved = label_particles_convolve(im, **kwargs)
         intensity = im if kwargs['kern'] > 0 else 1 - im
     else:
-        raise RuntimeError('Undefined method "%s"' % method)
+        raise ValueError('Undefined method "%s"' % method)
 
     keep = args.plot > 1
     pts = filter_segments(labels, intensity=intensity, keep=keep, **kwargs)
@@ -222,26 +282,30 @@ def find_particles(im, method, **kwargs):
 
 
 def disk(n):
-    return _disk(n).astype(int)
+    """create a binary array with a disk of size `n`"""
+    return skdisk(n).astype(int)
 
 
 def gdisk(width, inner=0, outer=None):
-    """return a gaussian kernel with zero integral and unity std dev.
+    """ create a gaussian kernel with constant central disk, zero sum, std dev 1
 
-    parameters:
-        width:  width (standard dev) of gaussian (approx half-width at half-max)
-        inner:  inner radius of constant disk, before gaussian falloff
-                default is 0
-        outer:  outer radius of nonzero part (outside of this, gdisk = 0)
-                default is inner + 2*width
+        shape is a disk of constant value and radius `inner`, which falls off as
+        a gaussian with `width`, and is truncated at radius `outer`.
 
-    returns:
+        parameters
+        ----------
+        width : width (standard dev) of gaussian (approx half-width at half-max)
+        inner : radius of constant disk, before gaussian falloff (default 0)
+        outer : full radius of nonzero part, beyond which array is truncated
+            (default outer = inner + 2*width)
+
+        returns
+        -------
         gdisk:  a square array with values given by
-                        / max for r <= inner
-                g(r) = {  min + (max-min)*exp(.5*(r-inner)**2 / width**2)
-                        \ 0 for r > outer
-                where min and max are set so that the sum and std of the array
-                are 0 and 1 respectively
+                    / max for r <= inner
+            g(r) = {  min + (max-min)*exp(.5*(r-inner)**2 / width**2)
+                    \ 0 for r > outer
+            min and max are set so that the sum of the array is 0 and std is 1
     """
     outer = outer or inner + 2*width
     circ = disk(outer)
@@ -260,29 +324,34 @@ def gdisk(width, inner=0, outer=None):
 
 
 def remove_segments(orig, particles, labels):
-    """ remove_segments(orig, particles, labels)
-        attempts to remove the found big dot segment as found in original
-    """
+    """remove the found big dot segment as found in original"""
     return
 
 
-def remove_disks(orig, particles, dsk, replace='sign', out=None):
-    """removes a disk of given size centered at dot location
-       inputs:
-           orig:      input image as ndarray or PIL Image
-           particles: list of particles (namedtuple Segment)
-           dsk:       radius of disk, default is skimage.morphology.disk(r)
-                          (size of square array is 2*r+1)
-           replace:   value to replace disks with. Generally should be 0, 1,
-                          0.5, the image mean, or 'mean' to calculate the mean,
-                          or 'sign' to use 0 or 1 depending on the sign of `dsk`
-           out:       array to save new value in (can be `orig` to do inplace)
-       output:
-           the original image with big dots replaced with `replace`
+def remove_disks(orig, particles, removal_mask, replace='sign', out=None):
+    """ remove a patch of given shape centered at each dot location
+
+        parameters
+        ----------
+        orig : input image as ndarray or PIL Image
+        particles : list of particles (namedtuple Segment)
+        removal_mask : shape or size of patch to remove at site of each particle
+            given as either a mask array that defines the patch
+            or a scalar (int or float) that gives radius to create a disk using
+            disk(r), which is a square array of size 2*r+1
+        replace : value to replace disks with. Generally should be one of:
+            - a float between 0 and 1 such as 0, 0.5, 1, or the image mean
+            - 'mean', to calculate the mean
+            - 'sign', to use 0 or 1 depending on the sign of `removal_mask`
+        out : array to save new value in (can be `orig` to do in-place)
+
+        returns
+        -------
+        out : the original image with big dots replaced with `replace`
     """
-    if np.isscalar(dsk):
-        sign = np.sign(dsk)
-        dsk = disk(abs(dsk))
+    if np.isscalar(removal_mask):
+        sign = np.sign(removal_mask)
+        removal_mask = disk(abs(removal_mask))
     else:
         sign = 1
     if replace == 'mean':
@@ -296,7 +365,7 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
         xys = tuple([np.round(particles[x]).astype(int) for x in 'XY'])
     disks = np.zeros(orig.shape, bool)
     disks[xys] = True
-    disks = binary_dilation(disks, dsk)
+    disks = ndimage.binary_dilation(disks, removal_mask)
     if out is None:
         out = orig.copy()
     out[disks] = replace
@@ -306,16 +375,17 @@ def remove_disks(orig, particles, dsk, replace='sign', out=None):
     return out
 
 if __name__ == '__main__':
+    import os
+    import sys
+
     if args.noplot:
         args.plot = 0
     if args.plot:
         if helpy.gethost() == 'foppl':
             import matplotlib
             matplotlib.use('Agg')
-        import matplotlib.pyplot as pl
+        import matplotlib.pyplot as plt
     from multiprocessing import Pool, cpu_count
-    from os import path, makedirs
-    import sys
 
     first = args.files[0]
     if len(args.files) > 1:
@@ -324,7 +394,7 @@ if __name__ == '__main__':
         i = sys.argv.index(first)
         argv = filter(lambda s: s not in filenames, sys.argv)
         argv.insert(i, filepattern)
-        argv[0] = path.basename(argv[0])
+        argv[0] = os.path.basename(argv[0])
         argv = ' '.join(argv)
     else:
         from glob import glob
@@ -342,29 +412,28 @@ if __name__ == '__main__':
             args.plot -= not helpy.bool_input()
 
     suffix = '_POSITIONS'
-    output = args.output
-    outdir = path.abspath(path.dirname(output))
-    if not path.exists(outdir):
+    outdir = os.path.abspath(os.path.dirname(args.output))
+    if not os.path.exists(outdir):
         print "Creating new directory", outdir
-        makedirs(outdir)
-    if output.endswith('.gz'):
+        os.makedirs(outdir)
+    if args.output.endswith('.gz'):
         args.gz = 1
-        output = output[:-3]
-    if output.endswith('.txt'):
-        output = output[:-4]
-    if output.endswith(suffix):
-        prefix = output[:-len(suffix)]
+        args.output = args.output[:-3]
+    if args.output.endswith('.txt'):
+        args.output = args.output[:-4]
+    if args.output.endswith(suffix):
+        prefix = args.output[:-len(suffix)]
     else:
-        prefix = output
-        output += suffix
-    outs = output, prefix + '_CORNER' + suffix
+        prefix = args.output
+        args.output += suffix
+    outputs = args.output, prefix + '_CORNER' + suffix
 
     helpy.save_log_entry(prefix, argv)
     meta = helpy.load_meta(prefix)
 
     imdir = prefix + '_detection'
-    if not path.isdir(imdir):
-        makedirs(imdir)
+    if not os.path.isdir(imdir):
+        os.makedirs(imdir)
 
     kern_area = np.pi*args.kern**2
     sizes = {'center': {'max_ecc': args.ecc,
@@ -391,16 +460,16 @@ if __name__ == '__main__':
         global snapshot_num, imprefix
         if args.save:
             fname = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, desc)
-            pl.imsave(fname, im, **kwargs)
+            plt.imsave(fname, im, **kwargs)
         else:
-            fig, ax = pl.subplots()
-            ax.imshow(im, title=path.basename(imprefix)+'_'+desc, **kwargs)
+            fig, ax = plt.subplots()
+            ax.imshow(im, title=os.path.basename(imprefix)+'_'+desc, **kwargs)
         snapshot_num += 1
 
     def plot_points(pts, img, name='', s=10, c='r', cm=None,
                     vmin=None, vmax=None, cbar=False):
         global snapshot_num, imprefix
-        fig, ax = pl.subplots(figsize=(8, 8))
+        fig, ax = plt.subplots(figsize=(8, 8))
         # dpi = 300 gives 2.675 pixels for each image pixel, or 112.14 real
         # pixels per inch. This may be unreliable, but assume that many image
         # pixels per inch, and use integer multiples of that for dpi
@@ -426,7 +495,7 @@ if __name__ == '__main__':
             savename = '{}_{:02d}_{}.png'.format(imprefix, snapshot_num, name)
             fig.savefig(savename, dpi=dpi)
             snapshot_num += 1
-            pl.close(fig)
+            plt.close(fig)
 
     def plot_positions(segments, labels, convolved=None, **kwargs):
         Segment_dtype = np.dtype({'names': Segment._fields,
@@ -459,8 +528,8 @@ if __name__ == '__main__':
     def get_positions((n, filename)):
         global snapshot_num, imprefix
         snapshot_num = 0
-        filebase = path.splitext(path.basename(filename))[0]
-        imbase = path.join(imdir, filebase)
+        filebase = os.path.splitext(os.path.basename(filename))[0]
+        imbase = os.path.join(imdir, filebase)
         imprefix = imbase
         image = prep_image(filename)
         ret = []
@@ -490,7 +559,7 @@ if __name__ == '__main__':
             ret.append(centers)
         if not n % print_freq:
             fmt = '{:3d} {}s'.format
-            print path.basename(filename).rjust(20), 'Found',
+            print os.path.basename(filename).rjust(20), 'Found',
             print ', '.join([fmt(len(r), d) for r, d in zip(ret, dots)])
         return ret if args.both else ret[0]
 
@@ -512,7 +581,7 @@ if __name__ == '__main__':
     points = map(np.vstack, izip(*points)) if args.both else [np.vstack(points)]
 
     if args.plot:
-        fig, axes = pl.subplots(nrows=len(dots), ncols=2, sharey='row')
+        fig, axes = plt.subplots(nrows=len(dots), ncols=2, sharey='row')
         axes = np.atleast_2d(axes)
     else:
         axes = [None, None]
@@ -524,7 +593,7 @@ if __name__ == '__main__':
         txtfmt = ['%6d', '%7.3f', '%7.3f', '%4d', '%1.3f', '%5d']
         ext = '.txt'+'.gz'*args.gz
 
-    for dot, point, out, axis in zip(dots, points, outs, axes):
+    for dot, point, out, axis in zip(dots, points, outputs, axes):
         size = sizes[dot]
         if args.plot:
             eax, aax = axis
@@ -553,10 +622,11 @@ if __name__ == '__main__':
             helpy.txt_to_npz(out+ext, verbose=args.verbose, compress=args.gz)
     if args.save:
         from shutil import copy
-        copy(first, prefix+'_'+path.basename(first))
-        helpy.save_meta(prefix, meta, path_to_tiffs=path.abspath(filepattern),
+        copy(first, prefix+'_'+os.path.basename(first))
+        helpy.save_meta(prefix, meta,
+                        path_to_tiffs=os.path.abspath(filepattern),
                         detect_thresh=args.thresh, detect_removed=args.remove)
         if args.plot:
             fig.savefig(prefix+'_SEGMENTSTATS.pdf')
     elif args.plot:
-        pl.show()
+        plt.show()
