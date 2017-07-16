@@ -425,20 +425,20 @@ def bin_average(r, f, bins=10):
 
 def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
              verbose=False, reverse=False, ret_dx=False):
-    """ autocorr(f, side='right', cumulant=True, norm=1, mode='same',
-                 verbose=False, reverse=False, ret_dx=False)
+    """ autocorrelate f with itself
 
-        The auto-correlation of function f
-        returns the auto-correlation function
-            <f(x) f(x - dx)> averaged over x
+        The auto-correlation of function f returns
+            <f(x) f(x - dx)>
+        averaged over x, as a function of dx
 
         See also `crosscorr(f, g, ...)`
 
         f:      1d array, as function of x
         side:   'right' returns only dx > 0, (x' < x)
                 'left'  returns only dx < 0, (x < x')
-                'both'  returns entire correlation
-        cumulant: if True, subtracts mean of the function before correlation
+                'center' or 'both'  returns entire correlation
+        cumulant: 'initial' or 'mean' to subtract initial value or mean
+        norm:   normalize by the correlation at no shift, i.e. <f(x) g(x) >
         mode:   passed to scipy.signal.correlate, has little effect here, but
                 returns shorter correlation array
     """
@@ -446,30 +446,28 @@ def autocorr(f, side='right', cumulant=True, norm=1, mode='same',
                      verbose=verbose, reverse=reverse, ret_dx=ret_dx)
 
 
-def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
+def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
               verbose=False, reverse=False, ret_dx=False):
-    """ crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
-                  verbose=False, reverse=False, ret_dx=False)
+    """ cross correlate functions f and g
 
-        The cross-correlation of f and g
-        returns the cross-correlation function
-            <f(x) g(x - dx)> averaged over x
+        The cross-correlation of f and g returns
+            <f(x) g(x - dx)>
+        averaged over x, as function of dx
 
+        parameters
+        ----------
         f, g:       1d arrays, as function of x, with same lengths
         side:       'right' returns only dx > 0, (x' < x)
                     'left'  returns only dx < 0, (x < x')
-                    'both'  returns entire correlation
-        cumulant:   if True, subtracts mean of the function before correlation
+                    'center' or 'both' returns entire correlation
+        cumulant:   'initial' to subtract initial value (of f) or
+                    'mean' to subtract mean (of both, same as one or the other)
+        norm:       normalize by the correlation at no shift, i.e. <f(x) g(x) >
         mode:       passed to scipy.signal.correlate, has little effect here.
-        norm:       normalize by the correlation at no shift,
-                        that is, by <f(x) g(x) >
-                    if 1, divide
-                    if 0, subtract
-        ret_dx:     if True, return the dx shift between f and g
-                        that is, if we are looking at <f(x) g(x')>
-                        then dx = x - x'
+        ret_dx:     if True, return the dx shift between f and g, that is,
+                    if we are looking at <f(x) g(x')> then dx = x - x'
         reverse:    if True, flip g relative to f, that is, use convolve
-                        instead of correlate, which calculates <f(x) g(dx - x)>
+                    instead of correlate, which calculates <f(x) g(dx - x)>
         verbose:    if True or 1, be careful but not very verbose
                     if 2 or greater, be careful and verbose
     """
@@ -480,15 +478,6 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         print "l: {}, m: {}, l-m: {}, L: {}".format(l, m, l-m, L)
     msg = "len(f): {}, len(g): {}\nlengths must match for proper normalization"
     assert l == len(g), msg.format(l, len(g))
-
-    if cumulant:
-        if cumulant is True:
-            f = f - f.mean(0)
-            g = g - g.mean(0)
-        elif cumulant[0]:
-            f = f - f.mean(0)
-        elif cumulant[-1]:
-            g = g - g.mean(0)
 
     correlator = signal.convolve if reverse else signal.correlate
     if f.ndim == g.ndim == 2:
@@ -523,15 +512,23 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
             print ("subtracting", "normalizing by")[norm], "scaler:", fgs[0]
         assert np.allclose(fgs[0], fgs), msg.format(*fgs)
 
-    if norm is 1:
+    if side == 'both':
+        side = 'center'
+    if isinstance(cumulant, bool):
+        cumulant = 'mean'*cumulant  # cumulant=True --> 'mean'
+
+    if cumulant.startswith('init'):
+        c -= limited_mean(f*g, 'init', side)
+    elif cumulant.startswith('mean'):
+        c -= limited_mean(f, 'final', side) * limited_mean(g, 'init', side)
+
+    if norm:
         c /= c[m]
-    elif norm is 0:
-        c -= c[m]
     elif verbose > 1:
         print 'central value:', c[m]
 
     if ret_dx:
-        if side == 'both':
+        if side == 'center':
             return np.arange(-m, L-m), c
         elif side == 'left':
             # return np.arange(0, -m-1, -1), c[m::-1]
@@ -539,7 +536,7 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         elif side == 'right':
             return np.arange(0, L-m), c[m:]
 
-    if side == 'both':
+    if side == 'center':
         return c
     elif side == 'left':
         return c[m::-1]
@@ -547,18 +544,82 @@ def crosscorr(f, g, side='both', cumulant=True, norm=False, mode='same',
         return c[m:]
 
 
+def limited_mean(f, end, side='centered'):
+    """ Mean at single point of some correlation function
+
+    Say we want to calculate the correlation of a difference in f vs initial g:
+
+        C(x) = <[f(x₀ + x) - f(x₀)] g(x₀)>
+             = <f(x₀ + x) g(x₀)> - <f(x₀) g(x₀)>
+
+    The first term is a simple cross-correlation and can be calculated by the
+    function `crosscorr`. While the second term appears to be independent of x,
+    and looks just like the mean of the product of the arrays, or the first term
+    evaluated at x=0, it is in fact distinct. It is the mean only of a limited
+    part of the array, constrained by the limits of the first term. Consider the
+    following sum:
+        C(x) = Σx₀ {f(x₀ + x) g(x₀) - f(x₀) g(x₀)}
+    As finite arrays, f and g are only defined on the domain [0, L), so the
+    evaluation points of f and g over the domain of the sum over x₀ must obey
+        0 ≤ x₀ + x < L
+        0 ≤ x₀ < L
+    so for the sum, x₀ must range over
+        [ 0, L - x) for x ≥ 0
+        [-x, L)     for x < 0
+
+
+    parameters
+    ----------
+    f : single array to average over first axis
+    end : a string, which end of limit to average over
+        'initial' average over first n elements, <f(x₀)>
+        'final' average over last n elements, <f(x₀ + x)>
+        'both' do both, stacked along axis 1, [[<f(x₀)>, <f(x₀ + x)>]]
+        'sum' do both and add them, <f(x₀)> + <f(x₀ + x)>
+    side : a string, direction of correlation (see `crosscorr`)
+        'right' positive side (0 ≤ x < L)
+        'left' negative side (-L < x ≤ 0)
+        'center' center at 0 (-L/2 ≤ x < L/2)
+    """
+    f = np.asarray(f)
+    L = len(f)
+    r = slice(None, None, -1)
+    if end.startswith('s'):
+        f = f + f[r]
+    elif side.startswith('c') or end.startswith('b'):
+        f = np.stack([f[r], f] if side.startswith('l') else [f, f[r]], 1)
+    elif side.startswith('r') and end.startswith('f'):
+        f = f[r]
+    elif side.startswith('l') and end.startswith('i'):
+        f = f[r]
+    n = np.arange(1, L + 1).reshape(L, *[-1]*(f.ndim-1))
+    m = np.cumsum(f, 0) / n
+    if side.startswith('r'):
+        return m[r]
+    elif side.startswith('l'):
+        return m
+    elif side.startswith('c'):
+        s = (slice(-1 - L//2, -1), slice(None, -L//2 - 1, -1))
+        if end.startswith('init'):
+            s = zip(s, [1, 0])
+        elif end.startswith('both'):
+            s = zip(s, [r, slice(None)])
+        elif end.startswith('fin'):
+            s = zip(s, [0, 1])
+        return np.concatenate([m[s[0]], m[s[1]]])
+
+
 def msd(xs, ret_taus=False, ret_vector=False):
     """ calculate the mean squared displacement
 
-        msd = < [x(t0 + tau) - x(t0)]**2 >
-            = < x(t0 + tau)**2 > + < x(t0)**2 > - 2 * < x(t0 + tau) x(t0) >
-            = <xx> + <x0x0> - 2*<xx0>
+        msd = < [x(t₀ + ) - x(t₀)]**2 >
+            = < x(t₀ + tau)**2 > + < x(t₀)**2 > - 2 * < x(t₀ + tau) x(t₀) >
+            = <xx> + <x₀x₀> - 2*<xx₀>
 
-        The first two terms are averaged over all values of t0 that are valid
-        for the current value of tau. Thus, we have sums of x(t0) and x(t0+tau)
-        for all values of t0 in [0, T - tau). For small values of tau, nearly
-        all values of t0 are valid, and vice versa. The averages for increasing
-        values of tau is the reverse of cumsum(x)/range(T-tau)
+        The first two terms are, respectively, the average over all initial and
+        final values of x² for valid t₀ given tau. That is, terms at t = t₀ and
+        t = t₀ + tau are valid for t₀ ∈ [0, T - tau). The mean over these limits
+        are given by `limited_mean`
 
         Note:
         * only accepts the positions in 1 or 2d array (no data structure)
@@ -581,27 +642,22 @@ def msd(xs, ret_taus=False, ret_vector=False):
     xx0 = autocorr(xs, side='right', cumulant=False, norm=False, mode='full',
                    verbose=False, reverse=False, ret_dx=False)
 
-    ntau = np.arange(T, 0, -1)  # = T - tau
-    x2 = xs * xs
-    # x0avg = np.cumsum(x2)[::-1] / ntau
-    # xavg = np.cumsum(x2[::-1])[::-1] / ntau
-    # we'll only ever combine these, which can be done with one call:
-    # x0avg + xavg == np.cumsum(x2 + x2[::-1])[::-1] / ntau
-    x2s = np.cumsum(x2 + x2[::-1], axis=0)[::-1] / ntau[:, None]
+    # First terms are the initial mean and final mean of x²
+    x2s = limited_mean(xs*xs, end='sum', side='right')
 
     out = x2s - 2*xx0
     if not ret_vector or ret_vector.startswith('disp'):
-        out = out.sum(1)  # straight sum over dimensions (x2 + y2 + ...)
+        out = out.sum(1)  # straight sum over dimensions (x² + y² + ...)
 
     return np.column_stack([np.arange(T), out]) if ret_taus else out
 
 
-def msd_correlate(x, y, n, corr_args, nt):
+def msd_correlate(x, y, n, corr_args):
     """calculate the various terms in the msd correlation"""
     xy = x * y
     x_yn = crosscorr(x, y*n, **corr_args)
     xy_n = crosscorr(xy, n, **corr_args)
-    xyn_ = np.cumsum(xy*n, 0)[::-1]/nt
+    xyn_ = limited_mean(xy*n, end='init', side=corr_args['side'])
     return xy_n - 2*x_yn + xyn_
 
 
@@ -619,13 +675,12 @@ def msd_body(xs, os, ret_taus=False):
         raise ValueError(msg.format(xs.shape))
 
     corr_args = {'side': 'right', 'cumulant': False, 'mode': 'full'}
-    nt = np.arange(T, 0, -1)[:, None]  # = T - tau
     ns = np.column_stack([np.cos(os), np.sin(os)])
     ps = ns[:, ::-1]
     ys = xs[:, ::-1]
-    progress = msd_correlate(xs, xs, ns*ns, corr_args, nt)
-    diversion = msd_correlate(xs, xs, ps*ps, corr_args, nt)
-    crossterms = msd_correlate(xs, ys, ns*ps, corr_args, nt)
+    progress = msd_correlate(xs, xs, ns*ns, corr_args)
+    diversion = msd_correlate(xs, xs, ps*ps, corr_args)
+    crossterms = msd_correlate(xs, ys, ns*ps, corr_args)
     progress += crossterms
     diversion -= crossterms
     taus = [np.arange(T)] if ret_taus else []
