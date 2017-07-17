@@ -428,11 +428,11 @@ def set_axes_size_inches(ax, axsize, clear=None, tight=None):
 def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                       meta={}, f_nums=None, verbose=False, clean=0):
 
-    global f_idx, f_num, xlim, ylim
+    def handle_event(event):
+        animator_next = advance(event.key, **animator)
+        animator.update(animator_next)
 
-    def advance(event):
-        global f_idx, f_num, xlim, ylim
-        key = event.key
+    def advance(key, f_idx, f_num, xlim=None, ylim=None):
         if verbose:
             print '\tpressed {}'.format(key),
         if key in ('left', 'up'):
@@ -470,6 +470,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             else:
                 print 'will exit'
             sys.stdout.flush()
+        return {'f_idx': f_idx, 'f_num': f_num, 'xlim': xlim, 'ylim': ylim}
 
     # Prep images
     #imstack = (imstack.astype('f8')**2 / 4096.0).round().astype('u2')
@@ -503,35 +504,37 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         f_nums = range(f_max)
     else:
         raise ValueError('expected `f_nums` to be None, tuple, or list')
-    f_idx = repeat = f_old = 0
-    f_num = f_nums[f_idx]
+    animator = {'f_idx': 0,
+                'f_num': f_nums[0]}
 
-    while 0 <= f_idx < f_max:
+    repeat = f_old = animator['f_idx']
+
+    while 0 <= animator['f_idx'] < f_max:
         # Check frame number
         if repeat > 5:
             if verbose:
-                print 'stuck on frame {} ({})'.format(f_idx, f_num),
+                print 'stuck on frame {f_idx} ({f_num})'.format(**animator),
             break
-        if f_idx == f_old:
+        if animator['f_idx'] == f_old:
             repeat += 1
         else:
             repeat = 0
-            f_old = f_idx
-        assert f_num == f_nums[f_idx], "f_num != f_nums[f_idx]"
+            f_old = animator['f_idx']
+        assert animator['f_num'] == f_nums[animator['f_idx']], "f != fs[i]"
         if verbose:
-            print 'showing frame {} ({})'.format(f_idx, f_num),
+            print 'showing frame {f_idx} ({f_num})'.format(**animator),
 
         # Load the data for this frame
-        xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
-        xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
+        xyo = helpy.consecutive_fields_view(fsets[animator['f_num']], 'xyo')
+        xyc = helpy.consecutive_fields_view(fcsets[animator['f_num']], 'xy')
         x, y, o = xyo.T
         omask = np.isfinite(o)
 
-        ts = helpy.quick_field_view(fsets[f_num], 't')
+        ts = helpy.quick_field_view(fsets[animator['f_num']], 't')
         tracked = ts >= 0
 
         # Change background image
-        p.set_data(imstack[f_idx])
+        p.set_data(imstack[animator['f_idx']])
         remove = []
 
         # plot the detected and tracked center dots
@@ -545,7 +548,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             cmap = plt.get_cmap('Set3')
             dot_color = cmap(ts[tracked] % cmap.N)**3  # cube to darken
             ax.scatter(y[tracked], x[tracked], s=3, c=dot_color,
-                       zorder=0.1*f_idx/f_max,  # later tracks on top
+                       zorder=0.1*animator['f_idx']/f_max,  # later tracks on top
                       )
         if not clean:
             # plot untracked center dots
@@ -569,9 +572,9 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
 
 
         # interpolated framesets
-        if fisets is not None and f_num > 0:
+        if fisets is not None and animator['f_num'] > 0:
             # interpolated points have id = 0, so nonzero gives non-interpolated
-            fiset = np.sort(fisets[f_num], order='id')
+            fiset = np.sort(fisets[animator['f_num']], order='id')
             ini = np.nonzero(helpy.quick_field_view(fiset, 'id'))[0]
             if len(ini) < len(fiset):
                 fipset = np.delete(fiset, ini)
@@ -600,7 +603,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         # extended orientation data
         if fosets is not None:
             # load corners shape (n_particles, n_corners_per_particle, n_dim)
-            oc = helpy.quick_field_view(fosets[f_num], 'corner')
+            oc = helpy.quick_field_view(fosets[animator['f_num']], 'corner')
             oca = oc.reshape(-1, 2) # flatten
 
             # plot all corners
@@ -631,7 +634,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         nts = np.count_nonzero(tracked)
         nos = np.count_nonzero(omask)
         ncs = len(o)
-        ax.set_title(title.format(f_num, nos, nts, ncs))
+        ax.set_title(title.format(animator['f_num'], nos, nts, ncs))
 
         # generate legend (only once)
         if need_legend:
@@ -651,7 +654,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
 
         # update the figure and wait for instructions
         fig.canvas.draw()
-        fig.canvas.mpl_connect('key_press_event', advance)
+        fig.canvas.mpl_connect('key_press_event', handle_event)
         plt.waitforbuttonpress()
 
         # clean up this frame before moving to next
