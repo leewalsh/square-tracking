@@ -12,7 +12,7 @@ from __future__ import division
 import os
 from glob import iglob
 from functools import partial
-from math import sqrt
+from math import sqrt, exp
 
 import numpy as np
 from scipy.stats import skew, kurtosis, skewtest, kurtosistest
@@ -155,7 +155,6 @@ def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit'):
         keepdims = a.ndim > 1
     M = np.nanmean(a, stat_axis, keepdims=keepdims)
     variance = np.nanvar(a, stat_axis, keepdims=keepdims, ddof=1)
-    D = 0.5*variance*args.fps
     SE = np.sqrt(variance)/sqrt(n - 1)
     SK = skew(a, stat_axis, nan_policy=nan_policy)
     KU = kurtosis(a, stat_axis, nan_policy=nan_policy)
@@ -171,7 +170,7 @@ def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit'):
         KU = np.array(KU)
         SK_t = np.array(SK_t.statistic)
         KU_t = np.array(KU_t.statistic)
-    stat = {'mean': M, 'var': variance, 'D': D, 'std': SE,
+    stat = {'mean': M, 'var': variance, 'std': SE,
             'skew': SK, 'skew_test': SK_t, 'kurt': KU, 'kurt_test': KU_t}
     if not keepdims:
         print '\n'.join(['{:>10}: {: .4f}'.format(k, float(v))
@@ -309,7 +308,7 @@ def vv_autocorr(vs, normalize=False):
     normalize = normalize and 1
     fields = helpy.vel_dtype.names
     vvs = [corr.autocorr(helpy.consecutive_fields_view(tv, fields),
-                         norm=normalize, cumulant=False)
+                         norm=normalize, cumulant=True)
            for pvs in vs.itervalues() for tv in pvs.itervalues()]
     vvs, vv, dvv = helpy.avg_uneven(vvs, weight=True)
     return [np.array(a, order='C').astype('f4').view(helpy.vel_dtype).squeeze()
@@ -446,12 +445,13 @@ def command_hist(args, meta, compile_args, axes=None):
                          ['stub', 'gaps', 'width'],
                          ['vel_stub', 'vel_gaps', 'vel_dx_width'],
                          [10, 'interp', 0.65])
-    fits = {}
+    hist_fits = {}
     width = helpy.parse_slice(args.width, index_array=True)
     compile_args.update(args.__dict__)
     vs = compile_noise(tsets, width, cat=True,
                        side=args.side, fps=args.fps)
 
+    dt = 2 * sqrt(3) * width / args.fps
     nrows = args.do_orientation + args.do_translation*(args.subtract + 1)
     ncols = args.log + args.lin
     if axes is None:
@@ -473,10 +473,12 @@ def command_hist(args, meta, compile_args, axes=None):
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
                               log=args.log and icol or not args.lin, label=label,
                               orient=True, title=title, subtitle=subtitle)
-            fit = helpy.make_fit(func='vo', DR='var', w0='mean')
-            fits[fit] = {'DR': float(stats['D']), 'w0': float(stats['mean']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+            D_R = 0.5*float(stats['var'])*dt
+            fit = helpy.make_fit(func='vo', TR=None, DR='var*dt', w0='mean')
+            hist_fits[fit] = {
+                'DR': D_R, 'w0': float(stats['mean']),
+                'KU': stats['kurt'], 'SK': stats['skew'],
+                'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
     if args.do_translation:
         title = ''#Parallel & Transverse'
@@ -489,9 +491,10 @@ def command_hist(args, meta, compile_args, axes=None):
                               log=args.log and icol or not args.lin, label=label,
                               title=title, subtitle=subtitle, c=cs[v])
             fit = helpy.make_fit(func='vt', DT='var')
-            fits[fit] = {'DT': float(stats['D']), 'vt': float(stats['mean']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+            hist_fits[fit] = {
+                'DT': 0.5*float(stats['var'])*dt, 'vt': float(stats['mean']),
+                'KU': stats['kurt'], 'SK': stats['skew'],
+                'KT': stats['kurt_test'], 'ST': stats['skew_test']}
             v = 'par'
             label = englabel[v] + r' $\parallel$'
             if args.verbose:
@@ -500,9 +503,10 @@ def command_hist(args, meta, compile_args, axes=None):
                               log=args.log and icol or not args.lin,
                               label=label, title=title, c=cs[v])
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
-            fits[fit] = {'v0': float(stats['mean']), 'DT': float(stats['D']),
-                         'KU': stats['kurt'], 'SK': stats['skew'],
-                         'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+            hist_fits[fit] = {
+                'v0': float(stats['mean']), 'DT': 0.5*float(stats['var'])*dt,
+                'KU': stats['kurt'], 'SK': stats['skew'],
+                'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
         if args.subtract:
             for icol in range(ncols):
@@ -516,7 +520,7 @@ def command_hist(args, meta, compile_args, axes=None):
                           title='$v_0$ subtracted', subtitle=subtitle)
             irow += 1
 
-    return fig, fits
+    return fig, hist_fits
 
 
 def find_data(args):

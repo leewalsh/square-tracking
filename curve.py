@@ -194,6 +194,8 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
     l = len(f)
     if x is None:
         x = np.arange(l)
+    elif np.isscalar(x):
+        x = np.arange(l)*x
 
     if smooth == 'fit':
         p, _ = curve_fit(poly_exp, x, f, [1, 1, 1])
@@ -208,14 +210,17 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
 
     method = method.lower()
     if method.startswith('mean'):
-        return np.dot(x, f) / f.sum()
+        return np.trapz(f*x, x) / np.trapz(f, x)
     elif method.startswith('int'):
-        return f.sum()
+        return np.trapz(f, x) / f[0]
     elif method.startswith('inv'):
-        return f.sum() / np.dot(1/(x+1), f)
+        return np.trapz(f, x) / np.trapz(f/(x+1), x)
     elif method.startswith('thresh'):
         i = f.argsort()
         return np.interp(f[0]/np.e, f[i], x[i])
+    elif method.startswith('fit'):
+        popt, _ = curve_fit(exp_decay, x, f, p0=[x[1], f[0], f[-1]])
+        return popt[0]
 
 
 def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):
@@ -463,44 +468,73 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
         kern = gaussian_kernel(iwidth, order=order, truncate=truncate)
+        # TODO: avoid spreading nans
+        # correlate f(nan-->0) and norm by correlation of x * isfinite(f)
+        # df = correlate1d(np.nan_to_num(f), kern, mode='nearest')
+        # df /= correlate1d(x * np.isfinite(f).astype(float), kern, mode='nearest')
+        # but the above is not properly tested.
         df = correlate1d(f, kern, mode='nearest')
 
     return df/dx**order
 
 
-def gaussian_kernel(sigma, order=0, truncate=4.0):
-    """ mostly copied from scipy.ndimage.gaussian_filter1d """
+def gaussian_kernel(sigma, order=0, truncate=4.0, normalize=False):
+    """Generate a Gaussian kernel or its derivatives.
+
+    Partially copied from `scipy.ndimage.gaussian_filter1d`;
+    tested to match with that function for all orders for sigma from 0 to 100.
+
+    parameters
+    ----------
+    sigma : the standard deviation (half-width) of the kernel.
+    order : default 0 returns normal Gaussian kernel;
+            order > 0 returns the `order`th derivative of a Gaussian.
+    truncate : [default 4] the length of the kernel array, in units of sigma.
+
+    returns
+    -------
+    weights : the Gaussian kernel, shape = (2*truncate*sigma + 1,)
+    """
     if order not in range(4):
         raise ValueError('Order outside 0..3 not implemented')
-    sd = float(sigma)
     # make the radius of the filter equal to truncate standard deviations
-    lw = int(truncate * sd + 0.5)
-    weights = [0.0] * (2 * lw + 1)
-    weights[lw] = 1.0
-    sd = sd * sd
+    lw = int(truncate * sigma + 0.5)
+    x = np.arange(-lw, lw + 1)
+    sd = sigma * sigma or 1.0
+    xs = x / sd
     # calculate the kernel:
-    for ii in range(1, lw + 1):
-        tmp = np.exp(-0.5 * float(ii * ii) / sd)
-        weights[lw + ii] = tmp
-        weights[lw - ii] = tmp
+    weights = np.exp(-0.5 * x * xs)
+    weights /= weights.sum()
     # implement first, second and third order derivatives:
-    if order:
-        weights[lw] *= -1.0 / sd if order == 2 else 0.0
-        for ii in range(1, lw + 1):
-            x = float(ii)
-            if order == 1:  # first derivative
-                tmp = -x / sd * weights[lw + ii]
-            elif order == 2:  # second derivative
-                tmp = (x * x / sd - 1.0) * weights[lw + ii] / sd
-            elif order == 3:  # third derivative
-                tmp = (3.0 - x * x / sd) * x * weights[lw + ii] / (sd * sd)
-            weights[lw + ii] = tmp * (1.0 if order == 2 else -1.0)
-            weights[lw - ii] = tmp
-        s = np.arange(-lw, lw+1)**order / np.prod(np.arange(1, order + 1))
-        s = np.dot(weights, s)
+    if order == 1:  # first derivative
+        weights *= xs
+    elif order == 2:  # second derivative
+        weights *= (x * xs - 1.0) / sd
+    elif order == 3:  # third derivative
+        weights *= (x * xs - 3.0) * x / (sd * sd)
+    if normalize:
+        if order:
+            s = np.arange(-lw, lw+1)**order / np.prod(np.arange(1, order + 1))
+            s = np.dot(weights, s)
+        else:
+            s = np.sum(weights)
     else:
-        s = np.sum(weights)
-    return np.array(weights) / s
+        s = 1.0
+    return weights / s
+
+
+def kern_moment(kern, i=None, order=0, normalize=False):
+    """Calculate the moment of a kernel"""
+    if i is None:
+        lw = len(kern)//2
+        i = np.arange(-lw, lw+1)
+
+    m = np.dot(kern, i**order)
+
+    if normalize and order > 2:
+        return m / np.prod(np.arange(3, order+1.))
+    else:
+        return m
 
 
 def flip(f, x=None):
@@ -584,6 +618,32 @@ def symmetry(f, x=None, parity=None, integrate=False):
         total = np.nanmean(normed[..., x0:], -1)
     sym = namedtuple('sym', 'x i symmetric antisymmetric symmetry'.split())
     return sym(x, i, *parts, symmetry=(total if integrate else normed))
+
+
+def bin_mid(bins):
+    """Return the midpoints of an array of bin edges"""
+    return (bins[1:] + bins[:-1])/2
+
+
+def bin_edges(mids):
+    """Return the edges of an array of bin midpoints"""
+    bins = (mids[1:] + mids[:-1])/2
+    return np.concatenate([2*mids[:1] - bins[0], bins, 2*mids[-1:] - bins[-1]])
+
+
+def bin_plot(bins, counts, ax=None, outside=None, **kwargs):
+    """Plot a step function given bin edges"""
+    if len(bins) == len(counts):
+        bins = bin_edges(bins)
+    assert len(bins) == len(counts) + 1, 'length mismatch'
+    if outside is None:
+        counts = np.concatenate((counts[:1], counts))
+    else:
+        counts = np.concatenate(([outside], counts, [outside]))
+        bins = np.concatenate((bins, bins[-1:]))
+    if ax is None:
+        _, ax = plt.subplots()
+    return ax.step(bins, counts, **kwargs)
 
 
 def propagate(func, uncert, size=1000, domain=1, plot=False, verbose=False):

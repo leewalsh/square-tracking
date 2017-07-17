@@ -281,7 +281,24 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
 
 def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
                ret_all=False):
-    """calculate mean along a cross dimension of an uneven list of lists"""
+    """calculate mean along a cross dimension of an uneven list of lists
+
+    Parameters
+    arrs:       list of lists or arrays, or array with np.nan padding
+    min_added:  minimum length along averaging axis (0)
+    weight:     whether or not to weight by sqrt(length) (for correlations)
+    pad:        whether input is a list of lists that requires padding
+    align:      if padding is required, where to align (passed to pad_uneven)
+    ret_all:    whether to return extra information (see below)
+
+    Returns
+    arrs:       if input was uneven, the padded input, otherwise input as-is
+    mean:       the averaged array
+    stderr:     standard error from averaging
+    stddev:     (if ret_all) standard deviation from average
+    added:      (if ret_all) number of rows per average
+    enough:     (if ret_all) parts of row selected for average
+    """
     if pad is None:
         pad = np.any(np.diff(map(len, arrs)))
     if pad:
@@ -293,12 +310,13 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
     added = isfin.sum(0)
     enough = (added >= min_added).all(tuple(range(1, added.ndim))).nonzero()[0]
     arrs = arrs[:, enough]
+    isfin = isfin[:, enough]
     added = added[enough]
     if weight:
-        lens = np.sum(isfin, 1, keepdims=True)
-        weights = np.where(lens, np.sqrt(lens), np.nan)  # replace 0 with np.nan
-        mean = np.nanmean(arrs*weights, 0)/np.nanmean(weights)
-        stddev = np.nanstd(arrs*weights, 0, ddof=1)/sqrt(np.nanmean(weights**2))
+        weights = isfin * np.sqrt(isfin.sum(1, keepdims=True))
+        weight = weights.sum(0)
+        mean = np.nansum(weights * arrs, 0) / weight
+        stddev = np.sqrt(np.nansum(weights * (arrs - mean)**2, 0) / weight)
     else:
         mean = np.nanmean(arrs, 0)
         stddev = np.nanstd(arrs, 0, ddof=1)
