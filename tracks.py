@@ -144,7 +144,7 @@ if __name__ == '__main__':
     verbose = args.verbose
     if verbose:
         print 'using prefix', prefix
-    warnlevel = {0: 'ignore', None: 'ignore', 1: 'warn', 2: 'warn', 3: 'raise'}
+    warnlevel = {0: 'ignore', None: 'ignore', 1: 'print', 2: 'warn', 3: 'raise'}
     np.seterr(divide=warnlevel[verbose], invalid=warnlevel[verbose])
 else:
     verbose = False
@@ -476,40 +476,25 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
                 print 'will exit'
             sys.stdout.flush()
 
+    # Prep images
     #imstack = (imstack.astype('f8')**2 / 4096.0).round().astype('u2')
     imstack = imstack - np.median(imstack, axis=0)
 
+    # Access dataset parameters
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
+    fig, ax, (p, bnds) = plot_background(
+        imstack[0], ppi=meta['boundary'][-1]/4,
+        boundary=meta['boundary'], cut_margin=meta.get('track_cut_margin'))
+
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
-    ppi = meta['boundary'][-1]/4
-    h, w = imstack[0].shape
-    actualsize = np.array([w, h]) / ppi
-    fig, ax = plt.subplots(figsize=actualsize*1.02)
-    p = ax.imshow(imstack[0], cmap='gray')
-    xlim, ylim = (0, w), (0, h)
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    if actualsize is not None:
-        print 'plotting actual size {:.2f}x{:.2f} in'.format(*actualsize)
-        print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
-        set_axes_size_inches(ax, actualsize, clear=['title', 'ticks'], tight=0)
-    else:
-        ax.set_title(title.format(-1, 0, 0, 0))
-        fig.tight_layout()
+    ax.set_title(title.format(-1, 0, 0, 0))
     need_legend = not clean
 
-    if meta.get('track_cut', False):
-        bndx, bndy, bndr = meta['boundary']
-        cutr = bndr - meta['track_cut_margin']
-        bndc = [[bndy, bndx]]*2
-        bndpatch, cutpatch = helpy.draw_circles(bndc, [bndr, cutr], ax=ax,
-                                                color='r', fill=False, zorder=1)
-        cutpatch.set_label('cut margin')
-
+    # Calcuate which frames to loop through
     lengths = map(len, [imstack, fsets, fcsets])
     f_max = min(lengths)
     assert f_max, 'Lengths imstack: {}, fsets: {}, fcsets: {}'.format(*lengths)
@@ -527,6 +512,7 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
     f_num = f_nums[f_idx]
 
     while 0 <= f_idx < f_max:
+        # Check frame number
         if repeat > 5:
             if verbose:
                 print 'stuck on frame {} ({})'.format(f_idx, f_num),
@@ -539,133 +525,141 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         assert f_num == f_nums[f_idx], "f_num != f_nums[f_idx]"
         if verbose:
             print 'showing frame {} ({})'.format(f_idx, f_num),
+
+        # Load the data for this frame
         xyo = helpy.consecutive_fields_view(fsets[f_num], 'xyo')
         xyc = helpy.consecutive_fields_view(fcsets[f_num], 'xy')
         x, y, o = xyo.T
+        omask = np.isfinite(o)
 
+        ts = helpy.quick_field_view(fsets[f_num], 't')
+        tracked = ts >= 0
+
+        # Change background image
         p.set_data(imstack[f_idx])
         remove = []
 
-        # plot the detected dots
-        ts = helpy.quick_field_view(fsets[f_num], 't')
-        tracked = ts >= 0
-        if args.plottracks:
-            cmap = plt.get_cmap('Set3')
-            colors = cmap(ts[tracked] % cmap.N)**3  # cube to darken
-            ax.scatter(y[tracked], x[tracked],
-                       s=3, c=colors,
-                       zorder=0.1*f_idx/f_max,  # later tracks on top
-                      )
-        else:
-            colors = 'white'
-        ps = ax.scatter(y[tracked], x[tracked], s=64, c=colors,
+        # plot the detected and tracked center dots
+        dot_color = 'white'
+        ps = ax.scatter(y[tracked], x[tracked], s=64, c=dot_color,
                         marker='o', edgecolors='black')
         remove.append(ps)
+
+        # plot the tracks as smaller center dot that remains
+        if args.plottracks:
+            cmap = plt.get_cmap('Set3')
+            dot_color = cmap(ts[tracked] % cmap.N)**3  # cube to darken
+            ax.scatter(y[tracked], x[tracked], s=3, c=dot_color,
+                       zorder=0.1*f_idx/f_max,  # later tracks on top
+                      )
         if not clean:
+            # plot untracked center dots
             us = ax.scatter(y[~tracked], x[~tracked], c='c', zorder=.8)
+            # plot all corner dots
             cs = ax.scatter(xyc[:, 1], xyc[:, 0], c='g', s=10, zorder=.6)
             remove.extend([us, cs])
+            # plot center and corner dots as circles
             for dot, xy in zip(('center', 'corner'), (xyo, xyc)):
                 ph = helpy.draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
                                         lw=.5, color='k', fill=False, zorder=.6)
                 remove.extend(ph)
+            # plot valid corner distance circles
+            for dr in (-drc, 0, drc):
+                pc = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax,
+                                        lw=.5, color='g', fill=False, zorder=.5)
+                remove.extend(pc)
 
-        # plot the orientations
-        omask = np.isfinite(o)
-        xyoo = xyo[omask]
-        to = ts[omask]
-        xo, yo, oo = xyoo.T
-        so, co = np.sin(oo), np.cos(oo)
-        q = ax.quiver(yo, xo, so, co, angles='xy', units='xy',
-                      width=side/8, scale_units='xy', scale=10/side, zorder=.4,
-                      edgecolor='white', facecolor='black', linewidth=0.75)
-        remove.append(q)
+        q = plot_orientations(xyo, ts, omask, clean=clean, side=side, ax=ax)
+        remove.extend(q)
 
-        # label n-hat
-        t, d = 3, 10
-        nhat_offsets = d * np.stack([(1.5*so - co), (1.5*co + so)], axis=1)
-        nhat_is = np.where(to == t)[0] if clean else xrange(len(to))
-        nhats = [ax.annotate(
-            r'$\hat n$',
-            xy=(yo[nhat_i], xo[nhat_i]),
-            xytext=nhat_offsets[nhat_i],
-            textcoords='offset points', ha='center', va='center',
-            fontsize='large')
-            for nhat_i in nhat_is]
-        remove.extend(nhats)
 
-        if not clean:
-            for dr in [-drc, 0, drc]:
-                patches = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax, lw=.5,
-                                             color='g', fill=False, zorder=.5)
-                remove.extend(patches)
-        if fisets is not None and f_num in fisets:
-            xyi, oi, tsi = [fisets[f_num][fld] for fld in ['xy', 'o', 't']]
-            pim = fisets[f_num]['id'] == 0
-            if np.any(pim):
-                ips = ax.scatter(xyi[pim, 1], xyi[pim, 0],
-                                 c=['pink', 'r'][clean], zorder=.7)
+        # interpolated framesets
+        if fisets is not None and f_num > 0:
+            # interpolated points have id = 0, so nonzero gives non-interpolated
+            fiset = np.sort(fisets[f_num], order='id')
+            ini = np.nonzero(helpy.quick_field_view(fiset, 'id'))[0]
+            if len(ini) < len(fiset):
+                fipset = np.delete(fiset, ini)
+                xi, yi = helpy.quick_field_view(fipset, 'xy').T
+                tsi = helpy.quick_field_view(fipset, 't')
+                # plot interpolated center dots
+                ips = ax.scatter(yi, xi, c='r' if clean else 'pink', zorder=.7)
                 remove.append(ips)
                 if not clean:
-                    itxt = plt_text(xyi[pim, 1], xyi[pim, 0]+txtoff,
-                                    tsi[pim].astype('S'), color='pink',
-                                    zorder=.9, horizontalalignment='center')
+                    # label interpolated track number
+                    itxt = plt_text(yi, xi + txtoff, tsi.astype('S'),
+                                    color='pink', zorder=.9, ha='center')
                     remove.extend(itxt)
-            iq = ax.quiver(xyi[:, 1], xyi[:, 0], np.sin(oi), np.cos(oi),
-                           angles='xy', units='xy', width=side/8,
-                           scale_units='xy', scale=1/side, zorder=.3,
-                           facecolor='black' if clean else 'gray',
-                           edgecolor='white', linewidth=0.75)
-            remove.append(iq)
 
+            # plot interpolated n-hat orientation arrows
+            # orient may be interpolated, whether or not point is
+            ioi = ini[omask[tracked]]
+            if len(ioi) < len(fiset):
+                fioset = np.delete(fiset, ioi)
+                xyoi = helpy.consecutive_fields_view(fioset, 'xyo')
+                iq = plot_orientations(xyoi, clean=clean, side=side, ax=ax,
+                                       zorder=0.3,
+                                       facecolor='black' if clean else 'gray')
+                remove.extend(iq)
+
+        # extended orientation data
         if fosets is not None:
+            # load corners shape (n_particles, n_corners_per_particle, n_dim)
             oc = helpy.quick_field_view(fosets[f_num], 'corner')
-            oca = oc.reshape(-1, 2)
+            oca = oc.reshape(-1, 2) # flatten
+
+            # plot all corners
             ocs = ax.plot(oca[:, 1], oca[:, 0], linestyle='', marker='o',
                           color='white' if clean else 'black',
                           markeredgecolor='black', markersize=4, zorder=1)
             remove.extend(ocs)
 
-            # corner displacements has shape (n_particles, n_corners, n_dim)
-            cdisp = oc[omask] - xyoo[:, None, :2]
-            cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
-            deg_str = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
-            cx, cy = oc[omask].mean(1).T
             if not clean:
-                ctxt = plt_text(cy, cx, deg_str, color='orange', zorder=.9,
+                # print corner separation angle
+                cdisp = oc[omask] - xyo[omask, None, :2]
+                cang = corr.dtheta(np.arctan2(cdisp[..., 1], cdisp[..., 0]))
+                cang_s = np.nan_to_num(np.degrees(cang)).astype(int).astype('S')
+                cx, cy = oc[omask].mean(1).T # mean per particle
+                ctxt = plt_text(cy, cx, cang_s, color='orange', zorder=.9,
                                 horizontalalignment='center',
                                 verticalalignment='center')
                 remove.extend(ctxt)
 
         if not clean:
+            # label track number
             txt = plt_text(y[tracked], x[tracked]+txtoff,
                            ts[tracked].astype('S'),
                            color='r', zorder=.9, horizontalalignment='center')
             remove.extend(txt)
 
+        # count statistics for frame, print in title
         nts = np.count_nonzero(tracked)
         nos = np.count_nonzero(omask)
         ncs = len(o)
         ax.set_title(title.format(f_num, nos, nts, ncs))
 
+        # generate legend (only once)
         if need_legend:
             need_legend = False
             if rc > 0:
-                patches[0].set_label('r to corner')
-            q.set_label('orientation')
-            ps.set_label('centers')
+                pc[0].set_label('r to corner')      # patch corner
+            q[0].set_label('orientation')           # quiver
+            ps.set_label('centers')                 # point scatter
             if fosets is None:
-                cs.set_label('corners')
+                cs.set_label('corners')             # corner scatter
             else:
-                cs.set_label('unused corner')
-                ocs[0].set_label('used corners')
+                cs.set_label('unused corner')       # corner scatter
+                ocs[0].set_label('used corners')    # oriented corner scatter
             if len(txt):
                 txt[0].set_label('track id')
             ax.legend(fontsize='small')
 
+        # update the figure and wait for instructions
         fig.canvas.draw()
         fig.canvas.mpl_connect('key_press_event', advance)
         plt.waitforbuttonpress()
+
+        # clean up this frame before moving to next
         for rem in remove:
             rem.remove()
         if verbose:
@@ -673,6 +667,127 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             sys.stdout.flush()
     if verbose:
         print 'loop broken'
+
+
+def plot_background(bgimage, ppi=None, boundary=None, cut_margin=None, ax=None):
+    """plot the background image and size appropriately"""
+    if isinstance(bgimage, basestring):
+        bgimage = plt.imread(bgimage)
+    h, w = bgimage.shape
+    if ppi is None:
+        figsize = np.array([w, h]) / 72
+    else:
+        figsize = np.array([w, h]) / ppi
+        if verbose:
+            print 'plotting actual size {:.2f}x{:.2f} in'.format(*figsize)
+            print '{:d}x{:d} pix {:.2f} ppi'.format(w, h, ppi)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize*1.02)
+    else:
+        fig = ax.figure
+        fig.set_size_inches(figsize*1.02)
+
+    p = ax.imshow(bgimage, cmap='gray', origin='lower', zorder=0)
+    xlim = ax.set_xlim(0, w)
+    ylim = ax.set_ylim(0, h)
+    set_axes_size_inches(ax, figsize, clear=['title', 'ticks'], tight=0)
+
+    if boundary is None:
+        return fig, ax, p
+
+    bndc = boundary[1::-1]
+    bndr = boundary[2]
+    if cut_margin is not None:
+        bndr = [bndr, bndr - cut_margin]
+    bnds = helpy.draw_circles(bndc, bndr, ax=ax,
+                              color='tab:red', fill=False, zorder=1)
+    if cut_margin is not None:
+        bnds[1].set_label('cut margin')
+    return fig, ax, (p, bnds)
+
+
+def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
+                      ax=None, **kwargs):
+    """plot orientation normals as arrows, some can be labeled with nhat"""
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    # mask the orientation data
+    if omask is not None:
+        xyo = xyo[omask]
+    xo, yo, oo = xyo.T
+    so, co = np.sin(oo), np.cos(oo)
+
+    # plot n-hat orientation arrows
+    quiver_args = dict(angles='xy', units='xy', scale_units='xy',
+                       width=side/8, scale=1/side, linewidth=0.75,
+                       facecolor='black', edgecolor='white', zorder=0.4)
+    quiver_args.update(kwargs)
+    q = ax.quiver(yo, xo, so, co, **quiver_args)
+
+    if ts is None:
+        return [q]
+    else:
+        out = [q]
+
+    # label n-hat
+    t = 3
+    to = ts[omask]
+    nhat_offsets = side * np.stack([(so - co*2/3), (co + so*2/3)], axis=1)
+
+    for i in np.where(to == t)[0] if clean else xrange(len(to)):
+        a = ax.annotate(r'$\hat n$', xy=(yo[i], xo[i]),
+                        xytext=nhat_offsets[i], textcoords='offset points',
+                        ha='center', va='center', fontsize='large')
+        out.append(a)
+
+    return out
+
+
+def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
+                save=False, ax=None, **kwargs):
+    """ Plots the tracks of particles in 2D
+
+    parameters
+    ----------
+    data : tracksets or framesets to plot trackwise or framewise
+    bgimage : a background image to plot on top of (the first frame tif, e.g.)
+    save : where to save the figure
+    ax : provide an axes to plot in
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    k = data.keys()[0]
+    assert np.allclose(k, data[k][style])
+
+    if bgimage is not None:
+        plot_background(bgimage)
+
+    cmap = plt.get_cmap(cmap)
+    slice = helpy.parse_slice(slice)
+
+    for k, d in data.iteritems():
+        x, y = d['xy'][slice].T
+        if style == 'f':
+            p = ax.scatter(y, x, c=cmap(d['t'] % cmap.N), marker='o', **kwargs)
+        elif style == 't':
+            p = ax.plot(y, x, ls='-', c=cmap(k % cmap.N), **kwargs)
+
+    ax.set_aspect('equal')
+    fig.tight_layout()
+
+    if save:
+        save = save + '_tracks.png'
+        print "saving tracks image to",
+        print save if verbose else os.path.basename(save)
+        fig.savefig(save, frameon=False, dpi=300)
+
+    return p
 
 
 def gapsize_distro(tracksetses, fields='fo', title=''):
@@ -735,46 +850,6 @@ def repair_tracks(tracksets, max_gap=10, interp=['xy', 'o'],
         print
     return tracksets
 
-
-def plot_tracks(data, trackids=None, bgimage=None, mask=None,
-                save=False, show=True):
-    """ Plots the tracks of particles in 2D
-
-    parameters
-    ----------
-    data : the main data array of points
-    trackids : the array of track ids
-    bgimage : a background image to plot on top of (the first frame tif, e.g.)
-    mask : a boolean mask to filter the data (to show certain frames or tracks)
-    fignum : a pyplot figure number to add the plot to
-    save : where to save the figure
-    show : whether to show the figure
-    """
-    fig, ax = plt.subplots()
-    if bgimage is not None:
-        if isinstance(bgimage, basestring):
-            bgimage = plt.imread(bgimage)
-        ax.imshow(bgimage, cmap='gray')
-    if trackids is None:
-        trackids = data['t']
-    if mask is None:
-        mask = np.where(trackids >= 0)
-    data = data[mask]
-    trackids = trackids[mask]
-    cmap = plt.get_cmap('Dark2')
-    ax.scatter(data['y'], data['x'], c=trackids % cmap.N,
-               marker='o', cmap=cmap, lw=0)
-    ax.set_aspect('equal')
-    ax.set_xlim(data['y'].min()-10, data['y'].max()+10)
-    ax.set_ylim(data['x'].min()-10, data['x'].max()+10)
-    ax.set_title(prefix)
-    if save:
-        save = save + '_tracks.png'
-        print "saving tracks image to",
-        print save if verbose else os.path.basename(save)
-        fig.savefig(save, frameon=False, dpi=300)
-    if show:
-        plt.show()
 
 # Mean Squared Displacement
 # dx^2 (tau) = < ( x_i(t0 + tau) - x_i(t0) )^2 >
@@ -2027,26 +2102,16 @@ if __name__ == '__main__':
     if args.plottracks and not args.check:
         if verbose:
             print 'plotting tracks now!'
-        if args.slice:
-            allframes = data['f']
-            nframes = allframes.max()+1
-            frames = helpy.parse_slice(args.slice, index_array=True)
-            mask = np.in1d(allframes, frames)
-            bgind = frames[0]
-        else:
-            bgind = 1
-            mask = None
-        bgimage = helpy.find_tiffs(prefix=relprefix, frames=bgind,
+        ind = helpy.parse_slice(args.slice)
+        bgimage = helpy.find_tiffs(prefix=relprefix, frames=ind.start or 1,
                                    single=True, load=True)[1]
-        if not args.singletracks:
-            tracksets = helpy.load_tracksets(data, min_length=args.stub,
-                                             run_repair=args.gaps,
-                                             verbose=args.verbose)
-            args.singletracks = tracksets.keys()
-        if trackids is None:
-            trackids = data['t']
-        mask &= np.in1d(trackids, args.singletracks)
-        plot_tracks(data, trackids, bgimage, mask=mask,
+        tracksets = helpy.load_tracksets(data, min_length=args.stub,
+                                         run_repair=args.gaps,
+                                         frame_slice=ind,
+                                         verbose=args.verbose)
+        if args.singletracks:
+            tracksets = {t: tracksets[t] for t in args.singletracks}
+        plot_tracks(tracksets, bgimage, style='t',
                     save=saveprefix*args.save, show=args.show)
 
     if args.save:

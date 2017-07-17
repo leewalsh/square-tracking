@@ -213,6 +213,9 @@ def decay_scale(f, x=None, method='mean', smooth='gauss', rectify=True):
         return f.sum()
     elif method.startswith('inv'):
         return f.sum() / np.dot(1/(x+1), f)
+    elif method.startswith('thresh'):
+        i = f.argsort()
+        return np.interp(f[0]/np.e, f[i], x[i])
 
 
 def interp_nans(f, x=None, max_gap=10, inplace=False, verbose=False):

@@ -68,7 +68,7 @@ def getuser():
     return USER
 
 
-def getcommit():
+def getcommit(ret_object=False):
     """return git commit hash. Cached as global."""
     global COMMIT
     if not COMMIT:
@@ -80,7 +80,7 @@ def getcommit():
             import git
             repo = git.Repo(gitdir)
             dirty = repo.is_dirty()
-            commit = repo.commit().hexsha[:7]
+            commit = repo.commit()
             if repo.head.is_detached:
                 branch = 'detached'
             else:
@@ -102,8 +102,8 @@ def getcommit():
         except git.GitCommandNotFound:
             COMMIT = 'unknown'
             return COMMIT
-        COMMIT = '{}({}{})'.format(commit, branch, '+'*dirty)
-    return COMMIT
+        COMMIT = '{:.7s}({}{})'.format(commit, branch, '+'*dirty)
+    return (COMMIT, commit) if ret_object else COMMIT
 
 
 def splitter(data, indices, method=None,
@@ -258,7 +258,7 @@ def pad_uneven(lol, fill=0, return_mask=False, dtype=None,
     if dtype is None:
         dtype = np.result_type(fill, np.array(lol[0][0]))
     if align is None:
-        align = it.repeat(0)
+        align = np.broadcast_to(0, len(lol))
     else:
         align = np.asarray(align, int).flatten()
         align = align.max() - align
@@ -1041,7 +1041,7 @@ def load_MSD(fullprefix, pos=True, ang=True):
 
 
 def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
-                   verbose=False, run_remove_dupes=False,
+                   frame_slice=None, verbose=False, run_remove_dupes=False,
                    run_repair=False, run_track_orient=False):
     """Build a dict of slices into data based on trackid
 
@@ -1057,6 +1057,10 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
     returns:
         tracksets:          a dict of {trackid: subset of `data`}
     """
+    if frame_slice is not None:
+        fslice = parse_slice(frame_slice)
+        fsets = load_framesets(data, ret_dict=False)
+        data = np.concatenate(fsets[fslice])
     if trackids is None:
         # copy actually speeds it up by a factor of two
         trackids = data['t'].copy()
@@ -1592,10 +1596,13 @@ def parse_slice(desc, shape=0, index_array=False):
         slice_obj = desc
     else:
         if isinstance(desc, basestring):
-            args = [int(s) if s else None for s in desc.split(':')]
+            args = [float(s) if '.' in s else int(s) if s else None
+                    for s in desc.split(':')]
         else:
             args = np.atleast_1d(desc)
-        if len(args) <= 3:
+        if len(args) == 1 and isinstance(args[0], float):
+            slice_obj = args[0] if index_array else slice(*args)
+        elif len(args) <= 3:
             slice_obj = slice(*args)
         elif index_array:
             return args
@@ -1639,7 +1646,7 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
             path = os.path.join(path, '*.tif')
         if glob.has_magic(path):
             if verbose:
-                print 'seeking matches to', path
+                print 'seeking matches to\n\t"{}"'.format(path)
             fnames = glob.glob(path)
         elif os.path.isfile(path):
             fnames = [path]
@@ -1648,9 +1655,10 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
     if fnames:
         nfound = len(fnames)
         if verbose or frames is True:
-            print 'found {} images'.format(nfound)
+            print '\tfound {} matches'.format(nfound)
         if single:
             frames = slice(int(frames), int(frames)+1)
+            path = fnames[0]
         else:
             frames = parse_slice(frames, nfound)
         fnames.sort()
@@ -1658,10 +1666,12 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         if load:
             from scipy.ndimage import imread
             if verbose:
-                print '. . .',
+                print '\tloading {} images'.format(len(fnames)),
             batchsize = 50
             ims = []
             for batch_i in xrange(0, len(fnames), batchsize):
+                if verbose:
+                    print '.',
                 batch = fnames[batch_i:batch_i+batchsize]
                 if tar:
                     batch = map(tar.extractfile, batch)
@@ -1735,6 +1745,51 @@ def circle_click(im):
     return center
 
 
+def axline(ax, orient, x, start=0, stop=1, coords='ax', **kwargs):
+    f = ax.__getattribute__(
+        {'ax': 'ax{}line', 'data': '{}lines'}[coords].format(orient)
+    )
+    if coords == 'data':
+        ks = {'c': 'colors', 'color': 'colors',
+              'ls': 'linestyles', 'linestyle': 'linestyles'}
+        for k, v in ks.items():
+            if k in kwargs:
+                kwargs[v] = kwargs.pop(k)
+    return f(x, start, stop, **kwargs)
+
+
+def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
+    if not ax.get_xlim()[0] < x < ax.get_xlim()[1]:
+        return
+    if method == 'vline':
+        line_default = dict(color='gray', linestyle='--', linewidth=0.5,
+                            zorder=0.1, start=0, stop=0.68)
+        annotate_default = dict(ha='left', va='center',
+                                xytext=(4, 0), textcoords='offset points',
+                                xy=(x, 0.1), xycoords=('data', 'axes fraction'))
+        line = dict(line_default, **(line or {}))
+        l = axline(ax, 'v', x, **line)
+    elif method == 'corner':
+        x, y = x
+        line = dict(dict(color='k', linestyle=':', linewidth=1, zorder=0.1),
+                    **(line or {}))
+        annotate_default = dict(xytext=(11, 11), textcoords='offset points',
+                                xy=(x, y), xycoords='data',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+        l = [axline(ax, 'v', x, ax.get_ylim()[0], y, coords='data', **line),
+             axline(ax, 'h', y, ax.get_xlim()[0], x, coords='data', **line)]
+    elif method == 'axis':
+        annotate_default = dict(xy=(x, 0), xycoords=('data', 'axes fraction'),
+                                xytext=(0, 9), textcoords='offset points',
+                                ha='center', va='baseline',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+    else:
+        raise ValueError("Unknown method " + method)
+
+    a = ax.annotate(label, **dict(annotate_default, **(annotate or {})))
+    return l, a
+
+
 def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
     """draw circles on an axis
 
@@ -1748,10 +1803,11 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
         patches:    a list of the patch objects
     """
     from matplotlib.patches import Circle
-    if np.isscalar(rs):
-        rs = it.repeat(rs)
-    centers = np.atleast_2d(centers)
-    patches = [Circle(c, abs(r), **kwargs) for c, r in it.izip(centers, rs)]
+    cs = np.atleast_2d(centers)
+    rs = np.atleast_1d(np.abs(rs))
+    n = max(map(len, (cs, rs)))
+    b = np.broadcast_to(cs, (n, 2)), np.broadcast_to(rs, (n,))
+    patches = [Circle(c, r, **kwargs) for c, r in it.izip(*b)]
     if ax is None:
         if fig is None:
             from matplotlib.pyplot import gca
