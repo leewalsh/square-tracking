@@ -1103,7 +1103,7 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
     if run_remove_dupes:
         from tracks import remove_duplicates
         remove_duplicates(tracksets=tracksets, inplace=True, verbose=verbose)
-    if run_track_orient:
+    if run_track_orient or run_repair in (True, 'interp'):
         from orientation import track_orient
         for track in tracksets:
             tracksets[track]['o'] = track_orient(tracksets[track]['o'])
@@ -1111,6 +1111,9 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
         from tracks import repair_tracks
         fs = () if run_repair == 'nans' else ('xy', 'o')
         repair_tracks(tracksets, interp=fs, inplace=True, verbose=verbose)
+        if not run_track_orient:
+            for trackset in tracksets.itervalues():
+                trackset['o'] %= 2*np.pi
     if i.start or i.stop:
         tracksets = {t: tracksets[t][i.start:i.stop] for t in ts}
     return tracksets
