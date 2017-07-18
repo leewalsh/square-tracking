@@ -472,19 +472,18 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
             sys.stdout.flush()
         return {'f_idx': f_idx, 'f_num': f_num, 'xlim': xlim, 'ylim': ylim}
 
-    # Prep images
-    #imstack = (imstack.astype('f8')**2 / 4096.0).round().astype('u2')
-    imstack = imstack - np.median(imstack, axis=0)
-
     # Access dataset parameters
     side = meta.get('sidelength', 17)
     rc = meta.get('orient_rcorner')
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
-    fig, ax, (p, bnds) = plot_background(
-        imstack[0], ppi=meta['boundary'][-1]/4,
-        boundary=meta['boundary'], cut_margin=meta.get('track_cut_margin'))
+    if meta.get('track_cut'):
+        fig, ax, (p, bnds) = plot_background(
+            imstack[0], ppi=meta['boundary'][-1]/4,
+            boundary=meta['boundary'], cut_margin=meta.get('track_cut_margin'))
+    else:
+        fig, ax, p = plot_background(imstack[0])
 
     title = "frame {:5d}\n{:3d} oriented, {:3d} tracked, {:3d} detected"
     ax.set_title(title.format(-1, 0, 0, 0))
