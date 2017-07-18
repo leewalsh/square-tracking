@@ -1674,6 +1674,10 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
         else:
             fnames = []
     if fnames:
+        fnames.sort()
+        first_frame = meta.get('first_frame')
+        if first_frame in fnames:
+            fnames = fnames[fnames.index(first_frame):]
         nfound = len(fnames)
         if verbose or frames is True:
             print '\tfound {} matches'.format(nfound)
@@ -1682,7 +1686,6 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
             path = fnames[0]
         else:
             frames = parse_slice(frames, nfound)
-        fnames.sort()
         fnames = fnames[frames]
         if load:
             from scipy.ndimage import imread

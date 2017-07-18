@@ -639,6 +639,7 @@ if __name__ == '__main__':
         copy(first, prefix+'_'+os.path.basename(first))
         helpy.save_meta(prefix, meta,
                         path_to_tiffs=os.path.abspath(filepattern),
+                        first_frame=os.path.abspath(first),
                         detect_thresh=args.thresh, detect_removed=args.remove)
         if args.plot:
             fig.savefig(prefix+'_SEGMENTSTATS.pdf')
