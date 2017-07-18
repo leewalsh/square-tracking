@@ -667,17 +667,10 @@ def animate_detection(imstack, fsets, fcsets, fosets=None, fisets=None,
         print 'loop broken'
 
 
-def plot_background(bgimage, ppi=72, boundary=None, cut_margin=None, ax=None):
+def plot_background(bgimage, ppi=109, boundary=None, cut_margin=None, ax=None):
     """plot the background image and size appropriately"""
     if isinstance(bgimage, basestring):
         bgimage = plt.imread(bgimage)
-
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
-
-    p = ax.imshow(bgimage, cmap='gray', origin='lower', zorder=0)
 
     if boundary is None:
         h, w = bgimage.shape
@@ -687,25 +680,36 @@ def plot_background(bgimage, ppi=72, boundary=None, cut_margin=None, ax=None):
         bndr = boundary[2]
         w0, w = bndc[0] - bndr, bndc[0] + bndr
         h0, h = bndc[1] - bndr, bndc[1] + bndr
+
+    figsize = np.array([w-w0, h-h0]) / ppi
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+
+    p = ax.imshow(bgimage, cmap='gray', origin='lower', zorder=0)
+
+    if boundary is not None:
         if cut_margin is not None:
             bndr = [bndr, bndr - cut_margin]
         bnds = helpy.draw_circles(bndc, bndr, ax=ax,
-                                color='tab:red', fill=False, zorder=1)
+                                  color='tab:red', fill=False, zorder=1)
         if cut_margin is not None:
             bnds[1].set_label('cut margin')
         p = (p, bnds)
 
-    figsize = np.array([w-w0, h-h0]) / ppi
     if verbose:
         print 'plotting actual size {:.2f}x{:.2f} in'.format(*figsize)
         print '{:d}x{:d} pix {:.2f} ppi'.format(int(w), int(h), ppi)
 
     fig.set_size_inches(figsize*1.02)
-    xlim = ax.set_xlim(w0, w)
-    ylim = ax.set_ylim(h0, h)
+    ax.set_xlim(w0, w)
+    ax.set_ylim(h0, h)
     set_axes_size_inches(ax, figsize, clear=['title', 'ticks'], tight=0)
 
     return fig, ax, p
+
 
 def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
                       ax=None, **kwargs):
