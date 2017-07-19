@@ -404,6 +404,8 @@ if __name__ == '__main__':
         from glob import glob
         if first.endswith(']'):
             first, _, args.slice = first[:-1].rpartition('[')
+        if os.path.isdir(first):
+            first = os.path.join(first, '*.tif')
         filenames = sorted(glob(first))
         if args.slice:
             args.slice = helpy.parse_slice(args.slice, len(filenames))
