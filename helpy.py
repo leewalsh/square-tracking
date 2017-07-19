@@ -1095,6 +1095,9 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
         ts = np.unique(trackids)
         if ts[0] == -1:
             ts = ts[1:]
+    if len(ts) < 1:
+        raise RuntimeError('No tracks found')
+
     i = parse_slice(track_slice)
     tracksets = {t: data[trackids == t][::i.step] for t in ts}
     if i.step == -1:
