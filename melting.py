@@ -290,13 +290,17 @@ if __name__ == '__main__':
         mdata = np.load(args.prefix + '_MELT.npz')['data']
 
     if args.plot:
+        stats = ['dens', 'psi', 'phi']
         print 'plotting',
         if args.save:
             plt.rc('text', usetex=True)
-        for stat in ['dens', 'psi', 'phi']:
+            axes = [None]*len(stats)
+        else:
+            f, axes = plt.subplots(nrows=len(stats), sharex='col')
+        for stat, ax in zip(stats, axes):
             print stat,
             f, a = plot_by_shell(mdata, stat, zero_to=1, do_mean=True,
-                                 start=args.start, smooth=args.smooth,
+                                 start=args.start, smooth=args.smooth, ax=ax,
                                  side=args.side, fps=args.fps, zoom=args.zoom)
             if args.save:
                 f.set_figwidth(4)
