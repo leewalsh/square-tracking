@@ -131,12 +131,12 @@ def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
         if s < 0:
             continue
         isfin = np.where(np.isfinite(shell[stat]))
-        mean_by_frame = corr.bin_average(shell['f'][isfin],
-                                         shell[stat][isfin]*units, 1)
+        mean_by_frame, frame = corr.bin_average(shell['f'][isfin],
+                                                shell[stat][isfin]*units, 1)
         if smooth:
             mean_by_frame = gaussian_filter1d(mean_by_frame, smooth, cval=1,
                                               mode='constant', truncate=2)
-        x = (np.arange(len(mean_by_frame)) - start)/fps
+        x = (frame[:-1] - start)/fps
         ax.plot(x, mean_by_frame, label=labels[s], c=colors[s], lw=lws[s])
     if do_mean and args.save:
         np.save(args.prefix+'_'+stat+'_mean', mean_by_frame)

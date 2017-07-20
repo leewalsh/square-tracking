@@ -395,13 +395,14 @@ def bin_sum(r, f, bins=10):
         else:
             total = np.bincount(r, weights=f)
         bins = np.arange(len(count)+1)
-    count, bins = np.histogramdd(r, bins)
-    if multi:
-        total = [np.histogramdd(r, bins, weights=fi)[0] for fi in f]
     else:
-        total = np.histogramdd(r, bins, weights=f)[0]
-    if len(bins) == 1:
-        bins = bins[0]
+        count, bins = np.histogramdd(r, bins)
+        if multi:
+            total = [np.histogramdd(r, bins, weights=fi)[0] for fi in f]
+        else:
+            total = np.histogramdd(r, bins, weights=f)[0]
+        if len(bins) == 1:
+            bins = bins[0]
     return total, count.astype(int), bins
 
 
