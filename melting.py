@@ -117,8 +117,8 @@ def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
     else:
         fig = ax.get_figure()
 
-    labels = ['center', 'inner', 'med', 'outer', 'all']
-    colors = [(0, 0.5, 0.5), (0.5, 0, 0), (0, 0, 0.75), (0, 0.5, 0), 'k']
+    labels = ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all']
+    colors = map(plt.get_cmap('Dark2'), xrange(nshells)) + ['black']
     lws = [1]*nshells + [2]
     xlims = {'dens': 200, 'phi': 80, 'psi': 50}
     units = side*side if stat == 'dens' else 1
