@@ -1553,10 +1553,12 @@ def loglog_slope(x, y, smooth=0):
     return dx, dy
 
 
-def dist(a, b):
+def dist(a, b=None):
     """ The 2d distance between two arrays of shape (N, 2) or just (2,)
     """
-    return np.hypot(*(a - b).T)
+    if b is not None:
+        a = a - b
+    return np.hypot(*a.T).T
 
 
 def rotate(v, theta, out=None, angle=False):
