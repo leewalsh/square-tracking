@@ -73,14 +73,20 @@ def find_start_frame(data, bounds=(10, None)):
                           for track in sorted(tracksets)],
                          axis=1)
     displacements = helpy.dist(positions, positions[0])
-    distances = np.cumsum(helpy.dist(np.gradient(positions, axis=0)), axis=0)
-    f = np.arange(len(distances))
+    distances = helpy.dist(np.gradient(positions, axis=0))
+    displacement = displacements.mean(1)
+    distance = distances.mean(1)
+    dist_disp = distance * displacement
+    diss = [displacement, distance, dist_disp]
+    sigmus = [(dis[:first].std(), dis[:first].mean()) for dis in diss]
 
-    fig, axes = plt.subplots(nrows=2, sharex='col')
-    axes[0].plot(f/args.fps, displacements)
-    axes[0].plot(f/args.fps, displacements.mean(1), lw=2, c='k')
-    axes[1].plot(f/args.fps, distances)
-    axes[1].plot(f/args.fps, distances.mean(1), lw=2, c='k')
+    fig, ax = plt.subplots()
+    f = np.arange(len(distances))/args.fps
+
+    for dis, (sig, mu) in zip(diss, sigmus):
+        ax.plot(f, (dis - mu)/sig, '.-')
+        ax.set_ylim(0, 4)
+        ax.set_xlim(first/args.fps, None)
 
 
 def find_ref_basis(positions=None, psi=None):
@@ -204,7 +210,7 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
 
 def melt_analysis(data):
     mdata = initialize_mdata(data)
-    find_start_frame(data, bounds=(10, None))
+    find_start_frame(data, bounds=(100, 1000))
 
     frames, mframes = helpy.splitter((data, mdata), 'f')
     shells = assign_shell(frames[0]['xy'], frames[0]['t'],
