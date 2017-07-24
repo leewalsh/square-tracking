@@ -62,6 +62,27 @@ def melting_stats(frame, dens_method, neigh_args):
     return dens, psi, phi
 
 
+def find_start_frame(data, bounds=(10, None)):
+    first, last = bounds
+    if last is None:
+        # one third from `first` to end
+        last = first + (data['f'][-1] - first) // 3
+
+    tracksets = helpy.load_tracksets(data)  # , run_repair=True)
+    positions = np.stack([tracksets[track]['xy'][:last]
+                          for track in sorted(tracksets)],
+                         axis=1)
+    displacements = helpy.dist(positions, positions[0])
+    distances = np.cumsum(helpy.dist(np.gradient(positions, axis=0)), axis=0)
+    f = np.arange(len(distances))
+
+    fig, axes = plt.subplots(nrows=2, sharex='col')
+    axes[0].plot(f/args.fps, displacements)
+    axes[0].plot(f/args.fps, displacements.mean(1), lw=2, c='k')
+    axes[1].plot(f/args.fps, distances)
+    axes[1].plot(f/args.fps, distances.mean(1), lw=2, c='k')
+
+
 def find_ref_basis(positions=None, psi=None):
     neighs, mask, dists = corr.neighborhoods(positions, size=2)
     pair_angles = corr.pair_angles(positions, neighs, mask, 'absolute')
@@ -183,6 +204,7 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
 
 def melt_analysis(data):
     mdata = initialize_mdata(data)
+    find_start_frame(data, bounds=(10, None))
 
     frames, mframes = helpy.splitter((data, mdata), 'f')
     shells = assign_shell(frames[0]['xy'], frames[0]['t'],
