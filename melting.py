@@ -62,31 +62,49 @@ def melting_stats(frame, dens_method, neigh_args):
     return dens, psi, phi
 
 
-def find_start_frame(data, bounds=(10, None)):
-    first, last = bounds
+def find_start_frame(data, estimate=None, bounds=None, plot=False):
+    """Determine the time of the onset of motion
+
+    parameters
+    ---------
+    data :      the tracked data
+    estimate :  an estimate, as frame index number, for start
+    bounds :    a scalar indicating lower bound for start,
+                or a two-tuple of (lower, upper) bounds for the start
+    plot :      whether or not to plot the motion vs time
+
+    returns
+    -------
+    start :     frame index for onset of motion
+    ax :        an axes object, if plot was requested
+    """
+    estimate = estimate or 10
+    if bounds is None:
+        first = estimate // 2
+        last = estimate * 100
+    elif np.isscalar(bounds):
+        first = bounds
+        last = None
+    else:
+        first, last = bounds
     if last is None:
-        # one third from `first` to end
         last = first + (data['f'][-1] - first) // 3
 
-    tracksets = helpy.load_tracksets(data)  # , run_repair=True)
-    positions = np.stack([tracksets[track]['xy'][:last]
-                          for track in sorted(tracksets)],
-                         axis=1)
+    positions = helpy.load_trackstack(data, length=last)['xy']
     displacements = helpy.dist(positions, positions[0])
     distances = helpy.dist(np.gradient(positions, axis=0))
-    displacement = displacements.mean(1)
-    distance = distances.mean(1)
-    dist_disp = distance * displacement
-    diss = [displacement, distance, dist_disp]
-    sigmus = [(dis[:first].std(), dis[:first].mean()) for dis in diss]
+    ds = displacements.mean(1) * distances.mean(1)
+    dm = np.minimum.accumulate(ds[::-1])[::-1] == np.maximum.accumulate(ds)
+    dmi = np.nonzero(dm[first:last])[0] + first
+    start = dmi[0] - 1
 
-    fig, ax = plt.subplots()
-    f = np.arange(len(distances))/args.fps
+    if plot:
+        fig, ax = plt.subplots()
+        f = np.arange(len(ds))/args.fps
+        ax.plot(f, ds, '-')
+        ax.plot(f[dmi], ds[dmi], '*')
 
-    for dis, (sig, mu) in zip(diss, sigmus):
-        ax.plot(f, (dis - mu)/sig, '.-')
-        ax.set_ylim(0, 4)
-        ax.set_xlim(first/args.fps, None)
+    return start
 
 
 def find_ref_basis(positions=None, psi=None):
@@ -210,7 +228,6 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
 
 def melt_analysis(data):
     mdata = initialize_mdata(data)
-    find_start_frame(data, bounds=(100, 1000))
 
     frames, mframes = helpy.splitter((data, mdata), 'f')
     shells = assign_shell(frames[0]['xy'], frames[0]['t'],
@@ -311,9 +328,12 @@ if __name__ == '__main__':
         # to get the benefits of tracksets (interpolation, stub filtering):
         data = np.concatenate(tsets.values())
         data.sort(order=['f', 't'])
+        if not args.start:
+            args.start = find_start_frame(data, plot=args.plot)
         mdata = melt_analysis(data)
         if args.save:
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
+            helpy.save_meta(args.prefix, meta, start_frame=args.start)
     else:
         mdata = np.load(args.prefix + '_MELT.npz')['data']
 
