@@ -467,12 +467,11 @@ def der(f, dx=None, x=None, xwidth=None, iwidth=None, order=1, min_scale=1):
             raise UserWarning(msg.format(iwidth, min_iwidth))
         # kernel truncated at truncate*iwidth; it is 4 by default
         truncate = np.clip(4, min_scale/iwidth, 100/iwidth)
-        print 'truncate', truncate
         kern = gaussian_kernel(iwidth, order=order, truncate=truncate)
         # TODO: avoid spreading nans
         # correlate f(nan-->0) and norm by correlation of x * isfinite(f)
         # df = correlate1d(np.nan_to_num(f), kern, mode='nearest')
-        # df /= correlate1d(x * np.isfinite(f).astype(float), kern, mode='nearest')
+        # df /= correlate1d(x*np.isfinite(f).astype('f'), kern, mode='nearest')
         # but the above is not properly tested.
         df = correlate1d(f, kern, mode='nearest')
 
