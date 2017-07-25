@@ -165,7 +165,11 @@ def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
     labels = ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all']
     colors = map(plt.get_cmap('Dark2'), xrange(nshells)) + ['black']
     lws = [1]*nshells + [2]
-    xlims = {'dens': 200, 'phi': 80, 'psi': 50}
+    xlims = {
+        'dens': 1200,   # 200,
+        'phi': 1200,    # 80,
+        'psi': 1200,    # 50,
+    }
     units = side*side if stat == 'dens' else 1
 
     splindex = np.where(mdata['sh'], mdata['sh'], zero_to)
@@ -175,16 +179,14 @@ def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
     for s, shell in shells.iteritems():
         if s < 0:
             continue
-        isfin = np.where(np.isfinite(shell[stat]))
-        mean_by_frame, frame = corr.bin_average(shell['f'][isfin],
-                                                shell[stat][isfin]*units, 1)
+        shell = shell[np.where(np.isfinite(shell[stat]))]
+        op, frame = corr.bin_average(shell['f'], shell[stat]*units, 1)
         if smooth:
-            mean_by_frame = gaussian_filter1d(mean_by_frame, smooth, cval=1,
-                                              mode='constant', truncate=2)
-        x = (frame[:-1] - start)/fps
-        ax.plot(x, mean_by_frame, label=labels[s], c=colors[s], lw=lws[s])
+            op = gaussian_filter1d(op, smooth, mode='nearest', truncate=2)
+        tf = (frame[:-1] - start)/fps
+        ax.plot(tf, op, label=labels[s], c=colors[s], lw=lws[s])
     if do_mean and args.save:
-        np.save(args.prefix+'_'+stat+'_mean', mean_by_frame)
+        np.save(args.prefix+'_'+stat+'_mean', op)
 
     ax.legend(fontsize='small')
     statlabels = {
@@ -194,7 +196,7 @@ def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
     ax.set_ylabel(statlabels[stat])
     ax.set_xlabel(r'$tf$')
     ax.set_ylim(0, 1.1)
-    ax.set_xlim(0, xlims[stat]*zoom)
+    ax.set_xlim(-25, xlims[stat]*zoom)
     return fig, ax
 
 
@@ -353,6 +355,7 @@ if __name__ == '__main__':
             if args.save:
                 f.set_figwidth(4)
                 f.set_figheight(3)
+                f.tight_layout()
                 f.savefig('{}_{}.pdf'.format(args.prefix, stat))
         print
         if args.show:
