@@ -1137,6 +1137,37 @@ def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **tset_args):
     return splitter(tuple(data), indices, **splitargs)
 
 
+def load_trackstack(data_or_tracksets, length=None, **tset_args):
+    """stack the tracksets into two-dimensional array
+
+    parameters
+    ----------
+    data_or_tracksets : data array or tracksets dict to be stacked
+    length :        optional maximum length, otherwise maximum possible is used
+    **tset_args :   any arguments to pass to load_tracksets (e.g. run_repair)
+
+    returns
+    -------
+    trackstack :    array with shape (track_length, number_of_tracks)
+    """
+    if tset_args or not hasattr(data_or_tracksets, 'keys'):
+        tracksets = load_tracksets(data_or_tracksets, **tset_args)
+    else:
+        tracksets = data_or_tracksets
+
+    ts = sorted(tracksets)
+    lengths = map(len, tracksets.itervalues())
+    if length is None:
+        length = min(lengths)
+    # some safety checks:
+    elif length > min(lengths):
+        raise ValueError("Requested length longer than provided tracks.")
+    if np.any(ts != np.arange(len(ts))):
+        raise ValueError("Missing track, cannot stack")
+
+    return np.stack([tracksets[t][:length] for t in ts], axis=1)
+
+
 def loadall(fullprefix, ret_msd=True, ret_fsets=False):
     """ returns data, tracksets, odata, otracksets,
          + (msds, msdids, msads, msadids, dtau, dt0) if ret_msd
