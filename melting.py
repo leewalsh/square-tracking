@@ -214,17 +214,21 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
         if x == 'f':
             ys, xs = corr.bin_average(shell[x], shell[y], 1)
             xs = xs[:-1] - start
-        if smooth:
-            ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
-        ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
+            if smooth:
+                ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
+            ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
+            xlim = ax.get_xlim()
+            ax.set_xlim(-25, xlim[1]*zoom)
+            ax.set_ylim(0, 1.1)
+        elif x in ('dens', 'phi', 'psi'):
+            xs, ys = shell[x], shell[y]
+            ax.scatter(xs*unit[x], ys*unit[y], s=0.01, **line_props[s])
+        else:
+            raise ValueError("Unknown x-value `{!r}`.".format(x))
 
     ax.legend(fontsize='small')
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
-
-    xlim = ax.get_xlim()
-    ax.set_xlim(-25, xlim[1]*zoom)
-    ax.set_ylim(0, 1.1)
 
     fig.tight_layout()
     if save:
@@ -373,18 +377,30 @@ if __name__ == '__main__':
         mdata = np.load(args.prefix + '_MELT.npz')['data']
 
     if args.plot:
-        stats = ['dens', 'psi', 'phi']
         plot_args = make_plot_args(nshells, args)
         shells = split_shells(mdata, zero_to=1)
+
+        stats = ['dens', 'psi', 'phi']
         if args.save:
             axes = it.repeat(None, len(stats))
             save_name = '{prefix}_{stat}.pdf'
         else:
-            fig, axes = plt.subplots(nrows=len(stats), sharex='col')
+            nrows = len(stats)
+            fig, axes = plt.subplots(figsize=(6.4, 4.8*nrows),
+                                     nrows=nrows, sharex='col')
             save_name = ''
         for stat, ax in zip(stats, axes):
             save = save_name.format(prefix=args.prefix, stat=stat)
             plot_by_shell(shells, 'f', stat, start=args.start, zoom=args.zoom,
                           smooth=args.smooth, save=save, ax=ax, **plot_args)
+
+        shells.pop(nshells)
+        stats = ['psi', 'phi']
+        nrows = len(stats)
+        fig, axes = plt.subplots(figsize=(6.4, 4.8*nrows),
+                                 nrows=nrows, sharex='col')
+        for stat, ax in zip(stats, axes):
+            plot_by_shell(shells, 'dens', stat, start=args.start,
+                          ax=ax, **plot_args)
         if args.show:
             plt.show()
