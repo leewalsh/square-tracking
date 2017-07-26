@@ -155,48 +155,76 @@ def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     return shells
 
 
-def plot_by_shell(mdata, stat, zero_to=0, do_mean=True, start=0,
-                  ax=None, side=1, fps=1, smooth=0, zoom=1):
+def split_shells(mdata, zero_to=0, do_mean=True):
+    """Split melting data into dict of slices for each shell.
+
+    parameters
+    ----------
+    mdata:      melting data with 'sh' field.
+    zero_to:    shell with which to merge shell zero. e.g., `zero_to=1` will
+                include center particle in first shell.
+    do_mean:    include an additional `shell` which is a merging of all shells
+
+    return
+    ------
+    shells:     dict from integers to mdata slices.
+    """
+    splindex = np.where(mdata['sh'], mdata['sh'], zero_to) if zero_to else 'sh'
+    shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
+    if do_mean:
+        shells[nshells] = mdata[mdata['sh'] >= 0]
+    return shells
+
+
+def make_plot_args(nshells, args):
+    line_props = helpy.transpose_dict_of_lists({
+        'label': ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all'],
+        'c':    map(plt.get_cmap('Dark2'), xrange(nshells)) + ['black'],
+        'lw':   [1]*nshells + [2],
+    })
+    xylabel = {
+        'f':    r'$tf$',
+        'dens': r'density $\langle r_{ij}\rangle^{-2}$',
+        'psi':  r'bond angle order $\Psi$',
+        'phi':  r'molecular angle order $\Phi$',
+    }
+    unit = {
+        'f':    1/args.fps,
+        'dens': args.side**2,
+        'phi':  1,
+        'psi':  1,
+    }
+    return dict(line_props=line_props, xylabel=xylabel, unit=unit)
+
+
+def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
+    line_props = plot_args.get('line_props', [{}]*len(shells))
+    unit = plot_args.get('unit', {x: 1, y: 1})
+    ax = plot_args.get('ax')
     if ax is None:
         fig, ax = plt.subplots()
     else:
         fig = ax.get_figure()
 
-    labels = ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all']
-    colors = map(plt.get_cmap('Dark2'), xrange(nshells)) + ['black']
-    lws = [1]*nshells + [2]
-    xlims = {
-        'dens': 1200,   # 200,
-        'phi': 1200,    # 80,
-        'psi': 1200,    # 50,
-    }
-    units = side*side if stat == 'dens' else 1
-
-    splindex = np.where(mdata['sh'], mdata['sh'], zero_to)
-    shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
-    if do_mean:
-        shells[nshells] = mdata[mdata['sh'] >= 0]
     for s, shell in shells.iteritems():
         if s < 0:
             continue
-        shell = shell[np.where(np.isfinite(shell[stat]))]
-        op, frame = corr.bin_average(shell['f'], shell[stat]*units, 1)
+        shell = shell[np.where(np.isfinite(shell[x]) & np.isfinite(shell[y]))]
+        if x == 'f':
+            ys, xs = corr.bin_average(shell[x], shell[y], 1)
+            xs = xs[:-1] - start
         if smooth:
-            op = gaussian_filter1d(op, smooth, mode='nearest', truncate=2)
-        tf = (frame[:-1] - start)/fps
-        ax.plot(tf, op, label=labels[s], c=colors[s], lw=lws[s])
-    if do_mean and args.save:
-        np.save(args.prefix+'_'+stat+'_mean', op)
+            ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
+        ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
 
     ax.legend(fontsize='small')
-    statlabels = {
-        'dens': r'$\mathrm{density}\ \langle r_{ij}\rangle^{-2}$',
-        'psi': r'$\mathrm{bond\ angle\ order}\ \Psi$',
-        'phi': r'$\mathrm{molecular\ angle\ order}\ \Phi$'}
-    ax.set_ylabel(statlabels[stat])
-    ax.set_xlabel(r'$tf$')
+    ax.set_xlabel(plot_args['xylabel'][x])
+    ax.set_ylabel(plot_args['xylabel'][y])
+
+    xlim = ax.get_xlim()
+    ax.set_xlim(-25, xlim[1]*zoom)
     ax.set_ylim(0, 1.1)
-    ax.set_xlim(-25, xlims[stat]*zoom)
+
     return fig, ax
 
 
@@ -341,6 +369,8 @@ if __name__ == '__main__':
 
     if args.plot:
         stats = ['dens', 'psi', 'phi']
+        plot_args = make_plot_args(nshells, args)
+        shells = split_shells(mdata, zero_to=1)
         print 'plotting',
         if args.save:
             plt.rc('text', usetex=True)
@@ -349,9 +379,9 @@ if __name__ == '__main__':
             f, axes = plt.subplots(nrows=len(stats), sharex='col')
         for stat, ax in zip(stats, axes):
             print stat,
-            f, a = plot_by_shell(mdata, stat, zero_to=1, do_mean=True,
-                                 start=args.start, smooth=args.smooth, ax=ax,
-                                 side=args.side, fps=args.fps, zoom=args.zoom)
+            f, a = plot_by_shell(shells, 'f', stat, start=args.start,
+                                 smooth=args.smooth, zoom=args.zoom,
+                                 ax=ax, **plot_args)
             if args.save:
                 f.set_figwidth(4)
                 f.set_figheight(3)
