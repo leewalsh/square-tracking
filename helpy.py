@@ -87,8 +87,11 @@ def getcommit(ret_object=False):
                 branch = repo.active_branch.name
         except ImportError:
             from subprocess import check_output, STDOUT, CalledProcessError
-            git = lambda cmd: check_output(('git', '-C', gitdir) + cmd,
-                                           stderr=STDOUT).strip()
+
+            def git(cmd):
+                out = check_output(('git', '-C', gitdir) + cmd, stderr=STDOUT)
+                return out.strip()
+
             status = ('status', '--short')
             commit = ('log', '-1', '--pretty=tformat:%h')
             branch = ('branch', '--contains', '@')
@@ -382,8 +385,13 @@ def transpose_list_of_dicts(*lod, **kwargs):
     return dol
 
 
-def transpose_dict_of_lists(dol=None, missing=None, **lists):
-    """transpose a dict of lists, return list of dicts."""
+def transpose_dict_of_lists(dol=None, **lists):
+    """transpose a dict of lists, return list of dicts of list elements.
+
+    Input a dict whose values are lists or scalars; merge in keyword arguments.
+
+    Return a single list of dicts whose values are the zipped scalars.
+    """
     dol = dict(dol or {})
     dol.update(lists)
 
@@ -524,6 +532,7 @@ def eval_string(s, hashable=False):
     if issub(set(nums + '.+eE')) and not hashable:
         return float(s)
     return s
+
 
 DRIVES = {
         'Walsh_Lab':  'Seagate15T', 'colson': 'Seagate4T',
@@ -1950,6 +1959,7 @@ class SciFormatter(Formatter):
             s = format(value, format_spec)
         return s
 
+
 # Pixel-Physical Unit Conversions
 mm_per_inch = 25.4
 
@@ -1986,5 +1996,6 @@ def Nb(margin):
     """N = max number of particles (πR^2)/S^2 where S = 1
     """
     return np.pi * (R - margin)**2
+
 
 N = Nb(0)
