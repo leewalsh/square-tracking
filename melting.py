@@ -183,7 +183,7 @@ def make_plot_args(nshells, args):
         'lw':   [1]*nshells + [2],
     })
     xylabel = {
-        'f':    r'$tf$',
+        'f':    r'$t \, f$',
         'dens': r'density $\langle r_{ij}\rangle^{-2}$',
         'psi':  r'bond angle order $\Psi$',
         'phi':  r'molecular angle order $\Phi$',
@@ -200,9 +200,10 @@ def make_plot_args(nshells, args):
 def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
     line_props = plot_args.get('line_props', [{}]*len(shells))
     unit = plot_args.get('unit', {x: 1, y: 1})
+    save = plot_args.get('save')
     ax = plot_args.get('ax')
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(4, 3) if save else None)
     else:
         fig = ax.get_figure()
 
@@ -225,6 +226,10 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
     ax.set_xlim(-25, xlim[1]*zoom)
     ax.set_ylim(0, 1.1)
 
+    fig.tight_layout()
+    if save:
+        fig.savefig(save)
+
     return fig, ax
 
 
@@ -244,7 +249,7 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
                     gaussian_filter1d(v[conf], smooth, mode='constant', cval=1),
                     lw=2, label=conf, c=colors.pop())
         ax.set_xscale('log')
-        ax.set_xlabel(r'$tf$')
+        ax.set_xlabel(r'$t \, f$')
         ax.set_xlim(1, xlims[stat])
         ax.set_ylim(0, 1)
         statlabels = {
@@ -371,22 +376,15 @@ if __name__ == '__main__':
         stats = ['dens', 'psi', 'phi']
         plot_args = make_plot_args(nshells, args)
         shells = split_shells(mdata, zero_to=1)
-        print 'plotting',
         if args.save:
-            plt.rc('text', usetex=True)
-            axes = [None]*len(stats)
+            axes = it.repeat(None, len(stats))
+            save_name = '{prefix}_{stat}.pdf'
         else:
-            f, axes = plt.subplots(nrows=len(stats), sharex='col')
+            fig, axes = plt.subplots(nrows=len(stats), sharex='col')
+            save_name = ''
         for stat, ax in zip(stats, axes):
-            print stat,
-            f, a = plot_by_shell(shells, 'f', stat, start=args.start,
-                                 smooth=args.smooth, zoom=args.zoom,
-                                 ax=ax, **plot_args)
-            if args.save:
-                f.set_figwidth(4)
-                f.set_figheight(3)
-                f.tight_layout()
-                f.savefig('{}_{}.pdf'.format(args.prefix, stat))
-        print
+            save = save_name.format(prefix=args.prefix, stat=stat)
+            plot_by_shell(shells, 'f', stat, start=args.start, zoom=args.zoom,
+                          smooth=args.smooth, save=save, ax=ax, **plot_args)
         if args.show:
             plt.show()
