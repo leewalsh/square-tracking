@@ -206,6 +206,13 @@ def make_plot_args(nshells, args):
         'psi':  r'bond angle order $\Psi$',
         'phi':  r'molecular angle order $\Phi$',
     }
+    xylim = {
+        'f':    (-25, None),
+        'rad':  (0, None),
+        'dens': (0, 1.1),
+        'phi':  (0, 1.1),
+        'psi':  (0, 1.1),
+    }
     unit = {
         'f':    1/args.fps,
         'rad':  1/args.side,
@@ -213,7 +220,7 @@ def make_plot_args(nshells, args):
         'phi':  1,
         'psi':  1,
     }
-    return dict(line_props=line_props, xylabel=xylabel, unit=unit)
+    return dict(line_props=line_props, xylabel=xylabel, xylim=xylim, unit=unit)
 
 
 def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
@@ -237,7 +244,7 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
             ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
             xlim = ax.get_xlim()
             ax.set_xlim(-25, xlim[1]*zoom)
-            ax.set_ylim(0, 1.1)
+            ax.set_ylim(plot_args['xylim'][y])
         elif x in ('dens', 'phi', 'psi'):
             xs, ys = shell[x], shell[y]
             ax.scatter(xs*unit[x], ys*unit[y], s=0.01, **line_props[s])
@@ -407,7 +414,10 @@ if __name__ == '__main__':
             save_name = '{prefix}_{stat}.pdf'
         else:
             nrows = len(stats)
-            fig, axes = plt.subplots(figsize=(6.4, 4.8*nrows),
+            figsize = list(plt.rcParams['figure.figsize'])
+            figsize[1] = min(figsize[1]*nrows,
+                             helpy.plt_rc('figure.maxheight'))
+            fig, axes = plt.subplots(figsize=figsize,
                                      nrows=nrows, sharex='col')
             save_name = ''
         for stat, ax in zip(stats, axes):
@@ -418,7 +428,10 @@ if __name__ == '__main__':
         shells.pop(nshells)
         stats.remove('dens')
         nrows = len(stats)
-        fig, axes = plt.subplots(figsize=(6.4, 4.8*nrows),
+        figsize = list(plt.rcParams['figure.figsize'])
+        figsize[1] = min(figsize[1]*nrows,
+                         helpy.plt_rc('figure.maxheight'))
+        fig, axes = plt.subplots(figsize=figsize,
                                  nrows=nrows, sharex='col')
         for stat, ax in zip(stats, axes):
             plot_by_shell(shells, 'dens', stat, start=args.start,

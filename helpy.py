@@ -1888,6 +1888,27 @@ def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
     return patches
 
 
+def plt_rc(*keys):
+    params = {
+        'warbler': {
+            'figure.maxsize': np.array([25.6, 13.56]),
+            'figure.maxwidth': 25.6,
+            'figure.maxheight': 13.56,
+        },
+        'what': {
+            'figure.maxsize': np.array([12.8, 7.16]),
+            'figure.maxwidth': 12.8,
+            'figure.maxheight': 7.16,
+        },
+    }[gethost()]
+    if len(keys) > 1:
+        return {key: params[key] for key in keys}
+    elif keys:
+        return params[keys[0]]
+    else:
+        return params
+
+
 def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
     """interactively display neighbors defined by corr.neighborhoods to check"""
     import matplotlib.pyplot as plt
