@@ -730,13 +730,16 @@ def neighborhoods(positions, voronoi=False, size=None, reach=None,
     """Build a list of lists or padded array of neighborhoods around each point
 
     select neighbors by any combination of three basic choices:
-        Voronoi/Delaunay, distance/ball, count/nearest/number
+        1. Voronoi, Delaunay
+        2. reach: distance, ball
+        3. size: count, nearest, number
 
     parameters
     positions : array with shape (N, 2) or fields 'x' and 'y'
     voronoi : whether to require pairs to be voronoi or delaunay neighbors
-    size : maximum size for each neighborhood excluding center/self
-    reach : maximum distance to search (exclusive).  scalar for distance/ball
+    size : maximum or tuple of (minimum, maximum) size (i.e., number of
+        neighbors) for each neighborhood, excluding center/self
+    reach : maximum distance to search (exclusive).  scalar for distance/ball.
         for other criteria, it may be an array of distances or a str such as
         '[min|max|mean]*{factor}' where the function is of neighbor distances
     tess, tree : optionally provide spatial.Delaunay or spatial.KDTree instance
