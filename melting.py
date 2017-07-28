@@ -9,6 +9,7 @@ import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
 from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 
 import helpy
 import helplt
@@ -220,6 +221,7 @@ def make_plot_args(nshells, args):
         'dens': args.side**2,
         'phi':  1,
         'psi':  1,
+        'sh':   1,
     }
     return dict(line_props=line_props, xylabel=xylabel, xylim=xylim, unit=unit)
 
@@ -289,6 +291,106 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
         ax.set_ylabel(statlabels[stat])
         ax.legend(loc='lower left', fontsize='small')
         fig.savefig(prefix_pattern.format('ALL', stat) + '.pdf')
+
+
+def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
+    """plot map of parameter for given frame"""
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(4, 3) if save else None)
+    else:
+        fig = ax.get_figure()
+
+    if vor.points.shape[1] != 2:
+        raise ValueError("Voronoi diagram is not 2-D")
+
+    if kw.get('show_points', True):
+        ax.plot(vor.points[:, 0], vor.points[:, 1], '.')
+    if kw.get('show_vertices', True):
+        ax.plot(vor.vertices[:, 0], vor.vertices[:, 1], 'o')
+
+    line_colors = kw.get('line_colors', 'k')
+    line_width = kw.get('line_width', 1.0)
+    line_alpha = kw.get('line_alpha', 1.0)
+
+    center = vor.points.mean(axis=0)
+    ptp_bound = vor.points.ptp(axis=0)
+
+    finite_segments = []
+    infinite_segments = []
+    for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
+        simplex = np.asarray(simplex)
+        if np.all(simplex >= 0):
+            finite_segments.append(vor.vertices[simplex])
+        else:
+            i = simplex[simplex >= 0][0]  # finite end Voronoi vertex
+
+            t = vor.points[pointidx[1]] - vor.points[pointidx[0]]  # tangent
+            t /= np.linalg.norm(t)
+            n = np.array([-t[1], t[0]])  # normal
+
+            midpoint = vor.points[pointidx].mean(axis=0)
+            direction = np.sign(np.dot(midpoint - center, n)) * n
+            far_point = vor.vertices[i] + direction * ptp_bound.max()
+
+            infinite_segments.append([vor.vertices[i], far_point])
+
+    ax.add_collection(LineCollection(finite_segments,
+                                     colors=line_colors,
+                                     lw=line_width,
+                                     alpha=line_alpha,
+                                     linestyle='solid'))
+    ax.add_collection(LineCollection(infinite_segments,
+                                     colors=line_colors,
+                                     lw=line_width,
+                                     alpha=line_alpha,
+                                     linestyle='dashed'))
+
+    # adjust bounds:
+    margin = 0.1 * vor.points.ptp(axis=0)
+    xy_min = vor.points.min(axis=0) - margin
+    xy_max = vor.points.max(axis=0) + margin
+    ax.set_xlim(xy_min[0], xy_max[0])
+    ax.set_ylim(xy_min[1], xy_max[1])
+
+    return fig, ax
+
+
+def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args):
+    """plot some parameter in the voronoi cells"""
+    if vor is None:
+        vor = Voronoi(frame['xy'])
+
+    unit = plot_args.get('unit')
+    cmap = plt.get_cmap('Dark2' if colors == 'sh' else 'viridis')
+    if colors in frame.dtype.names:
+        colors = cmap(frame[colors]*unit[colors])
+    elif mframe is not None and colors in mframe.dtype.names:
+        colors = cmap(mframe[colors]*unit[colors])
+    elif np.isscalar(colors):
+        colors = it.repeat(cmap(colors))
+    elif len(colors) == len(frame):
+        colors = cmap(colors)
+    elif isinstance(colors, tuple):
+        colors = it.repeat(colors)
+    else:
+        raise ValueError("Unknown color `{!r}`".format(colors))
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    patches = [ax.fill(*vor.vertices[vor.regions[j]].T, fc=colors[i], ec='k')
+               for i, j in enumerate(vor.point_region)
+               if -1 not in vor.regions[j]]
+
+    scatter = ax.scatter(*vor.points.T, c=colors, edgecolors='k', cmap=cmap, zorder=1.5)
+    ax.axis('equal')
+    vmn, vmx = vor.min_bound, vor.max_bound
+    xlim, ylim = ([[-0.1], [0.1]] * (vmx - vmn) + [vmn, vmx]).T
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return fig, ax, patches, scatter
 
 
 def melt_analysis(data):
@@ -439,5 +541,31 @@ if __name__ == '__main__':
         for stat, ax in zip(stats, axes):
             plot_by_shell(shells, 'dens', stat, start=args.start,
                           ax=ax, **plot_args)
+
+        stats = ['sh', 'rad', 'dens', 'psi', 'phi']
+        f = args.start
+        fs = np.array([0, 250, 500, 750, 1000, 1250]) + f
+        nrows = len(stats)
+        ncols = len(fs)
+        figsize = list(plt.rcParams['figure.figsize'])
+        figsize[0] = min(figsize[0]*ncols,
+                         helplt.rc('figure.maxwidth'))
+        figsize[1] = min(figsize[1]*nrows,
+                         helplt.rc('figure.maxheight'))
+        fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
+                                 sharex='all', sharey='all')
+        for i, stat in enumerate(stats):
+            for j, f in enumerate(fs):
+                ax = axes[i, j]
+                plot_regions(frames[f], mframes[f],
+                             ax=ax, colors=stat, **plot_args)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                if i == nrows-1:
+                    ax.set_xlabel('time = {}'.format((f - args.start)/args.fps))
+                if j == 0:
+                    ax.set_ylabel(stat)
+        fig.tight_layout()
+
         if args.show:
             plt.show()
