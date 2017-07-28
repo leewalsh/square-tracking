@@ -527,8 +527,9 @@ def plot_orientations(xyo, ts=None, omask=None, clean=False, side=1,
         fig, ax = plt.subplots()
 
     # mask the orientation data
-    if omask is not None:
-        xyo = xyo[omask]
+    if omask is None:
+        omask = np.where(np.isfinite(xyo[:, -1]))
+    xyo = xyo[omask]
     xo, yo, oo = xyo.T
     so, co = np.sin(oo), np.cos(oo)
 

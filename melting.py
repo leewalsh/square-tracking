@@ -357,8 +357,13 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
 
 def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args):
     """plot some parameter in the voronoi cells"""
+    xy = helpy.quick_field_view(frame, 'xy')
     if vor is None:
-        vor = Voronoi(frame['xy'])
+        vor = Voronoi(xy)
+    xyo = helpy.consecutive_fields_view(frame, 'xyo')
+    # convert to i, j (row, col) coordinates to match image version:
+    # (x, y, o) = (y, x, pi/2 - o)
+    yxo = xyo[:, [1, 0, 2]] * [[1, 1, -1]] + [[0, 0, np.pi/2]]
 
     unit = plot_args.get('unit')
     cmap = plt.get_cmap('Dark2' if colors == 'sh' else 'viridis')
@@ -380,11 +385,17 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args
     else:
         fig = ax.figure
 
-    patches = [ax.fill(*vor.vertices[vor.regions[j]].T, fc=colors[i], ec='k')
-               for i, j in enumerate(vor.point_region)
-               if -1 not in vor.regions[j]]
+    patch_args = dict(edgecolor='k', zorder=0.5)
+    quiver_args = dict(edgecolor='none', side=1/unit['rad'], zorder=2)
+    scatter_args = dict(c=colors, edgecolors='k', zorder=1)
 
-    scatter = ax.scatter(*vor.points.T, c=colors, edgecolors='k', cmap=cmap, zorder=1.5)
+    patches = [
+        ax.fill(*vor.vertices[vor.regions[j]].T, fc=colors[i], **patch_args)
+        for i, j in enumerate(vor.point_region) if -1 not in vor.regions[j]
+    ]
+    helplt.plot_orientations(yxo, ax=ax, **quiver_args)
+    scatter = ax.scatter(*vor.points.T, **scatter_args)
+
     ax.axis('equal')
     vmn, vmx = vor.min_bound, vor.max_bound
     xlim, ylim = ([[-0.1], [0.1]] * (vmx - vmn) + [vmn, vmx]).T
