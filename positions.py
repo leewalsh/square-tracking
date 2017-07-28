@@ -498,8 +498,9 @@ if __name__ == '__main__':
             fig.colorbar(axim, cax=cax, orientation='horizontal')
         xl, yl = ax.get_xlim(), ax.get_ylim()
         s = abs(s)
-        helpy.draw_circles(helpy.consecutive_fields_view(pts, 'xy')[:, ::-1], s,
-                           ax, lw=max(s/10, .5), color=c, fill=False, zorder=2)
+        helplt.draw_circles(
+            helpy.consecutive_fields_view(pts, 'xy')[:, ::-1], s,
+            ax, lw=max(s/10, .5), color=c, fill=False, zorder=2)
         if s > 3:
             ax.scatter(pts['y'], pts['x'], s, c, '+')
         ax.set_xlim(xl)

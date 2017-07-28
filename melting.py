@@ -11,6 +11,7 @@ from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
 
 import helpy
+import helplt
 import correlation as corr
 
 
@@ -418,7 +419,7 @@ if __name__ == '__main__':
             nrows = len(stats)
             figsize = list(plt.rcParams['figure.figsize'])
             figsize[1] = min(figsize[1]*nrows,
-                             helpy.plt_rc('figure.maxheight'))
+                             helplt.rc('figure.maxheight'))
             fig, axes = plt.subplots(figsize=figsize,
                                      nrows=nrows, sharex='col')
             save_name = ''
@@ -432,7 +433,7 @@ if __name__ == '__main__':
         nrows = len(stats)
         figsize = list(plt.rcParams['figure.figsize'])
         figsize[1] = min(figsize[1]*nrows,
-                         helpy.plt_rc('figure.maxheight'))
+                         helplt.rc('figure.maxheight'))
         fig, axes = plt.subplots(figsize=figsize,
                                  nrows=nrows, sharex='col')
         for stat, ax in zip(stats, axes):

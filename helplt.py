@@ -10,14 +10,201 @@ from __future__ import division
 
 import os
 import sys
-
+import itertools as it
 from math import sqrt
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 
 import helpy
 import correlation as corr
+
+
+def circle_click(im):
+    """saves points as they are clicked, then find the circle that they define
+
+    To use:
+    when image is shown, click three non-co-linear points along the perimeter.
+    neither should be vertically nor horizontally aligned (gives divide by zero)
+    when three points have been clicked, a circle should appear.
+    Then close the figure to allow the script to continue.
+    """
+    if matplotlib.is_interactive():
+        raise RuntimeError("Cannot do circle_click in interactive/pylab mode")
+
+    print ("Please click three points on circumference of the boundary, "
+           "then close the figure")
+    clicks = []
+    center = []
+    if isinstance(im, basestring):
+        im = plt.imread(im)
+    fig, ax = plt.subplots(figsize=(12, 12))
+    ax.imshow(im)
+
+    def circle_three_points(*xs):
+        """ With three points, calculate circle
+            e.g., see paulbourke.net/geometry/circlesphere
+            returns center, radius as (xo, yo), r
+        """
+        xs = np.squeeze(xs)
+        if xs.shape == (3, 2):
+            xs = xs.T
+        (x1, x2, x3), (y1, y2, y3) = xs
+
+        ma = (y2-y1)/(x2-x1)
+        mb = (y3-y2)/(x3-x2)
+        xo = ma*mb*(y1-y3) + mb*(x1+x2) - ma*(x2+x3)
+        xo /= 2*(mb-ma)
+        yo = (y1+y2)/2 - (xo - (x1+x2)/2)/ma
+        r = ((xo - x1)**2 + (yo - y1)**2)**0.5
+
+        return xo, yo, r
+
+    def circle_click_connector(click):
+        """receive and save clicks. when there are three, calculate the circle
+
+         * swap x, y to convert image coordinates to cartesian
+         * the return value cannot be saved, so modify a mutable variable
+           (center) from an outer scope
+        """
+        clicks.append([click.ydata, click.xdata])
+        print 'click {}: x: {:.2f}, y: {:.2f}'.format(len(clicks), *clicks[-1])
+        if len(clicks) == 3:
+            center.extend(circle_three_points(clicks))
+            print 'center {:.2f}, {:.2f}, radius {:.2f}'.format(*center)
+            cpatch = matplotlib.patches.Circle(
+                center[1::-1], center[2], linewidth=3, color='g', fill=False)
+            ax.add_patch(cpatch)
+            fig.canvas.draw()
+
+    fig.canvas.mpl_connect('button_press_event', circle_click_connector)
+    plt.show()
+    return center
+
+
+def axline(ax, orient, x, start=0, stop=1, coords='ax', **kwargs):
+    f = ax.__getattribute__(
+        {'ax': 'ax{}line', 'data': '{}lines'}[coords].format(orient)
+    )
+    if coords == 'data':
+        ks = {'c': 'colors', 'color': 'colors',
+              'ls': 'linestyles', 'linestyle': 'linestyles'}
+        for k, v in ks.items():
+            if k in kwargs:
+                kwargs[v] = kwargs.pop(k)
+    return f(x, start, stop, **kwargs)
+
+
+def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
+    if not ax.get_xlim()[0] < x < ax.get_xlim()[1]:
+        return
+    if method == 'vline':
+        line_default = dict(color='gray', linestyle='--', linewidth=0.5,
+                            zorder=0.1, start=0, stop=0.68)
+        annotate_default = dict(ha='left', va='center',
+                                xytext=(4, 0), textcoords='offset points',
+                                xy=(x, 0.1), xycoords=('data', 'axes fraction'))
+        line = dict(line_default, **(line or {}))
+        l = axline(ax, 'v', x, **line)
+    elif method == 'corner':
+        x, y = x
+        line = dict(dict(color='k', linestyle=':', linewidth=1, zorder=0.1),
+                    **(line or {}))
+        annotate_default = dict(xytext=(11, 11), textcoords='offset points',
+                                xy=(x, y), xycoords='data',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+        l = [axline(ax, 'v', x, ax.get_ylim()[0], y, coords='data', **line),
+             axline(ax, 'h', y, ax.get_xlim()[0], x, coords='data', **line)]
+    elif method == 'axis':
+        annotate_default = dict(xy=(x, 0), xycoords=('data', 'axes fraction'),
+                                xytext=(0, 9), textcoords='offset points',
+                                ha='center', va='baseline',
+                                arrowprops=dict(arrowstyle='->', lw=0.5))
+    else:
+        raise ValueError("Unknown method " + method)
+
+    a = ax.annotate(label, **dict(annotate_default, **(annotate or {})))
+    return l, a
+
+
+def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
+    """draw circles on an axis
+
+    parameters:
+        centers:    one or a list of (x, y) pairs
+        rs:         one or a list of radii (in data units)
+        ax or fig:  axis or figure on which to draw
+        kwargs:     arguments passed to the patch (e.g.: color, fill, zorder)
+
+    returns:
+        patches:    a list of the patch objects
+    """
+    cs = np.atleast_2d(centers)
+    rs = np.atleast_1d(np.abs(rs))
+    n = max(map(len, (cs, rs)))
+    b = np.broadcast_to(cs, (n, 2)), np.broadcast_to(rs, (n,))
+    patches = [matplotlib.patches.Circle(*cr, **kwargs) for cr in it.izip(*b)]
+    if ax is None:
+        if fig is None:
+            ax = plt.gca()
+        else:
+            ax = fig.gca()
+    map(ax.add_patch, patches)
+    ax.figure.canvas.draw()
+    return patches
+
+
+def rc(*keys):
+    params = {
+        'warbler': {
+            'figure.maxsize': np.array([25.6, 13.56]),
+            'figure.maxwidth': 25.6,
+            'figure.maxheight': 13.56,
+        },
+        'what': {
+            'figure.maxsize': np.array([12.8, 7.16]),
+            'figure.maxwidth': 12.8,
+            'figure.maxheight': 7.16,
+        },
+    }[helpy.gethost()]
+    if len(keys) > 1:
+        return {key: params[key] for key in keys}
+    elif keys:
+        return params[keys[0]]
+    else:
+        return params
+
+
+def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):
+    """interactively display neighbors defined by corr.neighborhoods to check"""
+    from correlation import neighborhoods
+    fig, ax = plt.subplots()
+
+    if im is None:
+        im = helpy.find_tiffs(prefix=prefix, frames=frame,
+                              single=True, load=True)[1]
+    ax.imshow(im, cmap='gray', origin='lower')
+
+    if data is None:
+        data = helpy.load_data(prefix)
+        data = data[data['t'] >= 0]
+    fdata = helpy.splitter(data, 'f')
+    frame = fdata[frame]
+    positions = frame['xy']
+    neighs, mask, dists = neighborhoods(positions, **neighbor_args)
+    fmt = 'particle {} track {}: {} neighbors at dist {} - {} ({})'.format
+    for pt, ns, m, ds, d in zip(positions, neighs, mask, dists, frame):
+        ns, ds = ns[~m], ds[~m]
+        if len(ns) == 0:
+            continue
+        print fmt(d['id'], d['t'], len(ns), ds.min(), ds.max(), ds.mean())
+        # print '\tneighbors:', (len(ns)*'{:5d} ').format(*ns)
+        # print '\tdistances:', (len(ns)*'{:5.2f} ').format(*ds)
+        ax.scatter(*positions.T[::-1], c='k', marker='o')
+        ax.scatter(*positions[ns].T[::-1], c='w', marker='o')
+        ax.scatter(pt[1], pt[0], c='r', marker='o')
+        plt.waitforbuttonpress()
 
 
 def plt_text(*args, **kwargs):
@@ -180,13 +367,13 @@ def animate(imstack, fsets, fcsets, fosets=None, fisets=None,
             remove.extend([us, cs])
             # plot center and corner dots as circles
             for dot, xy in zip(('center', 'corner'), (xyo, xyc)):
-                ph = helpy.draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
-                                        lw=.5, color='k', fill=False, zorder=.6)
+                ph = draw_circles(xy[:, 1::-1], meta[dot+'_kern'], ax=ax,
+                                  lw=.5, color='k', fill=False, zorder=.6)
                 remove.extend(ph)
             # plot valid corner distance circles
             for dr in (-drc, 0, drc):
-                pc = helpy.draw_circles(xyo[:, 1::-1], rc+dr, ax=ax,
-                                        lw=.5, color='g', fill=False, zorder=.5)
+                pc = draw_circles(xyo[:, 1::-1], rc+dr, ax=ax,
+                                  lw=.5, color='g', fill=False, zorder=.5)
                 remove.extend(pc)
 
         q = plot_orientations(xyo, ts, omask, clean=clean, side=side, ax=ax)
@@ -315,8 +502,8 @@ def plot_background(bgimage, ppi=109, boundary=None, cut_margin=None,
     if boundary is not None:
         if cut_margin is not None:
             bndr = [bndr, bndr - cut_margin]
-        bnds = helpy.draw_circles(bndc, bndr, ax=ax,
-                                  color='tab:red', fill=False, zorder=1)
+        bnds = draw_circles(bndc, bndr, ax=ax,
+                            color='tab:red', fill=False, zorder=1)
         if cut_margin is not None:
             bnds[1].set_label('cut margin')
         p = (p, bnds)

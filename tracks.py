@@ -274,7 +274,7 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         if boundary is None or boundary == [0.]*3:
             bgpath, bgimg, _ = helpy.find_tiffs(
                 prefix=relprefix, frames=1, single=True, load=True)
-            boundary = helpy.circle_click(bgimg)
+            boundary = helplt.circle_click(bgimg)
             meta['path_to_tiffs'] = bgpath
         x0, y0, R = boundary
         mm = R/101.6             # dish radius R = 4 in = 101.6 mm
