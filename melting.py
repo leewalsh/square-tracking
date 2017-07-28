@@ -176,6 +176,19 @@ def split_shells(mdata, zero_to=0, do_mean=True):
     return shells
 
 
+def average_shells(shells, fields=None, by='f'):
+    """average all particles within each shell"""
+    if fields is None:
+        fields = [f for f in shells.dtype.names if f not in 'id f t sh']
+    averaged = {}
+    for s, shell in shells.iteritems():
+        vals = tuple(shell[field] for field in fields)
+        vals, bins = corr.bin_average(shell[by], vals, 1)
+        averaged[s] = dict(zip(fields, vals))
+        averaged[s][by] = bins[:-1]
+    return averaged
+
+
 def make_plot_args(nshells, args):
     line_props = helpy.transpose_dict_of_lists({
         'label': ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all'],
@@ -210,10 +223,9 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
     for s, shell in shells.iteritems():
         if s < 0:
             continue
-        shell = shell[np.where(np.isfinite(shell[x]) & np.isfinite(shell[y]))]
         if x == 'f':
-            ys, xs = corr.bin_average(shell[x], shell[y], 1)
-            xs = xs[:-1] - start
+            ys = shell[y]
+            xs = shell[x] - start
             if smooth:
                 ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
             ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
@@ -378,9 +390,11 @@ if __name__ == '__main__':
 
     if args.plot:
         plot_args = make_plot_args(nshells, args)
-        shells = split_shells(mdata, zero_to=1)
-
         stats = ['dens', 'psi', 'phi']
+
+        shells = split_shells(mdata, zero_to=1)
+        shells = average_shells(shells, stats, 'f')
+
         if args.save:
             axes = it.repeat(None, len(stats))
             save_name = '{prefix}_{stat}.pdf'
