@@ -24,7 +24,7 @@ def initialize_mdata(data):
 
     # new fields to hold:
     # shell, radius (from initial c.o.m.), local density, local psi, local phi
-    melt_dtype.extend(zip(['sh', 'r', 'dens', 'psi', 'phi'],
+    melt_dtype.extend(zip(['sh', 'rad', 'dens', 'psi', 'phi'],
                           ['i4', 'f4', 'f4', 'f4', 'f4']))
 
     mdata = np.empty(data.shape, melt_dtype)
@@ -41,6 +41,10 @@ def melting_stats(frame, dens_method, neigh_args):
     tess = Delaunay(xy)
     tree = KDTree(xy)
     neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **neigh_args)
+
+    # Radial distance:
+    com = xy.mean(0)
+    rad = helpy.dist(xy, com)
 
     # Density:
     dens = corr.density(xy, dens_method, vor=vor, tess=tess,
@@ -59,7 +63,7 @@ def melting_stats(frame, dens_method, neigh_args):
     particle_angles, _ = corr.pair_angles(orient, neigh, nmask)
     phi = corr.orient_op(particle_angles, m=M, locl=True)
 
-    return dens, psi, phi
+    return rad, dens, psi, phi
 
 
 def find_start_frame(data, estimate=None, bounds=None, plot=False):
@@ -197,12 +201,14 @@ def make_plot_args(nshells, args):
     })
     xylabel = {
         'f':    r'$t \, f$',
+        'rad':  r'radial distance $r - \langle r \rangle$',
         'dens': r'density $\langle r_{ij}\rangle^{-2}$',
         'psi':  r'bond angle order $\Psi$',
         'phi':  r'molecular angle order $\Phi$',
     }
     unit = {
         'f':    1/args.fps,
+        'rad':  1/args.side,
         'dens': args.side**2,
         'phi':  1,
         'psi':  1,
@@ -291,7 +297,8 @@ def melt_analysis(data):
         nn = np.where(melt['sh'] == nshells-1, 3, 4)
         neigh_args = {'size': (nn,)*2}
 
-        dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
+        rad, dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
+        melt['rad'] = rad
         melt['dens'] = dens
         melt['psi'] = psi
         melt['phi'] = phi
@@ -390,7 +397,7 @@ if __name__ == '__main__':
 
     if args.plot:
         plot_args = make_plot_args(nshells, args)
-        stats = ['dens', 'psi', 'phi']
+        stats = ['rad', 'dens', 'psi', 'phi']
 
         shells = split_shells(mdata, zero_to=1)
         shells = average_shells(shells, stats, 'f')
@@ -409,7 +416,7 @@ if __name__ == '__main__':
                           smooth=args.smooth, save=save, ax=ax, **plot_args)
 
         shells.pop(nshells)
-        stats = ['psi', 'phi']
+        stats.remove('dens')
         nrows = len(stats)
         fig, axes = plt.subplots(figsize=(6.4, 4.8*nrows),
                                  nrows=nrows, sharex='col')
