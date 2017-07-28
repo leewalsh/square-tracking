@@ -1132,6 +1132,22 @@ def load_tracksets(data, trackids=None, min_length=10, track_slice=None,
 
 
 def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **tset_args):
+    """load a dict or list of slices by frame into the dataset
+
+    parameters
+    ----------
+    data_or_tracksets:
+        the dataset or a tracksets dict of the data, or a tuple of several
+        datasets with the same shape.
+    indices: values by which to split up the frames (default: 'f' field)
+    **tset_args: keyword arguments will be passed to load_tracksets.
+
+    returns
+    -------
+    framesets : a dict of frame number as keys and slices of data as values
+
+    See `splitter` and `load_tracksets` for more info.
+    """
     if tset_args:
         data_or_tracksets = load_tracksets(data_or_tracksets, **tset_args)
     if not isinstance(data_or_tracksets, tuple):

@@ -293,7 +293,7 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
 def melt_analysis(data):
     mdata = initialize_mdata(data)
 
-    frames, mframes = helpy.splitter((data, mdata), 'f')
+    frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
     shells = assign_shell(frames[0]['xy'], frames[0]['t'],
                           maxt=data['t'].max())
     mdata['sh'] = shells[mdata['t']]
@@ -309,7 +309,7 @@ def melt_analysis(data):
         melt['dens'] = dens
         melt['psi'] = psi
         melt['phi'] = phi
-    return mdata
+    return mdata, frames, mframes
 
 
 if __name__ == '__main__':
@@ -385,22 +385,24 @@ if __name__ == '__main__':
     if args.save:
         helpy.save_meta(args.prefix, meta)
 
+    data = helpy.load_data(args.prefix)
+    tsets = helpy.load_tracksets(data, run_repair='interp',
+                                 run_track_orient=True)
+    # to get the benefits of tracksets (interpolation, stub filtering):
+    data = np.concatenate(tsets.values())
+    data.sort(order=['f', 't'])
+
+    if not args.start:
+        args.start = find_start_frame(data, plot=args.plot)
     if args.melt:
         print 'calculating'
-        data = helpy.load_data(args.prefix)
-        tsets = helpy.load_tracksets(data, run_repair='interp',
-                                     run_track_orient=True)
-        # to get the benefits of tracksets (interpolation, stub filtering):
-        data = np.concatenate(tsets.values())
-        data.sort(order=['f', 't'])
-        if not args.start:
-            args.start = find_start_frame(data, plot=args.plot)
-        mdata = melt_analysis(data)
+        mdata, frames, mframes = melt_analysis(data)
         if args.save:
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
             helpy.save_meta(args.prefix, meta, start_frame=args.start)
     else:
         mdata = np.load(args.prefix + '_MELT.npz')['data']
+        frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
 
     if args.plot:
         plot_args = make_plot_args(nshells, args)
