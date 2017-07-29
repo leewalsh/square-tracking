@@ -8,6 +8,7 @@ import glob
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
 from scipy.ndimage import gaussian_filter1d
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 
@@ -223,7 +224,16 @@ def make_plot_args(nshells, args):
         'psi':  1,
         'sh':   1,
     }
-    return dict(line_props=line_props, xylabel=xylabel, xylim=xylim, unit=unit)
+    norm = {
+        'f':    None,
+        'rad':  [0, 75],
+        'dens': (0, 1),
+        'phi':  (0, 1),
+        'psi':  (0, 1),
+        'sh':   None,
+    }
+    return dict(line_props=line_props, xylabel=xylabel, xylim=xylim,
+                unit=unit, norm=norm)
 
 
 def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
@@ -263,6 +273,25 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
         fig.savefig(save)
 
     return fig, ax
+
+
+def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
+    unit = plot_args.get('unit', {x: 1, y: 1})
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
+    hexbin = ax.hexbin(xs, ys, norm=matplotlib.colors.LogNorm())
+
+    ax.set_xlabel(plot_args['xylabel'][x])
+    ax.set_ylabel(plot_args['xylabel'][y])
+
+    fig.tight_layout()
+    if save:
+        fig.savefig(save)
+
+    return fig, ax, hexbin
 
 
 def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
@@ -355,7 +384,7 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
     return fig, ax
 
 
-def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args):
+def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, **plot_args):
     """plot some parameter in the voronoi cells"""
     xy = helpy.quick_field_view(frame, 'xy')
     if vor is None:
@@ -367,14 +396,16 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args
 
     unit = plot_args.get('unit')
     cmap = plt.get_cmap('Dark2' if colors == 'sh' else 'viridis')
+    if norm is None:
+        norm = matplotlib.colors.Normalize()
     if colors in frame.dtype.names:
-        colors = cmap(frame[colors]*unit[colors])
+        colors = cmap(norm(frame[colors]))
     elif mframe is not None and colors in mframe.dtype.names:
-        colors = cmap(mframe[colors]*unit[colors])
+        colors = cmap(norm(mframe[colors]*unit[colors]) if colors != 'sh' else mframe[colors]*unit[colors])
     elif np.isscalar(colors):
         colors = it.repeat(cmap(colors))
     elif len(colors) == len(frame):
-        colors = cmap(colors)
+        colors = cmap(norm(colors))
     elif isinstance(colors, tuple):
         colors = it.repeat(colors)
     else:
@@ -401,7 +432,7 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', ax=None, **plot_args
     xlim, ylim = ([[-0.1], [0.1]] * (vmx - vmn) + [vmn, vmx]).T
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    return fig, ax, patches, scatter
+    return fig, ax, patches, scatter, norm
 
 
 def melt_analysis(data):
@@ -519,9 +550,11 @@ if __name__ == '__main__':
         frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
 
     if args.plot:
+        print "plotting"
         plot_args = make_plot_args(nshells, args)
         stats = ['rad', 'dens', 'psi', 'phi']
 
+        print " * shells vs time"
         shells = split_shells(mdata, zero_to=1)
         shells = average_shells(shells, stats, 'f')
 
@@ -540,7 +573,11 @@ if __name__ == '__main__':
             save = save_name.format(prefix=args.prefix, stat=stat)
             plot_by_shell(shells, 'f', stat, start=args.start, zoom=args.zoom,
                           smooth=args.smooth, save=save, ax=ax, **plot_args)
+        fig.tight_layout(h_pad=0, w_pad=0)
+        d = '/Users/leewalsh/Box Sync/melting/'
+        fig.savefig(d+args.prefix+'/OPs_by_shell_vs_time.pdf', bbox_inches='tight', pad_inches=0)
 
+        print " * shells vs density"
         shells.pop(nshells)
         stats.remove('dens')
         nrows = len(stats)
@@ -552,31 +589,71 @@ if __name__ == '__main__':
         for stat, ax in zip(stats, axes):
             plot_by_shell(shells, 'dens', stat, start=args.start,
                           ax=ax, **plot_args)
+        fig.tight_layout(h_pad=0, w_pad=0)
+        fig.savefig(d+args.prefix+'/OPs_by_shell_vs_density.pdf', bbox_inches='tight', pad_inches=0)
 
-        stats = ['sh', 'rad', 'dens', 'psi', 'phi']
-        f = args.start
-        fs = np.array([0, 250, 500, 750, 1000, 1250]) + f
-        nrows = len(stats)
-        ncols = len(fs)
+        print " * parametric histogram"
+        stats = ['rad', 'dens', 'psi', 'phi']
+        nrows = ncols = len(stats) - 1
         figsize = list(plt.rcParams['figure.figsize'])
         figsize[0] = min(figsize[0]*ncols,
                          helplt.rc('figure.maxwidth'))
         figsize[1] = min(figsize[1]*nrows,
                          helplt.rc('figure.maxheight'))
+        f0 = args.start
+        fs = np.array([0, 250, 500, 750, 1000, 1250, 1500])
+        fbs = ['start'] + fs.tolist() + ['end']
+        periods = np.split(mframes, fs + f0)
+        for p, period in enumerate(periods):
+            period = np.concatenate(period)
+            fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
+                                     sharex='col', sharey='row')
+            fig.suptitle(r'$t \, f = [{}, {})$'.format(fbs[p], fbs[p+1]))
+            for j, x in enumerate(stats[:-1]):
+                for i, y in enumerate(stats[j+1:]):
+                    ax = axes[i+j, j]
+                    plot_parametric_hist(period, x, y, ax=ax, **plot_args)
+            fig.tight_layout(h_pad=0, w_pad=0)
+            fig.savefig(d+args.prefix+'/OP_parametric_histogram_timeperiod_{}.pdf'.format(p), bbox_inches='tight', pad_inches=0)
+
+        print " * parameter maps"
+        stats = ['sh', 'rad', 'dens', 'psi', 'phi']
+        f0 = args.start
+        fs = np.array([0, 250, 500, 750, 1000, 1250]) + f0
+        nrows = len(stats)
+        ncols = len(fs)
+        figsize = list(plt.rcParams['figure.figsize'])
+        figsize[0] = min(figsize[0]*ncols,
+                         helplt.rc('figure.maxwidth'))
+        figsize[1] = min(figsize[1]*nrows, 10)
+                         #helplt.rc('figure.maxheight'))
         fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
                                  sharex='all', sharey='all')
+        norm_opts = plot_args.pop('norm')
         for i, stat in enumerate(stats):
+            norm = norm_opts[stat]
+            if norm is None:
+                norm = (0, 1)
+            if isinstance(norm, list):
+                norm = tuple(np.percentile(mdata[stat]*plot_args['unit'][stat], norm))
+            if isinstance(norm, tuple):
+                norm = matplotlib.colors.Normalize(*norm)
             for j, f in enumerate(fs):
                 ax = axes[i, j]
-                plot_regions(frames[f], mframes[f],
+                plot_regions(frames[f], mframes[f], norm=norm,
                              ax=ax, colors=stat, **plot_args)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 if i == nrows-1:
-                    ax.set_xlabel('time = {}'.format((f - args.start)/args.fps))
+                    ax.set_xlabel('time = {}'.format((f - f0)/args.fps))
                 if j == 0:
                     ax.set_ylabel(stat)
-        fig.tight_layout()
+                    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        fig.tight_layout(h_pad=0, w_pad=0)
+        fig.savefig(d+args.prefix+'/OP_spatial_map.pdf', bbox_inches='tight', pad_inches=0)
+
 
         if args.show:
             plt.show()
