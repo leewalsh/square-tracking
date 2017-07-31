@@ -189,10 +189,12 @@ def average_shells(shells, fields=None, by='f'):
         fields = [f for f in shells.dtype.names if f not in 'id f t sh']
     averaged = {}
     for s, shell in shells.iteritems():
-        vals = tuple(shell[field] for field in fields)
-        vals, bins = corr.bin_average(shell[by], vals, 1)
-        averaged[s] = dict(zip(fields, vals))
-        averaged[s][by] = bins[:-1]
+        averaged[s] = {}
+        for field in fields:
+            i = np.where(np.isfinite(shell[field]))
+            vals, bins = corr.bin_average(shell[by][i], shell[field][i], 1)
+            averaged[s][field] = vals
+            averaged[s][by] = bins[:-1]
     return averaged
 
 
@@ -210,7 +212,7 @@ def make_plot_args(nshells, args):
         'phi':  r'molecular angle order $\Phi$',
     }
     xylim = {
-        'f':    (-25, None),
+        'f':    (-25, (args.end - args.start)/args.fps),
         'rad':  (0, None),
         'dens': (0, 1.1),
         'phi':  (0, 1.1),
@@ -255,8 +257,7 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
             if smooth:
                 ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
             ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
-            xlim = ax.get_xlim()
-            ax.set_xlim(-25, xlim[1]*zoom)
+            ax.set_xlim(plot_args['xylim'][x])
             ax.set_ylim(plot_args['xylim'][y])
         elif x in ('dens', 'phi', 'psi'):
             xs, ys = shell[x], shell[y]
@@ -468,6 +469,7 @@ if __name__ == '__main__':
     arg('-s', '--side', type=float,
         help='Particle size in pixels, for unit normalization')
     arg('--start', type=float, help='First frame')
+    arg('--end', type=float, help='Last frame')
     arg('--smooth', type=float, default=0, help='frames to smooth over')
     arg('-f', '--fps', type=float,
         help="Number of frames per shake (or second) for unit normalization")
@@ -511,8 +513,8 @@ if __name__ == '__main__':
 
     helpy.sync_args_meta(
         args, meta,
-        ['side', 'fps', 'start', 'width', 'zoom'],
-        ['sidelength', 'fps', 'start_frame', 'crystal_width', 'crystal_zoom'],
+        ['side', 'fps', 'start', 'end', 'width', 'zoom'],
+        ['sidelength', 'fps', 'start_frame', 'end_frame', 'crystal_width', 'crystal_zoom'],
         [1, 1, 0, None, 1])
 
     M = 4  # number of neighbors
@@ -555,13 +557,15 @@ if __name__ == '__main__':
         stats = ['rad', 'dens', 'psi', 'phi']
 
         print " * shells vs time"
-        shells = split_shells(mdata, zero_to=1)
-        shells = average_shells(shells, stats, 'f')
+        endex = np.searchsorted(mdata['f'], args.end)
+        shells = split_shells(mdata[:endex], zero_to=1)
+        shell_means = average_shells(shells, stats, 'f')
 
-        if args.save:
-            axes = it.repeat(None, len(stats))
-            save_name = '{prefix}_{stat}.pdf'
-        else:
+        #if args.save:
+        #    axes = it.repeat(None, len(stats))
+        #    save_name = '{prefix}_{stat}.pdf'
+        #else:
+        if True:
             nrows = len(stats)
             figsize = list(plt.rcParams['figure.figsize'])
             figsize[1] = min(figsize[1]*nrows,
@@ -571,7 +575,7 @@ if __name__ == '__main__':
             save_name = ''
         for stat, ax in zip(stats, axes):
             save = save_name.format(prefix=args.prefix, stat=stat)
-            plot_by_shell(shells, 'f', stat, start=args.start, zoom=args.zoom,
+            plot_by_shell(shell_means, 'f', stat, start=args.start, zoom=args.zoom,
                           smooth=args.smooth, save=save, ax=ax, **plot_args)
         fig.tight_layout(h_pad=0, w_pad=0)
         d = '/Users/leewalsh/Box Sync/melting/'
@@ -601,7 +605,7 @@ if __name__ == '__main__':
         figsize[1] = min(figsize[1]*nrows,
                          helplt.rc('figure.maxheight'))
         f0 = args.start
-        fs = np.array([0, 250, 500, 750, 1000, 1250, 1500])
+        fs = np.array([0, 250, 500, 750, 1000, 1250])
         fbs = ['start'] + fs.tolist() + ['end']
         periods = np.split(mframes, fs + f0)
         for p, period in enumerate(periods):
