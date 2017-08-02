@@ -145,14 +145,13 @@ def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     largest value is (W - 1)/2
     """
     N, W = square_size(N or len(positions))
-    assert W % 2, "Michael's code requires integer shells"
     if ref_basis is None:
         _, ref_basis = find_ref_basis(positions)
     positions = corr.rotate2d(positions, basis=ref_basis)
     positions -= positions.mean(0)
     spacing = (positions.max(0) - positions.min(0)) / (W - 1)
     positions /= spacing
-    shells = np.abs(positions).max(1).round().astype(int)
+    shells = (np.abs(positions).max(1) + (1 - W % 2)/2.).round().astype(int)
     if ids is not None:
         ni, mi = len(ids), max(ids.max(), maxt, N)
         if ni <= mi or np.any(ids != np.arange(ni)):
