@@ -37,6 +37,41 @@ def initialize_mdata(data):
     return mdata
 
 
+def merge_melting(prefix_pattern):
+    merged_prefix = helpy.replace_all(prefix_pattern, '*?', '') + '_MRG'
+    helpy.save_log_entry(merged_prefix, 'argv')
+    prefixes = [p[:-9] for p in glob.iglob(
+        helpy.with_suffix(prefix_pattern, '_MELT.npz'))]
+
+    metas, datas, mdatas = [], [], []
+    for prefix in prefixes:
+        meta = helpy.load_meta(prefix)
+        data, mdata = helpy.load_data(prefix, 't m')
+        tsets = helpy.load_tracksets(data, run_repair='interp',
+                                     run_track_orient=True)
+        # to get the benefits of tracksets (interpolation, stub filtering):
+        data = np.concatenate(tsets.values())
+        data.sort(order=['f', 't'])
+        assert np.all(data['id'] == mdata['id'])
+
+        f0 = int(meta['start_frame'])
+        start_index = np.searchsorted(data['f'], f0)
+        data = data[start_index:]
+        mdata = mdata[start_index:]
+        data['f'] = mdata['f'] = data['f'] - f0
+        metas.append(meta)
+        datas.append(data)
+        mdatas.append(mdata)
+    data = np.concatenate(datas)
+    mdata = np.concatenate(mdatas)
+    meta = helpy.merge_meta(metas, excl={'start_frame'},
+                            excl_start=('center', 'corner'))
+    meta.update(merged=prefixes, start_frame=0,
+                end_frame=max(meta['end_frame']) - f0)
+    print '\n\t'.join(['merged sets:'] + prefixes)
+    return merged_prefix, meta, data, mdata
+
+
 def melting_stats(frame, dens_method, neigh_args):
     xy = frame['xy']
     orient = frame['o']
@@ -481,45 +516,13 @@ if __name__ == '__main__':
         filterwarnings('ignore', category=RuntimeWarning,
                        module='numpy|scipy|matplot')
 
-    if '*' in args.prefix or '?' in args.prefix:
-        prefix_pattern = args.prefix
-        args.prefix = helpy.replace_all(args.prefix, '*?', '') + '_MRG'
-        helpy.save_log_entry(args.prefix, 'argv')
-        prefixes = [p[:-9] for p in glob.iglob(
-            helpy.with_suffix(prefix_pattern, '_MELT.npz'))]
-
-        metas, datas, mdatas = [], [], []
-        for prefix in prefixes:
-            meta = helpy.load_meta(prefix)
-            data, mdata = helpy.load_data(prefix, 't m')
-            tsets = helpy.load_tracksets(data, run_repair='interp',
-                                         run_track_orient=True)
-            # to get the benefits of tracksets (interpolation, stub filtering):
-            data = np.concatenate(tsets.values())
-            data.sort(order=['f', 't'])
-            assert np.all(data['id'] == mdata['id'])
-
-            f0 = int(meta['start_frame'])
-            start_index = np.searchsorted(data['f'], f0)
-            data = data[start_index:]
-            mdata = mdata[start_index:]
-            data['f'] = mdata['f'] = data['f'] - f0
-            meta['start_frame'] = 0
-            meta['end_frame'] -= f0
-            metas.append(meta)
-            datas.append(data)
-            mdatas.append(mdata)
-        data = np.concatenate(datas)
-        mdata = np.concatenate(mdatas)
-        meta = helpy.merge_meta(metas, excl={'start_frame'},
-                                excl_start=('center', 'corner'))
-        meta['end_frame'] = max(meta['end_frame'])
+    if glob.has_magic(args.prefix):
+        args.prefix, meta, data, mdata = merge_melting(args.prefix)
         if args.save:
             data, mdata = map(helpy.remove_self_views, [data, mdata])
-            helpy.save_meta(args.prefix, meta, merged=prefixes)
+            helpy.save_meta(args.prefix, meta)
             np.savez_compressed(args.prefix+'_TRACKS', data=data)
             np.savez_compressed(args.prefix+'_MELT', data=mdata)
-            print 'merged sets', prefixes, 'saved to', args.prefix
             sys.exit()
     else:
         helpy.save_log_entry(args.prefix, 'argv')
@@ -528,7 +531,8 @@ if __name__ == '__main__':
     helpy.sync_args_meta(
         args, meta,
         ['side', 'fps', 'start', 'end', 'width', 'zoom'],
-        ['sidelength', 'fps', 'start_frame', 'end_frame', 'crystal_width', 'crystal_zoom'],
+        ['sidelength', 'fps', 'start_frame', 'end_frame',
+         'crystal_width', 'crystal_zoom'],
         [1, 1, 0, None, 1])
 
     M = 4  # number of neighbors
