@@ -20,7 +20,7 @@ import readline     # this is used by raw_input
 import glob
 import platform
 import getpass
-from time import strftime
+from time import strftime as _strftime
 
 import numpy as np
 
@@ -594,8 +594,29 @@ def fio(path, content='', mode='w'):
         return lines
 
 
-def timestamp():
-    timestamp, timezone = strftime('%Y-%m-%d %H:%M:%S,%Z').split(',')
+def strftime(fmt='%y%m%d_%H%M%S', t=None):
+    """Format current or given time to string using format specification.
+
+    Default format is '%y%m%d_%H%M%S' e.g., 170321_093247
+    See the python library reference manual for formatting codes.
+    When time tuple is not given, use localtime() to return current time.
+    """
+    if t is None:
+        return _strftime(fmt)
+    else:
+        return _strftime(fmt, t)
+
+
+def timestamp(fmt='%Y-%m-%d %H:%M:%S', t=None):
+    """return current date and time with nicely formatted timezone info
+
+    Sometimes '%Z' is formatted as 'Eastern Standard Time', sometimes as 'EST'.
+    This function converts the former (longer) into the latter (shorter).
+
+    Default format is '%Y-%m-%d %H:%M:%S %Z' e.g., 2017-03-21 09:32:47 EST
+    """
+    fmt = with_suffix(fmt, ',%Z')
+    timestamp, timezone = strftime(fmt, t).split(',')
     if len(timezone) > 3:
         timezone = ''.join(s[0] for s in timezone.split())
     return timestamp+' '+timezone
@@ -999,8 +1020,10 @@ def load_data(fullprefix, sets='tracks', verbose=False):
             if s == 'p':
                 if verbose:
                     print "No positions file, loading from tracks"
-                data[s] = data['t'] if 't' in data else load_data(fullprefix,
-                                                                  't', verbose)
+                if 't' in data:
+                    data[s] = data['t']
+                else:
+                    raise e
             elif s == 't':
                 if verbose:
                     print "No tracks file, loading from positions"

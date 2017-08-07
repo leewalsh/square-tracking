@@ -12,6 +12,7 @@ import os
 import sys
 import itertools as it
 from math import sqrt
+from collections import OrderedDict
 
 import numpy as np
 import matplotlib
@@ -106,7 +107,7 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
                                 xytext=(4, 0), textcoords='offset points',
                                 xy=(x, 0.1), xycoords=('data', 'axes fraction'))
         line = dict(line_default, **(line or {}))
-        l = axline(ax, 'v', x, **line)
+        lines = axline(ax, 'v', x, **line)
     elif method == 'corner':
         x, y = x
         line = dict(dict(color='k', linestyle=':', linewidth=1, zorder=0.1),
@@ -114,8 +115,8 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
         annotate_default = dict(xytext=(11, 11), textcoords='offset points',
                                 xy=(x, y), xycoords='data',
                                 arrowprops=dict(arrowstyle='->', lw=0.5))
-        l = [axline(ax, 'v', x, ax.get_ylim()[0], y, coords='data', **line),
-             axline(ax, 'h', y, ax.get_xlim()[0], x, coords='data', **line)]
+        lines = [axline(ax, 'v', x, ax.get_ylim()[0], y, coords='data', **line),
+                 axline(ax, 'h', y, ax.get_xlim()[0], x, coords='data', **line)]
     elif method == 'axis':
         annotate_default = dict(xy=(x, 0), xycoords=('data', 'axes fraction'),
                                 xytext=(0, 9), textcoords='offset points',
@@ -124,8 +125,10 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
     else:
         raise ValueError("Unknown method " + method)
 
-    a = ax.annotate(label, **dict(annotate_default, **(annotate or {})))
-    return l, a
+    annotate = dict(annotate_default, **(annotate or {}))
+    annotation = ax.annotate(label, **annotate)
+
+    return lines, annotation
 
 
 def draw_circles(centers, rs, ax=None, fig=None, **kwargs):
@@ -174,6 +177,33 @@ def rc(*keys):
         return params[keys[0]]
     else:
         return params
+
+
+def rcParam_diff(rcname='CURR', rcs=None, rcParams=None,
+                 always=('text.usetex',), never=('backend',)):
+    if rcs is None:
+        rcs = OrderedDict([('DEFAULT', plt.rcParamsDefault.copy())])
+    elif 'DEFAULT' not in rcs:
+        rcs['DEFAULT'] = plt.rcParamsDefault.copy()
+
+    if rcParams is None:
+        rcParams = plt.rcParams
+    rcs[rcname] = rcParams.copy()
+
+    fmt = "{:>21}: " + ' => '.join(["{:^16}"]*len(rcs))
+    ps = [['KEY'] + rcs.keys()]
+    for key in sorted(rcs['DEFAULT']):
+        if key in never:
+            continue
+        vals = [rc[key] for rc in rcs.values()]
+        changed = any(vals[i] != vals[i-1] for i in xrange(1, len(vals)))
+        if changed or key in always:
+            for i in xrange(len(vals)-1, 0, -1):
+                if vals[i] == vals[i-1]:
+                    vals[i] = '...'
+            ps.append([key] + vals)
+    print '\n'.join(it.starmap(fmt.format, ps))
+    return rcs
 
 
 def check_neighbors(prefix, frame, data=None, im=None, **neighbor_args):

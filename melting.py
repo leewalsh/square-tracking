@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import division
 
+import sys
 import math
 import itertools as it
 import glob
@@ -161,7 +162,7 @@ def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     return shells
 
 
-def split_shells(mdata, zero_to=0, do_mean=True):
+def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
     """Split melting data into dict of slices for each shell.
 
     parameters
@@ -178,7 +179,9 @@ def split_shells(mdata, zero_to=0, do_mean=True):
     splindex = np.where(mdata['sh'], mdata['sh'], zero_to) if zero_to else 'sh'
     shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
     if do_mean:
-        shells[nshells] = mdata[mdata['sh'] >= 0]
+        if maxshell is None:
+            maxshesll = max(shells.keys())
+        shells[maxshell+1] = mdata[mdata['sh'] >= 0]
     return shells
 
 
@@ -197,11 +200,11 @@ def average_shells(shells, fields=None, by='f'):
     return averaged
 
 
-def make_plot_args(nshells, args):
+def make_plot_args(maxshell, args):
     line_props = helpy.transpose_dict_of_lists({
-        'label': ['center', 'inner'] + range(2, nshells-1) + ['outer', 'all'],
-        'c':    map(plt.get_cmap('Dark2'), xrange(nshells)) + ['black'],
-        'lw':   [1]*nshells + [2],
+        'label': ['center', 'inner'] + range(2, maxshell) + ['outer', 'all'],
+        'c':    map(plt.get_cmap('Dark2'), xrange(maxshell+1)) + ['black'],
+        'lw':   [1]*(maxshell+1) + [2],
     })
     xylabel = {
         'f':    r'$t \, f$',
@@ -240,12 +243,9 @@ def make_plot_args(nshells, args):
 def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
     line_props = plot_args.get('line_props', [{}]*len(shells))
     unit = plot_args.get('unit', {x: 1, y: 1})
-    save = plot_args.get('save')
     ax = plot_args.get('ax')
     if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 3) if save else None)
-    else:
-        fig = ax.get_figure()
+        fig, ax = plt.subplots(figsize=(4, 3))
 
     for s, shell in shells.iteritems():
         if s < 0:
@@ -268,30 +268,20 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
 
-    fig.tight_layout()
-    if save:
-        fig.savefig(save)
-
-    return fig, ax
+    return ax
 
 
 def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     unit = plot_args.get('unit', {x: 1, y: 1})
     if ax is None:
         fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
     hexbin = ax.hexbin(xs, ys, norm=matplotlib.colors.LogNorm())
 
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
 
-    fig.tight_layout()
-    if save:
-        fig.savefig(save)
-
-    return fig, ax, hexbin
+    return ax, hexbin
 
 
 def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
@@ -300,8 +290,14 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
     stats = {stat: {config: np.load(prefix_pattern.format(config, stat)+'.npy')
                     for config in configs}
              for stat in stats}
+
     xlims = {'dens': 300, 'phi': 200, 'psi': 150}
+    statlabels = {
+        'dens': r'$\mathrm{density}\ \langle r_{ij}\rangle^{-2}$',
+        'psi':  r'$\mathrm{bond\ angle\ order}\ \Psi$',
+        'phi':  r'$\mathrm{molecular\ angle\ order}\ \Phi$'}
     plt.rc('text', usetex=True)
+    figs = {}
     for stat, v in stats.iteritems():
         colors = ['orange', 'brown', 'magenta', 'cyan']
         fig, ax = plt.subplots(figsize=(4, 3))
@@ -313,21 +309,17 @@ def plot_by_config(prefix_pattern, smooth=1, side=1, fps=1):
         ax.set_xlabel(r'$t \, f$')
         ax.set_xlim(1, xlims[stat])
         ax.set_ylim(0, 1)
-        statlabels = {
-            'dens': r'$\mathrm{density}\ \langle r_{ij}\rangle^{-2}$',
-            'psi': r'$\mathrm{bond\ angle\ order}\ \Psi$',
-            'phi': r'$\mathrm{molecular\ angle\ order}\ \Phi$'}
         ax.set_ylabel(statlabels[stat])
         ax.legend(loc='lower left', fontsize='small')
         fig.savefig(prefix_pattern.format('ALL', stat) + '.pdf')
+        figs[stat] = fig
+    return figs
 
 
 def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
     """plot map of parameter for given frame"""
     if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 3) if save else None)
-    else:
-        fig = ax.get_figure()
+        fig, ax = plt.subplots(figsize=(4, 3))
 
     if vor.points.shape[1] != 2:
         raise ValueError("Voronoi diagram is not 2-D")
@@ -381,7 +373,7 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
     ax.set_xlim(xy_min[0], xy_max[0])
     ax.set_ylim(xy_min[1], xy_max[1])
 
-    return fig, ax
+    return ax
 
 
 def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, **plot_args):
@@ -401,7 +393,10 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
     if colors in frame.dtype.names:
         colors = cmap(norm(frame[colors]))
     elif mframe is not None and colors in mframe.dtype.names:
-        colors = cmap(norm(mframe[colors]*unit[colors]) if colors != 'sh' else mframe[colors]*unit[colors])
+        colors = mframe[colors]*unit[colors]
+        if colors != 'sh':
+            colors = norm(colors)
+        colors = cmap(colors)
     elif np.isscalar(colors):
         colors = it.repeat(cmap(colors))
     elif len(colors) == len(frame):
@@ -413,8 +408,6 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
 
     if ax is None:
         fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
 
     patch_args = dict(edgecolor='k', zorder=0.5)
     quiver_args = dict(edgecolor='none', side=1/unit['rad'], zorder=2)
@@ -432,7 +425,7 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
     xlim, ylim = ([[-0.1], [0.1]] * (vmx - vmn) + [vmn, vmx]).T
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    return fig, ax, patches, scatter, norm
+    return ax, patches, scatter, norm
 
 
 def melt_analysis(data):
@@ -494,18 +487,40 @@ if __name__ == '__main__':
         helpy.save_log_entry(args.prefix, 'argv')
         prefixes = [p[:-9] for p in glob.iglob(
             helpy.with_suffix(prefix_pattern, '_MELT.npz'))]
-        metas, mdatas = zip(*[(helpy.load_meta(prefix),
-                               helpy.load_data(prefix, 'm'))
-                              for prefix in prefixes])
-        for meta, mdata in zip(metas, mdatas):
-            mdata['f'] = mdata['f'].astype(int) - int(meta['start_frame'])
+
+        metas, datas, mdatas = [], [], []
+        for prefix in prefixes:
+            meta = helpy.load_meta(prefix)
+            data, mdata = helpy.load_data(prefix, 't m')
+            tsets = helpy.load_tracksets(data, run_repair='interp',
+                                         run_track_orient=True)
+            # to get the benefits of tracksets (interpolation, stub filtering):
+            data = np.concatenate(tsets.values())
+            data.sort(order=['f', 't'])
+            assert np.all(data['id'] == mdata['id'])
+
+            f0 = int(meta['start_frame'])
+            start_index = np.searchsorted(data['f'], f0)
+            data = data[start_index:]
+            mdata = mdata[start_index:]
+            data['f'] = mdata['f'] = data['f'] - f0
+            meta['start_frame'] = 0
+            meta['end_frame'] -= f0
+            metas.append(meta)
+            datas.append(data)
+            mdatas.append(mdata)
+        data = np.concatenate(datas)
         mdata = np.concatenate(mdatas)
         meta = helpy.merge_meta(metas, excl={'start_frame'},
                                 excl_start=('center', 'corner'))
+        meta['end_frame'] = max(meta['end_frame'])
         if args.save:
-            np.savez_compressed(args.prefix+'_MELT', data=mdata)
+            data, mdata = map(helpy.remove_self_views, [data, mdata])
             helpy.save_meta(args.prefix, meta, merged=prefixes)
+            np.savez_compressed(args.prefix+'_TRACKS', data=data)
+            np.savez_compressed(args.prefix+'_MELT', data=mdata)
             print 'merged sets', prefixes, 'saved to', args.prefix
+            sys.exit()
     else:
         helpy.save_log_entry(args.prefix, 'argv')
         meta = helpy.load_meta(args.prefix)
@@ -525,6 +540,7 @@ if __name__ == '__main__':
         meta['crystal_width'] = W
     N = W*W
     nshells = (W+1)//2
+    maxshell = W//2
     print args.prefix
     print "Crystal size {W}x{W} = {N} ({s} shells)".format(W=W, N=N, s=nshells)
 
@@ -552,19 +568,18 @@ if __name__ == '__main__':
 
     if args.plot:
         print "plotting"
-        plot_args = make_plot_args(nshells, args)
+        plot_args = make_plot_args(maxshell, args)
         stats = ['rad', 'dens', 'psi', 'phi']
 
         print " * shells vs time"
         endex = np.searchsorted(mdata['f'], args.end)
-        shells = split_shells(mdata[:endex], zero_to=1)
+        shells = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
         shell_means = average_shells(shells, stats, 'f')
 
-        #if args.save:
-        #    axes = it.repeat(None, len(stats))
-        #    save_name = '{prefix}_{stat}.pdf'
-        #else:
-        if True:
+        if args.save:
+            axes = it.repeat(None, len(stats))
+            save_name = '{prefix}_{stat}.pdf'
+        else:
             nrows = len(stats)
             figsize = list(plt.rcParams['figure.figsize'])
             figsize[1] = min(figsize[1]*nrows,
@@ -574,8 +589,9 @@ if __name__ == '__main__':
             save_name = ''
         for stat, ax in zip(stats, axes):
             save = save_name.format(prefix=args.prefix, stat=stat)
-            plot_by_shell(shell_means, 'f', stat, start=args.start, zoom=args.zoom,
-                          smooth=args.smooth, save=save, ax=ax, **plot_args)
+            ax = plot_by_shell(shell_means, 'f', stat, start=args.start,
+                               zoom=args.zoom, smooth=args.smooth, save=save,
+                               ax=ax, **plot_args)
         fig.tight_layout(h_pad=0, w_pad=0)
         d = '/Users/leewalsh/Box Sync/melting/'
         fig.savefig(d+args.prefix+'/OPs_by_shell_vs_time.pdf', bbox_inches='tight', pad_inches=0)
