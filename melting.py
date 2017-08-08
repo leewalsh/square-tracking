@@ -59,15 +59,15 @@ def merge_melting(prefix_pattern):
         data = data[start_index:]
         mdata = mdata[start_index:]
         data['f'] = mdata['f'] = data['f'] - f0
+        meta['start_frame'] = 0
+        meta['end_frame'] -= f0
         metas.append(meta)
         datas.append(data)
         mdatas.append(mdata)
     data = np.concatenate(datas)
     mdata = np.concatenate(mdatas)
-    meta = helpy.merge_meta(metas, excl={'start_frame'},
-                            excl_start=('center', 'corner'))
-    meta.update(merged=prefixes, start_frame=0,
-                end_frame=max(meta['end_frame']) - f0)
+    meta = helpy.merge_meta(metas, excl_start=('center', 'corner'))
+    meta.update(merged=prefixes, end_frame=np.max(meta['end_frame']))
     print '\n\t'.join(['merged sets:'] + prefixes)
     return merged_prefix, meta, data, mdata
 
@@ -235,44 +235,56 @@ def average_shells(shells, fields=None, by='f'):
     return averaged
 
 
-def make_plot_args(maxshell, args):
-    line_props = helpy.transpose_dict_of_lists({
-        'label': ['center', 'inner'] + range(2, maxshell) + ['outer', 'all'],
-        'c':    map(plt.get_cmap('Dark2'), xrange(maxshell+1)) + ['black'],
-        'lw':   [1]*(maxshell+1) + [2],
-    })
-    xylabel = {
-        'f':    r'$t \, f$',
-        'rad':  r'radial distance $r - \langle r \rangle$',
-        'dens': r'density $\langle r_{ij}\rangle^{-2}$',
-        'psi':  r'bond angle order $\Psi$',
-        'phi':  r'molecular angle order $\Phi$',
+def make_plot_args(meta_or_args):
+    if isinstance(meta_or_args, dict):
+        meta = meta_or_args
+    else:
+        _, meta = helpy.sync_args_meta(
+            meta_or_args, {},
+            'width end start fps side',
+            'crystal_width end_frame start_frame fps sidelength'
+        )
+    M = meta['crystal_width']//2
+    fps, side = meta['fps'], meta['sidelength']
+
+    plot_args = {
+        'line_props': helpy.transpose_dict_of_lists({
+            'label': ['center', 'inner'] + range(2, M) + ['outer', 'all'],
+            'c':    map(plt.get_cmap('Dark2'), xrange(M+1)) + ['black'],
+            'lw':   [1]*(M+1) + [2],
+        }),
+        'xylabel': {
+            'f':    r'$t \, f$',
+            'rad':  r'radial distance $r - \langle r \rangle$',
+            'dens': r'density $\langle r_{ij}\rangle^{-2}$',
+            'psi':  r'bond angle order $\Psi$',
+            'phi':  r'molecular angle order $\Phi$',
+        },
+        'xylim': {
+            'f':    (-25, (meta['end_frame'] - meta['start_frame'])/fps),
+            'rad':  (0, None),
+            'dens': (0, 1.1),
+            'phi':  (0, 1.1),
+            'psi':  (0, 1.1),
+        },
+        'unit': {
+            'f':    1/fps,
+            'rad':  1/side,
+            'dens': side**2,
+            'phi':  1,
+            'psi':  1,
+            'sh':   1,
+        },
+        'norm': {
+            'f':    None,
+            'rad':  [0, 75],
+            'dens': (0, 1),
+            'phi':  (0, 1),
+            'psi':  (0, 1),
+            'sh':   None,
+        },
     }
-    xylim = {
-        'f':    (-25, (args.end - args.start)/args.fps),
-        'rad':  (0, None),
-        'dens': (0, 1.1),
-        'phi':  (0, 1.1),
-        'psi':  (0, 1.1),
-    }
-    unit = {
-        'f':    1/args.fps,
-        'rad':  1/args.side,
-        'dens': args.side**2,
-        'phi':  1,
-        'psi':  1,
-        'sh':   1,
-    }
-    norm = {
-        'f':    None,
-        'rad':  [0, 75],
-        'dens': (0, 1),
-        'phi':  (0, 1),
-        'psi':  (0, 1),
-        'sh':   None,
-    }
-    return dict(line_props=line_props, xylabel=xylabel, xylim=xylim,
-                unit=unit, norm=norm)
+    return plot_args
 
 
 def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
@@ -470,11 +482,12 @@ def melt_analysis(data):
     shells = assign_shell(frames[0]['xy'], frames[0]['t'],
                           maxt=data['t'].max())
     mdata['sh'] = shells[mdata['t']]
+    maxshell = shells.max()
 
     dens_method = 'dist'
     # Calculate radial speed (not MSD!) (maybe?)
     for frame, melt in it.izip(frames, mframes):
-        nn = np.where(melt['sh'] == nshells-1, 3, 4)
+        nn = np.where(melt['sh'] == maxshell, 3, 4)
         neigh_args = {'size': (nn,)*2}
 
         rad, dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
@@ -575,7 +588,6 @@ if __name__ == '__main__':
         plot_args = make_plot_args(maxshell, args)
         stats = ['rad', 'dens', 'psi', 'phi']
 
-        print " * shells vs time"
         endex = np.searchsorted(mdata['f'], args.end)
         shells = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
         shell_means = average_shells(shells, stats, 'f')
@@ -596,9 +608,6 @@ if __name__ == '__main__':
             ax = plot_by_shell(shell_means, 'f', stat, start=args.start,
                                zoom=args.zoom, smooth=args.smooth, save=save,
                                ax=ax, **plot_args)
-        fig.tight_layout(h_pad=0, w_pad=0)
-        d = '/Users/leewalsh/Box Sync/melting/'
-        fig.savefig(d+args.prefix+'/OPs_by_shell_vs_time.pdf', bbox_inches='tight', pad_inches=0)
 
         print " * shells vs density"
         shells.pop(nshells)
@@ -612,8 +621,6 @@ if __name__ == '__main__':
         for stat, ax in zip(stats, axes):
             plot_by_shell(shells, 'dens', stat, start=args.start,
                           ax=ax, **plot_args)
-        fig.tight_layout(h_pad=0, w_pad=0)
-        fig.savefig(d+args.prefix+'/OPs_by_shell_vs_density.pdf', bbox_inches='tight', pad_inches=0)
 
         print " * parametric histogram"
         stats = ['rad', 'dens', 'psi', 'phi']
@@ -636,8 +643,6 @@ if __name__ == '__main__':
                 for i, y in enumerate(stats[j+1:]):
                     ax = axes[i+j, j]
                     plot_parametric_hist(period, x, y, ax=ax, **plot_args)
-            fig.tight_layout(h_pad=0, w_pad=0)
-            fig.savefig(d+args.prefix+'/OP_parametric_histogram_timeperiod_{}.pdf'.format(p), bbox_inches='tight', pad_inches=0)
 
         print " * parameter maps"
         stats = ['sh', 'rad', 'dens', 'psi', 'phi']
@@ -674,8 +679,6 @@ if __name__ == '__main__':
                     xlim, ylim = ax.get_xlim(), ax.get_ylim()
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-        fig.tight_layout(h_pad=0, w_pad=0)
-        fig.savefig(d+args.prefix+'/OP_spatial_map.pdf', bbox_inches='tight', pad_inches=0)
 
 
         if args.show:
