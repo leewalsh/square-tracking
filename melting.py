@@ -5,6 +5,7 @@ import sys
 import math
 import itertools as it
 import glob
+from pprint import pprint
 
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
@@ -46,29 +47,39 @@ def merge_melting(prefix_pattern):
     metas, datas, mdatas = [], [], []
     for prefix in prefixes:
         meta = helpy.load_meta(prefix)
+        print prefix
         data, mdata = helpy.load_data(prefix, 't m')
+        print '\tinterpolating data'
+        # to get the benefits of tracksets (interpolation, stub filtering):
         tsets = helpy.load_tracksets(data, run_repair='interp',
                                      run_track_orient=True)
-        # to get the benefits of tracksets (interpolation, stub filtering):
         data = np.concatenate(tsets.values())
         data.sort(order=['f', 't'])
         assert np.all(data['id'] == mdata['id'])
 
+        frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
         f0 = int(meta['start_frame'])
-        start_index = np.searchsorted(data['f'], f0)
-        data = data[start_index:]
-        mdata = mdata[start_index:]
-        data['f'] = mdata['f'] = data['f'] - f0
+        data['f'] -= f0
+        mdata['f'] -= f0
+        frames = frames[f0:]
+        mframes = mframes[f0:]
+
         meta['start_frame'] = 0
         meta['end_frame'] -= f0
         metas.append(meta)
-        datas.append(data)
-        mdatas.append(mdata)
-    data = np.concatenate(datas)
-    mdata = np.concatenate(mdatas)
+        datas.append(frames)
+        mdatas.append(mframes)
+    print 'concatenating all'
+    data = [f for fs in it.izip_longest(*datas, fillvalue=[])
+            for f in fs if len(f)]
+    mdata = [f for fs in it.izip_longest(*mdatas, fillvalue=[])
+             for f in fs if len(f)]
+    data = np.concatenate(data)
+    mdata = np.concatenate(mdata)
     meta = helpy.merge_meta(metas, excl_start=('center', 'corner'))
     meta.update(merged=prefixes, end_frame=np.max(meta['end_frame']))
     print '\n\t'.join(['merged sets:'] + prefixes)
+    pprint(meta)
     return merged_prefix, meta, data, mdata
 
 
@@ -261,7 +272,8 @@ def make_plot_args(meta_or_args):
             'phi':  r'molecular angle order $\Phi$',
         },
         'xylim': {
-            'f':    (-25, (meta['end_frame'] - meta['start_frame'])/fps),
+            'f':    (-25,
+                     meta.get('end_frame') and (meta.get('end_frame') - meta['start_frame'])/fps),
             'rad':  (0, None),
             'dens': (0, 1.1),
             'phi':  (0, 1.1),
@@ -323,7 +335,7 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     if ax is None:
         fig, ax = plt.subplots()
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
-    hexbin = ax.hexbin(xs, ys, norm=matplotlib.colors.LogNorm())
+    hexbin = ax.hexbin(xs, ys, norm=matplotlib.colors.LogNorm(), marginals=True)
 
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
@@ -440,9 +452,10 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
     if colors in frame.dtype.names:
         colors = cmap(norm(frame[colors]))
     elif mframe is not None and colors in mframe.dtype.names:
+        if colors == 'sh':
+            norm = lambda x: x
         colors = mframe[colors]*unit[colors]
-        if colors != 'sh':
-            colors = norm(colors)
+        colors = norm(colors)
         colors = cmap(colors)
     elif np.isscalar(colors):
         colors = it.repeat(cmap(colors))
