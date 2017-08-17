@@ -257,6 +257,10 @@ def make_plot_args(meta_or_args):
         )
     M = meta['crystal_width']//2
     fps, side = meta['fps'], meta['sidelength']
+    if 'boundary' in meta:
+        rad = meta['boundary'][-1]/2.0/side
+    else:
+        rad = None
 
     plot_args = {
         'line_props': helpy.transpose_dict_of_lists({
@@ -274,7 +278,7 @@ def make_plot_args(meta_or_args):
         'xylim': {
             'f':    (-25,
                      meta.get('end_frame') and (meta.get('end_frame') - meta['start_frame'])/fps),
-            'rad':  (0, None),
+            'rad':  (0, rad),
             'dens': (0, 1.1),
             'phi':  (0, 1.1),
             'psi':  (0, 1.1),
@@ -289,7 +293,7 @@ def make_plot_args(meta_or_args):
         },
         'norm': {
             'f':    None,
-            'rad':  [0, 75],
+            'rad':  (0, rad or 505/side),
             'dens': (0, 1),
             'phi':  (0, 1),
             'psi':  (0, 1),
@@ -332,10 +336,14 @@ def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
 
 def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     unit = plot_args.get('unit', {x: 1, y: 1})
+    extent = plot_args['norm'][x] + plot_args['norm'][y]
     if ax is None:
         fig, ax = plt.subplots()
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
-    hexbin = ax.hexbin(xs, ys, norm=matplotlib.colors.LogNorm(), marginals=True)
+    hexbin = ax.hexbin(xs, ys,
+                       norm=matplotlib.colors.LogNorm(),
+                       extent=extent,
+                       **plot_args.get('hexbin', {}))
 
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
