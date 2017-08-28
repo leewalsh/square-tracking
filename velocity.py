@@ -222,11 +222,15 @@ def plot_widths(widths, stats, normalize=False, ax=None):
 
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
-              label='v', title='', subtitle='', c=cs['o'], histtype='step'):
+              label='v', title='', subtitle='', c=cs['o'], histtype='step',
+              normed=False, standardized=False):
     """plot a histogram of a given distribution of velocities"""
-    if args.verbose:
-        print title + subtitle + str(label)
     stats = get_stats(a)
+    if standardized:
+        s = sqrt(stats['var'])
+        a = a/s
+        stats['var'] = 1.0
+        stats['mean'] /= s
     if isinstance(label, dict):
         label.update(stats)
         label = '\n'.join([r'$\langle {val} \rangle = {mean:.5f}$',
@@ -242,7 +246,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         xlim = bins[1], bins[-2]
     counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
                               log=log, alpha=1 if histtype == 'step' else 0.6,
-                              color=c, histtype=histtype, lw=1.5)
+                              color=c, histtype=histtype, lw=1.5, normed=normed)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
     #ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
@@ -272,9 +276,10 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         annotate=dict(xy=(stats['mean'], 0), xytext=(0, 9), ha='center')
     )
     if log:
-        ypowb, ypowt = 0.5, int(1.9 + np.log10(counts.max()))
-        ylim = ax.set_ylim(10**ypowb, 10**ypowt - 1)
-        yticks = 10**np.arange(int(ypowb), ypowt)
+        ypowt = int(1.9 + np.log10(counts.max()))
+        ypowb = -3.0 if normed else 0.5
+        ylim = ax.set_ylim(10.0**ypowb, 10.0**ypowt * 0.99)
+        yticks = 10.0**np.arange(int(ypowb), ypowt)
         yticks_minor = (yticks * np.arange(2, 10)[:, None]).flatten()
         ax.set_yticks(yticks[yticks >= ylim[0]])
         ax.set_yticks(yticks_minor[yticks_minor >= ylim[0]], minor=True)
@@ -565,7 +570,7 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     return fig, vac_fits
 
 
-def command_hist(args, meta, compile_args, axes=None):
+def command_hist(tsets, args, meta, axes=None):
     """Run the velocity histogram plotting script"""
     helpy.sync_args_meta(args, meta,
                          ['stub', 'gaps', 'width'],
@@ -573,7 +578,6 @@ def command_hist(args, meta, compile_args, axes=None):
                          [10, 'interp', 0.65])
     hist_fits = {}
     width = helpy.parse_slice(args.width, index_array=True)
-    compile_args.update(args.__dict__)
     vs = compile_noise(tsets, width, cat=True,
                        side=args.side, fps=args.fps)
 
@@ -618,6 +622,7 @@ def command_hist(args, meta, compile_args, axes=None):
     if args.do_translation:
         title = ''#Parallel & Transverse'
         for icol in range(ncols):
+            # Transverse:
             v = 'perp'
             label = englabel[v] + r' $\perp$'
             if args.verbose:
@@ -632,6 +637,8 @@ def command_hist(args, meta, compile_args, axes=None):
                 'VAR': float(stats['var']), 'MN': float(stats['mean']),
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
+
+            # Longitudinal:
             v = 'par'
             label = englabel[v] + r' $\parallel$'
             if args.verbose:
@@ -734,7 +741,7 @@ if __name__ == '__main__':
                                                      'etapar perp', axes[i, -1])
                     fits.update(new_fits)
             if 'hist' in args.command:
-                fig, new_fits = command_hist(args, meta, compile_args, axes)
+                fig, new_fits = command_hist(tsets, args, meta, axes)
                 fits.update(new_fits)
 
         for i, ax in enumerate(fig.axes):
