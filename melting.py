@@ -340,10 +340,24 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     if ax is None:
         fig, ax = plt.subplots()
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
-    hexbin = ax.hexbin(xs, ys,
+    hexbin_args = plot_args.get('hexbin', {})
+    if hexbin_args.get('marginals'):
+        bins = hexbin_args.get('gridsize', 100)
+        counts, xbins, ybins = np.histogram2d(
+            np.nan_to_num(xs),
+            np.nan_to_num(ys),
+            bins=bins,# normed=True,
+            range=[[np.nanmin(xs), np.nanmax(xs)],
+                   [np.nanmin(ys), np.nanmax(ys)]])
+        xi = np.digitize(np.nan_to_num(xs), xbins, True)
+        yi = np.digitize(np.nan_to_num(ys), ybins, True)
+        zs = np.where(np.isnan(xi) | np.isnan(yi), np.nan, counts[xi-1, yi-1])
+    else:
+        zs = None
+    hexbin = ax.hexbin(xs, ys, zs,
                        norm=matplotlib.colors.LogNorm(),
                        extent=extent,
-                       **plot_args.get('hexbin', {}))
+                       **hexbin_args)
 
     ax.set_xlabel(plot_args['xylabel'][x])
     ax.set_ylabel(plot_args['xylabel'][y])
@@ -462,6 +476,9 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
     elif mframe is not None and colors in mframe.dtype.names:
         if colors == 'sh':
             norm = lambda x: x
+            bg = np.max(mframe[colors]*unit[colors])
+        else:
+            bg = norm(0)
         colors = mframe[colors]*unit[colors]
         colors = norm(colors)
         colors = cmap(colors)
@@ -476,6 +493,8 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
 
     if ax is None:
         fig, ax = plt.subplots()
+
+    ax.set_facecolor(cmap(bg))
 
     patch_args = dict(edgecolor='k', zorder=0.5)
     quiver_args = dict(edgecolor='none', side=1/unit['rad'], zorder=2)
