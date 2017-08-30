@@ -293,7 +293,7 @@ def make_plot_args(meta_or_args):
         },
         'norm': {
             'f':    None,
-            'rad':  (0, rad or 505/side),
+            'rad':  (0, rad or 400/side),
             'dens': (0, 1),
             'phi':  (0, 1),
             'psi':  (0, 1),
