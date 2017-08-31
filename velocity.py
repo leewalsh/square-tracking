@@ -223,7 +223,7 @@ def plot_widths(widths, stats, normalize=False, ax=None):
 
 def plot_hist(a, ax, bins=100, log=True, orient=False,
               label='v', title='', subtitle='', c=cs['o'], histtype='step',
-              normed=False, standardized=False):
+              legend=True, normed=False, standardized=False):
     """plot a histogram of a given distribution of velocities"""
     stats = get_stats(a)
     if standardized:
@@ -252,11 +252,12 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
     ax.tick_params(direction='in', which='both')
     #ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0)
 
-    leg_handles, leg_labels = ax.get_legend_handles_labels()
-    ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.02),
-              loc='upper left', fontsize='small', frameon=False,
-              handlelength=1, handletextpad=0.5, labelspacing=.1,
-              borderaxespad=0.2)
+    if legend:
+        leg_handles, leg_labels = ax.get_legend_handles_labels()
+        ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.02),
+                loc='upper left', fontsize='small', frameon=False,
+                handlelength=1, handletextpad=0.5, labelspacing=.1,
+                borderaxespad=0.2)
     ax.set_ylabel(r'$N(\eta)$', labelpad=2)
     xlabel = r'$\Delta r \, f/s$'
     l, r = ax.set_xlim(xlim)
@@ -276,7 +277,7 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         annotate=dict(xy=(stats['mean'], 0), xytext=(0, 9), ha='center')
     )
     if log:
-        ypowt = int(1.9 + np.log10(counts.max()))
+        ypowt = int(1.9 + np.log10(counts.max())) - normed
         ypowb = -3.0 if normed else 0.5
         ylim = ax.set_ylim(10.0**ypowb, 10.0**ypowt * 0.99)
         yticks = 10.0**np.arange(int(ypowb), ypowt)
