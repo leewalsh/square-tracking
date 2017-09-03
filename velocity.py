@@ -745,13 +745,14 @@ if __name__ == '__main__':
                 fig, new_fits = command_hist(tsets, args, meta, axes)
                 fits.update(new_fits)
 
-        for i, ax in enumerate(fig.axes):
-            ax.annotate('({})'.format('acbd'[i]),
-                        xy=(-.1, 1), verticalalignment='baseline',  # upper
-                        #xy=(-.05, -.05), verticalalignment='top', # lower
-                        xycoords='axes fraction',
-                        horizontalalignment='right',
-                       )
+        if 'widths' not in args.command:
+            for i, ax in enumerate(fig.axes):
+                ax.annotate('({})'.format('acbd'[i]),
+                            xy=(-.1, 1), verticalalignment='baseline',  # upper
+                            #xy=(-.05, -.05), verticalalignment='top', # lower
+                            xycoords='axes fraction',
+                            horizontalalignment='right',
+                        )
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
