@@ -515,7 +515,7 @@ def crosscorr(f, g, side='both', cumulant=False, norm=False, mode='same',
     if side == 'both':
         side = 'center'
     if isinstance(cumulant, bool):
-        cumulant = 'mean'*cumulant  # cumulant=True --> 'mean'
+        cumulant *= 'mean'  # True: 'mean', False: ''
 
     if cumulant.startswith('init'):
         c -= limited_mean(f*g, 'init', side)

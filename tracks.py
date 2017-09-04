@@ -1350,7 +1350,7 @@ def plot_fit(result, tex_fits, args, t=None, data=None,
                markerfacecolor='none', capthick=0, elinewidth=1, errorevery=3)
     kws.update(plt_kwargs.get('errorbar', {}))
     ax.errorbar(t, data, 1/result.weights, None, zorder=2, **kws)
-    fitlabel = '\n'.join(tex_fits[:None if labels else args.fig==0])
+    fitlabel = '\n'.join(tex_fits[:None if labels else args.fig == 0])
     ax.plot(t, result.best_fit, c=args.pcol, lw=1, label=fitlabel, zorder=2.5)
 
     axes_setter(ax, **plt_kwargs.get('axes', {}))
@@ -1385,7 +1385,8 @@ def rn_corr(tracksets, args):
     correlate_rn = partial(corr.crosscorr, cumulant='init', norm=False,
                            side='both', mode='same', ret_dx=True)
 
-    # shape (track, x_or_y, time_or_correlation, time)
+    # indices: (track, x_or_y, time_or_correlation, time)
+    # shape: (ntracks, 2, 2, len(track))
     rn_corrs = np.array([[correlate_rn(ts['x']/args.side, np.cos(ts['o'])),
                           correlate_rn(ts['y']/args.side, np.sin(ts['o']))]
                          for ts in tracksets.itervalues()])

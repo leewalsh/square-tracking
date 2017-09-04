@@ -317,6 +317,22 @@ def vv_autocorr(vs, normalize=False):
             for a in vvs, vv, dvv]
 
 
+def vv_crosscorr(vs, fields, normalize=False):
+    corr_args = dict(cumulant=True, norm=normalize, ret_dx=True)
+    # vvs indices: (track, dx_or_corr, time)
+    #       shape: (ntracks, 2, len(track))
+    vvs = (corr.crosscorr(helpy.quick_field_view(tv, fields[0]),
+                          helpy.quick_field_view(tv, fields[1]),
+                          **corr_args)
+           for pvs in vs.itervalues() for tv in pvs.itervalues())
+    taus, vvs = zip(*vvs)
+    tau0 = np.array(map(partial(np.searchsorted, v=0), taus))
+    taus = taus[tau0.argmax()]  # just keep longest taus
+    vvs = helpy.pad_uneven(vvs, np.nan, align=tau0)
+    vvs, vv, dvvn, dvv, vvn, vvi = helpy.avg_uneven(vvs, weight=True, ret_all=1)
+    return taus, vvs, vv, dvv
+
+
 def dot_or_multiply(a, b):
     out = a * b
     if out.ndim > 1:
