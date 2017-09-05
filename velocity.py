@@ -28,7 +28,8 @@ if __name__ == '__main__':
     parser = ArgumentParser(description=__doc__)
     arg = parser.add_argument
     arg('prefix', help='Prefix without trial number')
-    arg('command', nargs='+', choices=['widths', 'hist', 'autocorr', 'spatial'],
+    arg('command', nargs='+',
+        choices=['widths', 'hist', 'autocorr', 'crosscorr', 'spatial'],
         help=('Which command to run: '
               '`widths`: plot several derivative widths, '
               '`hist`: plot velocity histograms, '
@@ -87,7 +88,7 @@ texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
 englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
             'par': 'longitudinal', 'perp': 'transverse',
             'etapar': 'longitudinal'}
-labels = 0
+labels = 1
 
 
 def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
@@ -330,6 +331,22 @@ def vv_autocorr(vs, normalize=False):
 
 
 def vv_crosscorr(vs, fields, normalize=False):
+    """cross-correlate two components of velocity
+
+    parameters
+    ----------
+    vs:     dict of velocities, expected format is:
+            {prefix: {track_number : helpy.vel_dtype}}
+    fields: list or tuple of two fields in vs.dtype.names
+    normalize: option passed to corr.crosscorr(..., norm=normalize)
+
+    returns
+    -------
+    vvs:    all cross-correlations, flat list of arrays from input dict values
+    vv:     mean cross-correlation, single array
+    dvv:    standard deviation from mean
+    taus:   delta-t values for cross-correlation
+    """
     corr_args = dict(cumulant=True, norm=normalize, ret_dx=True)
     # vvs indices: (track, dx_or_corr, time)
     #       shape: (ntracks, 2, len(track))
@@ -339,10 +356,11 @@ def vv_crosscorr(vs, fields, normalize=False):
            for pvs in vs.itervalues() for tv in pvs.itervalues())
     taus, vvs = zip(*vvs)
     tau0 = np.array(map(partial(np.searchsorted, v=0), taus))
-    taus = taus[tau0.argmax()]  # just keep longest taus
     vvs = helpy.pad_uneven(vvs, np.nan, align=tau0)
     vvs, vv, dvvn, dvv, vvn, vvi = helpy.avg_uneven(vvs, weight=True, ret_all=1)
-    return taus, vvs, vv, dvv
+    # get taus from longest track but keep only the ones that make the average
+    taus = taus[tau0.argmax()][vvi]
+    return vvs, vv, dvv, taus
 
 
 def dot_or_multiply(a, b):
@@ -599,6 +617,95 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     return fig, vac_fits
 
 
+def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
+    """Run the velocity autocorrelation plotting script"""
+    width = helpy.parse_slice(args.width, index_array=True)
+    vs = compile_noise(tsets, width, cat=False,
+                       side=args.side, fps=args.fps)
+    if ' ' in comps:
+        comps = comps.split()
+    vvs, vv, dvv, taus = vv_crosscorr(vs, comps, normalize=args.normalize)
+    v = comps[0]
+    vac_fits = {}
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    t_max = 12 / args.fps
+    t = taus/args.fps
+    if scale == 'autocorr':
+        vv_acs, vv_ac, dvv_ac = vv_autocorr(vs)
+        scale = sqrt(vv_ac[0][comps[0]] * vv_ac[0][comps[1]])
+    elif not np.isscalar(scale):
+        if len(scale) == len(taus):
+            scale = scale[taus == 0]
+        else:
+            scale = np.abs(scale).max()
+    vmax = args.normalize or vv[0]/scale
+    ax.errorbar(t, vv/scale, yerr=dvv/scale,
+                linewidth=1, markersize=4,
+                ls=ls[v], marker=marker[v],
+                color=cs[v], label=texlabel[v],
+                )
+    ax.set_xlim(-t_max, t_max)
+    final = 0   # vv[t > t_max].mean()
+    # init = vv[t == 0]
+    vvnormed = (vv - final)  # /(1 - final/init)
+    init = vvnormed[0]
+    vvtime = curve.decay_scale(vvnormed, t, method='int',
+                               smooth='', rectify=False)
+    print v, 'autocorr time:', vvtime, final
+    if v == 'crosscorr':
+        source = 'vac-final' if final else 'vac'
+        if args.normalize:
+            fit = helpy.make_fit(func='oo', TR=source)
+            vac_fits[fit] = {'TR': vvtime}
+        else:
+            fit = helpy.make_fit(func='oo', DR=source)
+            vac_fits[fit] = {'DR': vvtime*init}
+            print 'D = mag*integral =', init, '*', vvtime, '=', vvtime*init
+            ax.annotate(r'$\langle \xi^2 \rangle = {:.4f}$'.format(init),
+                        xy=(0, init),
+                        xytext=(10, 0), textcoords='offset points',
+                        ha='left', va='center',
+                        arrowprops=dict(arrowstyle='->', lw=0.5))
+    if markt and False:
+        markstyle = dict(lw=0.5, colors=cs[v], linestyles='-', zorder=0.1)
+        vv_at_time = np.interp(vvtime, t, vv)
+        ax.vlines(vvtime, ax.get_ylim()[0], vv_at_time, **markstyle)
+        ax.hlines(vv_at_time, ax.get_xlim()[0], vvtime, **markstyle)
+        ax.annotate(r'$\tau = {:.2f}$'.format(vvtime),
+                    xy=(vvtime, vv_at_time),
+                    xytext=(10, 20), textcoords='offset points',
+                    ha='left', va='baseline',
+                    arrowprops=dict(arrowstyle='->', lw=0.5))
+
+    ax.tick_params(direction='in', which='both')
+    ax.set_xticks(np.arange(-t_max, t_max, t_max//10 + 1).astype(int))
+    ylim = max(np.abs(ax.get_ylim()))
+    ax.set_ylim(-ylim, ylim)
+
+    ax.set_xlabel(r'$t \, f$', labelpad=2)
+    ylabel = r'$\langle {0}(t) \, {1}(0) \rangle$'.format(*[
+        texlabel.get(comp, '').strip('$') for comp in comps
+    ])
+    ylabelpad = 2
+    if args.normalize and not markt:
+        ax.set_yticks([0., 1.])
+        ylabelpad = -4
+    ax.set_ylabel(ylabel, labelpad=ylabelpad)
+
+    leg_handles, leg_labels = ax.get_legend_handles_labels()
+    # remove errorbars (has_yerr=False), lines (handlelength=0) from legend keys
+    for leg_handle in leg_handles:
+        leg_handle.has_yerr = False
+    ax.legend(leg_handles, leg_labels, loc='best',
+              numpoints=1, markerfirst=False, handlelength=0,
+              frameon=False, fontsize='small')
+    return fig, vac_fits
+
+
 def command_hist(tsets, args, meta, axes=None):
     """Run the velocity histogram plotting script"""
     helpy.sync_args_meta(args, meta,
@@ -759,16 +866,30 @@ if __name__ == '__main__':
                 figsize=(3.5*ncols, 3.0*nrows) if labels
                 else (3.5, 3.0*nrows/ncols),
                 gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
+            j = 0
+            if 'crosscorr' in args.command:
+                i = 0
+                j -= 1
+                if args.do_orientation:
+                    fig, ignore_fits = command_crosscorr(tsets, args,
+                                                         'o par', axes[i, j],
+                                                         scale='autocorr')
+                    i += 1
+                if args.do_translation:
+                    fig, ignore_fits = command_crosscorr(tsets, args,
+                                                         'par perp', axes[i, j],
+                                                         scale='autocorr')
             if 'autocorr' in args.command:
                 i = 0
+                j -= 1
                 if args.do_orientation:
                     fig, new_fits = command_autocorr(tsets, args,
-                                                     'o', axes[i, -1])
+                                                     'o', axes[i, j])
                     fits.update(new_fits)
                     i += 1
                 if args.do_translation:
                     fig, new_fits = command_autocorr(tsets, args,
-                                                     'etapar perp', axes[i, -1])
+                                                     'etapar perp', axes[i, j])
                     fits.update(new_fits)
             if 'hist' in args.command:
                 fig, new_fits = command_hist(tsets, args, meta, axes)
