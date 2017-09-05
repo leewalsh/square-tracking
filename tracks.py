@@ -1192,20 +1192,33 @@ def make_fitnames():
     # from velocities
     mkf = helpy.make_fit
     cf = {'free': 'free', None: None}
+
+    # from velocity autocorrelations:
+    mkf = partial(helpy.make_fit, func='oo')
     cf.update({
-        'oo_TR' : mkf(func='oo', TR='vac'),
-        'oo_Ts' : mkf(func='oo', TR='vac-final'),
-        'oo_Ta' : mkf(func='oo', TR='vac-final*origamp'),
-        'oo_DR' : mkf(func='oo', DR='vac'),
-        'oo_Ds' : mkf(func='oo', DR='vac-final'),
-        'oo_Da' : mkf(func='oo', DR='vac-final*origamp'),
+        'oo_TR' : mkf(TR='vac'),
+        'oo_Ts' : mkf(TR='vac-final'),
+        'oo_Ta' : mkf(TR='vac-final*origamp'),
+        'oo_DR' : mkf(DR='vac'),
+        'oo_Ds' : mkf(DR='vac-final'),
+        'oo_Da' : mkf(DR='vac-final*origamp'),
     })
+
+    # from velocity distributions:
+    mkf = helpy.make_fit
     cf.update({
         'vn': mkf(func='vn', v0='mean', DT='var'),
         'vt': mkf(func='vt', DT='var'),
-        'vo_T0_DT': mkf(func='vo', DR='var/dt', w0='mean'),
-        'vo_T0_Dt': mkf(func='vo', DR='var*dt', w0='mean'),
-        'vo_Tv_Dt': mkf(func='vo', TR=cf['oo_TR'], DR='var*dt', w0='mean'),
+    })
+
+    mkf = partial(helpy.make_fit, func='vo', w0='mean')
+    cf.update({
+        'vo_T0': mkf(DR='var'),
+        'vo_Tv': mkf(TR=cf['oo_TR'], DR='var'),
+        'vo_T0_Dt': mkf(DR='var*dt'),   # same as DR=var
+        'vo_T0_DT': mkf(DR='var/dt'),
+        'vo_Tv_Dt': mkf(TR=cf['oo_TR'], DR='var*dt'),   # same as DR=var
+        'vo_Tv_DT': mkf(TR=cf['oo_TR'], DR='var/dt'),
     })
 
     # from orientation autocorrelation: nn

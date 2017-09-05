@@ -186,8 +186,8 @@ def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit', widths=None):
     stat = {'mean': M, 'var': variance, 'std': SE,
             'skew': SK, 'skew_test': SK_t, 'kurt': KU, 'kurt_test': KU_t}
     if not keepdims:
-        print '\n'.join(['{:>10}: {: .4f}'.format(k, float(v))
-                         for k, v in stat.items()])
+        stat = helpy.dmap(float, stat)
+        print '\n'.join(['{:>10}: {: .4f}'.format(*s) for s in stat.items()])
     return stat
 
 
@@ -610,7 +610,7 @@ def command_hist(tsets, args, meta, axes=None):
     vs = compile_noise(tsets, width, cat=True,
                        side=args.side, fps=args.fps)
 
-    dt = 2 * sqrt(3) * width / args.fps
+    dt = 2 * sqrt(3) * float(width) / args.fps
     nrows = args.do_orientation + args.do_translation*(args.subtract + 1)
     ncols = args.log + args.lin
     if axes is None:
@@ -633,7 +633,7 @@ def command_hist(tsets, args, meta, axes=None):
                 vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
                 log=args.log and icol or not args.lin, label=label,
                 orient=True, title=title, subtitle=subtitle)
-            D_R = 0.5*float(stats['var'])*dt
+            D_R = 0.5*stats['var']*dt
             if args.colored:
                 (TR_source, TR_fit), = fits.items()
                 dt_tau = dt / TR_fit['TR']
@@ -641,11 +641,11 @@ def command_hist(tsets, args, meta, axes=None):
             else:
                 TR_source = None
             fit = helpy.make_fit(func='vo',
-                                 TR=TR_source, DR='var*dt', w0='mean')
+                                 TR=TR_source, DR='var', w0='mean')
 
             hist_fits[fit] = {
-                'DR': D_R, 'w0': float(stats['mean']),
-                'VAR': float(stats['var']), 'MN': float(stats['mean']),
+                'DR': D_R, 'w0': stats['mean'],
+                'VAR': stats['var'], 'MN': stats['mean'],
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
@@ -663,8 +663,8 @@ def command_hist(tsets, args, meta, axes=None):
                 label=label, title=title, subtitle=subtitle, c=cs[v])
             fit = helpy.make_fit(func='vt', DT='var')
             hist_fits[fit] = {
-                'DT': 0.5*float(stats['var'])*dt, 'vt': float(stats['mean']),
-                'VAR': float(stats['var']), 'MN': float(stats['mean']),
+                'DT': 0.5*stats['var']*dt, 'vt': stats['mean'],
+                'VAR': stats['var'], 'MN': stats['mean'],
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
 
@@ -678,8 +678,8 @@ def command_hist(tsets, args, meta, axes=None):
                               label=label, title=title, c=cs[v])
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
             hist_fits[fit] = {
-                'v0': float(stats['mean']), 'DT': 0.5*float(stats['var'])*dt,
-                'VAR': float(stats['var']), 'MN': float(stats['mean']),
+                'v0': stats['mean'], 'DT': 0.5*stats['var']*dt,
+                'VAR': stats['var'], 'MN': stats['mean'],
                 'KU': stats['kurt'], 'SK': stats['skew'],
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
