@@ -85,8 +85,10 @@ cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k',
 texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
             'perp': r'$\eta_\perp$', 'etapar': r'$\eta_\parallel$'}
 englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
-            'par': 'longitudinal', 'perp': 'transverse', 'etapar': 'longitudinal'}
+            'par': 'longitudinal', 'perp': 'transverse',
+            'etapar': 'longitudinal'}
 labels = 0
+
 
 def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
     """calculate angular and positional derivatives in lab & particle frames.
@@ -104,19 +106,27 @@ def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
     shape = ((len(width),) if len(width) > 1 else ()) + tdata.shape
     v = np.empty(shape, helpy.vel_dtype)
     x = tdata['f']/fps
-    cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
     unit = {'x': side, 'y': side, 'o': 1}
     for oxy in 'oxy':
         v[oxy] = np.array([curve.der(tdata[oxy]/unit[oxy], x=x, iwidth=w)
                            for w in width]).squeeze()
     v['v'] = np.hypot(v['x'], v['y'])
-    v['par'] = v['x']*cos + v['y']*sin
-    v['perp'] = v['x']*sin - v['y']*cos
-    v0 = np.nanmean(v['par'], -1, keepdims=len(shape) > 1)
-    v['etax'] = v['x'] - v0*cos
-    v['etay'] = v['y'] - v0*sin
-    v['eta'] = np.hypot(v['etax'], v['etay'])
-    v['etapar'] = v['par'] - v0
+
+    disoriented = np.isnan(tdata['o']).all()
+    if disoriented:
+        orient_fields = 'par perp etax etay eta etapar'.split()
+        v_orient = helpy.consecutive_fields_view(v, orient_fields)
+        v_orient[:] = np.nan
+    else:
+        cos, sin = np.cos(tdata['o']), np.sin(tdata['o'])
+        v['par'] = v['x']*cos + v['y']*sin
+        v['perp'] = v['x']*sin - v['y']*cos
+        v0 = np.nanmean(v['par'], -1, keepdims=len(shape) > 1)
+        v['etax'] = v['x'] - v0*cos
+        v['etay'] = v['y'] - v0*sin
+        v['eta'] = np.hypot(v['etax'], v['etay'])
+        v['etapar'] = v['par'] - v0
+
     if smooth is not None:
         from scipy.ndimage import correlate1d
         smooth = np.atleast_1d(smooth)
@@ -132,7 +142,8 @@ def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
     return v.T
 
 
-def compile_noise(tracksets, width=(0.65,), smooth=None, cat=True, side=1, fps=1):
+def compile_noise(tracksets, width=(0.65,), smooth=None, cat=True,
+                  side=1, fps=1):
     vs = {}
     for prefix, tsets in tracksets.iteritems():
         vsets = {t: noise_derivatives(ts, width, smooth, side=side, fps=fps)
@@ -192,7 +203,8 @@ def plot_widths(widths, stats, normalize=False, ax=None):
     statnames = 'mean var skew kurt'.split()
     naxs = len(statnames)
     if ax is None:
-        fig, axs = plt.subplots(figsize=(6.4, 2.4*naxs), nrows=naxs, sharex=True)
+        figsize = (6.4, 2.4*naxs)
+        fig, axs = plt.subplots(figsize=figsize, nrows=naxs, sharex=True)
     else:
         axs = ax
         fig = axs[0].figure
@@ -202,7 +214,7 @@ def plot_widths(widths, stats, normalize=False, ax=None):
             if normalize:
                 sign = np.sign(val.sum())
                 val = sign*val
-                #val = val - val.mean()
+                # val = val - val.mean()
                 val = val/val.max()
                 ax.axhline(1, lw=0.5, c='k', ls=':', alpha=0.5)
             ax.plot(widths, val, marker[v]+ls[v]+cs[s], label=texlabel[v])
@@ -248,24 +260,24 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
                               log=log, alpha=1 if histtype == 'step' else 0.6,
                               color=c, histtype=histtype, lw=1.5, normed=normed)
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
-    #ax.tick_params(top=False, which='both')
+    # ax.tick_params(top=False, which='both')
     ax.tick_params(direction='in', which='both')
-    #ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0)
+    # ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0)
 
     if legend:
         leg_handles, leg_labels = ax.get_legend_handles_labels()
         ax.legend(leg_handles[::-1], leg_labels[::-1], bbox_to_anchor=(0, 1.02),
-                loc='upper left', fontsize='small', frameon=False,
-                handlelength=1, handletextpad=0.5, labelspacing=.1,
-                borderaxespad=0.2)
+                  loc='upper left', fontsize='small', frameon=False,
+                  handlelength=1, handletextpad=0.5, labelspacing=.1,
+                  borderaxespad=0.2)
     ax.set_ylabel(r'$N(\eta)$', labelpad=2)
     xlabel = r'$\Delta r \, f/s$'
     l, r = ax.set_xlim(xlim)
     if orient:
-        #xticks = np.linspace(l, r, 3)
+        # xticks = np.linspace(l, r, 3)
         xticks = np.array([-pi/4, 0, pi/4])
         ax.set_xticks(xticks)
-        #xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
+        # xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
         xticklabels = [r'$-\pi/4$', r'$0$', r'$\pi/4$']
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \, f$'
@@ -457,7 +469,7 @@ def command_spatial(tsets, args, do_absolute=False, do_radial=False):
             vv_rad_comp /= np.nanmean(vv_self_sq[comp])
         curve.bin_plot(sbins, vv_rad_comp, ax,
                        label=texlabel[comp], linestyle=ls[comp],
-                       c=cs['perp' if comp =='etapar' else comp])
+                       c=cs['perp' if comp == 'etapar' else comp])
     helpy.mark_value(ax, sqrt(2), 'steric\ncontact',
                      annotate=dict(xy=(sqrt(2), 0.68)))
     ax.legend(loc='best', frameon=False)
@@ -490,7 +502,7 @@ def command_widths(tsets, compile_args, args):
     else:
         axl, axr = None, None
     # slice the array at the middle smoothing value to plot vs width:
-    ismooth = 0#nsmooth//2
+    ismooth = 0     # nsmooth//2
     stats_width = {v: {s: stats[v][s][ismooth, :, 0]
                        for s in statnames} for v in vcomps}
     print "Plot vs derivative width, with smoothing", smooths[ismooth]
@@ -501,7 +513,7 @@ def command_widths(tsets, compile_args, args):
     f_width.tight_layout()
 
     # slice the array at the middle width value to plot vs smoothing:
-    iwidth = 0#nwidth//2
+    iwidth = 0      # nwidth//2
     stats_smooth = {v: {s: stats[v][s][:, iwidth, 0]
                         for s in statnames} for v in vcomps}
     print "Plot vs smoothing width, with derivative width", widths[iwidth]
@@ -532,9 +544,9 @@ def command_autocorr(tsets, args, comps='o par perp etapar', ax=None, markt=''):
     for v in comps.split():
         ax.errorbar(t, vv[v][:n], yerr=dvv[v][:n], ls=ls[v], marker=marker[v],
                     linewidth=1, markersize=4, color=cs[v], label=texlabel[v])
-        final = 0#vv[v][n:2*n].mean()
-        #init = vv[v][0]
-        vvnormed = (vv[v][:n] - final)#/(1 - final/init)
+        final = 0   # vv[v][n:2*n].mean()
+        # init = vv[v][0]
+        vvnormed = (vv[v][:n] - final)  # /(1 - final/init)
         init = vvnormed[0]
         vvtime = curve.decay_scale(vvnormed, t, method='int',
                                    smooth='', rectify=False)
@@ -612,7 +624,7 @@ def command_hist(tsets, args, meta, axes=None):
     brange = 0.7
     if args.do_orientation:
         for icol in range(ncols):
-            title = ''#Orientation'
+            title = 'Orientation'*0
             v = 'o'
             label = englabel[v]
             if args.verbose:
@@ -628,7 +640,8 @@ def command_hist(tsets, args, meta, axes=None):
                 D_R /= 1 - (1 - exp(-dt_tau)) / dt_tau
             else:
                 TR_source = None
-            fit = helpy.make_fit(func='vo', TR=TR_source, DR='var*dt', w0='mean')
+            fit = helpy.make_fit(func='vo',
+                                 TR=TR_source, DR='var*dt', w0='mean')
 
             hist_fits[fit] = {
                 'DR': D_R, 'w0': float(stats['mean']),
@@ -637,7 +650,7 @@ def command_hist(tsets, args, meta, axes=None):
                 'KT': stats['kurt_test'], 'ST': stats['skew_test']}
         irow += 1
     if args.do_translation:
-        title = ''#Parallel & Transverse'
+        title = 'Parallel & Transverse'*0
         for icol in range(ncols):
             # Transverse:
             v = 'perp'
@@ -765,10 +778,10 @@ if __name__ == '__main__':
             for i, ax in enumerate(fig.axes):
                 ax.annotate('({})'.format('acbd'[i]),
                             xy=(-.1, 1), verticalalignment='baseline',  # upper
-                            #xy=(-.05, -.05), verticalalignment='top', # lower
+                            # xy=(-.05, -.05), verticalalignment='top', # lower
                             xycoords='axes fraction',
-                            horizontalalignment='right',
-                        )
+                            horizontalalignment='right'
+                            )
         if args.save:
             savename = os.path.abspath(args.prefix.rstrip('/._?*'))
             helpy.save_meta(savename, meta)
