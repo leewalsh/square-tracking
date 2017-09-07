@@ -645,8 +645,8 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
     vmax = args.normalize or vv[0]/scale
     ax.errorbar(t, vv/scale, yerr=dvv/scale,
                 linewidth=1, markersize=4,
-                ls=ls[v], marker=marker[v],
-                color=cs[v], label=texlabel[v],
+                ls=ls[v], marker=marker[v], color=cs[v],
+                label=r'$ \, $'.join([texlabel[c] for c in comps]),
                 )
     ax.set_xlim(-t_max, t_max)
     final = 0   # vv[t > t_max].mean()
@@ -682,9 +682,11 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
                     arrowprops=dict(arrowstyle='->', lw=0.5))
 
     ax.tick_params(direction='in', which='both')
-    ax.set_xticks(np.arange(-t_max, t_max, t_max//10 + 1).astype(int))
-    ylim = max(np.abs(ax.get_ylim()))
+    ax.set_xticks(np.arange(1 - t_max, t_max, t_max//10 + 1).astype(int))
+    ylim = max(np.abs(ax.get_ylim())) if scale == 1 else 0.25
     ax.set_ylim(-ylim, ylim)
+    helpy.axline(ax, 'h', 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
+    helpy.axline(ax, 'v', 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
 
     ax.set_xlabel(r'$t \, f$', labelpad=2)
     ylabel = r'$\langle {0}(t) \, {1}(0) \rangle$'.format(*[
@@ -861,11 +863,11 @@ if __name__ == '__main__':
             ncols = len(args.command)
             if 'hist' in args.command and args.log and args.lin:
                 ncols += 1
+            figsize = np.array([3.5*ncols, 3.0*nrows])/(1 if labels else 2)
             fig, axes = plt.subplots(
-                nrows, ncols, squeeze=False,
-                figsize=(3.5*ncols, 3.0*nrows) if labels
-                else (3.5, 3.0*nrows/ncols),
-                gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
+                nrows, ncols, squeeze=False, figsize=figsize,
+                # gridspec_kw={'wspace': 0.3, 'hspace': 0.4},
+            )
             j = 0
             if 'crosscorr' in args.command:
                 i = 0
