@@ -29,12 +29,15 @@ all_colors = 'rgkbmyc'
 def markers(fit, default='x'):
     """Set marker for fit based on fitting function"""
     if isinstance(fit, basestring):
-        d = {'nn': 'o',
-             'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
-             'rr': (4, 1, 0), 'r0': 's',
-             'pr': (6, 1, 0), 'p0': 5,#(6, 0, 0),
-             'dr': (7, 1, 0), 'd0': 4,#(7, 0, 0),
-            }
+        # marker can be a tuple: (`numsides`, `style`, `angle`)
+        #       where `style` is {0: polygon, 1: star, 2: asterisk}
+        d = {
+            'nn': 'o',
+            'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
+            'rr': (4, 1, 0), 'r0': 's',
+            'pr': (6, 1, 0), 'p0': 5,  # (6, 0, 0),
+            'dr': (7, 1, 0), 'd0': 4,  # (7, 0, 0),
+        }
         return d.get(fit[:2], default)
     elif hasattr(fit, 'func'):
         return markers(fit_desc.get(fit), default)
@@ -44,8 +47,6 @@ def markers(fit, default='x'):
         msg = 'Unknown fit {} {}'.format
         raise TypeError(msg(type(fit), fit))
 
-# marker can be a tuple: (`numsides`, `style`, `angle`)
-#       where `style` is {0: polygon, 1: star, 2: asterisk}
 
 markersize = 4.0    # default is 6.0
 markersizes = defaultdict(lambda: markersize)
@@ -55,30 +56,32 @@ markersizes['s'] -= 0.5
 colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
 colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
 
+
 def colors(fit, default='k'):
     """Set color for fit based on free parameters"""
     if isinstance(fit, basestring):
-        d = {'T0': 'r',
-             'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
-                                      'Tm_Rn_La': 'r',
-             'Tf': 'brown', 'Tn_Rn': 'brown',
-                        'Tm_Rf': 'green', 'Tm_Rn_Lr': 'green',
-                                      'Tm_Rn_Lb': 'green',
-                                      'Tm_Rn_Lf': 'b',
-             'oo': 'brown', #'oo_DR', 'oo_Ds', 'oo_Da'
-             'vo_T0': 'green', 'vo_Tv': 'r', #'vo_T0_Dt', 'vo_Tv_Dt'
-            }
-
-        mpl2 = {'b': 'b',       # blue -> blue
-                'brown': 'c',   # brown(c)
-                'r': 'r',       # red -> red
-                'orange': 'o',  # cyan -> orange
-                'green': 'g',   # green
-                'k': 'k',       # black -> grey(k)
-                'y': 'y',       # yellow -> yellow
-                'pink': 'p',    # pink
-                'purple': 'm',  # purple
-               }
+        d = {
+            'T0': 'r',
+            'Tm': 'r', 'Tm_Rn': 'r', 'Tm_Rn_Ln': 'r',
+            'Tm_Rn_La': 'r',
+            'Tf': 'brown', 'Tn_Rn': 'brown',
+            'Tm_Rf': 'green', 'Tm_Rn_Lr': 'green',
+            'Tm_Rn_Lb': 'green',
+            'Tm_Rn_Lf': 'b',
+            'oo': 'brown',  # 'oo_DR', 'oo_Ds', 'oo_Da'
+            'vo_T0': 'green', 'vo_Tv': 'r',  # 'vo_T0_Dt', 'vo_Tv_Dt'
+        }
+        mpl2 = {
+            'b': 'b',       # blue -> blue
+            'brown': 'c',   # brown(c)
+            'r': 'r',       # red -> red
+            'orange': 'o',  # cyan -> orange
+            'green': 'g',   # green
+            'k': 'k',       # black -> grey(k)
+            'y': 'y',       # yellow -> yellow
+            'pink': 'p',    # pink
+            'purple': 'm',  # purple
+        }
         return colorbrewer[mpl2[d.get(fit[3:-3], default)]]
     elif hasattr(fit, 'func'):
         return colors(fit_desc.get(fit), default)
@@ -95,31 +98,32 @@ def labels(fit, default=None, fancy=True):
         dot = r'\langle {} \cdot {} \rangle'.format
         ms = r'\langle \left[ {} \right]^2 \rangle'.format
         free = r'{}^\mathrm{{ free}}'.format
-        f = {'nn': dot('n(t)', 'n(0)'),
-             'rn': dot('r(t)', 'n(0)'),
-             'rp': dot('r(t>0)', 'n(0)'),
-             'ra': dot('r(t)', 'n(0)') + '-' + dot('r(-t)', 'n(0)'),
-             'rm': dot('r(t)', 'n'),
-             'rr': ms('r(t) - r(0)'),
-             'pr': ms(dot('r(t) - r(0)', r'\hat n(0)')),
-             'dr': ms(dot('r(t) - r(0)', r'\hat t(0)')),
-            }
-        f.update(
-            {'T0': r'\tau = 0',
-             'Tm': r'\tau = \langle \tau \rangle',
-             'Tn': r'\tau\left({}\right)'.format(f['nn']),
-             'Rn': r'D_R\left({}\right)'.format(f['nn']),
-             'Ln': r'\ell_p\left({}\right)'.format(f['rn']),
-             'La': r'\ell_p\left({}\right)'.format(f['ra']),
-             'Lr': r'\ell_p\left({}\right)$, ${}'.format(f['rn'], free(r'D_R')),
-             'Tf': free(r'\tau'),
-             'Rf': free(r'D_R'),
-             'Lf': free(r'\ell_p'),
-             'Df': free(r'D_T'),
-             'r0': f['rr'],
-             'p0': f['pr'],
-             'd0': f['dr'],
-            })
+        f = {
+            'nn': dot('n(t)', 'n(0)'),
+            'rn': dot('r(t)', 'n(0)'),
+            'rp': dot('r(t>0)', 'n(0)'),
+            'ra': dot('r(t)', 'n(0)') + '-' + dot('r(-t)', 'n(0)'),
+            'rm': dot('r(t)', 'n'),
+            'rr': ms('r(t) - r(0)'),
+            'pr': ms(dot('r(t) - r(0)', r'\hat n(0)')),
+            'dr': ms(dot('r(t) - r(0)', r'\hat t(0)')),
+        }
+        f.update({
+            'T0': r'\tau = 0',
+            'Tm': r'\tau = \langle \tau \rangle',
+            'Tn': r'\tau\left({}\right)'.format(f['nn']),
+            'Rn': r'D_R\left({}\right)'.format(f['nn']),
+            'Ln': r'\ell_p\left({}\right)'.format(f['rn']),
+            'La': r'\ell_p\left({}\right)'.format(f['ra']),
+            'Lr': r'\ell_p\left({}\right)$, ${}'.format(f['rn'], free(r'D_R')),
+            'Tf': free(r'\tau'),
+            'Rf': free(r'D_R'),
+            'Lf': free(r'\ell_p'),
+            'Df': free(r'D_T'),
+            'r0': f['rr'],
+            'p0': f['pr'],
+            'd0': f['dr'],
+        })
         ks = fit.split('_')
         if fancy:
             return '$' + '$, $'.join(f[k] for k in ks) + '$'
@@ -159,9 +163,10 @@ pargs['DR'] = dict(
         ],
     }[scope],
     lims=(0, 0.14),
-    legend={'loc':'lower right'},
+    legend={'loc': 'lower right'},
 )
 
+# open symbols for white-noise ($\tau = 0$)
 pargs['DR_white'] = pargs['DR'].copy()
 pargs['DR_white'].update(
     xs='vo_T0_Dt',
@@ -205,7 +210,7 @@ pargs['lp'] = dict(
         ],
     }[scope],
     lims=(0, 4.5),
-    legend={'loc':'lower right'},
+    legend={'loc': 'lower right'},
 )
 
 
@@ -229,7 +234,7 @@ pargs['v0'] = dict(
     convert='y',
     xs='vn',
     ys={
-        'good':[
+        'good': [
             'r0_Tm_Rn_Lf_Df',
             'ra_Tm_Rf_Lf',
             'ra_Tm_Rn_Lf',
@@ -253,7 +258,7 @@ pargs['v0'] = dict(
         ],
     }[scope],
     lims=(0, 0.25),
-    legend={'loc':'lower right'},
+    legend={'loc': 'lower right'},
 )
 
 
@@ -267,7 +272,7 @@ pargs['DT'] = dict(
             'r0_Tm_Rn_Lf_Df',
             'r0_Tm_Rn_La_Df',
         ],
-        'maybe':[
+        'maybe': [
             'r0_Tm_Rn_Ln_Df',
             'r0_Tm_Rn_Lb_Df',
             'r0_Tm_Rn_Lq_Df',
@@ -291,14 +296,14 @@ pargs[p]['ys'] = [
     'r0_Tm_Rn_Lf_Df',
     'r0_Tm_Rn_Ln_Df',
     'r0_Tm_Rn_La_Df',
-    #'r0_Tm_Rn_Lq_Df',
-    #'r0_Tm_Rn_Lb_Df',
+    # 'r0_Tm_Rn_Lq_Df',
+    # 'r0_Tm_Rn_Lb_Df',
 
     'rr_Tm_Rn_Lf_Df',
     'rr_Tm_Rn_Ln_Df',
     'rr_Tm_Rn_La_Df',
-    #'rr_Tm_Rn_Lq_Df',
-    #'rr_Tm_Rn_Lb_Df',
+    # 'rr_Tm_Rn_Lq_Df',
+    # 'rr_Tm_Rn_Lb_Df',
 
     'p0_Tm_Rn_La_Df',
     'p0_Tm_Rn_Lf_Df',
@@ -330,13 +335,15 @@ for p in pargs:
 
 
 param_xs = {
-    'DR': ['DR',
-           'DR_white',
-           #'DR_oo_DR',# 'DR_oo_Ds', 'DR_oo_Da',
-           ],
+    'DR': [
+        'DR',
+        'DR_white',
+        # 'DR_oo_DR',  # 'DR_oo_Ds', 'DR_oo_Da',
+    ],
     'lp': ['lp'],
     'DT': ['DT'],
 }
+
 
 def trendline(xvals, yvals):
     slope = np.mean(yvals/xvals)
@@ -346,7 +353,6 @@ def trendline(xvals, yvals):
     xmax += xmin/4
     xmin *= 0.75
     return [xmin, xmax], [xmin*slope, xmax*slope]
-
 
 
 def plot_param(fits, param, fitx, fity, convert=None, ax=None,
@@ -374,9 +380,9 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
                 print 'um Converting using D_R from', convert, fit_desc[fitc]
             if fitc is None:
                 raise err
-            #label += ' {}DR({}, {})'.format(
-                #'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
-                #fitc.func, fit_desc.get(fitc.DR, fitc.DR)
+            # label += ' {}DR({}, {})'.format(
+                # 'lp(x)=v0(x)/' if param == 'lp' else 'v0(y)=lp(y)*',
+                # fitc.func, fit_desc.get(fitc.DR, fitc.DR)
             DR = np.array(fits[fitc].get('DR') or fits[fitc.DR]['DR'])
             valx = resx.get(param) or resx['v0']/DR
             valy = resy.get(param) or resy['lp']*DR
@@ -415,10 +421,10 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     ax.set_yscale(scale)
     ax.set_aspect('equal', adjustable='box')
     ax.set_xlim(lims)
-    ticks = ax.get_xticks() # must get_xticks after xlim
-    ax.set_xticks(ticks)    # to prevent auto-changing later
+    ticks = ax.get_xticks()  # must get_xticks after xlim
+    ax.set_xticks(ticks)     # to prevent auto-changing later
     ax.set_yticks(ticks)
-    ax.set_xlim(lims)       # must set_xlims again to fix
+    ax.set_xlim(lims)        # must set_xlims again to fix
     ax.set_ylim(lims)
     ax.tick_params(direction='in', which='both')
     ax.plot(lims, lims, color=colorbrewer['k'], linewidth=0.5, zorder=1)
@@ -435,6 +441,7 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
         ax.figure.savefig('~/Squares/colson/Output/stats/parameters/'
                           'parametric_{}.pdf'.format(savename))
     return ax
+
 
 rcParams_for_context = {'text.usetex': True}
 with plt.rc_context(rc=rcParams_for_context):
@@ -454,15 +461,16 @@ with plt.rc_context(rc=rcParams_for_context):
     if save_figs:
         fig.savefig('parametric.pdf')
 
-    # individual figures:
-    #params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
-    #for param in params:
-    #    parg = pargs[param]
-    #    ax = plot_parametric(fits, **parg)
-    #    ax.set_xlabel('Noise statistics from velocity')
-    #    ax.set_ylabel('Fits from correlation functions')
+    individual_figures = False
+    if individual_figures:
+        params = ['DR', 'lp', 'v0', 'DT', 'lp_msdvec', 'DT_msdvec']
+        for param in params:
+            parg = pargs[param]
+            ax = plot_parametric(fits, **parg)
+            ax.set_xlabel('Noise statistics from velocity')
+            ax.set_ylabel('Fits from correlation functions')
 
-    #    if save_figs:
-    #        ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
+            if save_figs:
+                ax.figure.savefig('parameters/parametric_{}.pdf'.format(param))
 
     plt.show()
