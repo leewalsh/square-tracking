@@ -32,13 +32,13 @@ def markers(fit, default='x'):
         # marker can be a tuple: (`numsides`, `style`, `angle`)
         #       where `style` is {0: polygon, 1: star, 2: asterisk}
         d = {
-            'nn': 'o',
+            'nn': 'o', 'nn_Tf': 'o', 'nn_Tm': 'o', 'nn_T0': '*',
             'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
             'rr': (4, 1, 0), 'r0': 's',
             'pr': (6, 1, 0), 'p0': 5,  # (6, 0, 0),
             'dr': (7, 1, 0), 'd0': 4,  # (7, 0, 0),
         }
-        return d.get(fit[:2], default)
+        return d.get(fit[:5]) or d.get(fit[:2], default)
     elif hasattr(fit, 'func'):
         return markers(fit_desc.get(fit), default)
     elif isinstance(fit, list):
@@ -49,8 +49,18 @@ def markers(fit, default='x'):
 
 
 markersize = 4.0    # default is 6.0
-markersizes = defaultdict(lambda: markersize)
+marker_by_config = True
+
+if marker_by_config:
+    gammas = np.array([p[:p.index('mV')][-3:] for p in prefixes], float) / 10
+    bevels = np.array([p[:p.index('deg')][-2:] for p in prefixes], int)
+    facecolors = [{69: None, 73: 'none'}[b] for b in bevels]
+    markersize *= np.exp((gammas - 15)/10)
+    markersizes = defaultdict(markersize.copy)
+else:
+    markersizes = defaultdict(lambda: markersize)
 markersizes['D'] -= 1
+markersizes['*'] += 1
 markersizes['s'] -= 0.5
 
 colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
@@ -166,12 +176,10 @@ pargs['DR'] = dict(
     legend={'loc': 'lower right'},
 )
 
-# open symbols for white-noise ($\tau = 0$)
 pargs['DR_white'] = pargs['DR'].copy()
 pargs['DR_white'].update(
     xs='vo_T0_Dt',
     ys=['nn_T0_Rf'],
-    markerfacecolor='white',
     title='',
 )
 
@@ -324,12 +332,14 @@ for p in pargs:
     ys = pargs[p]['ys']
     new = {
         'figsize': (5, 5),
-        'color': colors(ys),
         'marker': markers(ys),
         'label': labels(ys, fancy=False),
-        'linestyle': '',
     }
-    new['markersize'] = [markersizes[m] for m in new['marker']]
+    new['s'] = [markersizes[m] for m in new['marker']]
+    color = colors(ys)
+    new['facecolors'] = [[fc or c for fc in facecolors] for c in color]
+    new['edgecolors'] = color
+    new['color'] = color
     for k in new:
         pargs[p].setdefault(k, new[k])
 
@@ -391,7 +401,7 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
             valx = resx.get(param) or resx['var'] * tau
             valy = resy.get(param) or resy['DR'] / tau
     valx, valy = np.array(valx), np.array(valy)
-    ax.plot(valx, valy, **kws)
+    ax.scatter(valx, valy, **kws)
     ax.plot(*trendline(valx, valy), color=kws['color'], linewidth=0.5, zorder=1)
     if tag:
         tag = [t.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
