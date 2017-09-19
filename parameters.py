@@ -32,7 +32,8 @@ def markers(fit, default='x'):
         # marker can be a tuple: (`numsides`, `style`, `angle`)
         #       where `style` is {0: polygon, 1: star, 2: asterisk}
         d = {
-            'nn': 'o', 'nn_Tf': 'o', 'nn_Tm': 'o', 'nn_T0': '*',
+            'nn': 'o', 'nn_Tf': 'o', 'nn_Tm': 'o',
+            'nn_T0': (5, 1, 0),  # (5, 1, 0) more `open` than '*'
             'rn': 'v', 'rp': '>', 'ra': '^', 'rm': '<',
             'rr': (4, 1, 0), 'r0': 's',
             'pr': (6, 1, 0), 'p0': 5,  # (6, 0, 0),
@@ -48,20 +49,23 @@ def markers(fit, default='x'):
         raise TypeError(msg(type(fit), fit))
 
 
-markersize = 4.0    # default is 6.0
+markersize = 8.0    # default is 6.0
 marker_by_config = True
 
 if marker_by_config:
     gammas = np.array([p[:p.index('mV')][-3:] for p in prefixes], float) / 10
     bevels = np.array([p[:p.index('deg')][-2:] for p in prefixes], int)
     facecolors = [{69: None, 73: 'none'}[b] for b in bevels]
-    markersize *= np.exp((gammas - 15)/10)
+    markersize *= np.exp((gammas - 15)/7.5)
     markersizes = defaultdict(markersize.copy)
 else:
     markersizes = defaultdict(lambda: markersize)
-markersizes['D'] -= 1
-markersizes['*'] += 1
-markersizes['s'] -= 0.5
+markersizes['lw'] **= 0.5
+markersizes['lw'] /= 3
+markersizes['s'] *= 0.75
+markersizes['D'] *= 0.75
+markersizes['*'] *= 1.75
+markersizes[(5, 1, 0)] *= 1.75
 
 colorbrewer = {c: plt.cm.Set1(i) for i, c in enumerate('rbgmoycpk')}
 colorunbrewer = {plt.cm.Set1(i): c for i, c in enumerate('rbgmoycpk')}
@@ -340,6 +344,7 @@ for p in pargs:
     new['facecolors'] = [[fc or c for fc in facecolors] for c in color]
     new['edgecolors'] = color
     new['color'] = color
+    new['linewidths'] = [markersizes['lw'] for m in new['marker']]
     for k in new:
         pargs[p].setdefault(k, new[k])
 
@@ -401,7 +406,7 @@ def plot_param(fits, param, fitx, fity, convert=None, ax=None,
             valx = resx.get(param) or resx['var'] * tau
             valy = resy.get(param) or resy['DR'] / tau
     valx, valy = np.array(valx), np.array(valy)
-    ax.scatter(valx, valy, **kws)
+    ax.scatter(valx, valy, zorder=2, **kws)
     ax.plot(*trendline(valx, valy), color=kws['color'], linewidth=0.5, zorder=1)
     if tag:
         tag = [t.replace('ree_lower_lid', '').replace('_50Hz_MRG', '')
@@ -437,7 +442,7 @@ def plot_parametric(fits, param, xs, ys, scale='linear', lims=None,
     ax.set_xlim(lims)        # must set_xlims again to fix
     ax.set_ylim(lims)
     ax.tick_params(direction='in', which='both')
-    ax.plot(lims, lims, color=colorbrewer['k'], linewidth=0.5, zorder=1)
+    ax.plot(lims, lims, color=colorbrewer['k'], linewidth=0.5, zorder=0)
     if legend is False:
         if title:
             pad = 0.07
