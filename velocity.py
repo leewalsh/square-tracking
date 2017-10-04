@@ -55,6 +55,7 @@ if __name__ == '__main__':
     arg('--log', action='store_true', help='Plot on a log scale?')
     arg('--dupes', action='store_true', help='Remove duplicates from tracks')
     arg('--normalize', action='store_true', help='Normalize by max?')
+    arg('--errorbar', action='store_true', help='Error bars on histogram?')
     arg('--colored', action='store_true', help='Use tau to calculate D_R')
     arg('--frame', choices=['lab', 'self'], default='self',
         help='Correlations in "lab" or "self" frame?')
@@ -240,7 +241,7 @@ def plot_widths(widths, stats, normalize=False, ax=None):
 
 def plot_hist(a, ax, v=None, label='v', title='', subtitle='',
               legend=True, bins=100, log=True, histtype='step',
-              normed=False, standardized=False):
+              normed=False, standardized=False, errorbar=False):
     """plot a histogram of a given distribution of velocities"""
     stats = get_stats(a)
     if standardized:
@@ -266,6 +267,11 @@ def plot_hist(a, ax, v=None, label='v', title='', subtitle='',
         log=log, alpha=(1 if histtype == 'step' else 0.6),
         color=cs[v], histtype=histtype, lw=1.5, normed=normed,
     )
+    if errorbar and not normed:
+        bin_mid = curve.bin_mid(bins)
+        nruns = 2
+        count_err = nruns*np.sqrt(counts)
+        ax.errorbar(bin_mid, counts, count_err, fmt='none', color=cs[v], lw=1)
 
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
 
@@ -746,7 +752,7 @@ def command_hist(tsets, args, meta, axes=None):
                 label = {'val': label, 'sub': 'R'}
             stats = plot_hist(
                 vs[v], axes[irow, icol], bins=bins*pi/3,
-                log=args.log and icol or not args.lin,
+                log=args.log and icol or not args.lin, errorbar=args.errorbar,
                 v=v, label=label, title=title, subtitle=subtitle)
             D_R = 0.5*stats['var']*dt
             if args.colored:
@@ -774,7 +780,7 @@ def command_hist(tsets, args, meta, axes=None):
                 label = {'val': label, 'sub': r'\perp'}
             stats = plot_hist(
                 vs[v], axes[irow, icol], bins=bins*brange,
-                log=args.log and icol or not args.lin,
+                log=args.log and icol or not args.lin, errorbar=args.errorbar,
                 v=v, label=label, title=title, subtitle=subtitle)
             fit = helpy.make_fit(func='vt', DT='var')
             hist_fits[fit] = {
@@ -788,9 +794,10 @@ def command_hist(tsets, args, meta, axes=None):
             label = englabel[v] + r' $\parallel$'
             if args.verbose:
                 label = {'val': label, 'sub': r'\parallel'}
-            stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
-                              log=args.log and icol or not args.lin,
-                              v=v, label=label, title=title)
+            stats = plot_hist(
+                vs[v], axes[irow, icol], bins=bins*brange,
+                log=args.log and icol or not args.lin, errorbar=args.errorbar,
+                v=v, label=label, title=title)
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
             hist_fits[fit] = {
                 'v0': stats['mean'], 'DT': 0.5*stats['var']*dt,
@@ -807,6 +814,7 @@ def command_hist(tsets, args, meta, axes=None):
                     title = '$v_0$ subtracted'
                 plot_hist(np.concatenate([vs[v], vs['perp']]), axes[irow, icol],
                           bins=bins, log=args.log and icol or not args.lin,
+                          errorbar=args.errorbar,
                           v=v, label=label, title=title, subtitle=subtitle)
             irow += 1
 
