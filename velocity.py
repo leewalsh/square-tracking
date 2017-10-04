@@ -283,10 +283,11 @@ def plot_hist(a, ax, v=None, label='v', title='', subtitle='',
                   borderaxespad=0.2)
 
     ax.tick_params(direction='in', which='both')
-    ax.set_ylabel(r'$N(\eta)$', labelpad=2)
-    xlabel = r'$\Delta r \, f/s$'
     ax.set_xlim(xlim)
-    if v == 'o':
+    if v == 'o' and standardized:
+        xlabel = r'$\Delta\theta / \sqrt{2D_R/f}$'
+        ax.set_ylabel(r'$N(\xi)$', labelpad=2)
+    elif v == 'o':
         # xticks = np.linspace(xlim[0], xlim[1], 3)
         xticks = np.array([-pi/4, 0, pi/4])
         ax.set_xticks(xticks)
@@ -295,6 +296,10 @@ def plot_hist(a, ax, v=None, label='v', title='', subtitle='',
         ax.set_xticklabels(xticklabels, fontsize='small')
         xlabel = r'$\Delta\theta \, f$'
         ax.set_ylabel(r'$N(\xi)$', labelpad=2)
+    else:
+        ax.set_ylabel(r'$N(\eta)$', labelpad=2)
+        xlabel = r'$\Delta r' + (
+            r'/\sqrt{2D_T/f}$' if standardized else r'\,f/s$')
     helpy.mark_value(
         ax, stats['mean'], r'$v_o$' if label.startswith('long') else '',
         line=dict(color=cs[v], coords='data', linestyle='-', linewidth=1,
