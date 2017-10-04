@@ -362,7 +362,7 @@ def vv_crosscorr(vs, fields, normalize=False):
     corr_args = dict(cumulant=True, norm=normalize, ret_dx=True)
     # vvs indices: (track, dx_or_corr, time)
     #       shape: (ntracks, 2, len(track))
-    vvs = (corr.crosscorr(helpy.quick_field_view(tv, fields[0]),
+    vvs = (corr.crosscorr(helpy.quick_field_view(tv, fields[0])**2,
                           helpy.quick_field_view(tv, fields[1]),
                           **corr_args)
            for pvs in vs.itervalues() for tv in pvs.itervalues())
@@ -648,17 +648,15 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
     t = taus/args.fps
     if scale == 'autocorr':
         vv_acs, vv_ac, dvv_ac = vv_autocorr(vs)
-        scale = sqrt(vv_ac[0][comps[0]] * vv_ac[0][comps[1]])
+        scale = vv_ac[0][comps[0]] * sqrt(vv_ac[0][comps[1]])
     elif not np.isscalar(scale):
         if len(scale) == len(taus):
             scale = scale[taus == 0]
         else:
             scale = np.abs(scale).max()
-    ax.errorbar(t, vv/scale, yerr=dvv/scale,
-                linewidth=1, markersize=4,
-                ls=ls[v], marker=marker[v], color=cs[v],
-                label=r'$ \, $'.join([texlabel[c] for c in comps]),
-                )
+    label = r'$^2 \, $'.join([texlabel[c] for c in comps]).replace('$$', '')
+    ax.errorbar(t, vv/scale, yerr=dvv/scale, label=label, linewidth=1,
+                markersize=4, ls=ls[v], marker=marker[v], color=cs[v])
     ax.set_xlim(-t_max, t_max)
     final = 0   # vv[t > t_max].mean()
     # init = vv[t == 0]
@@ -693,15 +691,15 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
                     arrowprops=dict(arrowstyle='->', lw=0.5))
 
     ax.tick_params(direction='in', which='both')
-    ax.set_xticks(np.arange(1 - t_max, t_max, t_max//10 + 1).astype(int))
+    ax.set_xticks(np.arange(1 - t_max, t_max, t_max//5 + 1).astype(int))
 
-    vmax = max(np.abs(ax.get_ylim())) if scale == 1 else 0.25
+    vmax = max(np.abs(ax.get_ylim())) if scale == 1 else 0.4
     ax.set_ylim(-vmax, vmax)
     for orient in 'hv':
         helpy.axline(ax, orient, 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
 
     ax.set_xlabel(r'$t \, f$', labelpad=2)
-    ylabel = r'$\langle {0}(t) \, {1}(0) \rangle$'.format(*[
+    ylabel = r'$\langle {0}^2(t) \, {1}(0) \rangle$'.format(*[
         texlabel.get(comp, '').strip('$') for comp in comps
     ])
     ylabelpad = 2
@@ -711,12 +709,13 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
     ax.set_ylabel(ylabel, labelpad=ylabelpad)
 
     leg_handles, leg_labels = ax.get_legend_handles_labels()
-    # remove errorbars (has_yerr=False), lines (handlelength=0) from legend keys
-    for leg_handle in leg_handles:
-        leg_handle.has_yerr = False
-    ax.legend(leg_handles, leg_labels, loc='best',
-              numpoints=1, markerfirst=False, handlelength=0,
-              frameon=False, fontsize='small')
+    if len(leg_handles) > 1:
+        # remove errorbars (has_yerr=False) & lines (handlelength=0) from legend
+        for leg_handle in leg_handles:
+            leg_handle.has_yerr = False
+        ax.legend(leg_handles, leg_labels, loc='best',
+                  numpoints=1, markerfirst=False, handlelength=0,
+                  frameon=False, fontsize='small')
     return fig, vac_fits
 
 
@@ -893,7 +892,7 @@ if __name__ == '__main__':
                     i += 1
                 if args.do_translation:
                     fig, ignore_fits = command_crosscorr(tsets, args,
-                                                         'par perp', axes[i, j],
+                                                         'perp par', axes[i, j],
                                                          scale='autocorr')
             if 'autocorr' in args.command:
                 i = 0
