@@ -83,12 +83,13 @@ cs = {'mean': 'r', 'var': 'g', 'std': 'b', 'skew': 'm', 'kurt': 'k',
       'par': plt.cm.RdBu(0.8), 'etapar': plt.cm.RdBu(0.8),
       'perp': plt.cm.RdBu(0.2)}
 
-texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$', 'par': r'$v_\parallel$',
-            'perp': r'$\eta_\perp$', 'etapar': r'$\eta_\parallel$'}
+texlabel = {'o': r'$\xi$', 'x': '$v_x$', 'y': '$v_y$',
+            'par': r'$v_\parallel$', 'perp': r'$\eta_\perp$',
+            'etapar': r'$\eta_\parallel$'}
 englabel = {'o': 'rotation', 'x': 'x (lab)', 'y': 'y (lab)',
             'par': 'longitudinal', 'perp': 'transverse',
             'etapar': 'longitudinal'}
-labels = 1
+labels = 0
 
 
 def noise_derivatives(tdata, width=(0.65,), smooth=None, side=1, fps=1):
@@ -188,7 +189,10 @@ def get_stats(a, stat_axis=-1, keepdims=None, nan_policy='omit', widths=None):
             'skew': SK, 'skew_test': SK_t, 'kurt': KU, 'kurt_test': KU_t}
     if not keepdims:
         stat = helpy.dmap(float, stat)
-        print '\n'.join(['{:>10}: {: .4f}'.format(*s) for s in stat.items()])
+        stat_names = 'mean var std skew skew_test kurt kurt_test'.split()
+        fmt = ('{{:>10{0}}} '*len(stat)).format
+        print fmt('s').format(*stat_names)
+        print fmt('.4f').format(*[stat[s] for s in stat_names])
     return stat
 
 
@@ -234,9 +238,9 @@ def plot_widths(widths, stats, normalize=False, ax=None):
     return fig
 
 
-def plot_hist(a, ax, bins=100, log=True, orient=False,
-              label='v', title='', subtitle='', c=cs['o'], histtype='step',
-              legend=True, normed=False, standardized=False):
+def plot_hist(a, ax, v=None, label='v', title='', subtitle='',
+              legend=True, bins=100, log=True, histtype='step',
+              normed=False, standardized=False):
     """plot a histogram of a given distribution of velocities"""
     stats = get_stats(a)
     if standardized:
@@ -257,13 +261,13 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         xlim = xlim, bins[-2]
     else:
         xlim = bins[1], bins[-2]
-    counts, bins, _ = ax.hist(a, bins, range=(bins[0], bins[-1]), label=label,
-                              log=log, alpha=1 if histtype == 'step' else 0.6,
-                              color=c, histtype=histtype, lw=1.5, normed=normed)
+    counts, bins, _ = ax.hist(
+        a, bins, range=(bins[0], bins[-1]), label=label,
+        log=log, alpha=(1 if histtype == 'step' else 0.6),
+        color=cs[v], histtype=histtype, lw=1.5, normed=normed,
+    )
+
     plot_gaussian(stats['mean'], stats['var'], bins, counts.sum(), ax)
-    # ax.tick_params(top=False, which='both')
-    ax.tick_params(direction='in', which='both')
-    # ax.axvline(x=0, color='grey', linestyle='-', linewidth=0.5, zorder=0)
 
     if legend:
         leg_handles, leg_labels = ax.get_legend_handles_labels()
@@ -271,11 +275,13 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
                   loc='upper left', fontsize='small', frameon=False,
                   handlelength=1, handletextpad=0.5, labelspacing=.1,
                   borderaxespad=0.2)
+
+    ax.tick_params(direction='in', which='both')
     ax.set_ylabel(r'$N(\eta)$', labelpad=2)
     xlabel = r'$\Delta r \, f/s$'
-    l, r = ax.set_xlim(xlim)
-    if orient:
-        # xticks = np.linspace(l, r, 3)
+    ax.set_xlim(xlim)
+    if v == 'o':
+        # xticks = np.linspace(xlim[0], xlim[1], 3)
         xticks = np.array([-pi/4, 0, pi/4])
         ax.set_xticks(xticks)
         # xticklabels = map(r'${:.2f}\pi$'.format, xticks/pi)
@@ -285,8 +291,8 @@ def plot_hist(a, ax, bins=100, log=True, orient=False,
         ax.set_ylabel(r'$N(\xi)$', labelpad=2)
     helpy.mark_value(
         ax, stats['mean'], r'$v_o$' if label.startswith('long') else '',
-        line=dict(color=c, coords='data', linestyle='-', linewidth=1,
-                  start=0, stop=counts[np.searchsorted(bins, stats['mean'])]),
+        line=dict(color=cs[v], coords='data', linestyle='-', linewidth=1,
+                  start=0, stop=counts[np.searchsorted(bins, stats['mean'])-1]),
         annotate=dict(xy=(stats['mean'], 0), xytext=(0, 9), ha='center')
     )
     if log:
@@ -642,7 +648,6 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
             scale = scale[taus == 0]
         else:
             scale = np.abs(scale).max()
-    vmax = args.normalize or vv[0]/scale
     ax.errorbar(t, vv/scale, yerr=dvv/scale,
                 linewidth=1, markersize=4,
                 ls=ls[v], marker=marker[v], color=cs[v],
@@ -683,10 +688,11 @@ def command_crosscorr(tsets, args, comps, ax=None, markt='', scale=1):
 
     ax.tick_params(direction='in', which='both')
     ax.set_xticks(np.arange(1 - t_max, t_max, t_max//10 + 1).astype(int))
-    ylim = max(np.abs(ax.get_ylim())) if scale == 1 else 0.25
-    ax.set_ylim(-ylim, ylim)
-    helpy.axline(ax, 'h', 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
-    helpy.axline(ax, 'v', 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
+
+    vmax = max(np.abs(ax.get_ylim())) if scale == 1 else 0.25
+    ax.set_ylim(-vmax, vmax)
+    for orient in 'hv':
+        helpy.axline(ax, orient, 0, ls='-', lw=0.6, c='k', alpha=0.5, zorder=0)
 
     ax.set_xlabel(r'$t \, f$', labelpad=2)
     ylabel = r'$\langle {0}(t) \, {1}(0) \rangle$'.format(*[
@@ -739,9 +745,9 @@ def command_hist(tsets, args, meta, axes=None):
             if args.verbose:
                 label = {'val': label, 'sub': 'R'}
             stats = plot_hist(
-                vs[v], axes[irow, icol], bins=bins*pi/3, c=cs[v],
-                log=args.log and icol or not args.lin, label=label,
-                orient=True, title=title, subtitle=subtitle)
+                vs[v], axes[irow, icol], bins=bins*pi/3,
+                log=args.log and icol or not args.lin,
+                v=v, label=label, title=title, subtitle=subtitle)
             D_R = 0.5*stats['var']*dt
             if args.colored:
                 (TR_source, TR_fit), = fits.items()
@@ -769,7 +775,7 @@ def command_hist(tsets, args, meta, axes=None):
             stats = plot_hist(
                 vs[v], axes[irow, icol], bins=bins*brange,
                 log=args.log and icol or not args.lin,
-                label=label, title=title, subtitle=subtitle, c=cs[v])
+                v=v, label=label, title=title, subtitle=subtitle)
             fit = helpy.make_fit(func='vt', DT='var')
             hist_fits[fit] = {
                 'DT': 0.5*stats['var']*dt, 'vt': stats['mean'],
@@ -784,7 +790,7 @@ def command_hist(tsets, args, meta, axes=None):
                 label = {'val': label, 'sub': r'\parallel'}
             stats = plot_hist(vs[v], axes[irow, icol], bins=bins*brange,
                               log=args.log and icol or not args.lin,
-                              label=label, title=title, c=cs[v])
+                              v=v, label=label, title=title)
             fit = helpy.make_fit(func='vn', v0='mean', DT='var')
             hist_fits[fit] = {
                 'v0': stats['mean'], 'DT': 0.5*stats['var']*dt,
@@ -798,10 +804,10 @@ def command_hist(tsets, args, meta, axes=None):
                 label = englabel[v]
                 if args.verbose:
                     label = {'val': label, 'sub': r'\alpha'}
-                plot_hist(np.concatenate([vs[v], vs['perp']]),
-                          axes[irow, icol], bins=bins,
-                          log=args.log and icol or not args.lin, label=label,
-                          title='$v_0$ subtracted', subtitle=subtitle)
+                    title = '$v_0$ subtracted'
+                plot_hist(np.concatenate([vs[v], vs['perp']]), axes[irow, icol],
+                          bins=bins, log=args.log and icol or not args.lin,
+                          v=v, label=label, title=title, subtitle=subtitle)
             irow += 1
 
     return fig, hist_fits
@@ -866,7 +872,7 @@ if __name__ == '__main__':
             figsize = np.array([3.5*ncols, 3.0*nrows])/(1 if labels else 2)
             fig, axes = plt.subplots(
                 nrows, ncols, squeeze=False, figsize=figsize,
-                # gridspec_kw={'wspace': 0.3, 'hspace': 0.4},
+                gridspec_kw={'wspace': 0.3, 'hspace': 0.4},
             )
             j = 0
             if 'crosscorr' in args.command:
@@ -897,7 +903,7 @@ if __name__ == '__main__':
                 fig, new_fits = command_hist(tsets, args, meta, axes)
                 fits.update(new_fits)
 
-        if 'widths' not in args.command:
+        if 'widths' not in args.command and len(fig.axes) > 1:
             for i, ax in enumerate(fig.axes):
                 ax.annotate('({})'.format('acbd'[i]),
                             xy=(-.1, 1), verticalalignment='baseline',  # upper
