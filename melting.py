@@ -84,6 +84,23 @@ def merge_melting(prefix_pattern):
 
 
 def melting_stats(frame, dens_method, neigh_args):
+    """Calculate structural order parameters for a frame
+
+    parameters
+    ----------
+    frame :     slice of melting data array for single frame
+    dens_method: method for calculating density, passed to corr.density
+    neigh_args: options for selecting neighborhood, passed to corr.neighborhoods
+
+    returns
+    -------
+    all returned statistics are defined per particle, and returned as 1d arrays
+    with the same shape as `frame`
+    rad :   radial distance from cluster center of mass
+    dens :  local density, calculated by corr.density
+    psi :   local bond-orientational order parameter, from corr.pair_angle_op
+    phi :   local molecular orientational order parameter, from corr.orient_op
+    """
     xy = frame['xy']
     orient = frame['o']
 
@@ -163,7 +180,14 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
     return start
 
 
-def find_ref_basis(positions=None, psi=None):
+def find_ref_basis(positions):
+    """Calculate the 4-fold orientational basis vectors
+
+    returns
+    -------
+    ang :   primary phase of basis
+    basis : basis angles as list of vectors
+    """
     neighs, mask, dists = corr.neighborhoods(positions, size=2)
     pair_angles = corr.pair_angles(positions, neighs, mask, 'absolute')
     psi, ang = corr.pair_angle_op(*pair_angles, m=4, globl=True)
