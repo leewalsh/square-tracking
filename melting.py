@@ -39,7 +39,7 @@ def initialize_mdata(data):
 
 
 def merge_melting(prefix_pattern):
-    merged_prefix = helpy.replace_all(prefix_pattern, '*?', '') + '_MRG'
+    merged_prefix = helpy.replace_all(prefix_pattern, '*?', '') + 'MRG'
     helpy.save_log_entry(merged_prefix, 'argv')
     prefixes = [p[:-9] for p in glob.iglob(
         helpy.with_suffix(prefix_pattern, '_MELT.npz'))]
@@ -65,7 +65,7 @@ def merge_melting(prefix_pattern):
         mframes = mframes[f0:]
 
         meta['start_frame'] = 0
-        meta['end_frame'] -= f0
+        meta['end_frame'] = meta.get('end_frame') and meta['end_frame'] - f0
         metas.append(meta)
         datas.append(frames)
         mdatas.append(mframes)
@@ -143,6 +143,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
         first, last = bounds
     if last is None:
         last = first + (data['f'][-1] - first) // 3
+    print "seeking start frame between {} and {}.".format(first, last)
 
     positions = helpy.load_trackstack(data, length=last)['xy']
     displacements = helpy.dist(positions, positions[0])
@@ -151,6 +152,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
     dm = np.minimum.accumulate(ds[::-1])[::-1] == np.maximum.accumulate(ds)
     dmi = np.nonzero(dm[first:last])[0] + first
     start = dmi[0] - 1
+    print "\tstart frame: {}".format(start)
 
     if plot:
         fig, ax = plt.subplots()
@@ -166,8 +168,8 @@ def find_ref_basis(positions=None, psi=None):
     pair_angles = corr.pair_angles(positions, neighs, mask, 'absolute')
     psi, ang = corr.pair_angle_op(*pair_angles, m=4, globl=True)
     print 'psi first frame:', psi
-    if psi < 0.8:
-        print 'RuntimeWarning: ref_basis based on weak psi =', psi
+    if psi < 0.85:
+        raise RuntimeError('ref_basis based on weak psi = {:.3f}'.format(psi))
     cos, sin = np.cos(ang), np.sin(ang)
     basis = np.array([[cos, sin], [-sin, cos]])
     return ang, basis
@@ -225,9 +227,7 @@ def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
     splindex = np.where(mdata['sh'], mdata['sh'], zero_to) if zero_to else 'sh'
     shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
     if do_mean:
-        if maxshell is None:
-            maxshesll = max(shells.keys())
-        shells[maxshell+1] = mdata[mdata['sh'] >= 0]
+        shells[(maxshell or max(shells)) + 1] = mdata[mdata['sh'] >= 0]
     return shells
 
 
@@ -277,7 +277,8 @@ def make_plot_args(meta_or_args):
         },
         'xylim': {
             'f':    (-25,
-                     meta.get('end_frame') and (meta.get('end_frame') - meta['start_frame'])/fps),
+                     meta.get('end_frame')
+                     and (meta['end_frame'] - meta['start_frame'])/fps),
             'rad':  (0, rad),
             'dens': (0, 1.1),
             'phi':  (0, 1.1),
@@ -346,7 +347,8 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
         counts, xbins, ybins = np.histogram2d(
             np.nan_to_num(xs),
             np.nan_to_num(ys),
-            bins=bins,# normed=True,
+            bins=bins,
+            # normed=True,
             range=[[np.nanmin(xs), np.nanmax(xs)],
                    [np.nanmin(ys), np.nanmax(ys)]])
         xi = np.digitize(np.nan_to_num(xs), xbins, True)
@@ -525,7 +527,7 @@ def melt_analysis(data):
     maxshell = shells.max()
 
     dens_method = 'dist'
-    # Calculate radial speed (not MSD!) (maybe?)
+
     for frame, melt in it.izip(frames, mframes):
         nn = np.where(melt['sh'] == maxshell, 3, 4)
         neigh_args = {'size': (nn,)*2}
@@ -586,7 +588,7 @@ if __name__ == '__main__':
         ['side', 'fps', 'start', 'end', 'width', 'zoom'],
         ['sidelength', 'fps', 'start_frame', 'end_frame',
          'crystal_width', 'crystal_zoom'],
-        [1, 1, 0, None, 1])
+        [1, 1, 0, None, None, 1])
 
     M = 4  # number of neighbors
 
@@ -628,7 +630,7 @@ if __name__ == '__main__':
         plot_args = make_plot_args(maxshell, args)
         stats = ['rad', 'dens', 'psi', 'phi']
 
-        endex = np.searchsorted(mdata['f'], args.end)
+        endex = args.end and np.searchsorted(mdata['f'], args.end)
         shells = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
         shell_means = average_shells(shells, stats, 'f')
 
@@ -693,8 +695,7 @@ if __name__ == '__main__':
         figsize = list(plt.rcParams['figure.figsize'])
         figsize[0] = min(figsize[0]*ncols,
                          helplt.rc('figure.maxwidth'))
-        figsize[1] = min(figsize[1]*nrows, 10)
-                         #helplt.rc('figure.maxheight'))
+        figsize[1] = min(figsize[1]*nrows, 10)  # helplt.rc('figure.maxheight'))
         fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
                                  sharex='all', sharey='all')
         norm_opts = plot_args.pop('norm')
@@ -703,7 +704,8 @@ if __name__ == '__main__':
             if norm is None:
                 norm = (0, 1)
             if isinstance(norm, list):
-                norm = tuple(np.percentile(mdata[stat]*plot_args['unit'][stat], norm))
+                norm = tuple(np.percentile(mdata[stat]*plot_args['unit'][stat],
+                                           norm))
             if isinstance(norm, tuple):
                 norm = matplotlib.colors.Normalize(*norm)
             for j, f in enumerate(fs):
@@ -719,7 +721,6 @@ if __name__ == '__main__':
                     xlim, ylim = ax.get_xlim(), ax.get_ylim()
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-
 
         if args.show:
             plt.show()
