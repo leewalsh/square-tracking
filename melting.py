@@ -180,7 +180,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
     return start
 
 
-def find_ref_basis(positions):
+def find_ref_coords(positions):
     """Calculate the 4-fold orientational basis vectors
 
     returns
@@ -193,10 +193,11 @@ def find_ref_basis(positions):
     psi, ang = corr.pair_angle_op(*pair_angles, m=4, globl=True)
     print 'psi first frame:', psi
     if psi < 0.85:
-        raise RuntimeError('ref_basis based on weak psi = {:.3f}'.format(psi))
+        raise RuntimeError('ref_coords based on weak psi = {:.3f}'.format(psi))
     cos, sin = np.cos(ang), np.sin(ang)
-    basis = np.array([[cos, sin], [-sin, cos]])
-    return ang, basis
+    ref_basis = np.array([[cos, sin], [-sin, cos]])
+    ref_origin = positions.mean(0)
+    return ref_origin, ref_basis
 
 
 def square_size(num):
@@ -207,7 +208,16 @@ def square_size(num):
     return num, width
 
 
-def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
+def rectify_lattice(positions, ref_coords=None):
+    """rotate by dominant lattice phase and translate to center of mass"""
+    if ref_coords is None:
+        ref_coords = find_ref_coords(positions)
+    ref_origin, ref_basis = ref_coords
+    rectified = corr.rotate2d(positions - ref_origin, basis=ref_basis)
+    return rectified
+
+
+def assign_shell(positions, ids=None, N=None, maxt=None, is_rectified=False):
     """given (N, 2) positions array, assign shell number to each particle
 
     shell number is assigned as maximum coordinate, written in a basis aligned
@@ -217,11 +227,9 @@ def assign_shell(positions, ids=None, N=None, maxt=None, ref_basis=None):
     if W = sqrt(N) is even, smallest value is 0.5; if even, smallest value is 0.
     largest value is (W - 1)/2
     """
+    if not is_rectified:
+        positions = rectify_lattice(positions)
     N, W = square_size(N or len(positions))
-    if ref_basis is None:
-        _, ref_basis = find_ref_basis(positions)
-    positions = corr.rotate2d(positions, basis=ref_basis)
-    positions -= positions.mean(0)
     spacing = (positions.max(0) - positions.min(0)) / (W - 1)
     positions /= spacing
     shells = (np.abs(positions).max(1) + (1 - W % 2)/2.).round().astype(int)
