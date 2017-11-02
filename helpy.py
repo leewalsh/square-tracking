@@ -35,7 +35,7 @@ def replace_all(s, old, new=''):
 
 
 def getsystem():
-    """return system name (Darwin, Windows, Linux, etc). Cached as global."""
+    """get system name (Darwin, Windows, Linux, etc). Cached as global."""
     global SYSTEM
     if not SYSTEM:
         SYSTEM = platform.system()
@@ -43,7 +43,7 @@ def getsystem():
 
 
 def gethost():
-    """return host name. Cached as global."""
+    """get host name. Cached as global."""
     getsystem()
     global HOST
     if not HOST:
@@ -61,7 +61,7 @@ def gethost():
 
 
 def getuser():
-    """return user name. Cached as global."""
+    """get user name. Cached as global."""
     global USER
     if not USER:
         USER = getpass.getuser().replace(' ', '_')
@@ -69,7 +69,7 @@ def getuser():
 
 
 def getcommit(ret_object=False):
-    """return git commit hash. Cached as global."""
+    """get git commit hash. Cached as global."""
     global COMMIT
     if not COMMIT:
         gitdir = os.path.dirname(__file__) or os.curdir
@@ -109,44 +109,45 @@ def getcommit(ret_object=False):
     return (COMMIT, commit) if ret_object else COMMIT
 
 
-def splitter(data, indices, method=None,
-             ret_dict=False, noncontiguous=False):
-    """Splits a dataset into subarrays with unique index value
+def splitter(data, indices, method=None, ret_dict=False, noncontiguous=False):
+    """Split a dataset into subarrays with unique index value
 
-    parameters:
+    parameters
+    ----------
     data:       dataset to be split along first axis
     indices:    values to group by, can be array of indices or field name.
                 default is field name 'f'
     method:     either 'diff' or 'unique':
-                diff is faster*, but
-                unique returns the `index` value
+                    diff is faster*, but
+                    unique returns the `index` value
     ret_dict:   whether to return a dict with indices as keys
     noncontiguous:  whether to assume indices array has matching values
                     separated by other values
 
-    returns:
-        a list or dict of subarrays of `data` split and grouped by unique values
-        of `indices`:
-        if `method` is 'unique',
-            returns list of tuples of (index, section)
-        if `ret_dict` is True,
-            returns a dict of the form {index: section}
-        *if method is 'diff',
-            `indices` is assumed sorted and not missing any values
+    returns
+    -------
+    a list or dict of subarrays of `data` split and grouped by unique values
+    of `indices`:
+    if `method` is 'unique',
+        returns list of tuples of (index, section)
+    if `ret_dict` is True,
+        returns a dict of the form {index: section}
+    *if method is 'diff',
+        `indices` is assumed sorted and not missing any values
 
-    examples:
+    examples
+    --------
+    for f, fdata in splitter(data, 'f', method='unique')
 
-        for f, fdata in splitter(data, 'f', method='unique')
+    for fdata in splitter(data, 'f')
 
-        for fdata in splitter(data, 'f')
+    fsets = splitter(data, 'f', method='unique', ret_dict=True)
+    fset = fsets[f]
 
-        fsets = splitter(data, 'f', method='unique', ret_dict=True)
-        fset = fsets[f]
+    for trackid, trackset in splitter(data, 't', noncontiguous=True)
 
-        for trackid, trackset in splitter(data, 't', noncontiguous=True)
-
-        tracksets = splitter(data, 't', noncontiguous=True, ret_dict=True)
-        trackset = tracksets[trackid]
+    tracksets = splitter(data, 't', noncontiguous=True, ret_dict=True)
+    trackset = tracksets[trackid]
     """
     if not isinstance(data, tuple):
         data = (data,)
@@ -331,7 +332,7 @@ def avg_uneven(arrs, min_added=3, weight=False, pad=None, align=None,
 
 
 def nan_info(arr, verbose=False):
-    """return (and print if verbose) some info on the nan contents of arr"""
+    """get (and print if verbose) some info on the nan contents of arr"""
     isnan = np.isnan(arr)
     nnan = np.count_nonzero(isnan)
     if nnan:
@@ -346,6 +347,11 @@ def nan_info(arr, verbose=False):
         if verbose:
             print 'no nans'
     return isnan, nnan, wnan
+
+
+def identity(x):
+    """the identify function"""
+    return x
 
 
 def transpose_list_of_dicts(*lod, **kwargs):
@@ -542,9 +548,7 @@ DRIVES = {
 
 
 def drive_path(path, local=False, both=False):
-    """
-    split absolute paths from nt, osx, or linux into (drive, path) tuple
-    """
+    """split absolute paths from nt, osx, or linux into (drive, path) tuple"""
     if isinstance(path, basestring):
         if local:
             path = os.path.abspath(path)
@@ -585,13 +589,14 @@ def with_prefix(suffix, prefix):
 
 
 def fio(path, content='', mode='w'):
+    """write or read lines to or from file"""
     if content:
         with open(path, mode) as f:
             f.writelines(content)
     else:
         with open(path, 'r') as f:
-            lines = f.readlines()
-        return lines
+            content = f.readlines()
+    return content
 
 
 def strftime(fmt='%y%m%d_%H%M%S', t=None):
@@ -608,7 +613,7 @@ def strftime(fmt='%y%m%d_%H%M%S', t=None):
 
 
 def timestamp(fmt='%Y-%m-%d %H:%M:%S', t=None):
-    """return current date and time with nicely formatted timezone info
+    """format current date and time with timezone info
 
     Sometimes '%Z' is formatted as 'Eastern Standard Time', sometimes as 'EST'.
     This function converts the former (longer) into the latter (shorter).

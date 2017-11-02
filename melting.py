@@ -254,21 +254,21 @@ def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
 
     return
     ------
-    shells:     dict from integers to mdata slices.
+    shellsets:     dict from integers to mdata slices.
     """
-    splindex = np.where(mdata['sh'], mdata['sh'], zero_to) if zero_to else 'sh'
-    shells = helpy.splitter(mdata, splindex, noncontiguous=True, ret_dict=True)
+    splind = np.where(mdata['sh'], mdata['sh'], zero_to) if zero_to else 'sh'
+    shellsets = helpy.splitter(mdata, splind, noncontiguous=True, ret_dict=True)
     if do_mean:
-        shells[(maxshell or max(shells)) + 1] = mdata[mdata['sh'] >= 0]
-    return shells
+        shellsets[(maxshell or max(shellsets)) + 1] = mdata[mdata['sh'] >= 0]
+    return shellsets
 
 
-def average_shells(shells, fields=None, by='f'):
+def average_shells(shellsets, fields=None, by='f'):
     """average all particles within each shell"""
     if fields is None:
-        fields = [f for f in shells.dtype.names if f not in 'id f t sh']
+        fields = [f for f in shellsets.dtype.names if f not in 'id f t sh']
     averaged = {}
-    for s, shell in shells.iteritems():
+    for s, shell in shellsets.iteritems():
         averaged[s] = {}
         for field in fields:
             i = np.where(np.isfinite(shell[field]))
@@ -491,7 +491,7 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
     return ax
 
 
-def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, **plot_args):
+def plot_regions(frame, mframe=None, vor=None, ax=None, **plot_args):
     """plot some parameter in the voronoi cells"""
     xy = helpy.quick_field_view(frame, 'xy')
     if vor is None:
@@ -502,14 +502,14 @@ def plot_regions(frame, mframe=None, vor=None, colors='sh', norm=None, ax=None, 
     yxo = xyo[:, [1, 0, 2]] * [[1, 1, -1]] + [[0, 0, np.pi/2]]
 
     unit = plot_args.get('unit')
+    norm = plot_args.pop('norm', matplotlib.colors.Normalize())
+    colors = plot_args.pop('colors', 'sh')
     cmap = plt.get_cmap('Dark2' if colors == 'sh' else 'viridis')
-    if norm is None:
-        norm = matplotlib.colors.Normalize()
     if colors in frame.dtype.names:
         colors = cmap(norm(frame[colors]))
     elif mframe is not None and colors in mframe.dtype.names:
         if colors == 'sh':
-            norm = lambda x: x
+            norm = helpy.identity
             bg = np.max(mframe[colors]*unit[colors])
         else:
             bg = norm(0)
@@ -663,8 +663,8 @@ if __name__ == '__main__':
         stats = ['rad', 'dens', 'psi', 'phi']
 
         endex = args.end and np.searchsorted(mdata['f'], args.end)
-        shells = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
-        shell_means = average_shells(shells, stats, 'f')
+        shellsets = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
+        shell_means = average_shells(shellsets, stats, 'f')
 
         if args.save:
             axes = it.repeat(None, len(stats))
@@ -684,7 +684,7 @@ if __name__ == '__main__':
                                ax=ax, **plot_args)
 
         print " * shells vs density"
-        shells.pop(nshells)
+        shellsets.pop(nshells)
         stats.remove('dens')
         nrows = len(stats)
         figsize = list(plt.rcParams['figure.figsize'])
@@ -693,7 +693,7 @@ if __name__ == '__main__':
         fig, axes = plt.subplots(figsize=figsize,
                                  nrows=nrows, sharex='col')
         for stat, ax in zip(stats, axes):
-            plot_by_shell(shells, 'dens', stat, start=args.start,
+            plot_by_shell(shellsets, 'dens', stat, start=args.start,
                           ax=ax, **plot_args)
 
         print " * parametric histogram"
@@ -742,8 +742,8 @@ if __name__ == '__main__':
                 norm = matplotlib.colors.Normalize(*norm)
             for j, f in enumerate(fs):
                 ax = axes[i, j]
-                plot_regions(frames[f], mframes[f], norm=norm,
-                             ax=ax, colors=stat, **plot_args)
+                plot_regions(frames[f], mframes[f], ax=ax,
+                             norm=norm, colors=stat, **plot_args)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 if i == nrows-1:
