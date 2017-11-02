@@ -38,6 +38,40 @@ def initialize_mdata(data):
     return mdata
 
 
+def load_melt_data(prefix, **kwargs):
+    """load lots of melting data
+
+    parameters
+    ----------
+    prefix :    prefix path to dataset
+    zero_to :   passed to split_shells
+    do_mean :   passed to split_shells
+    stats :     passed to average_shells
+
+    returns
+    -------
+    (meta, data, mdata, frames, mframes, shellsets, shell_means, plot_args)
+    """
+    meta = helpy.load_meta(prefix)
+    trackargs = dict(run_repair='interp', run_track_orient=True)
+    if 'merged' in meta:
+        trackargs.clear()
+    data = helpy.load_data(prefix, 't m', **trackargs)
+    frames = helpy.load_framesets(data, ret_dict=False)
+
+    end_index = np.searchsorted(data[1]['f'], meta.get('end_frame') or np.inf)
+    shellsets = split_shells(data[1][:end_index],
+                             zero_to=kwargs.get('zero_to', 1),
+                             do_mean=kwargs.get('do_mean', True),
+                             maxshell=meta['crystal_width']//2)
+    stats = kwargs.get('stats', ['rad', 'dens', 'psi', 'phi'])
+    shell_means = average_shells(shellsets, stats, 'f')
+
+    plot_args = make_plot_args(meta)
+
+    return (meta,) + data + frames + (shellsets, shell_means, plot_args)
+
+
 def merge_melting(prefix_pattern):
     merged_prefix = helpy.replace_all(prefix_pattern, '*?', '') + 'MRG'
     helpy.save_log_entry(merged_prefix, 'argv')
@@ -48,13 +82,9 @@ def merge_melting(prefix_pattern):
     for prefix in prefixes:
         meta = helpy.load_meta(prefix)
         print prefix
-        data, mdata = helpy.load_data(prefix, 't m')
-        print '\tinterpolating data'
-        # to get the benefits of tracksets (interpolation, stub filtering):
-        tsets = helpy.load_tracksets(data, run_repair='interp',
-                                     run_track_orient=True)
-        data = np.concatenate(tsets.values())
-        data.sort(order=['f', 't'])
+        data, mdata = helpy.load_data(prefix, 't m',
+                                      run_repair='interp',
+                                      run_track_orient=True)
         assert np.all(data['id'] == mdata['id'])
 
         frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
@@ -359,14 +389,14 @@ def make_plot_args(meta_or_args):
     return plot_args
 
 
-def plot_by_shell(shells, x, y, start=0, smooth=0, zoom=1, **plot_args):
-    line_props = plot_args.get('line_props', [{}]*len(shells))
+def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
+    line_props = plot_args.get('line_props', [{}]*len(shellsets))
     unit = plot_args.get('unit', {x: 1, y: 1})
     ax = plot_args.get('ax')
     if ax is None:
         fig, ax = plt.subplots(figsize=(4, 3))
 
-    for s, shell in shells.iteritems():
+    for s, shell in shellsets.iteritems():
         if s < 0:
             continue
         if x == 'f':
@@ -617,9 +647,8 @@ if __name__ == '__main__':
 
     helpy.sync_args_meta(
         args, meta,
-        ['side', 'fps', 'start', 'end', 'width', 'zoom'],
-        ['sidelength', 'fps', 'start_frame', 'end_frame',
-         'crystal_width', 'crystal_zoom'],
+        'side fps start end width zoom',
+        'sidelength fps start_frame end_frame crystal_width crystal_zoom',
         [1, 1, 0, None, None, 1])
 
     M = 4  # number of neighbors
@@ -638,13 +667,8 @@ if __name__ == '__main__':
     if args.save:
         helpy.save_meta(args.prefix, meta)
 
-    data = helpy.load_data(args.prefix)
-    tsets = helpy.load_tracksets(data, run_repair='interp',
-                                 run_track_orient=True)
-    # to get the benefits of tracksets (interpolation, stub filtering):
-    data = np.concatenate(tsets.values())
-    data.sort(order=['f', 't'])
-
+    data = helpy.load_data(args.prefix,
+                           run_repair='interp', run_track_orient=True)
     if not args.start:
         args.start = find_start_frame(data, plot=args.plot)
     if args.melt:
@@ -654,7 +678,7 @@ if __name__ == '__main__':
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
             helpy.save_meta(args.prefix, meta, start_frame=args.start)
     else:
-        mdata = np.load(args.prefix + '_MELT.npz')['data']
+        mdata = helpy.load(args.prefix, 'm')
         frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
 
 if __name__ == '__main__' and args.plot:

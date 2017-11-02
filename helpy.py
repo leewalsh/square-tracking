@@ -173,7 +173,7 @@ def splitter(data, indices, method=None, ret_dict=False, noncontiguous=False):
             sects = [np.split(datum, i[1:]) for datum in data]
         ret = [dict(it.izip(u, sect)) if ret_dict else it.izip(u, sect)
                for sect in sects]
-    return ret[0] if len(ret) == 1 else ret
+    return tuple(ret) if len(ret) > 1 else ret.pop()
 
 
 def is_sorted(a):
@@ -1000,7 +1000,7 @@ def clear_execution_counts(nbpath, inplace=False):
     nbformat.write(nb, out)
 
 
-def load_data(fullprefix, sets='tracks', verbose=False):
+def load_data(fullprefix, sets='tracks', verbose=False, **trackargs):
     """ Load data from an npz file
 
         Given `fullprefix`, returns data arrays from a choice of:
@@ -1064,8 +1064,12 @@ def load_data(fullprefix, sets='tracks', verbose=False):
         data['t'] = initialize_tdata(data['p'], t, data['o']['orient'])
     if 't' in sets:
         data['t'] = add_self_view(data['t'], ('x', 'y'), 'xy')
+        if trackargs:
+            tsets = load_tracksets(data['t'], **trackargs)
+            data['t'] = np.concatenate(tsets.values())
+            data['t'].sort(order=['f', 't'])
     ret = [data[s] for s in sets]
-    return ret if len(ret) > 1 else ret[0]
+    return tuple(ret) if len(ret) > 1 else ret.pop()
 
 
 def load_MSD(fullprefix, pos=True, ang=True):
