@@ -133,6 +133,29 @@ def melting_stats(frame, dens_method, neigh_args):
     return rad, dens, psi, phi
 
 
+def melt_analysis(data):
+    mdata = initialize_mdata(data)
+
+    frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
+    shells = assign_shell(frames[0]['xy'], frames[0]['t'],
+                          maxt=data['t'].max())
+    mdata['sh'] = shells[mdata['t']]
+    maxshell = shells.max()
+
+    dens_method = 'dist'
+
+    for frame, melt in it.izip(frames, mframes):
+        nn = np.where(melt['sh'] == maxshell, 3, 4)
+        neigh_args = {'size': (nn,)*2}
+
+        rad, dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
+        melt['rad'] = rad
+        melt['dens'] = dens
+        melt['psi'] = psi
+        melt['phi'] = phi
+    return mdata, frames, mframes
+
+
 def find_start_frame(data, estimate=None, bounds=None, plot=False):
     """Determine the time of the onset of motion
 
@@ -549,29 +572,6 @@ def plot_regions(frame, mframe=None, vor=None, ax=None, **plot_args):
     return ax, patches, scatter, norm
 
 
-def melt_analysis(data):
-    mdata = initialize_mdata(data)
-
-    frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
-    shells = assign_shell(frames[0]['xy'], frames[0]['t'],
-                          maxt=data['t'].max())
-    mdata['sh'] = shells[mdata['t']]
-    maxshell = shells.max()
-
-    dens_method = 'dist'
-
-    for frame, melt in it.izip(frames, mframes):
-        nn = np.where(melt['sh'] == maxshell, 3, 4)
-        neigh_args = {'size': (nn,)*2}
-
-        rad, dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
-        melt['rad'] = rad
-        melt['dens'] = dens
-        melt['psi'] = psi
-        melt['phi'] = phi
-    return mdata, frames, mframes
-
-
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -657,102 +657,102 @@ if __name__ == '__main__':
         mdata = np.load(args.prefix + '_MELT.npz')['data']
         frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
 
-    if args.plot:
-        print "plotting"
-        plot_args = make_plot_args(maxshell, args)
-        stats = ['rad', 'dens', 'psi', 'phi']
+if __name__ == '__main__' and args.plot:
+    print "plotting"
+    plot_args = make_plot_args(maxshell, args)
+    stats = ['rad', 'dens', 'psi', 'phi']
 
-        endex = args.end and np.searchsorted(mdata['f'], args.end)
-        shellsets = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
-        shell_means = average_shells(shellsets, stats, 'f')
+    endex = args.end and np.searchsorted(mdata['f'], args.end)
+    shellsets = split_shells(mdata[:endex], zero_to=1, maxshell=maxshell)
+    shell_means = average_shells(shellsets, stats, 'f')
 
-        if args.save:
-            axes = it.repeat(None, len(stats))
-            save_name = '{prefix}_{stat}.pdf'
-        else:
-            nrows = len(stats)
-            figsize = list(plt.rcParams['figure.figsize'])
-            figsize[1] = min(figsize[1]*nrows,
-                             helplt.rc('figure.maxheight'))
-            fig, axes = plt.subplots(figsize=figsize,
-                                     nrows=nrows, sharex='col')
-            save_name = ''
-        for stat, ax in zip(stats, axes):
-            save = save_name.format(prefix=args.prefix, stat=stat)
-            ax = plot_by_shell(shell_means, 'f', stat, start=args.start,
-                               zoom=args.zoom, smooth=args.smooth, save=save,
-                               ax=ax, **plot_args)
-
-        print " * shells vs density"
-        shellsets.pop(nshells)
-        stats.remove('dens')
+    if args.save:
+        axes = it.repeat(None, len(stats))
+        save_name = '{prefix}_{stat}.pdf'
+    else:
         nrows = len(stats)
         figsize = list(plt.rcParams['figure.figsize'])
         figsize[1] = min(figsize[1]*nrows,
                          helplt.rc('figure.maxheight'))
         fig, axes = plt.subplots(figsize=figsize,
                                  nrows=nrows, sharex='col')
-        for stat, ax in zip(stats, axes):
-            plot_by_shell(shellsets, 'dens', stat, start=args.start,
-                          ax=ax, **plot_args)
+        save_name = ''
+    for stat, ax in zip(stats, axes):
+        save = save_name.format(prefix=args.prefix, stat=stat)
+        ax = plot_by_shell(shell_means, 'f', stat, start=args.start,
+                           zoom=args.zoom, smooth=args.smooth, save=save,
+                           ax=ax, **plot_args)
 
-        print " * parametric histogram"
-        stats = ['rad', 'dens', 'psi', 'phi']
-        nrows = ncols = len(stats) - 1
-        figsize = list(plt.rcParams['figure.figsize'])
-        figsize[0] = min(figsize[0]*ncols,
-                         helplt.rc('figure.maxwidth'))
-        figsize[1] = min(figsize[1]*nrows,
-                         helplt.rc('figure.maxheight'))
-        f0 = args.start
-        fs = np.array([0, 250, 500, 750, 1000, 1250])
-        fbs = ['start'] + fs.tolist() + ['end']
-        periods = np.split(mframes, fs + f0)
-        for p, period in enumerate(periods):
-            period = np.concatenate(period)
-            fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
-                                     sharex='col', sharey='row')
-            fig.suptitle(r'$t \, f = [{}, {})$'.format(fbs[p], fbs[p+1]))
-            for j, x in enumerate(stats[:-1]):
-                for i, y in enumerate(stats[j+1:]):
-                    ax = axes[i+j, j]
-                    plot_parametric_hist(period, x, y, ax=ax, **plot_args)
+    print " * shells vs density"
+    shellsets.pop(nshells)
+    stats.remove('dens')
+    nrows = len(stats)
+    figsize = list(plt.rcParams['figure.figsize'])
+    figsize[1] = min(figsize[1]*nrows,
+                     helplt.rc('figure.maxheight'))
+    fig, axes = plt.subplots(figsize=figsize,
+                             nrows=nrows, sharex='col')
+    for stat, ax in zip(stats, axes):
+        plot_by_shell(shellsets, 'dens', stat, start=args.start,
+                      ax=ax, **plot_args)
 
-        print " * parameter maps"
-        stats = ['sh', 'rad', 'dens', 'psi', 'phi']
-        f0 = args.start
-        fs = np.array([0, 250, 500, 750, 1000, 1250]) + f0
-        nrows = len(stats)
-        ncols = len(fs)
-        figsize = list(plt.rcParams['figure.figsize'])
-        figsize[0] = min(figsize[0]*ncols,
-                         helplt.rc('figure.maxwidth'))
-        figsize[1] = min(figsize[1]*nrows, 10)  # helplt.rc('figure.maxheight'))
+    print " * parametric histogram"
+    stats = ['rad', 'dens', 'psi', 'phi']
+    nrows = ncols = len(stats) - 1
+    figsize = list(plt.rcParams['figure.figsize'])
+    figsize[0] = min(figsize[0]*ncols,
+                     helplt.rc('figure.maxwidth'))
+    figsize[1] = min(figsize[1]*nrows,
+                     helplt.rc('figure.maxheight'))
+    f0 = args.start
+    fs = np.array([0, 250, 500, 750, 1000, 1250])
+    fbs = ['start'] + fs.tolist() + ['end']
+    periods = np.split(mframes, fs + f0)
+    for p, period in enumerate(periods):
+        period = np.concatenate(period)
         fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
-                                 sharex='all', sharey='all')
-        norm_opts = plot_args.pop('norm')
-        for i, stat in enumerate(stats):
-            norm = norm_opts[stat]
-            if norm is None:
-                norm = (0, 1)
-            if isinstance(norm, list):
-                norm = tuple(np.percentile(mdata[stat]*plot_args['unit'][stat],
-                                           norm))
-            if isinstance(norm, tuple):
-                norm = matplotlib.colors.Normalize(*norm)
-            for j, f in enumerate(fs):
-                ax = axes[i, j]
-                plot_regions(frames[f], mframes[f], ax=ax,
-                             norm=norm, colors=stat, **plot_args)
-                ax.set_xticks([])
-                ax.set_yticks([])
-                if i == nrows-1:
-                    ax.set_xlabel('time = {}'.format((f - f0)/args.fps))
-                if j == 0:
-                    ax.set_ylabel(stat)
-                    xlim, ylim = ax.get_xlim(), ax.get_ylim()
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
+                                 sharex='col', sharey='row')
+        fig.suptitle(r'$t \, f = [{}, {})$'.format(fbs[p], fbs[p+1]))
+        for j, x in enumerate(stats[:-1]):
+            for i, y in enumerate(stats[j+1:]):
+                ax = axes[i+j, j]
+                plot_parametric_hist(period, x, y, ax=ax, **plot_args)
 
-        if args.show:
-            plt.show()
+    print " * parameter maps"
+    stats = ['sh', 'rad', 'dens', 'psi', 'phi']
+    f0 = args.start
+    fs = np.array([0, 250, 500, 750, 1000, 1250]) + f0
+    nrows = len(stats)
+    ncols = len(fs)
+    figsize = list(plt.rcParams['figure.figsize'])
+    figsize[0] = min(figsize[0]*ncols,
+                     helplt.rc('figure.maxwidth'))
+    figsize[1] = min(figsize[1]*nrows, 10)  # helplt.rc('figure.maxheight'))
+    fig, axes = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols,
+                             sharex='all', sharey='all')
+    norm_opts = plot_args.pop('norm')
+    for i, stat in enumerate(stats):
+        norm = norm_opts[stat]
+        if norm is None:
+            norm = (0, 1)
+        if isinstance(norm, list):
+            norm = tuple(np.percentile(mdata[stat]*plot_args['unit'][stat],
+                                       norm))
+        if isinstance(norm, tuple):
+            norm = matplotlib.colors.Normalize(*norm)
+        for j, f in enumerate(fs):
+            ax = axes[i, j]
+            plot_regions(frames[f], mframes[f], ax=ax,
+                         norm=norm, colors=stat, **plot_args)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if i == nrows-1:
+                ax.set_xlabel('time = {}'.format((f - f0)/args.fps))
+            if j == 0:
+                ax.set_ylabel(stat)
+                xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    if args.show:
+        plt.show()
