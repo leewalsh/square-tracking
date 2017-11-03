@@ -261,13 +261,13 @@ def square_size(num):
     return num, width
 
 
-def rectify_lattice(positions, ref_coords=None):
+def rectify_lattice(positions, ref_coords=None, ret_ref=False):
     """rotate by dominant lattice phase and translate to center of mass"""
     if ref_coords is None:
         ref_coords = find_ref_coords(positions)
     ref_origin, ref_basis = ref_coords
     rectified = corr.rotate2d(positions - ref_origin, basis=ref_basis)
-    return rectified
+    return (rectified, ref_coords) if ret_ref else rectified
 
 
 def assign_shell(positions, ids=None, N=None, maxt=None, is_rectified=False):
@@ -293,6 +293,68 @@ def assign_shell(positions, ids=None, N=None, maxt=None, is_rectified=False):
             shells_by_id[ids] = shells
             return shells_by_id
     return shells
+
+
+def find_footprint(positions, shells, ref_coords=None, is_rectified=False):
+    """find the outer shell footprint of an arrangement
+
+    parameters
+    ----------
+    positions :     (N, 2) array of x, y particle positions
+    shells :        (N,) array of particle shells
+    ref_coords :    (ref_origin, ref_basis) if available
+    is_rectified :  whether positions are already rotated and shifted to ref
+
+    returns
+    -------
+    width :         footprint width (assuming rectified and square)
+    ref_coords :    returned only if positions had to be rectified
+    """
+    if not is_rectified:
+        positions, ref_coords = rectify_lattice(positions, ref_coords, True)
+    outer_shell_ids = np.nonzero(shells == shells.max())
+    width = np.abs(positions[outer_shell_ids]).max(1).mean()
+    return width if is_rectified else (width, ref_coords)
+
+
+def identify_members(parameters, criterion, threshold, **kwargs):
+    """identify which particles are members of the cluster
+
+    parameters
+    ----------
+    parameters: values of the parameter being used as criterion.
+                e.g., for 'footprint', use `positions`;
+                or for an order parameter, give the order parameter values
+    criteria:   choice of criteria for member inclusion, one of:
+        'footprint': particle is within a static footprint.
+            supply positions as parameters, requires ref_coords
+        'dens', 'phi', 'psi': particle order parameter is above threshold
+
+    returns?
+    --------
+    either: slices into frame, mframe
+    or:     indices or bool array of member particles
+    """
+    if criterion == 'footprint':
+        rectified = rectify_lattice(parameters, kwargs['ref_coords'])
+        parameters = np.abs(rectified).max(1)
+    elif criterion in (parameters.dtype.names or []):
+        parameters = parameters[criterion]
+    elif criterion in ('dens', 'phi', 'psi'):
+        parameters = parameters
+    else:
+        raise ValueError("Unknown criterion `{}`".format(criterion))
+    is_member = parameters <= threshold
+    members = is_member.nonzero()
+    return members
+
+
+def average_members(frames, mframes, **cluster_args):
+    """average parameters over all particles in cluster
+    """
+    for frame, melt in it.izip(frames, mframes):
+        frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
+        members = indentify_members(frame_data, **cluster_args)
 
 
 def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
