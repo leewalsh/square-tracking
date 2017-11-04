@@ -10,6 +10,8 @@ from pprint import pprint
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
 from scipy.ndimage import gaussian_filter1d
+from scipy.sparse import  csr_matrix
+from scipy.sparse.csgraph import connected_components
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -317,15 +319,15 @@ def find_footprint(positions, shells, ref_coords=None, is_rectified=False):
     return width if is_rectified else (width, ref_coords)
 
 
-def identify_members(parameters, criterion, threshold, **kwargs):
-    """identify which particles are members of the cluster
+def qualify_candidates(parameters, criterion, threshold, **kwargs):
+    """identify which particles qualify candidates for being in the cluster
 
     parameters
     ----------
     parameters: values of the parameter being used as criterion.
                 e.g., for 'footprint', use `positions`;
                 or for an order parameter, give the order parameter values
-    criteria:   choice of criteria for member inclusion, one of:
+    criteria:   choice of criteria for inclusion, one of:
         'footprint': particle is within a static footprint.
             supply positions as parameters, requires ref_coords
         'dens', 'phi', 'psi': particle order parameter is above threshold
@@ -333,7 +335,7 @@ def identify_members(parameters, criterion, threshold, **kwargs):
     returns?
     --------
     either: slices into frame, mframe
-    or:     indices or bool array of member particles
+    or:     indices or bool array of candidate particles
     """
     if criterion == 'footprint':
         rectified = rectify_lattice(parameters, kwargs['ref_coords'])
@@ -344,17 +346,61 @@ def identify_members(parameters, criterion, threshold, **kwargs):
         parameters = parameters
     else:
         raise ValueError("Unknown criterion `{}`".format(criterion))
-    is_member = parameters <= threshold
-    members = is_member.nonzero()
-    return members
+    is_candidate = parameters <= threshold
+    return is_candidate
 
 
-def average_members(frames, mframes, **cluster_args):
+def find_cluster(is_candidate, vor, min_size=0, number_clusters=None):
+    """find the largest fully connected (via voronoi) cluster
+
+    parameters
+    ----------
+    is_candidate: boolean array marking qualified candidate particles
+    vor:    instance of spatial.Voronoi for all particles (not just candidates)
+
+    returns
+    -------
+
+    """
+    # vor.ridge_points gives list of all pairs that share a ridge
+    # keep the ridges with two qualifying points
+    is_good_ridge = is_candidate[vor.ridge_points].all(1)
+    ridges = vor.ridge_points[is_good_ridge]
+
+    # build the adjacency matrix with this double tuple syntax:
+    # csr_matrix((data, (row_ind, col_ind)), [shape=(M, N)])
+    #   where `data`, `row_ind` and `col_ind` satisfy the relationship
+    #   `a[row_ind[k], col_ind[k]] = data[k]`.
+    matrix_repr = np.ones(len(ridges)), tuple(ridges.T)
+    adjacency = csr_matrix(matrix_repr, shape=2*(vor.npoints,))
+    n_clusters, cluster = connected_components(adjacency)
+    sort = cluster.argsort(kind='mergesort')
+    if min_size:
+        cluster_sizes = np.bincount(cluster) < min_size
+        cluster[cluster_sizes[cluster]] = -1
+    if number_clusters == 1:
+        cluster_sizes = np.bincount(cluster)
+        clusters = cluster_sizes.argmax()
+        inds = np.searchsorted(cluster[sort], clusters)
+        cluster_members = sort[inds:inds+cluster_sizes[clusters]]
+    else:
+        clusters = np.arange(1, n_clusters)
+        inds = np.searchsorted(cluster[sort], clusters)
+        cluster_members = sorted(np.split(sort, inds), key=len, reverse=True)
+        cluster_members = cluster_members[:number_clusters]
+    return cluster, cluster_members
+
+
+def average_cluster(frames, mframes, vors=None, **cluster_args):
     """average parameters over all particles in cluster
     """
     for frame, melt in it.izip(frames, mframes):
+        xy = helpy.quick_field_view(frame, 'xy')
+        vor = Voronoi(xy) if vors is None else vors[frame['f'][0]]
         frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
-        members = indentify_members(frame_data, **cluster_args)
+        is_candidate = qualify_candidates(frame_data, **cluster_args)
+        _, members = find_cluster(is_candidate, vor, number_clusters=1)
+
 
 
 def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
