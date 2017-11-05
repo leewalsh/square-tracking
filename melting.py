@@ -73,9 +73,12 @@ def load_melt_data(prefix, **kwargs):
     stats = kwargs.get('stats', ['rad', 'dens', 'psi', 'phi'])
     shell_means = average_shells(shellsets, stats, 'f')
 
+    clustersets = split_clusters((data[1][:end_index], data[0][:end_index]))
+    cluster_means = average_clusters(clustersets, stats+list('xy'), 'f', 1)
+
     plot_args = make_plot_args(meta)
 
-    return (meta,) + data + frames + (shellsets, shell_means, plot_args)
+    return (meta,) + data + frames + (shell_means, cluster_means, plot_args)
 
 
 def merge_melting(prefix_pattern):
@@ -169,7 +172,7 @@ def melting_stats(frame, geometry, dens_method, neigh_args, M=4):
     return stats
 
 
-def melt_analysis(data, dens_method='dist'):
+def melt_analysis(data, meta, dens_method='dist'):
     mdata = initialize_mdata(data)
 
     frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
@@ -186,8 +189,8 @@ def melt_analysis(data, dens_method='dist'):
 
     footprint = find_footprint(rectified, shells, is_rectified=True)
     cluster_args = dict(min_size=3, ref_coords=ref_coords,
-                        criterion='footprint', threshold=footprint,
-                        # criterion='dens', threshold=0.8,
+                        # criterion='footprint', threshold=footprint,
+                        criterion='dens', threshold=0.5/meta['sidelength']**2,
                         )
 
     for frame, melt, geometry in it.izip(frames, mframes, geometries):
@@ -392,20 +395,26 @@ def find_cluster(is_candidate, vor, min_size=0, number_clusters=None):
     adjacency = csr_matrix(matrix_repr, shape=2*(vor.npoints,))
     n_clusters, cluster = connected_components(adjacency)
 
-    if min_size:
-        cluster_sizes = np.bincount(cluster) < min_size
-        cluster[cluster_sizes[cluster]] = -1
+    cluster_sizes = np.bincount(cluster)    # size of cluster 0, 1, 2, ...
+    cluster_sort = cluster_sizes.argsort()  # cluster id's sorted by size
+    # cluster_presort rearranges cluster ids so 0 will be id of largest cluster
+    cluster_presort = cluster_sort[::-1].argsort()
 
-    sort = cluster.argsort(kind='mergesort')
+    if min_size:
+        # set id to 99 for clusters with fewer than min_size members
+        n_small = np.searchsorted(cluster_sizes, min_size, sorter=cluster_sort)
+        cluster_presort[cluster_sort[:n_small]] = 99
+        if n_clusters - n_small < number_clusters:
+            number_clusters = n_clusters - n_small
+
+    cluster = cluster_presort[cluster]
+
+    particles_by_cluster = cluster.argsort(kind='mergesort')
     if number_clusters == 1:
-        cluster_sizes = np.bincount(cluster)
-        clusters = cluster_sizes.argmax()
-        inds = np.searchsorted(cluster[sort], clusters)
-        cluster_members = sort[inds:inds+cluster_sizes[clusters]]
+        cluster_members = particles_by_cluster[:cluster_sizes.max()]
     else:
-        clusters = np.arange(1, n_clusters)
-        inds = np.searchsorted(cluster[sort], clusters)
-        cluster_members = sorted(np.split(sort, inds), key=len, reverse=True)
+        inds = np.diff(cluster[particles_by_cluster]).nonzero()[0]
+        cluster_members = np.split(particles_by_cluster, inds)
         cluster_members = cluster_members[:number_clusters]
 
     return cluster, cluster_members
@@ -444,10 +453,26 @@ def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
     return shellsets
 
 
+def split_clusters(mdata):
+    """Split melting data into dict of slices for each cluster.
+
+    parameters
+    ----------
+    mdata:      melting data with 'clust' field.
+
+    return
+    ------
+    clustersets:     dict from integers to mdata slices.
+    """
+    clustersets = helpy.splitter(mdata, 'clust',
+                                 noncontiguous=True, ret_dict=True)
+    return clustersets
+
+
 def average_shells(shellsets, fields=None, by='f'):
     """average all particles within each shell"""
     if fields is None:
-        fields = [f for f in shellsets.dtype.names if f not in 'id f t sh']
+        fields = [f for f in shellsets.dtype.names if f not in 'id f sh clust']
     averaged = {}
     for s, shell in shellsets.iteritems():
         averaged[s] = {}
@@ -456,6 +481,29 @@ def average_shells(shellsets, fields=None, by='f'):
             vals, bins = corr.bin_average(shell[by][i], shell[field][i], 1)
             averaged[s][field] = vals
             averaged[s][by] = bins[:-1]
+    return averaged
+
+
+def average_clusters(clustersets, fields=None, by='f', n_clusters=None):
+    """average all particles within each shell"""
+    if isinstance(clustersets, tuple):
+        clustermsets, clustersets = clustersets
+    if fields is None:
+        fields = set(clustermsets[0].dtype.names)
+        fields |= set(clustersets[0].dtype.names)
+        fields -= set('id f t sh clust'.split())
+    averaged = {}
+    for cid in xrange(n_clusters or max(clustersets) + 1):
+        averaged[cid] = {}
+        for field in fields:
+            if field in clustersets[cid].dtype.names:
+                c = clustersets[cid]
+            elif field in clustermsets[cid].dtype.names:
+                c = clustermsets[cid]
+            i = np.where(np.isfinite(c[field]))
+            vals, bins = corr.bin_average(c[by][i], c[field][i], 1)
+            averaged[cid][field] = vals
+            averaged[cid][by] = bins[:-1]
     return averaged
 
 
@@ -504,6 +552,7 @@ def make_plot_args(meta_or_args):
             'phi':  1,
             'psi':  1,
             'sh':   1,
+            'clust': 1,
         },
         'norm': {
             'f':    None,
@@ -512,6 +561,7 @@ def make_plot_args(meta_or_args):
             'phi':  (0, 1),
             'psi':  (0, 1),
             'sh':   None,
+            'clust': None,
         },
     }
     return plot_args
@@ -685,11 +735,11 @@ def plot_regions(frame, mframe=None, vor=None, ax=None, **plot_args):
     unit = plot_args.get('unit')
     norm = plot_args.pop('norm', matplotlib.colors.Normalize())
     colors = plot_args.pop('colors', 'sh')
-    cmap = plt.get_cmap('Dark2' if colors == 'sh' else 'viridis')
+    cmap = plt.get_cmap('Dark2' if colors in ['sh', 'clust'] else 'viridis')
     if colors in frame.dtype.names:
         colors = cmap(norm(frame[colors]))
     elif mframe is not None and colors in mframe.dtype.names:
-        if colors == 'sh':
+        if colors in ('sh', 'clust'):
             norm = helpy.identity
             bg = np.max(mframe[colors]*unit[colors])
         else:
@@ -801,7 +851,7 @@ if __name__ == '__main__':
         args.start = find_start_frame(data, plot=args.plot)
     if args.melt:
         print 'calculating'
-        mdata, frames, mframes = melt_analysis(data)
+        mdata, frames, mframes = melt_analysis(data, meta)
         if args.save:
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
             helpy.save_meta(args.prefix, meta, start_frame=args.start)
