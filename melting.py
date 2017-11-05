@@ -10,7 +10,7 @@ from pprint import pprint
 import numpy as np
 from scipy.spatial import Voronoi, Delaunay, cKDTree as KDTree
 from scipy.ndimage import gaussian_filter1d
-from scipy.sparse import  csr_matrix
+from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 import matplotlib
 import matplotlib.pyplot as plt
@@ -24,15 +24,19 @@ import correlation as corr
 def initialize_mdata(data):
     """melting data array to hold calculated statistics
     """
-
     # 'id', 'f', 't' hold the same data copied from original tracks data
     keep_fields = ['id', 'f', 't']
     melt_dtype = [(name, data.dtype[name]) for name in keep_fields]
 
-    # new fields to hold:
-    # shell, radius (from initial c.o.m.), local density, local psi, local phi
-    melt_dtype.extend(zip(['sh', 'rad', 'dens', 'psi', 'phi'],
-                          ['i4', 'f4', 'f4', 'f4', 'f4']))
+    new_fields = [
+        ('sh', 'i4'),     # shell
+        ('clust', 'i4'),  # cluster
+        ('rad', 'f4'),    # radial distance
+        ('dens', 'f4'),   # local density
+        ('psi', 'f4'),    # local psi (bond orientation)
+        ('phi', 'f4'),    # local phi (molec. orientation)
+    ]
+    melt_dtype.extend(new_fields)
 
     mdata = np.empty(data.shape, melt_dtype)
     for keep in keep_fields:
@@ -115,7 +119,7 @@ def merge_melting(prefix_pattern):
     return merged_prefix, meta, data, mdata
 
 
-def melting_stats(frame, dens_method, neigh_args):
+def melting_stats(frame, geometry, dens_method, neigh_args, M=4):
     """Calculate structural order parameters for a frame
 
     parameters
@@ -135,19 +139,19 @@ def melting_stats(frame, dens_method, neigh_args):
     """
     xy = frame['xy']
     orient = frame['o']
+    vor, tess, tree = geometry
 
-    vor = Voronoi(xy)
-    tess = Delaunay(xy)
-    tree = KDTree(xy)
     neighborhoods = corr.neighborhoods(xy, tess=tess, tree=tree, **neigh_args)
+
+    stats = {}
 
     # Radial distance:
     com = xy.mean(0)
-    rad = helpy.dist(xy, com)
+    stats['rad'] = helpy.dist(xy, com)
 
     # Density:
-    dens = corr.density(xy, dens_method, vor=vor, tess=tess,
-                        neighbors=neighborhoods)
+    stats['dens'] = corr.density(xy, dens_method, vor=vor, tess=tess,
+                                 neighbors=neighborhoods)
 
     # Order parameters:
     neigh, nmask = neighborhoods[:2]
@@ -156,35 +160,48 @@ def melting_stats(frame, dens_method, neigh_args):
 
     # Pair-angle op psi
     bond_angles, _ = corr.pair_angles(xy, neigh, nmask)
-    psi = corr.pair_angle_op(bond_angles, m=M, locl=True)
+    stats['psi'] = corr.pair_angle_op(bond_angles, m=M, locl=True)
 
     # molecular-angle op phi
     particle_angles, _ = corr.pair_angles(orient, neigh, nmask)
-    phi = corr.orient_op(particle_angles, m=M, locl=True)
+    stats['phi'] = corr.orient_op(particle_angles, m=M, locl=True)
 
-    return rad, dens, psi, phi
+    return stats
 
 
-def melt_analysis(data):
+def melt_analysis(data, dens_method='dist'):
     mdata = initialize_mdata(data)
 
     frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
-    shells = assign_shell(frames[0]['xy'], frames[0]['t'],
-                          maxt=data['t'].max())
-    mdata['sh'] = shells[mdata['t']]
+
+    geometries = [(Voronoi(xy), Delaunay(xy), KDTree(xy))
+                  for xy in (helpy.quick_field_view(f, 'xy') for f in frames)]
+
+    rectified, ref_coords = rectify_lattice(frames[0]['xy'], ret_ref=True)
+
+    shells = assign_shell(rectified, frames[0]['t'],
+                          maxt=data['t'].max(), is_rectified=True)
     maxshell = shells.max()
+    mdata['sh'] = shells[mdata['t']]
 
-    dens_method = 'dist'
+    footprint = find_footprint(rectified, shells, is_rectified=True)
+    cluster_args = dict(min_size=3, ref_coords=ref_coords,
+                        criterion='footprint', threshold=footprint,
+                        # criterion='dens', threshold=0.8,
+                        )
 
-    for frame, melt in it.izip(frames, mframes):
+    for frame, melt, geometry in it.izip(frames, mframes, geometries):
         nn = np.where(melt['sh'] == maxshell, 3, 4)
         neigh_args = {'size': (nn,)*2}
+        cluster_args['vor'] = geometry[0]
 
-        rad, dens, psi, phi = melting_stats(frame, dens_method, neigh_args)
-        melt['rad'] = rad
-        melt['dens'] = dens
-        melt['psi'] = psi
-        melt['phi'] = phi
+        stats = melting_stats(frame, geometry, dens_method, neigh_args)
+        for stat in stats:
+            melt[stat][:] = stats[stat]
+
+        cluster, members = assign_cluster(frame, melt, **cluster_args)
+        melt['clust'][:] = cluster
+
     return mdata, frames, mframes
 
 
@@ -286,8 +303,8 @@ def assign_shell(positions, ids=None, N=None, maxt=None, is_rectified=False):
         positions = rectify_lattice(positions)
     N, W = square_size(N or len(positions))
     spacing = (positions.max(0) - positions.min(0)) / (W - 1)
-    positions /= spacing
-    shells = (np.abs(positions).max(1) + (1 - W % 2)/2.).round().astype(int)
+    shell_dist = np.abs(positions/spacing).max(1)
+    shells = (shell_dist + (1 - W % 2)/2.).round().astype(int)
     if ids is not None:
         ni, mi = len(ids), max(ids.max(), maxt, N)
         if ni <= mi or np.any(ids != np.arange(ni)):
@@ -338,13 +355,13 @@ def qualify_candidates(parameters, criterion, threshold, **kwargs):
     or:     indices or bool array of candidate particles
     """
     if criterion == 'footprint':
+        if 'xy' in (parameters.dtype.names or []):
+            parameters = parameters['xy']
         rectified = rectify_lattice(parameters, kwargs['ref_coords'])
         parameters = np.abs(rectified).max(1)
     elif criterion in (parameters.dtype.names or []):
         parameters = parameters[criterion]
-    elif criterion in ('dens', 'phi', 'psi'):
-        parameters = parameters
-    else:
+    elif criterion not in ('dens', 'phi', 'psi'):
         raise ValueError("Unknown criterion `{}`".format(criterion))
     is_candidate = parameters <= threshold
     return is_candidate
@@ -374,10 +391,12 @@ def find_cluster(is_candidate, vor, min_size=0, number_clusters=None):
     matrix_repr = np.ones(len(ridges)), tuple(ridges.T)
     adjacency = csr_matrix(matrix_repr, shape=2*(vor.npoints,))
     n_clusters, cluster = connected_components(adjacency)
-    sort = cluster.argsort(kind='mergesort')
+
     if min_size:
         cluster_sizes = np.bincount(cluster) < min_size
         cluster[cluster_sizes[cluster]] = -1
+
+    sort = cluster.argsort(kind='mergesort')
     if number_clusters == 1:
         cluster_sizes = np.bincount(cluster)
         clusters = cluster_sizes.argmax()
@@ -388,19 +407,20 @@ def find_cluster(is_candidate, vor, min_size=0, number_clusters=None):
         inds = np.searchsorted(cluster[sort], clusters)
         cluster_members = sorted(np.split(sort, inds), key=len, reverse=True)
         cluster_members = cluster_members[:number_clusters]
+
     return cluster, cluster_members
 
 
-def average_cluster(frames, mframes, vors=None, **cluster_args):
+def assign_cluster(frame, melt, vor=None, min_size=3, **cluster_args):
     """average parameters over all particles in cluster
     """
-    for frame, melt in it.izip(frames, mframes):
+    if vor is None:
         xy = helpy.quick_field_view(frame, 'xy')
-        vor = Voronoi(xy) if vors is None else vors[frame['f'][0]]
-        frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
-        is_candidate = qualify_candidates(frame_data, **cluster_args)
-        _, members = find_cluster(is_candidate, vor, number_clusters=1)
-
+        vor = Voronoi(xy)
+    frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
+    is_candidate = qualify_candidates(frame_data, **cluster_args)
+    cluster, members = find_cluster(is_candidate, vor, min_size=min_size)
+    return cluster, members
 
 
 def split_shells(mdata, zero_to=0, do_mean=True, maxshell=None):
