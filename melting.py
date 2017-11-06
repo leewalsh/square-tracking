@@ -172,7 +172,7 @@ def melting_stats(frame, geometry, dens_method, neigh_args, M=4):
     return stats
 
 
-def melt_analysis(data, meta, dens_method='dist'):
+def melt_analysis(data, meta, cluster_args, dens_method='dist'):
     mdata = initialize_mdata(data)
 
     frames, mframes = helpy.load_framesets((data, mdata), ret_dict=False)
@@ -187,11 +187,18 @@ def melt_analysis(data, meta, dens_method='dist'):
     maxshell = shells.max()
     mdata['sh'] = shells[mdata['t']]
 
-    footprint = find_footprint(rectified, shells, is_rectified=True)
-    cluster_args = dict(min_size=3, ref_coords=ref_coords,
-                        # criterion='footprint', threshold=footprint,
-                        criterion='dens', threshold=0.5/meta['sidelength']**2,
-                        )
+    cluster_args = dict(zip(['criterion', 'threshold'], cluster_args + [0]))
+    cluster_args['threshold'] = float(cluster_args['threshold'])
+    if cluster_args['criterion'] == 'footprint':
+        footprint = (cluster_args['threshold'] or
+                     find_footprint(rectified, shells, is_rectified=True))
+        meta['crystal_footprint'] = cluster_args['threshold'] = footprint
+    else:
+        cluster_args['threshold'] = cluster_args['threshold'] or 0.5
+        if cluster_args['criterion'] in ('dens', 'rad'):
+            unit = {'rad':  1/args.side, 'dens': 1/meta['sidelength']**2}
+            cluster_args['threshold'] *= unit[cluster_args['criterion']]
+    cluster_args = dict(dict(min_size=3, ref_coords=ref_coords), **cluster_args)
 
     for frame, melt, geometry in it.izip(frames, mframes, geometries):
         nn = np.where(melt['sh'] == maxshell, 3, 4)
@@ -422,12 +429,10 @@ def find_cluster(is_candidate, vor, min_size=0, number_clusters=None):
     return cluster, cluster_members
 
 
-def assign_cluster(frame, melt, vor=None, min_size=3, **cluster_args):
+def assign_cluster(frame, melt, min_size=3, **cluster_args):
     """average parameters over all particles in cluster
     """
-    if vor is None:
-        xy = helpy.quick_field_view(frame, 'xy')
-        vor = Voronoi(xy)
+    vor = cluster_args.pop('vor', None) or Voronoi(frame['xy'])
     frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
     is_candidate = qualify_candidates(frame_data, **cluster_args)
     cluster, members = find_cluster(is_candidate, vor, min_size=min_size)
@@ -797,6 +802,8 @@ if __name__ == '__main__':
     arg('--smooth', type=float, default=0, help='frames to smooth over')
     arg('-f', '--fps', type=float,
         help="Number of frames per shake (or second) for unit normalization")
+    arg('-c', '--cluster',  # choices=['footprint', 'dens', 'phi', 'psi'],
+        nargs='+', help="Criterion for cluster inclusion")
     arg('--noshow', action='store_false', dest='show',
         help="Don't show figures (just save them)")
     arg('--nosave', action='store_false', dest='save',
@@ -825,11 +832,14 @@ if __name__ == '__main__':
         helpy.save_log_entry(args.prefix, 'argv')
         meta = helpy.load_meta(args.prefix)
 
+    if args.cluster:
+        args.cluster = tuple(args.cluster)
     helpy.sync_args_meta(
         args, meta,
-        'side fps start end width zoom',
-        'sidelength fps start_frame end_frame crystal_width crystal_zoom',
-        [1, 1, 0, None, None, 1])
+        'side fps start end width zoom cluster',
+        ('sidelength fps start_frame end_frame crystal_width crystal_zoom '
+         'cluster'),
+        [1, 1, 0, None, None, 1, None])
 
     M = 4  # number of neighbors
 
@@ -853,7 +863,7 @@ if __name__ == '__main__':
         args.start = find_start_frame(data, plot=args.plot)
     if args.melt:
         print 'calculating'
-        mdata, frames, mframes = melt_analysis(data, meta)
+        mdata, frames, mframes = melt_analysis(data, meta, args.cluster)
         if args.save:
             np.savez_compressed(args.prefix + '_MELT.npz', data=mdata)
             helpy.save_meta(args.prefix, meta, start_frame=args.start)
