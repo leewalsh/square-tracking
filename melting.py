@@ -339,7 +339,7 @@ def find_footprint(positions, shells, ref_coords=None, is_rectified=False):
     return width if is_rectified else (width, ref_coords)
 
 
-def qualify_candidates(parameters, criterion, threshold, **kwargs):
+def qualify_candidates(parameters, criterion, threshold=0.5, **kwargs):
     """identify which particles qualify candidates for being in the cluster
 
     parameters
@@ -347,10 +347,11 @@ def qualify_candidates(parameters, criterion, threshold, **kwargs):
     parameters: values of the parameter being used as criterion.
                 e.g., for 'footprint', use `positions`;
                 or for an order parameter, give the order parameter values
-    criteria:   choice of criteria for inclusion, one of:
+    criterion:  choice of criteria for inclusion, one of:
         'footprint': particle is within a static footprint.
             supply positions as parameters, requires ref_coords
         'dens', 'phi', 'psi': particle order parameter is above threshold
+    threshold:  critical value for criterion
 
     returns?
     --------
@@ -362,11 +363,12 @@ def qualify_candidates(parameters, criterion, threshold, **kwargs):
             parameters = parameters['xy']
         rectified = rectify_lattice(parameters, kwargs['ref_coords'])
         parameters = np.abs(rectified).max(1)
+        is_candidate = parameters <= threshold
     elif criterion in (parameters.dtype.names or []):
         parameters = parameters[criterion]
+        is_candidate = parameters >= threshold
     elif criterion not in ('dens', 'phi', 'psi'):
         raise ValueError("Unknown criterion `{}`".format(criterion))
-    is_candidate = parameters <= threshold
     return is_candidate
 
 
