@@ -505,6 +505,30 @@ def animate(imstack, fsets, fcsets, fosets=None, fisets=None,
         print 'loop broken'
 
 
+def plot_boundary(boundary, margin=None, ax=None,
+                  coords='xy', set_lim=False, **kwargs):
+    """draw a circle for the boundary, and a second for cutting margin
+    """
+    bndc = boundary[:2] if coords == 'xy' else boundary[1::-1]
+    bndr = boundary[2]
+    if set_lim:
+        w0, w = bndc[0] - bndr, bndc[0] + bndr
+        h0, h = bndc[1] - bndr, bndc[1] + bndr
+
+    kwargs = dict(dict(color='tab:red', fill=False, zorder=1), **kwargs)
+    bnds = draw_circles(bndc, bndr, ax=ax, **kwargs)
+    if margin:
+        bnds = draw_circles(bndc, bndr - margin, ax=ax,
+                            label='margin', linestyle='--', **kwargs)
+
+    ax.set_aspect('equal')
+    if set_lim:
+        ax.set_xlim(w0, w)
+        ax.set_ylim(h0, h)
+
+    return bnds
+
+
 def plot_background(bgimage, ppi=109, boundary=None, cut_margin=None,
                     ax=None, verbose=False):
     """plot the background image and size appropriately"""
