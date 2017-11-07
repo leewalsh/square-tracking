@@ -115,7 +115,7 @@ def merge_melting(prefix_pattern):
              for f in fs if len(f)]
     data = np.concatenate(data)
     mdata = np.concatenate(mdata)
-    meta = helpy.merge_meta(metas, excl_start=('center', 'corner'))
+    meta = helpy.merge_meta(metas, excl_start=('cluster', 'center', 'corner'))
     meta.update(merged=prefixes, end_frame=np.max(meta['end_frame']))
     print '\n\t'.join(['merged sets:'] + prefixes)
     pprint(meta)
@@ -187,19 +187,22 @@ def melt_analysis(data, meta, cluster_args, dens_method='dist'):
     maxshell = shells.max()
     mdata['sh'] = shells[mdata['t']]
 
-    cluster_args = dict(zip(['criterion', 'threshold'], cluster_args + [0]))
-    cluster_args['threshold'] = float(cluster_args['threshold'])
-    if cluster_args['criterion'] == 'footprint':
-        footprint_factor = cluster_args['threshold'] or 1.0
+    if 'footprint' in cluster_args:
         footprint = find_footprint(rectified, shells, is_rectified=True)
         meta['crystal_footprint'] = footprint
-        cluster_args['threshold'] = footprint_factor * footprint
-    else:
-        cluster_args['threshold'] = cluster_args['threshold'] or 0.5
-        if cluster_args['criterion'] in ('dens', 'rad'):
-            unit = {'rad':  1/args.side, 'dens': 1/meta['sidelength']**2}
-            cluster_args['threshold'] *= unit[cluster_args['criterion']]
-    cluster_args = dict(dict(min_size=3, ref_coords=ref_coords), **cluster_args)
+        footprint_factor = float(cluster_args['footprint'] or 1.0)
+        cluster_args['footprint'] = footprint_factor * footprint
+
+    for criterion in {'dens', 'rad', 'margin'}.intersection(cluster_args):
+        cluster_args[criterion] = float(cluster_args[criterion] or 0.5)
+        unit = meta['sidelength']
+        cluster_args[criterion] *= 1/unit**2 if criterion == 'dens' else unit
+
+    for criterion in {'phi', 'psi'}.intersection(cluster_args):
+        cluster_args[criterion] = float(cluster_args[criterion] or 0.5)
+
+    extra_args = dict(ref_coords=ref_coords, boundary=meta['boundary'])
+    cluster_args = dict(extra_args, **cluster_args)
 
     for frame, melt, geometry in it.izip(frames, mframes, geometries):
         nn = np.where(melt['sh'] == maxshell, 3, 4)
@@ -347,36 +350,42 @@ def find_footprint(positions, shells, ref_coords=None, is_rectified=False):
     return width if is_rectified else (width, ref_coords)
 
 
-def qualify_candidates(parameters, criterion, threshold=0.5, **kwargs):
+def qualify_candidates(frame, melt, ref_coords=None, boundary=None, **criteria):
     """identify which particles qualify candidates for being in the cluster
 
     parameters
     ----------
-    parameters: values of the parameter being used as criterion.
+    parameters: values of the parameter being used as criteria.
                 e.g., for 'footprint', use `positions`;
                 or for an order parameter, give the order parameter values
-    criterion:  choice of criteria for inclusion, one of:
+    criteria:   critical values for inclusion, any of:
         'footprint': particle is within a static footprint.
-            supply positions as parameters, requires ref_coords
+            supply positions as parameters (requires `ref_coords`)
         'dens', 'phi', 'psi': particle order parameter is above threshold
-    threshold:  critical value for criterion
+        'margin': not within some margin of the boundary (requires `boundary`)
 
-    returns?
-    --------
-    either: slices into frame, mframe
-    or:     indices or bool array of candidate particles
+    returns
+    -------
+    is_candidate: bool array of candidate particles
     """
-    if criterion == 'footprint':
-        if 'xy' in (parameters.dtype.names or []):
-            parameters = parameters['xy']
-        rectified = rectify_lattice(parameters, kwargs['ref_coords'])
+    is_candidate = np.ones(len(frame), bool)
+
+    for criterion in {'dens', 'phi', 'psi'}.intersection(criteria):
+        is_candidate &= melt[criterion] >= criteria.pop(criterion)
+
+    if 'footprint' in criteria:
+        rectified = rectify_lattice(frame['xy'], ref_coords)
         parameters = np.abs(rectified).max(1)
-        is_candidate = parameters <= threshold
-    elif criterion in (parameters.dtype.names or []):
-        parameters = parameters[criterion]
-        is_candidate = parameters >= threshold
-    elif criterion not in ('dens', 'phi', 'psi'):
-        raise ValueError("Unknown criterion `{}`".format(criterion))
+        is_candidate &= parameters <= criteria.pop('footprint')
+
+    if 'margin' in criteria:
+        center, radius = boundary[:2], boundary[-1]
+        boundary_distance = radius - helpy.dist(frame['xy'], center)
+        is_candidate &= boundary_distance >= criteria.pop('margin')
+
+    if criteria:
+        raise ValueError("Unknown criterion/a `{}`".format(criteria.keys()))
+
     return is_candidate
 
 
@@ -434,8 +443,7 @@ def assign_cluster(frame, melt, min_size=3, **cluster_args):
     """average parameters over all particles in cluster
     """
     vor = cluster_args.pop('vor', None) or Voronoi(frame['xy'])
-    frame_data = frame if cluster_args['criterion'] == 'footprint' else melt
-    is_candidate = qualify_candidates(frame_data, **cluster_args)
+    is_candidate = qualify_candidates(frame, melt, **cluster_args)
     cluster, members = find_cluster(is_candidate, vor, min_size=min_size)
     return cluster, members
 
@@ -803,7 +811,8 @@ if __name__ == '__main__':
     arg('--smooth', type=float, default=0, help='frames to smooth over')
     arg('-f', '--fps', type=float,
         help="Number of frames per shake (or second) for unit normalization")
-    arg('-c', '--cluster',  # choices=['footprint', 'dens', 'phi', 'psi'],
+    arg('-c', '--cluster', type=lambda s: tuple((s+':').split(':'))[:2],
+        # choices=['footprint', 'dens', 'phi', 'psi'],
         nargs='+', help="Criterion for cluster inclusion")
     arg('--noshow', action='store_false', dest='show',
         help="Don't show figures (just save them)")
@@ -821,6 +830,9 @@ if __name__ == '__main__':
         filterwarnings('ignore', category=RuntimeWarning,
                        module='numpy|scipy|matplot')
 
+    if args.cluster:
+        args.cluster = dict(args.cluster)
+
     if glob.has_magic(args.prefix):
         args.prefix, meta, data, mdata = merge_melting(args.prefix)
         if args.save:
@@ -833,8 +845,6 @@ if __name__ == '__main__':
         helpy.save_log_entry(args.prefix, 'argv')
         meta = helpy.load_meta(args.prefix)
 
-    if args.cluster:
-        args.cluster = tuple(args.cluster)
     helpy.sync_args_meta(
         args, meta,
         'side fps start end width zoom cluster',
