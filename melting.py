@@ -190,9 +190,10 @@ def melt_analysis(data, meta, cluster_args, dens_method='dist'):
     cluster_args = dict(zip(['criterion', 'threshold'], cluster_args + [0]))
     cluster_args['threshold'] = float(cluster_args['threshold'])
     if cluster_args['criterion'] == 'footprint':
-        footprint = (cluster_args['threshold'] or
-                     find_footprint(rectified, shells, is_rectified=True))
-        meta['crystal_footprint'] = cluster_args['threshold'] = footprint
+        footprint_factor = cluster_args['threshold'] or 1.0
+        footprint = find_footprint(rectified, shells, is_rectified=True)
+        meta['crystal_footprint'] = footprint
+        cluster_args['threshold'] = footprint_factor * footprint
     else:
         cluster_args['threshold'] = cluster_args['threshold'] or 0.5
         if cluster_args['criterion'] in ('dens', 'rad'):
