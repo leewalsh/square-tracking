@@ -179,7 +179,7 @@ def rc(*keys):
         return params
 
 
-def rcParam_diff(rcname='CURR', rcs=None, rcParams=None,
+def rcParam_diff(rcname='CURR', rcs=None, rcParams=None, quiet=False,
                  always=('text.usetex',), never=('backend',)):
     if rcs is None:
         rcs = OrderedDict([('DEFAULT', plt.rcParamsDefault.copy())])
@@ -202,7 +202,8 @@ def rcParam_diff(rcname='CURR', rcs=None, rcParams=None,
                 if vals[i] == vals[i-1]:
                     vals[i] = '...'
             ps.append([key] + vals)
-    print '\n'.join(it.starmap(fmt.format, ps))
+    if not quiet:
+        print '\n'.join(it.starmap(fmt.format, ps))
     return rcs
 
 
