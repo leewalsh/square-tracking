@@ -238,7 +238,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
     estimate = estimate or 10
     if bounds is None:
         first = estimate // 2
-        last = estimate * 100
+        last = estimate * 50
     elif np.isscalar(bounds):
         first = bounds
         last = None
