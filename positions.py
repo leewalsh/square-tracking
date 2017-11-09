@@ -17,6 +17,7 @@ from itertools import izip
 import numpy as np
 from numpy.lib.function_base import _hist_bin_auto as hist_bin_auto
 from scipy import ndimage
+import imageio
 
 # skimage (scikit-image) changed the location, names, and api of several
 # functions at versions 0.10 and 0.11 (at leaste), but they still have
@@ -233,7 +234,7 @@ def prep_image(imfile, width=2):
     """
     if args.verbose:
         print "opening", imfile
-    im = ndimage.imread(imfile).astype(float)
+    im = imageio.imread(imfile).astype(float)
     if args.plot > 2:
         snapshot('orig', im, cmap='gray')
     if im.ndim == 3 and imfile.lower().endswith('jpg'):
@@ -614,7 +615,7 @@ if __name__ == '__main__':
         if args.plot:
             eax, aax = axis
             label = "{} eccen (max {})".format(dot, size['max_ecc'])
-            eax.hist(point[:, 4], bins=40, range=(0, 1),
+            eax.hist(point[:, 4].astype(float), bins=40, range=(0, 1),
                      alpha=0.5, color='r', label=label)
             eax.axvline(size['max_ecc'], 0, 0.5, c='r', lw=2)
             eax.set_xlim(0, 1)
@@ -622,7 +623,7 @@ if __name__ == '__main__':
             eax.set_xticklabels(map('.{:d}'.format, np.arange(10)) + ['1'])
             eax.legend(loc='best', fontsize='small')
 
-            areas = point[:, 5]
+            areas = point[:, 5].astype(int)
             amin, amax = size['min_area'], size['max_area']
             s = np.ceil(hist_bin_auto(areas))
             bins = np.arange(amin, amax+s, s)
