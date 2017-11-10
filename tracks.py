@@ -299,7 +299,10 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
 
     if n < 0 or stub > 0:
         track_lens = np.bincount(trackids+1)[1:]
+        ntracks = len(track_lens)
+        print "\tfound {} tracks".format(ntracks)
         if n < 0:
+            print "\tkeeping {} longest tracks".format(-n, len(track_lens))
             stubs = np.argsort(track_lens)[:n]  # all but the longest n
         elif stub > 0:
             stubs = np.where(track_lens < stub)[0]
@@ -311,7 +314,12 @@ def find_tracks(pdata, maxdist=20, giveup=10, n=0, stub=0,
         isstub = False
     if n or stub > 0:
         if n > 0:
-            isstub |= trackids >= n + np.count_nonzero(stubs < n)
+            # keep only the first `n` good tracks
+            early_stubs = np.count_nonzero(stubs < n)
+            print "\tkeeping first {} tracks".format(n)
+            if early_stubs:
+                print "\t...excluding {} stubs".format(early_stubs)
+            isstub |= trackids >= n + early_stubs
         trackids[isstub] = -1
         return trackids
 

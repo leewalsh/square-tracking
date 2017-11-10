@@ -394,7 +394,8 @@ if __name__ == '__main__':
     from multiprocessing import Pool, cpu_count
 
     first = args.files[0]
-    if len(args.files) > 1:
+    n_files = len(args.files)
+    if n_files > 1:
         filenames = sorted(args.files)
         filepattern = helpy.str_union(args.files)
         i = sys.argv.index(first)
@@ -409,20 +410,28 @@ if __name__ == '__main__':
         if os.path.isdir(first):
             first = os.path.join(first, '*.tif')
         filenames = sorted(glob(first))
+        n_files = len(filenames)
         if args.slice:
-            args.slice = helpy.parse_slice(args.slice, len(filenames))
+            args.slice = helpy.parse_slice(args.slice, n_files)
             filenames = filenames[args.slice]
+            n_files = len(filenames)
         filepattern = first
         first = filenames[0]
         argv = 'argv'
+
     if args.plot > 1:
-        if len(filenames) > 10:
+        if n_files > 10:
             print "Are you sure you want to make plots for all",
-            print len(filenames), "frames?",
+            print n_files, "frames?",
             args.plot -= not helpy.bool_input()
-        if args.plot > 2 and (not args.save or len(filenames) > 2):
+        if args.plot > 2 and (not args.save or n_files > 2):
             print "Do you want to display all the snapshots without saving?",
             args.plot -= not helpy.bool_input()
+
+    filenames = filter(os.path.isfile, filenames)
+    if len(filenames) < n_files:
+        print "Found {} of {} files".format(len(filenames), n_files)
+        n_files = len(filenames)
 
     suffix = '_POSITIONS'
     outdir = os.path.abspath(os.path.dirname(args.output))
@@ -582,7 +591,7 @@ if __name__ == '__main__':
             print ', '.join([fmt(len(r), d) for r, d in zip(ret, dots)])
         return ret if args.both else ret[0]
 
-    print_freq = 1 if args.verbose else len(filenames)//100 + 1
+    print_freq = 1 if args.verbose else n_files//100 + 1
     threads = args.threads
     if threads < 1:
         cpus = cpu_count()
