@@ -19,4 +19,4 @@ print 'found image at', impath
 
 boundary = helplt.circle_click(im)
 
-helpy.save_meta(prefix, meta, boundary=boundary)
+helpy.save_meta(prefix, meta, boundary=tuple(boundary))
