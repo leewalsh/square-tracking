@@ -268,6 +268,8 @@ def set_axes_size_inches(ax, axsize, clear=None, tight=None):
 
 def animate(imstack, fsets, fcsets, fosets=None, fisets=None,
             meta={}, f_nums=None, verbose=False, clean=0, plottracks=False):
+    if verbose:
+        print "Animating tracks!"
 
     def handle_event(event):
         animator_next = advance(event.key, **animator)
@@ -319,10 +321,10 @@ def animate(imstack, fsets, fcsets, fosets=None, fisets=None,
     drc = meta.get('orient_drcorner') or sqrt(rc)
     txtoff = min(rc, side/2)/2
 
-    if meta.get('track_cut'):
+    if meta.get('boundary'):
         fig, ax, (p, bnds) = plot_background(
-            imstack[0], ppi=meta['boundary'][-1]/4,
-            boundary=meta['boundary'], cut_margin=meta.get('track_cut_margin'))
+            imstack[0], ppi=meta['boundary'][-1]/4, boundary=meta['boundary'],
+            cut_margin=(meta.get('track_cut') and meta.get('track_cut_margin')))
     else:
         fig, ax, p = plot_background(imstack[0])
 
@@ -494,6 +496,7 @@ def animate(imstack, fsets, fcsets, fosets=None, fisets=None,
         # update the figure and wait for instructions
         fig.canvas.draw()
         fig.canvas.mpl_connect('key_press_event', handle_event)
+        plt.show(block=False)
         plt.waitforbuttonpress()
 
         # clean up this frame before moving to next
