@@ -411,6 +411,8 @@ if __name__ == '__main__':
             first = os.path.join(first, '*.tif')
         filenames = sorted(glob(first))
         n_files = len(filenames)
+        if not n_files:
+            raise ValueError("no files found at `{}`".format(first))
         if args.slice:
             args.slice = helpy.parse_slice(args.slice, n_files)
             filenames = filenames[args.slice]
@@ -432,6 +434,8 @@ if __name__ == '__main__':
     if len(filenames) < n_files:
         print "Found {} of {} files".format(len(filenames), n_files)
         n_files = len(filenames)
+    else:
+        print "Found {} files".format(n_files)
 
     suffix = '_POSITIONS'
     outdir = os.path.abspath(os.path.dirname(args.output))
@@ -506,7 +510,8 @@ if __name__ == '__main__':
             fig.tight_layout()
             cb_height = 4
             cax = fig.add_axes(np.array([10, 99-cb_height, 80, cb_height])/100)
-            fig.colorbar(axim, cax=cax, orientation='horizontal')
+            fig.colorbar(axim, cax=cax, orientation='horizontal',
+                         ticks=np.linspace(vmin, vmax, axim.get_cmap().N + 1))
         xl, yl = ax.get_xlim(), ax.get_ylim()
         s = abs(s)
         helplt.draw_circles(
