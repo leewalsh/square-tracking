@@ -115,7 +115,8 @@ def merge_melting(prefix_pattern):
              for f in fs if len(f)]
     data = np.concatenate(data)
     mdata = np.concatenate(mdata)
-    meta = helpy.merge_meta(metas, excl_start=('cluster', 'center', 'corner'))
+    meta = helpy.merge_meta(metas, excl_start=('cluster', 'center', 'corner'),
+                            excl={'boundary'})
     meta.update(merged=prefixes, end_frame=np.max(meta['end_frame']))
     print '\n\t'.join(['merged sets:'] + prefixes)
     pprint(meta)
