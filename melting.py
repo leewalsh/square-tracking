@@ -33,8 +33,8 @@ def initialize_mdata(data):
         ('clust', 'i4'),  # cluster
         ('rad', 'f4'),    # radial distance
         ('dens', 'f4'),   # local density
-        ('psi', 'f4'),    # local psi (bond orientation)
-        ('phi', 'f4'),    # local phi (molec. orientation)
+        ('psi', 'c8'),    # local psi (bond orientation)
+        ('phi', 'c8'),    # local phi (molec. orientation)
     ]
     melt_dtype.extend(new_fields)
 
@@ -596,6 +596,8 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
             continue
         if x == 'f':
             ys = shell[y]
+            if np.issubdtype(ys.dtype, complex):
+                ys = np.abs(ys)
             xs = shell[x] - start
             if smooth:
                 ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)

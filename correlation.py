@@ -336,7 +336,9 @@ def orient_op(orientations, m=4, positions=None, margin=0,
     if do_err:
         err = np.nanstd(phis, ddof=1)/sqrt(np.count_nonzero(~np.isnan(phis)))
     if not globl:
-        return (np.abs(phis), err) if do_err else np.abs(phis)
+        if not ret_complex:
+            phis = np.abs(phis)
+        return (phis, err) if do_err else phis
     phi = np.nanmean(phis) if ret_complex else np.abs(np.nanmean(phis))
     if locl:
         return (np.abs(phis), phi, err) if do_err else (np.abs(phis), phi)
@@ -370,6 +372,20 @@ def dtheta(i, j=None, m=1, sign=False):
     return diff if sign else np.abs(diff)
 
 
+def bincount_complex(x, weights=None, minlength=0):
+    try:
+        out = np.bincount(x, weights=weights, minlength=minlength)
+    except TypeError as e:
+        if np.issubdtype(weights.dtype, complex):
+            r = np.bincount(x, weights=weights.real, minlength=minlength)
+            i = np.bincount(x, weights=weights.imag, minlength=minlength)
+            out = np.empty(r.shape, weights.dtype)
+            out.real, out.imag = r, i
+        else:
+            raise e
+    return out
+
+
 def bin_sum(r, f, bins=10):
     """Binned sum of function f(r)
 
@@ -391,9 +407,9 @@ def bin_sum(r, f, bins=10):
             r = r.astype(int)
         count = np.bincount(r)
         if multi:
-            total = [np.bincount(r, weights=fi) for fi in f]
+            total = [bincount_complex(r, weights=fi) for fi in f]
         else:
-            total = np.bincount(r, weights=f)
+            total = bincount_complex(r, weights=f)
         bins = np.arange(len(count)+1)
     else:
         count, bins = np.histogramdd(r, bins)
@@ -941,7 +957,8 @@ def pair_angles(xy_or_orient, neighbors, nmask, ang_type='absolute', margin=0):
     return (angles % tau, nmask) + ((dmask,) if margin else ())
 
 
-def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
+def pair_angle_op(angles, nmask=None, m=4,
+                  ret_complex=True, globl=False, locl=False):
     """calculate the pair-angle (bond angle) order parameter
 
     the parameter for particle i is defined as:
@@ -966,12 +983,12 @@ def pair_angle_op(angles, nmask=None, m=4, globl=False, locl=False):
         angles[nmask] = np.nan
     psims = np.nanmean(np.exp(m*angles*1j), 1)
     if not globl:
-        return np.abs(psims)
+        return psims if ret_complex else np.abs(psims)
     psim = np.nanmean(psims)
     mag = abs(psim)
     ang = phase(psim)/m
     if locl:
-        return mag, ang, psims
+        return mag, ang, (psims if ret_complex else np.abs(psims))
     return mag, ang
 
 
