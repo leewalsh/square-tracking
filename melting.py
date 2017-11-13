@@ -75,10 +75,11 @@ def load_melt_data(prefix, **kwargs):
 
     clustersets = split_clusters((data[1][:end_index], data[0][:end_index]))
     cluster_means = average_clusters(clustersets, stats+list('xy'), 'f', 1)
+    means = dict(shell_means, c=cluster_means)
 
     plot_args = make_plot_args(meta)
 
-    return (meta,) + data + frames + (shell_means, cluster_means, plot_args)
+    return (meta,) + data + frames + (means, plot_args)
 
 
 def merge_melting(prefix_pattern):
@@ -521,7 +522,7 @@ def average_clusters(clustersets, fields=None, by='f', n_clusters=None):
             vals, bins = corr.bin_average(c[by][i], c[field][i], 1)
             averaged[cid][field] = vals
             averaged[cid][by] = bins[:-1]
-    return averaged
+    return averaged if len(averaged) > 1 else averaged.popitem()[1]
 
 
 def make_plot_args(meta_or_args):
@@ -592,7 +593,7 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
         fig, ax = plt.subplots(figsize=(4, 3))
 
     for s, shell in shellsets.iteritems():
-        if s < 0:
+        if isinstance(s, basestring) or s < 0:
             continue
         if x == 'f':
             ys = shell[y]
