@@ -607,7 +607,16 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
             ax.set_ylim(plot_args['xylim'][y])
         elif x in ('dens', 'phi', 'psi'):
             xs, ys = shell[x], shell[y]
-            ax.scatter(xs*unit[x], ys*unit[y], s=0.01, **line_props[s])
+            if np.issubdtype(xs.dtype, complex):
+                xs = np.abs(xs)
+            if np.issubdtype(ys.dtype, complex):
+                ys = np.abs(ys)
+            if smooth:
+                xs = gaussian_filter1d(xs, smooth, mode='nearest', truncate=2)
+                ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
+            ax.plot(xs*unit[x], ys*unit[y],
+                       #s=0.01,
+                       **line_props[s])
         else:
             raise ValueError("Unknown x-value `{!r}`.".format(x))
 

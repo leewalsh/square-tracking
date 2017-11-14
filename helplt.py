@@ -103,7 +103,7 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
     if method == 'vline':
         line_default = dict(color='gray', linestyle='--', linewidth=0.5,
                             zorder=0.1, start=0, stop=0.68)
-        annotate_default = dict(ha='left', va='center',
+        annotate_default = dict(ha='left', va='center', annotation_clip=True,
                                 xytext=(4, 0), textcoords='offset points',
                                 xy=(x, 0.1), xycoords=('data', 'axes fraction'))
         line = dict(line_default, **(line or {}))
@@ -120,7 +120,7 @@ def mark_value(ax, x, label='', method='vline', annotate=None, line=None):
     elif method == 'axis':
         annotate_default = dict(xy=(x, 0), xycoords=('data', 'axes fraction'),
                                 xytext=(0, 9), textcoords='offset points',
-                                ha='center', va='baseline',
+                                ha='center', va='baseline', annotation_clip=True,
                                 arrowprops=dict(arrowstyle='->', lw=0.5))
     else:
         raise ValueError("Unknown method " + method)
