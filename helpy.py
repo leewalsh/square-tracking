@@ -28,6 +28,24 @@ SYSTEM, HOST, USER = None, None, None
 COMMIT = None
 
 
+class cached_property(object):
+    """
+    A property that is only computed once per instance and then replaces itself
+    with an ordinary attribute. Deleting the attribute resets the property.
+    Source: github.com/pydanny/cached-property/blob/1.3.0/cached_property.py
+    """
+
+    def __init__(self, func):
+        self.__doc__ = getattr(func, '__doc__')
+        self.func = func
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+        value = obj.__dict__[self.func.__name__] = self.func(obj)
+        return value
+
+
 def replace_all(s, old, new=''):
     """str.replace all characters or strings in `old` that appear `s` with `new`
     equivalent to `s.replace(old[0], new).replace(old[1], new)...`"""

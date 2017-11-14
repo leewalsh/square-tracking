@@ -3,24 +3,7 @@ from __future__ import division
 import numpy as np
 from math import sqrt
 import helpy
-
-class cached_property(object):
-    """
-    A property that is only computed once per instance and then replaces itself
-    with an ordinary attribute. Deleting the attribute resets the property.
-    Source: github.com/pydanny/cached-property/blob/1.3.0/cached_property.py
-    """
-
-    def __init__(self, func):
-        self.__doc__ = getattr(func, '__doc__')
-        self.func = func
-
-    def __get__(self, obj, cls):
-        if obj is None:
-            return self
-        value = obj.__dict__[self.func.__name__] = self.func(obj)
-        return value
-
+from helpy import cached_property
 
 class SimTrack(object):
     """A simulated particle track"""
