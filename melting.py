@@ -56,7 +56,7 @@ def load_melt_data(prefix, **kwargs):
 
     returns
     -------
-    (meta, data, mdata, frames, mframes, shellsets, shell_means, plot_args)
+    (meta, data, mdata, frames, mframes, means, plot_args)
     """
     meta = helpy.load_meta(prefix)
     trackargs = dict(run_repair='interp', run_track_orient=True)
@@ -82,7 +82,34 @@ def load_melt_data(prefix, **kwargs):
     return (meta,) + data + frames + (means, plot_args)
 
 
+def merge_means(means, metas):
+    """merge cluster and shell means between runs
+    """
+    from collections import defaultdict
+    merged_means = {}
+
+    for run_means, meta in zip(means, metas):
+        for s in run_means:
+            merged_means.setdefault(s, defaultdict(list))
+            for stat in run_means[s]:
+                merged_means[s][stat].append(
+                    np.abs(run_means[s][stat][int(meta['start_frame']):]))
+    merged_means.pop(-1, None) # don't keep shell -1 (not sure even what it is)
+    for s in merged_means:
+        # don't merge frame number, will just reset at start_frame --> 0
+        merged_means[s].pop('f', None)
+        for stat in merged_means[s]:
+            merged_means[s][stat] = helpy.avg_uneven(
+                merged_means[s][stat],
+                min_added=min(3, len(merged_means[s][stat])),
+            )[1]
+        merged_means[s]['f'] = np.arange(len(merged_means[s][stat]))
+    return merged_means
+
+
 def merge_melting(prefix_pattern):
+    """search for and merge datasets matching a pattern
+    """
     merged_prefix = helpy.replace_all(prefix_pattern, '*?', '') + 'MRG'
     helpy.save_log_entry(merged_prefix, 'argv')
     prefixes = [p[:-9] for p in glob.iglob(
