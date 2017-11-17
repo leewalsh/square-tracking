@@ -85,6 +85,17 @@ def circle_click(im):
 
 
 def axline(ax, orient, x, start=0, stop=1, coords='ax', **kwargs):
+    """plot straight lines; wrapper of pyplot axvline, axhline, vlines, hlines
+
+    parameters
+    ----------
+    ax:     an axes object
+    orient: orientation of line, 'h' or 'v'
+    x:      where to place the line, x-value for 'v' or y-value for 'h'
+    start, stop:    beginning and end of line
+    coords: 'ax' or 'data', coordinates for `start` and `stop`.
+    kwargs: style args
+    """
     f = ax.__getattribute__(
         {'ax': 'ax{}line', 'data': '{}lines'}[coords].format(orient)
     )
