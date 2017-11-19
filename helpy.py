@@ -1212,7 +1212,7 @@ def load_framesets(data_or_tracksets, indices='f', ret_dict=True, **tset_args):
     return splitter(tuple(data), indices, **splitargs)
 
 
-def load_trackstack(data_or_tracksets, length=None, **tset_args):
+def load_trackstack(data_or_tracksets, length=None, careful=True, **tset_args):
     """stack the tracksets into two-dimensional array
 
     parameters
@@ -1235,9 +1235,9 @@ def load_trackstack(data_or_tracksets, length=None, **tset_args):
     if length is None:
         length = min(lengths)
     # some safety checks:
-    elif length > min(lengths):
+    elif careful and length > min(lengths):
         raise ValueError("Requested length longer than provided tracks.")
-    if np.any(ts != np.arange(len(ts))):
+    if careful and np.any(ts != np.arange(len(ts))):
         raise ValueError("Missing track, cannot stack")
 
     return np.stack([tracksets[t][:length] for t in ts], axis=1)

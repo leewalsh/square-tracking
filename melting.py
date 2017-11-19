@@ -277,7 +277,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
         last = first + (data['f'][-1] - first) // 3
     print "seeking start frame between {} and {}.".format(first, last)
 
-    positions = helpy.load_trackstack(data, length=last)['xy']
+    positions = helpy.load_trackstack(data, length=last, careful=False)['xy']
     displacements = helpy.dist(positions, positions[0])
     distances = helpy.dist(np.gradient(positions, axis=0))
     ds = displacements.mean(1) * distances.mean(1)
@@ -846,7 +846,7 @@ if __name__ == '__main__':
     arg('-w', '--width', type=int, help='Crystal width')
     arg('-s', '--side', type=float,
         help='Particle size in pixels, for unit normalization')
-    arg('--start', type=float, help='First frame')
+    arg('--start', type=int, nargs='*', help='First frame')
     arg('--end', type=float, help='Last frame')
     arg('--smooth', type=float, default=0, help='frames to smooth over')
     arg('-f', '--fps', type=float,
@@ -885,6 +885,14 @@ if __name__ == '__main__':
         helpy.save_log_entry(args.prefix, 'argv')
         meta = helpy.load_meta(args.prefix)
 
+    if args.start:
+        if len(args.start) == 1:
+            args.start = args.start.pop()
+        elif len(args.start) == 2:
+            start_estimate = args.start
+            args.start = None
+    else:
+        start_estimate = None
     helpy.sync_args_meta(
         args, meta,
         'side fps start end width zoom cluster',
@@ -911,7 +919,7 @@ if __name__ == '__main__':
     data = helpy.load_data(args.prefix,
                            run_repair='interp', run_track_orient=True)
     if not args.start:
-        args.start = find_start_frame(data, plot=args.plot)
+        args.start = find_start_frame(data, bounds=start_estimate, plot=args.plot)
     if args.melt:
         print 'calculating'
         mdata, frames, mframes = melt_analysis(data, meta, args.cluster)
