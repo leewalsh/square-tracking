@@ -93,16 +93,20 @@ def merge_means(means, metas):
             merged_means.setdefault(s, defaultdict(list))
             for stat in run_means[s]:
                 merged_means[s][stat].append(
-                    np.abs(run_means[s][stat][int(meta['start_frame']):]))
+                    np.abs(run_means[s][stat][meta['start_frame']:]))
     merged_means.pop(-1, None) # don't keep shell -1 (not sure even what it is)
     for s in merged_means:
         # don't merge frame number, will just reset at start_frame --> 0
         merged_means[s].pop('f', None)
         for stat in merged_means[s]:
-            merged_means[s][stat] = helpy.avg_uneven(
-                merged_means[s][stat],
-                min_added=min(3, len(merged_means[s][stat])),
-            )[1]
+            n_means = len(merged_means[s][stat])
+            if n_means > 1:
+                merged_means[s][stat] = helpy.avg_uneven(
+                    merged_means[s][stat],
+                    min_added=min(3, n_means),
+                )[1]  # avg_uneven returns all arrays, mean, stderr
+            else:
+                merged_means[s][stat] = merged_means[s][stat][0]
         merged_means[s]['f'] = np.arange(len(merged_means[s][stat]))
     return merged_means
 
@@ -292,7 +296,7 @@ def find_start_frame(data, estimate=None, bounds=None, plot=False):
         ax.plot(f, ds, '-')
         ax.plot(f[dmi], ds[dmi], '*')
 
-    return start
+    return int(start)
 
 
 def find_ref_coords(positions):
@@ -548,7 +552,10 @@ def average_clusters(clustersets, fields=None, by='f', n_clusters=None):
             i = np.where(np.isfinite(c[field]))
             vals, bins = corr.bin_average(c[by][i], c[field][i], 1)
             averaged[cid][field] = vals
-            averaged[cid][by] = bins[:-1]
+            if by in averaged[cid]:
+                assert np.all(averaged[cid][by] == bins[:-1])
+            else:
+                averaged[cid][by] = bins[:-1]
     return averaged if len(averaged) > 1 else averaged.popitem()[1]
 
 
