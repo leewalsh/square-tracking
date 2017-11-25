@@ -21,11 +21,11 @@ import helplt
 import correlation as corr
 
 
-def initialize_mdata(data):
+def initialize_mdata(data, mdata=None):
     """melting data array to hold calculated statistics
     """
     # 'id', 'f', 't' hold the same data copied from original tracks data
-    keep_fields = ['id', 'f', 't']
+    keep_fields = ['id', 'f', 't', 'x', 'y', 'o']  # por que no los todos!?
     melt_dtype = [(name, data.dtype[name]) for name in keep_fields]
 
     new_fields = [
@@ -38,10 +38,14 @@ def initialize_mdata(data):
     ]
     melt_dtype.extend(new_fields)
 
-    mdata = np.empty(data.shape, melt_dtype)
-    for keep in keep_fields:
-        mdata[keep][:] = data[keep]
-    return mdata
+    new_mdata = np.empty(data.shape, melt_dtype)
+    for field in keep_fields:
+        new_mdata[field][:] = data[field]
+    if mdata is not None:
+        for field in new_fields:
+            new_mdata[field[0]][:] = mdata[field[0]]
+
+    return new_mdata
 
 
 def load_melt_data(prefix, **kwargs):
@@ -56,30 +60,39 @@ def load_melt_data(prefix, **kwargs):
 
     returns
     -------
-    (meta, data, mdata, frames, mframes, means, plot_args)
+    (meta, mdata, mframes, means, plot_args)
     """
     meta = helpy.load_meta(prefix)
     trackargs = dict(run_repair='interp', run_track_orient=True)
     if 'merged' in meta:
         trackargs.clear()
-    data = helpy.load_data(prefix, 't m', **trackargs)
-    frames = helpy.load_framesets(data, ret_dict=False)
+    tdata, mdata = helpy.load_data(prefix, 't m', **trackargs)
 
-    end_index = np.searchsorted(data[1]['f'], meta.get('end_frame') or np.inf)
-    shellsets = split_shells(data[1][:end_index],
+    # add x, y to mdata so we can stop toting tdata around
+    if 'x' not in mdata.dtype.names:
+        mdata = initialize_mdata(tdata, mdata)
+    if 'xy' not in mdata.dtype.names:
+        mdata = helpy.add_self_view(mdata, ('x', 'y'), 'xy')
+
+    mframes = helpy.load_framesets(mdata, ret_dict=False)
+
+    end_index = np.searchsorted(mdata['f'], meta.get('end_frame') or np.inf)
+    shellsets = split_shells(mdata[:end_index],
                              zero_to=kwargs.get('zero_to', 1),
                              do_mean=kwargs.get('do_mean', True),
                              maxshell=meta['crystal_width']//2)
     stats = kwargs.get('stats', ['rad', 'dens', 'psi', 'phi'])
     shell_means = average_shells(shellsets, stats, 'f')
 
-    clustersets = split_clusters((data[1][:end_index], data[0][:end_index]))
-    cluster_means = average_clusters(clustersets, stats+list('xy'), 'f', 1)
+    #clustersets = split_clusters(mdata[:end_index])
+    #cluster_means = average_clusters(clustersets, stats+list('xy'), 'f', 1)
+    clusterset = split_clusters(mdata[:end_index])[0]
+    cluster_means = average_cluster(clusterset, stats+list('xy'), 'f')
     means = dict(shell_means, c=cluster_means)
 
     plot_args = make_plot_args(meta)
 
-    return (meta,) + data + frames + (means, plot_args)
+    return (meta, mdata, mframes, means, plot_args)
 
 
 def merge_means(means, metas):
@@ -91,7 +104,7 @@ def merge_means(means, metas):
     for run_means, meta in zip(means, metas):
         for s in run_means:
             merged_means.setdefault(s, defaultdict(list))
-            for stat in run_means[s]:
+            for stat in run_means[s].dtype.names if s == 'c' else run_means[s]:
                 merged_means[s][stat].append(
                     np.abs(run_means[s][stat][meta['start_frame']:]))
     merged_means.pop(-1, None) # don't keep shell -1 (not sure even what it is)
@@ -108,6 +121,11 @@ def merge_means(means, metas):
             else:
                 merged_means[s][stat] = merged_means[s][stat][0]
         merged_means[s]['f'] = np.arange(len(merged_means[s][stat]))
+        if s == 'c':
+            mean = np.empty(len(merged_means[s]['f']), means[0][s].dtype)
+            for stat in merged_means[s]:
+                mean[stat][:] = merged_means[s][stat]
+            merged_means[s] = mean
     return merged_means
 
 
@@ -533,8 +551,49 @@ def average_shells(shellsets, fields=None, by='f'):
     return averaged
 
 
+def average_cluster(cluster, fields=None, by='f'):
+    """average all particles within each shell
+    frame_size = np.array(map(len, mframes[:ff]))
+    raw_cluster_size = frame_size - np.array([
+        np.count_nonzero(mframe['clust'])
+        for mframe in mframes[:ff]])
+    cluster_size = N * raw_cluster_size / frame_size
+    """
+    if fields is None:
+        fields = set(cluster.dtype.names) - set('id f t sh clust'.split())
+    dtype = [(name, cluster.dtype[name]) for name in fields + [by]]
+    bys = np.unique(cluster[by])
+    dby = bys[1] - bys[0]
+    gaps = np.where(np.diff(bys) - dby)[0]
+    ngaps = len(gaps)
+    if ngaps:
+        print 'WARNING! {} gaps at {}.. of {}'.format(ngaps, dby*gaps[:5], bys[-1])
+        stopgap = int(bys[-1]/dby + 1 if gaps[0] < bys[-1] * 0.9/dby else gaps[0])
+        print '\tkeeping up to {}'.format(stopgap)
+        print '\tbys:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
+        bys = np.arange(bys[0], stopgap*dby, dby)
+        print '\tnow:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
+        print '\t    ', cluster[by][:3], cluster[by][-3:], len(bys)
+        cluster = cluster[:np.searchsorted(cluster[by], stopgap)]
+    cluster_mean = np.empty(len(bys), dtype=dtype)
+    cluster_mean[by][:] = bys
+    for field in fields:
+        i = np.where(np.isfinite(cluster[field]))
+        #assert np.all(np.unique(cluster[by][i]) == cluster_mean[by])
+        vals, bins = corr.bin_average(cluster[by][i], cluster[field][i], 1)
+        assert np.all(cluster_mean[by] == bins[:-1])
+        cluster_mean[field][:] = vals
+    return cluster_mean
+
+
 def average_clusters(clustersets, fields=None, by='f', n_clusters=None):
-    """average all particles within each shell"""
+    """average all particles within each shell
+    frame_size = np.array(map(len, mframes[:ff]))
+    raw_cluster_size = frame_size - np.array([
+        np.count_nonzero(mframe['clust'])
+        for mframe in mframes[:ff]])
+    cluster_size = N * raw_cluster_size / frame_size
+    """
     if isinstance(clustersets, tuple):
         clustermsets, clustersets = clustersets
     if fields is None:
