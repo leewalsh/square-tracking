@@ -842,7 +842,7 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
     return ax
 
 
-def plot_regions(frame, mframe=None, vor=None, ax=None, **plot_args):
+def plot_regions(frame, vor=None, ax=None, **plot_args):
     """plot some parameter in the voronoi cells"""
     xy = helpy.quick_field_view(frame, 'xy')
     if vor is None:
@@ -857,16 +857,15 @@ def plot_regions(frame, mframe=None, vor=None, ax=None, **plot_args):
     colors = plot_args.pop('colors', 'sh')
     cmap = plt.get_cmap('Dark2' if colors in ['sh', 'clust'] else 'viridis')
     if colors in frame.dtype.names:
-        colors = cmap(norm(frame[colors]))
-    elif mframe is not None and colors in mframe.dtype.names:
+        _colors = frame[colors]*unit[colors]
+        if np.issubdtype(_colors.dtype, complex):
+            _colors = np.abs(_colors)
         if colors in ('sh', 'clust'):
             norm = helpy.identity
-            bg = np.max(mframe[colors]*unit[colors])
+            bg = np.max(_colors)
         else:
             bg = norm(0)
-        colors = mframe[colors]*unit[colors]
-        colors = norm(colors)
-        colors = cmap(colors)
+        colors = cmap(norm(_colors))
     elif np.isscalar(colors):
         colors = it.repeat(cmap(colors))
     elif len(colors) == len(frame):
@@ -1079,7 +1078,7 @@ if __name__ == '__main__' and args.plot:
             norm = matplotlib.colors.Normalize(*norm)
         for j, f in enumerate(fs):
             ax = axes[i, j]
-            plot_regions(frames[f], mframes[f], ax=ax,
+            plot_regions(frames[f], ax=ax,
                          norm=norm, colors=stat, **plot_args)
             ax.set_xticks([])
             ax.set_yticks([])
