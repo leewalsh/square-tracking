@@ -60,7 +60,7 @@ def load_melt_data(prefix, **kwargs):
 
     returns
     -------
-    (meta, mdata, mframes, means, plot_args)
+    (meta, mdata, mframes, means)
     """
     meta = helpy.load_meta(prefix)
     trackargs = dict(run_repair='interp', run_track_orient=True)
@@ -90,9 +90,7 @@ def load_melt_data(prefix, **kwargs):
     cluster_means = average_cluster(clusterset, stats+list('xy'), 'f')
     means = dict(shell_means, c=cluster_means)
 
-    plot_args = make_plot_args(meta)
-
-    return (meta, mdata, mframes, means, plot_args)
+    return (meta, mdata, mframes, means)
 
 
 def merge_means(means, metas):
@@ -121,11 +119,13 @@ def merge_means(means, metas):
             else:
                 merged_means[s][stat] = merged_means[s][stat][0]
         merged_means[s]['f'] = np.arange(len(merged_means[s][stat]))
-        if s == 'c':
-            mean = np.empty(len(merged_means[s]['f']), means[0][s].dtype)
-            for stat in merged_means[s]:
-                mean[stat][:] = merged_means[s][stat]
-            merged_means[s] = mean
+    stat_lens = helpy.dmap(len, merged_means['c'])
+    print stat_lens
+    mean_len = min(stat_lens.values())
+    mean = np.zeros(mean_len, means[0][s].dtype)
+    for stat in merged_means[s]:
+        mean[stat][:] = merged_means[s][stat][:mean_len]
+    merged_means[s] = mean
     return merged_means
 
 
@@ -553,30 +553,26 @@ def average_shells(shellsets, fields=None, by='f'):
 
 def average_cluster(cluster, fields=None, by='f'):
     """average all particles within each shell
-    frame_size = np.array(map(len, mframes[:ff]))
-    raw_cluster_size = frame_size - np.array([
-        np.count_nonzero(mframe['clust'])
-        for mframe in mframes[:ff]])
-    cluster_size = N * raw_cluster_size / frame_size
     """
     if fields is None:
         fields = set(cluster.dtype.names) - set('id f t sh clust'.split())
-    dtype = [(name, cluster.dtype[name]) for name in fields + [by]]
+    dtype = [(name, cluster.dtype[name]) for name in fields + [by, 'clust']]
     bys = np.unique(cluster[by])
     dby = bys[1] - bys[0]
     gaps = np.where(np.diff(bys) - dby)[0]
     ngaps = len(gaps)
     if ngaps:
-        print 'WARNING! {} gaps at {}.. of {}'.format(ngaps, dby*gaps[:5], bys[-1])
+        #print 'WARNING! {} gaps at {}.. of {}'.format(ngaps, dby*gaps[:5], bys[-1])
         stopgap = int(bys[-1]/dby + 1 if gaps[0] < bys[-1] * 0.9/dby else gaps[0])
-        print '\tkeeping up to {}'.format(stopgap)
-        print '\tbys:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
+        #print '\tkeeping up to {}'.format(stopgap)
+        #print '\tbys:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
         bys = np.arange(bys[0], stopgap*dby, dby)
-        print '\tnow:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
-        print '\t    ', cluster[by][:3], cluster[by][-3:], len(bys)
+        #print '\tnow:', bys[:3], bys[stopgap-3:stopgap], bys[-3:], len(bys)
+        #print '\t    ', cluster[by][:3], cluster[by][-3:], len(bys)
         cluster = cluster[:np.searchsorted(cluster[by], stopgap)]
     cluster_mean = np.empty(len(bys), dtype=dtype)
     cluster_mean[by][:] = bys
+    cluster_mean['clust'][:] = np.bincount(cluster['f'])
     for field in fields:
         i = np.where(np.isfinite(cluster[field]))
         #assert np.all(np.unique(cluster[by][i]) == cluster_mean[by])
@@ -635,7 +631,7 @@ def make_plot_args(meta_or_args):
         rad = None
 
     plot_args = {
-        'line_props': helpy.transpose_dict_of_lists({
+        'shell_props': helpy.transpose_dict_of_lists({
             'label': ['center', 'inner'] + range(2, M) + ['outer', 'all'],
             'c':    map(plt.get_cmap('Dark2'), xrange(M+1)) + ['black'],
             'lw':   [1]*(M+1) + [2],
@@ -646,6 +642,7 @@ def make_plot_args(meta_or_args):
             'dens': r'density $\langle r_{ij}\rangle^{-2}$',
             'psi':  r'bond angle order $\Psi$',
             'phi':  r'molecular angle order $\Phi$',
+            'clust': 'cluster size',
         },
         'xylim': {
             'f':    (-25,
@@ -655,6 +652,7 @@ def make_plot_args(meta_or_args):
             'dens': (0, 1.1),
             'phi':  (0, 1.1),
             'psi':  (0, 1.1),
+            'clust':(0, meta['crystal_width']**2),
         },
         'unit': {
             'f':    1/fps,
@@ -679,7 +677,7 @@ def make_plot_args(meta_or_args):
 
 
 def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
-    line_props = plot_args.get('line_props', [{}]*len(shellsets))
+    shell_props = plot_args.get('shell_props', [{}]*len(shellsets))
     unit = plot_args.get('unit', {x: 1, y: 1})
     ax = plot_args.get('ax')
     if ax is None:
@@ -695,7 +693,7 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
             xs = shell[x] - start
             if smooth:
                 ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
-            ax.plot(xs*unit[x], ys*unit[y], **line_props[s])
+            ax.plot(xs*unit[x], ys*unit[y], **shell_props[s])
             ax.set_xlim(plot_args['xylim'][x])
             ax.set_ylim(plot_args['xylim'][y])
         elif x in ('dens', 'phi', 'psi'):
@@ -709,7 +707,7 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
                 ys = gaussian_filter1d(ys, smooth, mode='nearest', truncate=2)
             ax.plot(xs*unit[x], ys*unit[y],
                        #s=0.01,
-                       **line_props[s])
+                       **shell_props[s])
         else:
             raise ValueError("Unknown x-value `{!r}`.".format(x))
 
