@@ -81,7 +81,7 @@ def load_melt_data(prefix, **kwargs):
                              zero_to=kwargs.get('zero_to', 1),
                              do_mean=kwargs.get('do_mean', True),
                              maxshell=meta['crystal_width']//2)
-    stats = kwargs.get('stats', ['rad', 'dens', 'psi', 'phi'])
+    stats = kwargs.get('stats', ['dens', 'psi', 'phi'])
     shell_means = average_shells(shellsets, stats, 'f')
 
     #clustersets = split_clusters(mdata[:end_index])
@@ -89,6 +89,14 @@ def load_melt_data(prefix, **kwargs):
     clusterset = split_clusters(mdata[:end_index])[0]
     cluster_means = average_cluster(clusterset, stats+list('xy'), 'f')
     means = dict(shell_means, c=cluster_means)
+
+    # fix 'rad' to be from center of mass of cluster
+    com = helpy.consecutive_fields_view(cluster_means, 'xy')
+    end_index = np.searchsorted(mdata['f'], len(cluster_means))
+    mdata['rad'][:end_index] = helpy.dist(
+        mdata[:end_index]['xy'],        # xy positions
+        com[mdata[:end_index]['f']]     # c.o.m. at frame of positions
+    )
 
     return (meta, mdata, mframes, means)
 
@@ -638,11 +646,11 @@ def make_plot_args(meta_or_args):
         }),
         'xylabel': {
             'f':    r'$t \, f$',
-            'rad':  r'radial distance $r - \langle r \rangle$',
-            'dens': r'density $\langle r_{ij}\rangle^{-2}$',
-            'psi':  r'bond angle order $\Psi$',
-            'phi':  r'molecular angle order $\Phi$',
-            'clust': 'cluster size',
+            'rad':  r'radial dist $r - \langle r \rangle$',
+            'dens': r'dilatancy $\sigma = \langle r_{ij}\rangle^{-2}$',
+            'psi':  r'bond-orient $\Psi$',
+            'phi':  r'molec orient $\Phi$',
+            'clust': 'cluster size $N$',
         },
         'xylim': {
             'f':    (-25,
@@ -724,6 +732,10 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     if ax is None:
         fig, ax = plt.subplots()
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
+    if np.issubdtype(xs.dtype, complex):
+        xs = np.abs(xs)
+    if np.issubdtype(ys.dtype, complex):
+        ys = np.abs(ys)
     hexbin_args = plot_args.get('hexbin', {})
     if hexbin_args.get('marginals'):
         bins = hexbin_args.get('gridsize', 100)
