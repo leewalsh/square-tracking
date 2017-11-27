@@ -535,10 +535,11 @@ def plot_boundary(boundary, margin=0, ax=None,
 
     ax.set_aspect('equal')
     if set_lim:
-        w0, w = bndc[0] - bndr + margin, bndc[0] + bndr - margin
-        h0, h = bndc[1] - bndr + margin, bndc[1] + bndr - margin
-        ax.set_xlim(w0, w)
-        ax.set_ylim(h0, h)
+        w = bndr - margin
+        if set_lim == 'inscribe':
+            w /= sqrt(2)
+        ax.set_xlim(bndc[0] - w, bndc[0] + w)
+        ax.set_ylim(bndc[1] - w, bndc[1] + w)
 
     return bnds
 
