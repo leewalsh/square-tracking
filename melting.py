@@ -660,7 +660,7 @@ def make_plot_args(meta_or_args):
             'dens': (0, 1.1),
             'phi':  (0, 1.1),
             'psi':  (0, 1.1),
-            'clust':(0, meta['crystal_width']**2),
+            'clust':(0, 1.1*meta['crystal_width']**2),
         },
         'unit': {
             'f':    1/fps,
