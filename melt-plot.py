@@ -1,147 +1,126 @@
-"""Plot global mean vs time from each configuration."""
-
 save = False
-# 1 - edge inward, with timescale and background levels marked, colored by size, cluster size
-stats = ['phi', 'psi', 'dens', 'rad','clust']
-nruns = 5
-config_names = [('pdms', 'in', n) for n in range(7, 12)]
-xmax = 1200
-vary = 'W'
-## 2 - all 11x1, with timescale marked
-#stats = ['phi', 'psi', 'dens', 'clust']
-#nruns = 4
-#config_names = [('pdms', 'in', 11), ('pdms', 'rand', 11), ('lego', '', 11)]
-#xmax = 1200
-#vary = 'arrange'
-## 3 - edge inward, with timescale marked, phi-psi parametric
-#stats = ['phi', 'psi', 'psi/phi']
-#nruns = 5
-#config_names = [('pdms', 'in', n) for n in range(7,12)]
-#xmax = 680
-#vary = 'W'
-## 4 - edge random, with timescale marked, cluster size
-#stats = ['phi', 'psi', 'dens', 'rad', 'clust']
-#nruns = 2
-#config_names = [('pdms', 'rand', n) for n in range(7,12)]
-#xmax = 200
-#vary = 'W'
 
-ncols, nrows = nruns + 1, len(stats)
-figsize = np.array(plt.rcParams['figure.figsize'])*3/4.
-figsize *= [ncols, nrows]
+params = dict(
+    stat = [
+#         'phi', 'psi', 'dens', 'clust',
+#         'phi', 'psi',
+        'dens', 'clust',
+#         'clust'
+#         'phi/dens', 'psi/dens', 'psi/phi',
+#         'phi/dens',
+#         'phi/psi',
+    ],
+    W = range(7, 12),
+    arrange = ('in', 'rand', ''),
+)
+rescale = False and ('phi' in params['stat'] or 'psi' in params['stat'])
 
-fig, axeses = plt.subplots(figsize=figsize, squeeze=False,
-                           ncols=ncols, nrows=nrows,
-                           sharex='row', sharey='row',
-                           dpi=120,
-                          )
+columns_by = 'W'
+rows_by = 'stat'
+color_by = 'arrange'
 
-for config in config_names:
-    print config
-    config = config_dict[config]
-    runs = ['MRG'] + range(1, 1+min(config['runs'], nruns))
-    N = config['W']**2
+nruns = 5  # maximum number of runs shown, 0 for MRG only
 
-    for run, axes in zip(runs, axeses.T):
-        print str(run).center(3),
-        loaded = load_melting_stuff(run=run, **config)
-        prefix, meta, mdata, mframes, means, plot_args_orig = loaded
-        plot_args = plot_args_orig.copy()
+save_name = '_'.join(filter(None, [
+    'parametric'*any('/' in stat for stat in params['stat']),
+    'decays'*any('/' not in stat for stat in params['stat']),
+    'timescaled'*rescale,
+    'by_{}'.format({'W': 'size', 'arrange': 'config'}[color_by]),
+    str(params[columns_by][0]) if len(params[columns_by]) == 1 else None,
+    'MRG'*(nruns == 0),
+]))
 
-        color = colors[config[vary]]
+ncols = len(params[columns_by])
+nrows = len(params[rows_by])
 
-        line_props = {
-            'c': color,
-            'label': config['label'],
-            'lw': 1,
-        }
+figsize = np.array(plt.rcParams['figure.figsize'])
+if all('/' in stat for stat in params['stat']):
+    figsize = figsize.mean(keepdims=True)
+figsize = figsize * [ncols, nrows]
 
-        axes[0].set_title("run {}".format(run))
+fig, axeses = plt.subplots(
+    figsize=figsize, squeeze=False,
+    ncols=ncols, nrows=nrows,
+    #sharex='row', sharey='row',
+    dpi=120,
+)
 
-        fs = means['c']['f']
-        f0 = meta['start_frame']
-        ff = meta.get('end_frame') or len(fs)
-        ts = (fs[:ff] - f0)/meta['fps']
-        pos_ts = fs[:ff-f0]/meta['fps']
+square_stats = ('phi', 'psi', 'dens')
 
-        for stat, ax in zip(stats, axes):
+# loops must go in order: config, run, stat;
+# config may be two loops (two criteria: size & arrangement, e.g.)
+# but can loop through axes (cols, rows) in any order.
+
+# loop data through config_filters
+# loop axes through columns
+for col_by, axes_col in zip(params[columns_by], axeses.T):
+    print '\n' + '='*30 + 'NEW COLUMN'.center(12) + '='*30
+    axes_col[0].set_title(labels[col_by])
+    config_filter = {'particle': ['pdms', 'lego'], columns_by: col_by}
+    config_timescales = filter_timescales(**config_filter)
+    times = helpy.consecutive_fields_view(config_timescales, ['phi', 'psi'])
+    tmax = 2.5 * np.percentile(times, 80)
+
+    # loop data through configs
+    for config in filter_configs(config_filter):
+        print config,
+        runs = range(1, 1+min(config['runs'], nruns)) + ['MRG']
+
+        # loop data through runs
+        for run in runs:
+            timescale = filter_timescales(run=run, **config)
+            print str(run).center(3),
+            loaded = load_melting_stuff(run=run, **config)
+            prefix, meta, mdata, mframes, means = loaded
+            plot_args = melt.make_plot_args(meta)
+
+            plot_args['line_props'] = {
+                'c': colors[config[color_by[0]]],
+                'label': labels[config[color_by[0]]],
+                'lw': 1.5,
+                'alpha': 1,
+            } if run == 'MRG' else {
+                'c': colors[config[color_by[0]]],
+                'label': None,
+                'lw': 0.5,
+                'alpha': 0.25,
+            }
+
+            # loop data through rows_by
+            # loop axes through rows
+            for row_val, ax in zip(params[rows_by], axes_col):
+                #print '\n' + '-'*30 + 'NEW ROW'.center(12) + '-'*30
+                y, x = (stat.split('/') + ['f'])[:2]
+                smooth = xscale = 1
+                xlabel = xlim = None
+                if x == 'f':
+                    xlabel = r'time $t \, f$'
+                    end_index = None
+                    xlim = None, tmax
+                    if rescale and y in 'phi psi':
+                        xscale = timescale[y]
+                        xlabel = r'rescaled time $t / \tau_\{}$'.format(y)
+                        smooth = max(1, xscale/50)
+                        xlim = -0.1, 3.1
+                elif x in square_stats and y in square_stats:
+                    ax.set_aspect('equal', adjustable='box-forced')
+                    end_index = int(1.2*(timescale['phi']+timescale['psi'])*meta['fps'])
+                else:
+                    raise ValueError('cannot plot {} vs {}'.format(y, x))
+
+                plot_by_cluster(means['c'][:end_index], x, y, meta, ax=ax,
+                                smooth=smooth, xscale=xscale, **plot_args)
+                if xlim:
+                    ax.set_xlim(xlim)
+                if xlabel:
+                    ax.set_xlabel(xlabel)
         print
 
-fig.tight_layout(h_pad=0, w_pad=0)
-
+fig.tight_layout(pad=1.1, h_pad=0, w_pad=0)
 if save:
-    save_name = savedir + 'configs_dens_rad_v_time.pdf'
+    save_name = savedir + save_name + '.pdf'
     print 'saving to', save_name
     fig.savefig(save_name, bbox_inches='tight', pad_inches=0)
-    #plt.close(fig.number)
 
-
-def plot_by_cluster(x, y, meta, **plot_args):
-    line_props = plot_args.get('line_props', {})
-    unit = plot_args.get('unit', {x: 1, y: 1})
-    ax = plot_args.get('ax')
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 3))
-    smooth = meta['fps']
-
-    xs = cluster_means[x]
-    ys = cluster_means[y]
-    if x == 'f':
-        xs = xs - meta['start_frame']
-    xs, ys = [np.abs(v) if np.issubdtype(v.dtype, complex) else v for v in [xs, ys]]
-    if smooth:
-        xs, ys = gaussian_filter1d([xs, ys], smooth, mode='nearest', truncate=2, axis=1)
-
-    ax.plot(xs*unit[x], ys*unit[y], **line_props)
-    ax.set_xlim(plot_args['xylim'][x])
-    ax.set_ylim(plot_args['xylim'][y])
-
-    ax.legend(fontsize='small')
-    ax.set_xlabel(plot_args['xylabel'][x])
-    ax.set_ylabel(plot_args['xylabel'][y])
-    ax.grid(True)
-
-def plot_timescale_calculation():
-    min_size = 16
-    cluster_death = (ys < min_size).argmax() or ys.argmin()
-    cluster_min = ys[cluster_death]
-    helplt.axline(ax, 'h', min_size, coords='ax', color='k', lw=2, zorder=0.5)
-    helplt.axline(ax, 'h', cluster_min, stop=ts[cluster_death], coords='data', color=color)
-    helplt.axline(ax, 'v', ts[cluster_death], stop=cluster_min, coords='data', color=color)
-    ax.set_ylabel('cluster size')
-
-    if x == 'f' and y in ('phi', 'psi'):
-        style = dict(linestyle=':', color=color)
-        op = np.abs(means['c'][y])[f0:ff]
-        nans = np.isnan(op)
-        if nans.any():
-            first_nan = nans.nonzero()[0][0]
-            op = op[:first_nan]
-        t = pos_ts[:len(op)]
-
-        op_bg = random_orient_OP(y, N=N)
-        timescale = curve.decay_scale(op - op_bg, x=1/meta['fps'], method='mean', smooth='', rectify=False)
-        assert np.all(np.isfinite(timescale)), 'timescale not finite'
-        helplt.mark_value(ax, timescale, str(int(round(timescale))), method='vline', line=dict(style, stop=1))#, annotate=dict(xy=(timescale, .9)))
-        ax.plot(t, np.ones_like(op)*op_bg, **style)
-        print '\t', y, '{:4d}'.format(int(round(timescale))),
-
-        op_bg = random_orient_OP(y, N=raw_cluster_size[f0:f0+len(op)])
-        timescale = curve.decay_scale(op - op_bg, x=1/meta['fps'], method='mean', smooth='', rectify=False)
-        style['linestyle'] = '--'
-        helplt.mark_value(ax, timescale, 0*str(int(round(timescale))), method='vline', line=dict(style, stop=1))#, annotate=dict(xy=(timescale, .9)))
-        ax.plot(t, np.ones_like(op)*op_bg, **style)
-        print '{:4d}'.format(int(round(timescale))),
-
-        if cluster_death - f0 < len(op):
-            timescale = curve.decay_scale((op - op_bg)[:cluster_death-f0], x=1/meta['fps'], method='mean', smooth='', rectify=False)
-            style['linestyle'] = '-'
-            helplt.axline(ax=ax, coords='data', orient='v', x=t[cluster_death-f0], **style)
-            helplt.mark_value(ax, timescale, 0*str(int(round(timescale))), method='vline', line=dict(style, stop=1))#, annotate=dict(xy=(timescale, .9)))
-            print '{:4d}'.format(int(round(timescale))), '[{:4.0f}]'.format(t[cluster_death-f0]),
-        else:
-            print "cluster lives {:4.0f} > {:4.0f}".format((cluster_death-f0)/meta['fps'], t[-1]),
-
-        ax.set_xlim(None, xmax)
-    if stat == 'rad':
-        ax.set_ylim(1, 14)
+plt.show()
+plt.close(fig)
