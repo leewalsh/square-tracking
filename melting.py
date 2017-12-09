@@ -645,9 +645,9 @@ def make_plot_args(meta_or_args):
             'lw':   [1]*(M+1) + [2],
         }),
         'xylabel': {
-            'f':    r'$t \, f$',
+            'f':    r'time $t \, f$',
             'rad':  r'radial dist $r - \langle r \rangle$',
-            'dens': r'dilatancy $\sigma = \langle r_{ij}\rangle^{-2}$',
+            'dens': r'dilatancy $\Sigma$',
             'psi':  r'bond-orient $\Psi$',
             'phi':  r'molec orient $\Phi$',
             'clust': 'cluster size $N$',
