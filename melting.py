@@ -18,6 +18,7 @@ from matplotlib.collections import LineCollection
 
 import helpy
 import helplt
+import curve
 import correlation as corr
 
 
@@ -746,6 +747,9 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
             # normed=True,
             range=[[np.nanmin(xs), np.nanmax(xs)],
                    [np.nanmin(ys), np.nanmax(ys)]])
+        if x == 'rad':
+            # normalize counts, since dA ~ r dr)
+            counts /= curve.bin_mid(xbins)[:, None]
         xi = np.digitize(np.nan_to_num(xs), xbins, True)
         yi = np.digitize(np.nan_to_num(ys), ybins, True)
         zs = np.where(np.isnan(xi) | np.isnan(yi), np.nan, counts[xi-1, yi-1])
