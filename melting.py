@@ -697,7 +697,7 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
             continue
         if x == 'f':
             ys = shell[y]
-            if np.issubdtype(ys.dtype, complex):
+            if np.issubdtype(ys.dtype, np.complexfloating):
                 ys = np.abs(ys)
             xs = shell[x] - start
             if smooth:
@@ -707,9 +707,9 @@ def plot_by_shell(shellsets, x, y, start=0, smooth=0, zoom=1, **plot_args):
             ax.set_ylim(plot_args['xylim'][y])
         elif x in ('dens', 'phi', 'psi'):
             xs, ys = shell[x], shell[y]
-            if np.issubdtype(xs.dtype, complex):
+            if np.issubdtype(xs.dtype, np.complexfloating):
                 xs = np.abs(xs)
-            if np.issubdtype(ys.dtype, complex):
+            if np.issubdtype(ys.dtype, np.complexfloating):
                 ys = np.abs(ys)
             if smooth:
                 xs = gaussian_filter1d(xs, smooth, mode='nearest', truncate=2)
@@ -733,9 +733,9 @@ def plot_parametric_hist(mdata, x, y, ax=None, **plot_args):
     if ax is None:
         fig, ax = plt.subplots()
     xs, ys = mdata[x]*unit[x], mdata[y]*unit[y],
-    if np.issubdtype(xs.dtype, complex):
+    if np.issubdtype(xs.dtype, np.complexfloating):
         xs = np.abs(xs)
-    if np.issubdtype(ys.dtype, complex):
+    if np.issubdtype(ys.dtype, np.complexfloating):
         ys = np.abs(ys)
     hexbin_args = plot_args.get('hexbin', {})
     if hexbin_args.get('marginals'):
@@ -874,7 +874,7 @@ def plot_regions(frame, vor=None, ax=None, **plot_args):
     cmap = plt.get_cmap('Dark2' if colors in ['sh', 'clust'] else 'viridis')
     if colors in frame.dtype.names:
         _colors = frame[colors]*unit[colors]
-        if np.issubdtype(_colors.dtype, complex):
+        if np.issubdtype(_colors.dtype, np.complexfloating):
             _colors = np.abs(_colors)
         if colors in ('sh', 'clust'):
             norm = helpy.identity

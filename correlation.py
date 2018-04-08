@@ -376,7 +376,7 @@ def bincount_complex(x, weights=None, minlength=0):
     try:
         out = np.bincount(x, weights=weights, minlength=minlength)
     except TypeError as e:
-        if np.issubdtype(weights.dtype, complex):
+        if np.issubdtype(weights.dtype, np.complexfloating):
             r = np.bincount(x, weights=weights.real, minlength=minlength)
             i = np.bincount(x, weights=weights.imag, minlength=minlength)
             out = np.empty(r.shape, weights.dtype)
