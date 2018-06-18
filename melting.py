@@ -861,8 +861,6 @@ def plot_spatial(frame, mframe, vor=None, tess=None, ax=None, **kw):
 def plot_regions(frame, vor=None, ax=None, **plot_args):
     """plot some parameter in the voronoi cells"""
     xy = helpy.quick_field_view(frame, 'xy')
-    if vor is None:
-        vor = Voronoi(xy)
     xyo = helpy.consecutive_fields_view(frame, 'xyo')
     # convert to i, j (row, col) coordinates to match image version:
     # (x, y, o) = (y, x, pi/2 - o)
@@ -896,14 +894,11 @@ def plot_regions(frame, vor=None, ax=None, **plot_args):
 
     ax.set_facecolor(cmap(bg))
 
-    patch_args = dict(edgecolor='k', zorder=0.5)
+    patch_args = dict(edgecolor='k', zorder=0.5, alpha=0.5)
     quiver_args = dict(edgecolor='none', side=1/unit['rad'], zorder=2)
     scatter_args = dict(c=colors, edgecolors='k', zorder=1)
 
-    patches = [
-        ax.fill(*vor.vertices[vor.regions[j]].T, fc=colors[i], **patch_args)
-        for i, j in enumerate(vor.point_region) if -1 not in vor.regions[j]
-    ]
+    patches, vor = helplt.plot_voronoi(vor, xy, colors, ax, **patch_args)
     helplt.plot_orientations(yxo, ax=ax, **quiver_args)
     scatter = ax.scatter(*vor.points.T, **scatter_args)
 

@@ -1733,7 +1733,7 @@ def find_tiffs(path='', prefix='', meta='', frames='', single=False,
                load=False, verbose=False, maxsize=100e6):
     meta = meta or load_meta(prefix)
     path = path or meta.get('path_to_tiffs', prefix)
-    path = drive_path(path, both=True)
+    path = drive_path(path, both=False)[1]
     if frames in (0, '0', 1, '1'):
         single = True
         frames = 0

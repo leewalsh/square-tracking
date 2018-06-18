@@ -545,10 +545,12 @@ def plot_boundary(boundary, margin=0, ax=None,
 
 
 def plot_background(bgimage, ppi=109, boundary=None, cut_margin=None,
-                    ax=None, verbose=False):
+                    transpose=False, ax=None, verbose=False):
     """plot the background image and size appropriately"""
     if isinstance(bgimage, basestring):
         bgimage = plt.imread(bgimage)
+    if transpose:
+        bgimage = bgimage.T
 
     if boundary is None:
         h, w = bgimage.shape
@@ -669,3 +671,32 @@ def plot_tracks(data, bgimage=None, style='t', slice=None, cmap='Set3',
         fig.savefig(save, frameon=False, dpi=300)
 
     return p
+
+
+def plot_voronoi(vor=None, xy=None, colors=None, ax=None, **patch_args):
+    """ Plot voronoi patches from an existing spatial.Voronoi object or xy positions
+
+    parameters
+    ----------
+    vor:    instance of spatial.Voronoi object
+    xy:     Nx2 array of positions from which to create Voronoi.
+    ax :    provide an axes to plot in
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    if vor is None:
+        try:
+            vor = spatial.Voronoi(xy)
+        except NameError as e:
+            try:
+                vor = Voronoi(xy)
+            except NameError as e:
+                from scipy import spatial
+                vor = spatial.Voronoi(xy)
+    patches = [
+        ax.fill(*vor.vertices[vor.regions[j]].T, fc=colors[i], **patch_args)
+        for i, j in enumerate(vor.point_region) if -1 not in vor.regions[j]
+    ]
+    return patches, vor
